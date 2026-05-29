@@ -1,10 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from models.request_models import SummaryRequest
-from services.prompt_service import (
-    build_summary_prompt,
-    build_synthesis_prompt
-)
+from services.prompt_service import build_summary_prompt
 from services.mistral_service import stream_summary
 from services.chunk_service import chunk_text
 from utils.cleaner import clean_text
@@ -32,14 +29,18 @@ async def summarize(data: SummaryRequest):
             partial_summary = ""
             for token in stream_summary(prompt):
                 partial_summary += token
-            partial_summary = partial_summary.strip()
-            chunk_summaries.append(partial_summary)
-        combined_summary = "\n".join(chunk_summaries)
-        synthesis_prompt = build_synthesis_prompt(
-            combined_summary
+            print(f"Finished chunk {index + 1}")
+            chunk_summaries.append(
+                partial_summary.strip()
+            )
+        print("All chunks summarized")
+
+        combined_summary = "\n\n".join(
+            chunk_summaries
         )
-        for token in stream_summary(synthesis_prompt):
-            yield token
+        print("Returning combined summary")
+        yield combined_summary
+
     return StreamingResponse(
         generate(),
         media_type="text/plain"

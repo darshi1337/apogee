@@ -14,9 +14,3 @@ def build_summary_prompt(title, url, content, mode):
         url=url,
         content=content
     )
-
-def build_synthesis_prompt(combined_summary):
-    template = load_prompt("synthesize")
-    return template.format(
-        combined_summary=combined_summary
-    )

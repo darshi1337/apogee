@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Apogee",
+  "version": "0.1.0",
+  "permissions": [
+    "activeTab", "scripting"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/content.js"]
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "apogee@darshi.dev"
+    }
+  }
+}

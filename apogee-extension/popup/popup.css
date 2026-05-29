@@ -1,0 +1,22 @@
+body {
+    width: 400px;
+    padding: 12px;
+    font-family: Arial, sans-serif;
+}
+
+button {
+    width: 100%;
+    padding: 10px;
+    cursor: pointer;
+}
+
+#status {
+    margin-top: 10px;
+}
+
+#output {
+    margin-top: 10px;
+    white-space: pre-wrap;
+    max-height: 500px;
+    overflow-y: auto;
+}
