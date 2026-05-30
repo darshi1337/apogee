@@ -1,6 +1,27 @@
+console.log("chrome =", typeof chrome);
+console.log("chrome.storage =", chrome?.storage);
+
 const button = document.getElementById("summarizeBtn");
 const status = document.getElementById("status");
 const output = document.getElementById("output");
+
+document.addEventListener(
+    "DOMContentLoaded",
+    async () => {
+
+        const [tab] = await chrome.tabs.query({
+            active: true,
+            currentWindow: true
+        });
+        const cached = await chrome.storage.local.get(
+            tab.url
+        );
+        if (cached[tab.url]) {
+            output.textContent = cached[tab.url];
+            status.textContent = "Loaded from cache";
+        }
+    }
+);
 
 button.addEventListener("click", async () => {
 
@@ -50,7 +71,12 @@ button.addEventListener("click", async () => {
                     console.log("TEXT RECEIVED");
                     console.log(text);
                     output.textContent = text;
+                    await chrome.storage.local.set({
+                        [pageData.url]: text
+                    });
                     status.textContent = "Done";
+
+status.textContent = "Done";
 
                 } catch (error) {
                     console.error(error);
