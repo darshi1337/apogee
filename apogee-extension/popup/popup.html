@@ -1,11 +1,48 @@
-<h2>Apogee</h2>
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
 
-<button id="summarizeBtn">
-    Summarize Page
-</button>
+    <div id="homeView">
+        <div class="header">
+            <div class="logo">
+                Apogee
+            </div>
+        </div>
+        <button id="summarizeBtn">
+            Summarize this page
+        </button>
+        <input
+            id="questionInput"
+            placeholder="Ask Apogee a question"
+        />
+        <div id="status"></div>
+    </div>
 
-<div id="status"></div>
+    <div
+        id="summaryView"
+        class="hidden"
+    >
+        <div class="header">
+            <div class="logo">
+                Apogee
+            </div>
+            <button id="backBtn">
+                ←
+            </button>
+        </div>
+        <div id="summaryCard">
+            <pre id="output"></pre>
+        </div>
+        <input
+            id="followupInput"
+            placeholder="Ask Apogee"
+        />
+    </div>
 
-<pre id="output"></pre>
+    <script src="popup.js"></script>
 
-<script src="popup.js"></script>
+</body>
+</html>
