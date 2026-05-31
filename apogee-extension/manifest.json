@@ -14,12 +14,21 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content/content.js"]
+      "js": [
+        "content/Readability.js",
+        "content/extractors/generic.js",
+        "content/extractors/youtube.js",
+        "content/extractors/gmail.js",
+        "content/content.js"
+      ]
     }
   ],
   "browser_specific_settings": {
     "gecko": {
       "id": "apogee@darshi.dev"
     }
+  },
+  "background": {
+    "scripts": ["background.js"]
   }
 }

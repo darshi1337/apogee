@@ -48,48 +48,68 @@ button.addEventListener("click", async () => {
                     console.log("Page data:");
                     console.log(pageData);
                     status.textContent = "Summarizing...";
-                    const response = await fetch(
-                        "http://127.0.0.1:8000/summarize",
+                    console.log("PAGE DATA");
+                    console.log(pageData);
+                    console.log("URL:", pageData.url);
+                    console.log("TITLE:", pageData.title);
+                    console.log(
+                        "CONTENT:",
+                        pageData.content?.slice(0, 500)
+                    );
+                    chrome.runtime.sendMessage(
                         {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json"
-                            },
-                            body: JSON.stringify({
+                            action: "summarize",
+                            data: {
                                 title: pageData.title,
                                 url: pageData.url,
                                 content: pageData.content,
                                 mode: "concise"
-                            })
+                            }
+                        },
+                        async (response) => {
+                            console.log(
+                                "BACKGROUND RESPONSE:"
+                            );
+                            console.log(response);
+                            if (!response) {
+                                status.textContent =
+                                    "Error";
+                                output.textContent =
+                                    "No response from background.js";
+                                return;
+                            }
+                            if (!response.success) {
+                                throw new Error(
+                                    response.error
+                                );
+                            }
+                            const text = response.summary;
+                            output.textContent = text;
+                            await chrome.storage.local.set({
+                                [pageData.url]: text
+                            });
+                            homeView.classList.add(
+                                "hidden"
+                            );
+                            summaryView.classList.remove(
+                                "hidden"
+                            );
+                            status.textContent =
+                                "Done";
                         }
                     );
-                    console.log("Response received");
-                    console.log(response.status);
-                    if (!response.ok) {
-                        throw new Error(
-                            `Backend returned ${response.status}`
-                        );
-                    }
-                    const text = await response.text();
-                    console.log("TEXT RECEIVED");
-                    console.log(text);
-                    output.textContent = text;
-                    await chrome.storage.local.set({
-                        [pageData.url]: text
-                    });
-                    homeView.classList.add("hidden");
-                    summaryView.classList.remove("hidden");
-                    status.textContent = "Done";
                 } catch (error) {
                     console.error(error);
                     status.textContent = "Error";
-                    output.textContent = error.message;
+                    output.textContent =
+                        error.message;
                 }
             }
         );
     } catch (error) {
         console.error(error);
         status.textContent = "Error";
-        output.textContent = error.message;
+        output.textContent =
+            error.message;
     }
 });
