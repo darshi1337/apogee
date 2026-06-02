@@ -1,83 +1,294 @@
-body {
-    width: 350px;
+@font-face {
+    font-family: "ClashDisplay";
+    src: url("../assets/fonts/ClashDisplay-Medium.otf")
+        format("opentype");
+}
+
+@font-face {
+    font-family: "Metropolis";
+    src: url("../assets/fonts/Metropolis-Regular.otf")
+        format("opentype");
+    font-weight: 400;
+}
+
+@font-face {
+    font-family: "Metropolis";
+    src: url("../assets/fonts/Metropolis-Medium.otf")
+        format("opentype");
+    font-weight: 500;
+}
+
+@font-face {
+    font-family: "Metropolis";
+    src: url("../assets/fonts/Metropolis-Bold.otf")
+        format("opentype");
+    font-weight: 700;
+}
+
+@font-face {
+    font-family: "Mozilla_Text";
+    src: url("../assets/fonts/MozillaText-Bold.ttf")
+        format("opentype");
+    font-weight: 700;
+}
+
+* {
     margin: 0;
     padding: 0;
-    font-family: Inter, sans-serif;
-    background: #ffffff;
+    box-sizing: border-box;
 }
 
 .hidden {
     display: none;
 }
 
-#homeView,
-#summaryView {
-    padding: 16px;
+body {
+    width: 342px;
+    background: #ffffff;
+    font-family:
+        "Metropolis",
+        sans-serif;
+}
+
+.container {
+
+    padding-bottom: 16px;
 }
 
 .header {
+    height: 68px;
+    padding: 0 16px;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
+    justify-content: space-between;
+    background: white;
+    border-bottom: 1px solid #e4e4e4;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .logo {
-    font-size: 24px;
+    width: 45px;
+    height: 45px;
+}
+
+.brand-name {
+    font-family: "Mozilla_Text", sans-serif;
     font-weight: 700;
+    font-size: 25px;
+    font-weight: bold;
+    color: #2A374D;
 }
 
-#summarizeBtn {
-    width: 100%;
-    padding: 12px;
+.header-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.icon-btn {
     border: none;
-    border-radius: 10px;
-    background: #f4f0ff;
+    background: transparent;
     cursor: pointer;
-    font-size: 14px;
-    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-#summarizeBtn:hover {
-    background: #ece6ff;
+.icon-btn img {
+    width: 24px;
+    height: 24px;
 }
 
-#questionInput,
-#followupInput {
+.summary-card {
+    margin: 15px;
+    padding: 15px;
+    background: #F3F3F3;
+    border-radius: 5px;
+}
+
+.summary-card h2 {
+    font-family: "Metropolis";
+    font-weight: bold;
+    font-size: 15px;
+    color: #4a4a4a;
+    margin-bottom: 10px;
+}
+
+.summary-card p {
+    font-size: 14.5px;
+    line-height: 1.35;
+    color: #595656;
+}
+
+.prompts {
+    margin: 0 15px;
+    margin-top: 10px;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     width: 100%;
-    margin-top: 10px;
-    padding: 10px;
-    border-radius: 10px;
-    border: 1px solid #ddd;
-    box-sizing: border-box;
 }
 
-#status {
-    margin-top: 10px;
+.prompt-card {
+    width: 100%;
+    text-align: left;
+    padding: 9px;
+    background: white;
+    border: 1px solid #827FFF;
+    border-radius: 5px;
+    font-family: Metropolis;
+    font-weight: 500;
     font-size: 13px;
-    color: #666;
-}
-
-#summaryCard {
-    margin-top: 12px;
-    height: 350px;
-    overflow-y: auto;
-    background: #f5f5f5;
-    border-radius: 12px;
-    padding: 12px;
-}
-
-#output {
-    margin: 0;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    line-height: 1.6;
-    font-size: 14px;
-}
-
-#backBtn {
-    border: none;
-    background: none;
+    line-height: 1.35;
     cursor: pointer;
-    font-size: 18px;
+}
+
+.prompts-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    padding-bottom: 8px;
+}
+
+.prompts-toggle span {
+    font-family: "Metropolis";
+    font-weight: 700;
+    font-size: 15px;
+    color: #535050;
+}
+
+.prompts-toggle img {
+    width: 12px;
+    height: 12px;
+    display: block;
+    flex-shrink: 0;
+}
+.chat-section {
+    margin: 16px 15px 0;
+}
+
+.chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.chat-header h3 {
+    font-family: "Metropolis";
+    font-weight: bold;
+    font-size: 15px;
+    color: #535050;
+}
+
+.suggested-tag {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border: none;
+    border-radius: 12px;
+    background: #f2efff;
+    color: #b7b8fc;
+    font-family: "Metropolis";
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.suggested-tag img {
+    width: 12px;
+    height: 12px;
+}
+
+.chat-box {
+    position: relative;
+}
+
+.chat-box textarea {
+    width: 100%;
+    height: 95px;
+    resize: none;
+    border: 1px solid #E0E0E0;
+    border-radius: 5px;
+    background: white;
+    padding: 12px;
+    font-family: "Metropolis";
+    font-weight: 500;
+    font-size: 15px;
+    outline: none;
+}
+
+.send-btn {
+    position: absolute;
+    right: 12px;
+    top: 25%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 6px;
+    background: #b8b2ff;
+    color: white;
+    cursor: pointer;
+}
+
+.suggested-tag {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: #B7B8FC;
+}
+
+.suggested-tag img {
+    width: 12px;
+    height: 12px;
+}
+
+.home-buttons {
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.action-btn {
+    width: 100%;
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid #827FFF;
+    border-radius: 5px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    font-family: "Metropolis";
+    font-weight: 700;
+    font-size: 15px;
+    color: #535050;
+    text-align: left;
+}
+
+.action-btn img {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.action-btn span {
+    flex: 1;
+    text-align: left;
 }
