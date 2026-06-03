@@ -2,12 +2,8 @@
   "manifest_version": 3,
   "name": "Apogee",
   "version": "0.1.0",
-  "permissions": [
-    "activeTab", "scripting", "storage"
-  ],
-  "host_permissions": [
-    "http://127.0.0.1:8000/*"
-  ],
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["<all_urls>", "http://127.0.0.1:8000/*"],
   "action": {
     "default_popup": "popup/popup.html"
   },

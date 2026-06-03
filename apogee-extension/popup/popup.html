@@ -1,257 +1,119 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>Apogee</title>
-    <link rel="stylesheet" href="popup.css">
-</head>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
 
-<body>
+  <body>
     <div class="container">
-        <!-- HOME VIEW -->
-        <div id="homeView">
-            <header class="header">
-                <div class="brand">
-                    <img
-                        src="../assets/logo.svg"
-                        class="logo"
-                        alt="Apogee Logo"
-                    >
-                    <span class="brand-name">
-                        apogee
-                    </span>
-                </div>
-                <div class="header-actions">
-                    <button
-                        id="settingsBtn"
-                        class="icon-btn"
-                    >
-                        <img
-                            src="../assets/settings.svg"
-                            alt="Settings"
-                        >
-                    </button>
-                    <button
-                        id="closeBtn"
-                        class="icon-btn"
-                    >
-                        <img
-                            src="../assets/cross_1.svg"
-                            alt="Close"
-                        >
-                    </button>
-                </div>
-            </header>
-            <div class="home-buttons">
-                <button
-                    id="summarizeBtn"
-                    class="action-btn"
-                >
-                    <img
-                        src="../assets/sparkles.svg"
-                        alt=""
-                    >
-                    <span>
-                        Summarize this page
-                    </span>
-                </button>
-                <button
-                    id="askBtn"
-                    class="action-btn"
-                >
-                    <img
-                        src="../assets/ask.svg"
-                        alt=""
-                    >
-                    <span>
-                        Ask Apogee a question
-                    </span>
-                </button>
-            </div>
+      <!-- HOME VIEW -->
+      <div id="homeView">
+        <header class="header">
+          <div class="brand">
+            <img src="../assets/logo.svg" class="logo" alt="Apogee Logo" />
+            <span class="brand-name"> apogee </span>
+          </div>
+          <div class="header-actions">
+            <button id="settingsBtn" class="icon-btn">
+              <img src="../assets/settings.svg" alt="Settings" />
+            </button>
+            <button id="closeBtn" class="icon-btn">
+              <img src="../assets/cross_1.svg" alt="Close" />
+            </button>
+          </div>
+        </header>
+        <div class="home-buttons">
+          <button id="summarizeBtn" class="action-btn">
+            <img src="../assets/sparkles.svg" alt="" />
+            <span> Summarize this page </span>
+          </button>
+          <button id="askBtn" class="action-btn">
+            <img src="../assets/ask.svg" alt="" />
+            <span> Ask Apogee a question </span>
+          </button>
         </div>
+      </div>
 
-        <!-- SUMMARY VIEW -->
+      <!-- SUMMARY VIEW -->
 
-        <div
-            id="summaryView"
-            class="hidden"
-        >
+      <div id="summaryView" class="hidden">
+        <header class="header">
+          <div class="brand">
+            <img src="../assets/logo.svg" class="logo" alt="Apogee Logo" />
+            <span class="brand-name"> apogee </span>
+          </div>
+          <div class="header-actions">
+            <button id="settingsBtn2" class="icon-btn">
+              <img src="../assets/settings.svg" alt="Settings" />
+            </button>
+            <button id="closeBtn2" class="icon-btn">
+              <img src="../assets/cross_1.svg" alt="Close" />
+            </button>
+          </div>
+        </header>
 
-            <header class="header">
+        <section class="summary-card">
+          <h2>Summarize the page</h2>
 
-                <div class="brand">
+          <p id="summaryText">Summary will appear here.</p>
+        </section>
 
-                    <button
-                        id="backBtn"
-                        class="icon-btn"
-                    >
-                        ←
-                    </button>
+        <section class="prompts">
+          <div class="section-header">
+            <h3 class="section-title">Suggested Prompts</h3>
 
-                    <span class="brand-name">
-                        apogee
-                    </span>
+            <button class="prompts-toggle" aria-label="Hide prompts">
+              <img src="../assets/cross_2.svg" alt="Hide" />
+            </button>
+          </div>
 
-                </div>
+          <button class="prompt-card">
+            What is the purpose of Mozilla's Orbit browser extension and how
+            does it differ from other AI-powered tools?
+          </button>
+        </section>
 
-                <div class="header-actions">
+        <section class="chat-section">
+          <div class="chat-header">
+            <h3>Ask Apogee</h3>
 
-                    <button
-                        id="settingsBtn2"
-                        class="icon-btn"
-                    >
-                        <img
-                            src="../assets/settings.svg"
-                            alt="Settings"
-                        >
-                    </button>
+            <button class="suggested-tag" id="togglePromptsBtn">
+              Suggested Prompts
 
-                    <button
-                        id="closeBtn2"
-                        class="icon-btn"
-                    >
-                        <img
-                            src="../assets/cross_1.svg"
-                            alt="Close"
-                        >
-                    </button>
+              <img src="../assets/up.svg" alt="Toggle" />
+            </button>
+          </div>
 
-                </div>
+          <div class="chat-box">
+            <textarea placeholder="Type here to ask"></textarea>
 
-            </header>
+            <button class="send-btn">
+              <img src="../assets/send.svg" alt="Send" />
+            </button>
+          </div>
+        </section>
+      </div>
 
-            <section class="summary-card">
+      <!-- SETTINGS VIEW -->
 
-                <h2>
-                    Summarize the page
-                </h2>
+      <div id="settingsView" class="hidden">
+        <header class="header">
+          <div class="brand">
+            <span class="brand-name"> Settings </span>
+          </div>
 
-                <p id="summaryText">
-
-                    Summary will appear here.
-
-                </p>
-
-            </section>
-
-            <section class="prompts">
-
-                <div class="section-header">
-
-                    <button class="prompts-toggle">
-
-                        <span>
-                            Suggested Prompts
-                        </span>
-
-                        <img
-                            src="../assets/cross_2.svg"
-                            alt="Toggle"
-                        >
-
-                    </button>
-
-                </div>
-
-                <button class="prompt-card">
-
-                    What is the purpose of Mozilla's Orbit browser extension and how does it differ from other AI-powered tools?
-
-                </button>
-
-            </section>
-
-            <section class="chat-section">
-
-                <div class="chat-header">
-
-                    <h3>
-                        Ask Apogee
-                    </h3>
-
-                    <button
-                        class="suggested-tag"
-                        id="togglePromptsBtn"
-                    >
-
-                        Suggested Prompts
-
-                        <img
-                            src="../assets/up.svg"
-                            alt="Toggle"
-                        >
-
-                    </button>
-
-                </div>
-
-                <div class="chat-box">
-
-                    <textarea
-                        placeholder="Type here to ask"
-                    ></textarea>
-
-                    <button class="send-btn">
-
-                        <img
-                            src="../assets/send.svg"
-                            alt="Send"
-                        >
-
-                    </button>
-
-                </div>
-
-            </section>
-
+          <button id="closeBtn3" class="icon-btn">
+            <img src="../assets/cross_1.svg" alt="Close" />
+          </button>
+        </header>
+        <div class="settings-content">
+          <h2>Settings</h2>
+          <p>Settings UI coming soon.</p>
         </div>
-
-        <!-- SETTINGS VIEW -->
-
-        <div
-            id="settingsView"
-            class="hidden"
-        >
-
-            <header class="header">
-
-                <div class="brand">
-
-                    <button
-                        id="settingsBackBtn"
-                        class="icon-btn"
-                    >
-                        ←
-                    </button>
-
-                    <span class="brand-name">
-                        Settings
-                    </span>
-
-                </div>
-
-                <button
-                    id="closeBtn3"
-                    class="icon-btn"
-                >
-                    <img
-                        src="../assets/cross_1.svg"
-                        alt="Close"
-                    >
-                </button>
-            </header>
-            <div class="settings-content">
-                <h2>
-                    Settings
-                </h2>
-                <p>
-                    Settings UI coming soon.
-                </p>
-            </div>
-        </div>
+      </div>
     </div>
     <script src="popup.js"></script>
-</body>
-
+  </body>
 </html>
