@@ -2,11 +2,23 @@
   "manifest_version": 3,
   "name": "Apogee",
   "version": "0.1.0",
-  "permissions": ["activeTab", "scripting", "storage"],
+
+  "permissions": ["activeTab", "scripting", "storage", "tabs"],
+
   "host_permissions": ["<all_urls>", "http://127.0.0.1:8000/*"],
+
+  "icons": {
+    "16": "assets/icon.png",
+    "32": "assets/icon.png",
+    "48": "assets/icon.png",
+    "96": "assets/icon.png",
+    "128": "assets/icon.png"
+  },
+
   "action": {
     "default_popup": "popup/popup.html"
   },
+
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
@@ -19,12 +31,10 @@
       ]
     }
   ],
+
   "browser_specific_settings": {
     "gecko": {
       "id": "apogee@darshi.dev"
     }
-  },
-  "background": {
-    "scripts": ["background.js"]
   }
 }

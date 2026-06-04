@@ -9,29 +9,34 @@
   <body>
     <div class="container">
       <!-- HOME VIEW -->
+
       <div id="homeView">
         <header class="header">
           <div class="brand">
             <img src="../assets/logo.svg" class="logo" alt="Apogee Logo" />
-            <span class="brand-name"> apogee </span>
+            <span class="brand-name">apogee</span>
           </div>
+
           <div class="header-actions">
             <button id="settingsBtn" class="icon-btn">
               <img src="../assets/settings.svg" alt="Settings" />
             </button>
+
             <button id="closeBtn" class="icon-btn">
               <img src="../assets/cross_1.svg" alt="Close" />
             </button>
           </div>
         </header>
+
         <div class="home-buttons">
           <button id="summarizeBtn" class="action-btn">
             <img src="../assets/sparkles.svg" alt="" />
-            <span> Summarize this page </span>
+            <span>Summarize this page</span>
           </button>
+
           <button id="askBtn" class="action-btn">
             <img src="../assets/ask.svg" alt="" />
-            <span> Ask Apogee a question </span>
+            <span>Ask Apogee a question</span>
           </button>
         </div>
       </div>
@@ -42,12 +47,14 @@
         <header class="header">
           <div class="brand">
             <img src="../assets/logo.svg" class="logo" alt="Apogee Logo" />
-            <span class="brand-name"> apogee </span>
+            <span class="brand-name">apogee</span>
           </div>
+
           <div class="header-actions">
             <button id="settingsBtn2" class="icon-btn">
               <img src="../assets/settings.svg" alt="Settings" />
             </button>
+
             <button id="closeBtn2" class="icon-btn">
               <img src="../assets/cross_1.svg" alt="Close" />
             </button>
@@ -99,21 +106,149 @@
       <!-- SETTINGS VIEW -->
 
       <div id="settingsView" class="hidden">
-        <header class="header">
-          <div class="brand">
-            <span class="brand-name"> Settings </span>
+        <header class="settings-header">
+          <h1>Settings</h1>
+
+          <div class="settings-actions">
+            <img
+              src="../assets/logo.svg"
+              id="settingsLogo"
+              class="settings-logo"
+              alt="Apogee"
+            />
+
+            <button id="closeBtn3" class="icon-btn">
+              <img src="../assets/cross_1.svg" alt="Close" />
+            </button>
+          </div>
+        </header>
+
+        <div class="settings-card">
+          <div class="card-title">
+            <img src="../assets/code.svg" alt="" />
+            <span>Response Format</span>
           </div>
 
-          <button id="closeBtn3" class="icon-btn">
-            <img src="../assets/cross_1.svg" alt="Close" />
-          </button>
-        </header>
-        <div class="settings-content">
-          <h2>Settings</h2>
-          <p>Settings UI coming soon.</p>
+          <label class="radio-option">
+            <input type="radio" name="format" checked />
+            <span>Bullet Points</span>
+          </label>
+
+          <label class="radio-option">
+            <input type="radio" name="format" />
+            <span>Short Sentences</span>
+          </label>
+
+          <label class="radio-option">
+            <input type="radio" name="format" />
+            <span>Paragraphs</span>
+          </label>
         </div>
+
+        <div class="settings-card">
+          <div class="card-title">
+            <img src="../assets/summary.svg" alt="" />
+            <span>Summary</span>
+          </div>
+
+          <label class="radio-option">
+            <input type="radio" name="summary" checked />
+            <span> Always ask to summarize content </span>
+          </label>
+
+          <label class="radio-option">
+            <input type="radio" name="summary" />
+            <span> Auto-summarize email. </span>
+          </label>
+
+          <label class="radio-option">
+            <input type="radio" name="summary" />
+            <span> Auto-summarize Youtube. </span>
+          </label>
+
+          <label class="radio-option">
+            <input type="radio" name="summary" />
+            <span> Auto-summarize email and Youtube. </span>
+          </label>
+        </div>
+
+        <div class="settings-divider"></div>
+
+        <button id="getInTouchBtn" class="settings-contact-btn">
+          <div class="settings-contact-left">
+            <img src="../assets/mail.svg" alt="" />
+            <span>Get in touch</span>
+          </div>
+
+          <img src="../assets/arrow-right.svg" class="arrow-icon" alt="" />
+        </button>
       </div>
     </div>
+
+    <!-- CONTACT VIEW -->
+
+    <div id="contactView" class="hidden">
+      <header class="settings-header">
+        <h1>Get in touch</h1>
+
+        <div class="settings-actions">
+          <img
+            src="../assets/logo.svg"
+            id="contactLogo"
+            class="settings-logo"
+            alt="Apogee"
+          />
+
+          <button id="closeBtn4" class="icon-btn">
+            <img src="../assets/cross_1.svg" alt="Close" />
+          </button>
+        </div>
+      </header>
+
+      <div class="contact-links">
+        <button id="contributeBtn" class="contact-card">
+          <div class="contact-card-left">
+            <img src="../assets/github.svg" alt="" />
+            <span>Contribute</span>
+          </div>
+
+          <img src="../assets/arrow-right.svg" class="contact-arrow" alt="" />
+        </button>
+
+        <button id="bugBtn" class="contact-card">
+          <div class="contact-card-left">
+            <img src="../assets/bug.svg" alt="" />
+            <span>Report a bug</span>
+          </div>
+
+          <img src="../assets/arrow-right.svg" class="contact-arrow" alt="" />
+        </button>
+
+        <button id="featureBtn" class="contact-card">
+          <div class="contact-card-left">
+            <img src="../assets/feature.svg" alt="" />
+            <span>Request a feature</span>
+          </div>
+
+          <img src="../assets/arrow-right.svg" class="contact-arrow" alt="" />
+        </button>
+      </div>
+
+      <div class="about-apogee">
+        <h2>About Apogee</h2>
+
+        <p>
+          Local-first browser assistant for articles, videos, emails and more.
+        </p>
+      </div>
+
+      <div class="contact-footer">
+        <div class="version">v0.1.0</div>
+
+        <div class="made-with">Made with ❤️ by darshi1337</div>
+      </div>
+    </div>
+
     <script src="popup.js"></script>
   </body>
 </html>

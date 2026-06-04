@@ -274,3 +274,259 @@ body {
   flex: 1;
   text-align: left;
 }
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+}
+
+.settings-header h1 {
+  font-family: "Metropolis";
+  font-size: 25px;
+  font-weight: 700;
+  color: #535050;
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-logo {
+  width: 28px;
+  height: 28px;
+}
+
+#settingsView {
+  padding-bottom: 16px;
+}
+
+.settings-card {
+  margin: 0 16px 14px;
+  padding: 12px;
+  border: 1px solid #827fff;
+  border-radius: 5px;
+  background: #ffffff;
+}
+
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.card-title img {
+  width: 25px;
+  height: 25px;
+}
+
+.card-title span {
+  font-family: "Metropolis";
+  font-size: 15px;
+  font-weight: 700;
+  color: #535050;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.radio-option:last-child {
+  margin-bottom: 0;
+}
+
+.radio-option input[type="radio"] {
+  width: 15px;
+  height: 15px;
+  accent-color: #000000;
+  cursor: pointer;
+}
+
+.radio-option span {
+  font-family: "Metropolis";
+  font-size: 14px;
+  color: #5c5c5c;
+}
+
+.settings-divider {
+  height: 1px;
+  background: #e3e3e3;
+  margin: 18px 16px;
+}
+
+#contactView {
+  padding-bottom: 16px;
+}
+
+.settings-contact-btn {
+  width: calc(100% - 32px);
+  margin: 0 16px;
+  height: 40px;
+
+  border: 1px solid #827fff;
+  border-radius: 5px;
+  background: #ffffff;
+
+  padding: 0 12px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  cursor: pointer;
+}
+
+.settings-contact-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-contact-left img {
+  width: 18px;
+  height: 18px;
+}
+
+.settings-contact-left span {
+  font-family: "Metropolis";
+  font-size: 15px;
+  font-weight: 700;
+  color: #535050;
+}
+
+.settings-contact-btn:hover {
+  box-shadow: 0 2px 6px rgba(130, 127, 255, 0.15);
+}
+
+.arrow-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.contact-header {
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.contact-title {
+  font-family: "Metropolis";
+  font-size: 25px;
+  font-weight: 700;
+  color: #535050;
+}
+
+.contact-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.contact-logo {
+  width: 28px;
+  height: 28px;
+}
+
+.contact-links {
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.contact-card {
+  width: 100%;
+  height: 40px;
+
+  border: 1px solid #827fff;
+  border-radius: 5px;
+  background: #ffffff;
+
+  padding: 0 12px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  cursor: pointer;
+}
+
+.contact-card-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.contact-card-left img {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.contact-card-left span {
+  font-family: "Metropolis";
+  font-size: 15px;
+  font-weight: 700;
+  color: #535050;
+}
+
+.contact-arrow {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.about-apogee {
+  margin-top: 32px;
+  text-align: center;
+  padding: 0 24px;
+}
+
+.about-apogee h2 {
+  font-family: "Metropolis";
+  font-size: 15px;
+  font-weight: 700;
+  color: #535050;
+  margin-bottom: 8px;
+}
+
+.about-apogee p {
+  font-family: "Metropolis";
+  font-size: 14px;
+  line-height: 1.4;
+  color: #5c5c5c;
+}
+
+.contact-footer {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.version {
+  font-family: "Metropolis";
+  font-size: 14px;
+  font-weight: 700;
+  color: #535050;
+  margin-bottom: 4px;
+}
+
+.made-with {
+  font-family: "Metropolis";
+  font-size: 14px;
+  font-weight: 700;
+  color: #535050;
+}
+
+.settings-logo,
+.contact-logo {
+  cursor: pointer;
+}

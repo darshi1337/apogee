@@ -26,6 +26,14 @@ const promptsCloseBtn = document.querySelector(".prompts-toggle");
 
 const togglePromptsBtn = document.getElementById("togglePromptsBtn");
 
+const getInTouchBtn = document.getElementById("getInTouchBtn");
+
+const contactView = document.getElementById("contactView");
+
+const settingsLogo = document.getElementById("settingsLogo");
+
+const contactLogo = document.getElementById("contactLogo");
+
 const contentScriptFiles = [
   "content/Readability.js",
   "content/extractors/generic.js",
@@ -33,6 +41,8 @@ const contentScriptFiles = [
   "content/extractors/gmail.js",
   "content/content.js",
 ];
+
+let typingTimeoutId = null;
 
 function sendExtractMessage(tabId) {
   return new Promise((resolve, reject) => {
@@ -93,6 +103,56 @@ async function extractFromActiveTab(tab) {
   }
 }
 
+async function summarizePage(pageData) {
+  const response = await fetch("http://127.0.0.1:8000/summarize", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      title: pageData.title,
+      url: pageData.url,
+      content: pageData.content,
+      mode: "concise",
+    }),
+  });
+
+  const summary = await response.text();
+
+  if (!response.ok) {
+    throw new Error(summary || `Summarize request failed: ${response.status}`);
+  }
+
+  return summary;
+}
+
+function typeTextByWord(element, text, speed = 45) {
+  if (typingTimeoutId) {
+    clearTimeout(typingTimeoutId);
+  }
+
+  const words = text.match(/\S+\s*/g) || [];
+  let index = 0;
+
+  element.textContent = "";
+
+  return new Promise((resolve) => {
+    function typeNextWord() {
+      if (index >= words.length) {
+        typingTimeoutId = null;
+        resolve();
+        return;
+      }
+
+      element.textContent += words[index];
+      index += 1;
+      typingTimeoutId = setTimeout(typeNextWord, speed);
+    }
+
+    typeNextWord();
+  });
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   try {
     const [tab] = await chrome.tabs.query({
@@ -135,53 +195,13 @@ summarizeBtn?.addEventListener("click", async () => {
       return;
     }
 
-    chrome.runtime.sendMessage(
-      {
-        action: "summarize",
+    const text = await summarizePage(pageData);
 
-        data: {
-          title: pageData.title,
+    await chrome.storage.local.set({
+      [pageData.url]: text,
+    });
 
-          url: pageData.url,
-
-          content: pageData.content,
-
-          mode: "concise",
-        },
-      },
-
-      async (response) => {
-        console.log("BACKGROUND RESPONSE:", response);
-
-        if (chrome.runtime.lastError) {
-          console.error(chrome.runtime.lastError);
-
-          summaryText.textContent = chrome.runtime.lastError.message;
-
-          return;
-        }
-
-        if (!response) {
-          summaryText.textContent = "No response from background.";
-
-          return;
-        }
-
-        if (!response.success) {
-          summaryText.textContent = response.error;
-
-          return;
-        }
-
-        const text = response.summary;
-
-        summaryText.textContent = text;
-
-        await chrome.storage.local.set({
-          [pageData.url]: text,
-        });
-      },
-    );
+    await typeTextByWord(summaryText, text);
   } catch (error) {
     console.error(error);
 
@@ -225,4 +245,38 @@ promptsCloseBtn?.addEventListener("click", () => {
 togglePromptsBtn?.addEventListener("click", () => {
   promptsSection.classList.remove("hidden");
   togglePromptsBtn.style.display = "none";
+});
+
+getInTouchBtn?.addEventListener("click", () => {
+  settingsView.classList.add("hidden");
+  contactView.classList.remove("hidden");
+});
+
+document.getElementById("contributeBtn")?.addEventListener("click", () => {
+  chrome.tabs.create({
+    url: "https://github.com/darshi1337/apogee",
+  });
+});
+
+document.getElementById("bugBtn")?.addEventListener("click", () => {
+  chrome.tabs.create({
+    url: "https://github.com/darshi1337/apogee/issues",
+  });
+});
+
+document.getElementById("featureBtn")?.addEventListener("click", () => {
+  chrome.tabs.create({
+    url: "https://github.com/darshi1337/apogee/issues",
+  });
+});
+
+settingsLogo?.addEventListener("click", () => {
+  settingsView.classList.add("hidden");
+  contactView.classList.add("hidden");
+  homeView.classList.remove("hidden");
+});
+
+contactLogo?.addEventListener("click", () => {
+  contactView.classList.add("hidden");
+  homeView.classList.remove("hidden");
 });
