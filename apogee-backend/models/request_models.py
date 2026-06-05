@@ -5,3 +5,9 @@ class SummaryRequest(BaseModel):
     url: str
     content: str
     mode: str = "concise"
+
+class AskRequest(BaseModel):
+    title: str
+    url: str
+    content: str
+    question: str

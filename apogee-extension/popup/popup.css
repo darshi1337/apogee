@@ -117,6 +117,7 @@ body {
   color: #595656;
   text-align: justify;
   text-justify: inter-word;
+  white-space: pre-wrap;
 }
 
 .prompts {
@@ -168,6 +169,11 @@ body {
   font-size: 13px;
   line-height: 1.35;
   cursor: pointer;
+  margin-bottom: 6px;
+}
+
+.prompt-card:disabled {
+  cursor: default;
 }
 
 .chat-section {
@@ -218,11 +224,25 @@ body {
   border: 1px solid #e0e0e0;
   border-radius: 5px;
   background: white;
-  padding: 12px;
+  padding: 12px 44px 12px 12px;
   font-family: "Metropolis";
   font-weight: 500;
   font-size: 15px;
   outline: none;
+}
+
+.answer-box {
+  min-height: 95px;
+  border: 1px solid #e0e0e0;
+  border-radius: 5px;
+  padding: 12px;
+  background: white;
+  font-family: "Metropolis";
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #535050;
+  white-space: pre-wrap;
 }
 
 .send-btn {

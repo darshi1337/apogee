@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "Apogee",
   "version": "0.1.0",
+  "description": "Local-first browser summarizer for articles, videos, emails and more.",
 
   "permissions": ["activeTab", "scripting", "storage", "tabs"],
 

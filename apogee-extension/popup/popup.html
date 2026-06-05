@@ -61,44 +61,44 @@
           </div>
         </header>
 
-        <section class="summary-card">
+        <section id="summaryCard" class="summary-card">
           <h2>Summarize the page</h2>
 
           <p id="summaryText">Summary will appear here.</p>
         </section>
 
-        <section class="prompts">
+        <section id="promptsSection" class="prompts">
           <div class="section-header">
-            <h3 class="section-title">Suggested Prompts</h3>
+            <h3 id="questionHeading" class="section-title">Question</h3>
 
             <button class="prompts-toggle" aria-label="Hide prompts">
               <img src="../assets/cross_2.svg" alt="Hide" />
             </button>
           </div>
 
-          <button class="prompt-card">
-            What is the purpose of Mozilla's Orbit browser extension and how
-            does it differ from other AI-powered tools?
-          </button>
+          <button class="prompt-card">Explain this like I'm five.</button>
+          <button class="prompt-card">Give me the key takeaways.</button>
         </section>
 
         <section class="chat-section">
           <div class="chat-header">
-            <h3>Ask Apogee</h3>
+            <h3 id="answerHeading">Answer</h3>
 
             <button class="suggested-tag" id="togglePromptsBtn">
-              Suggested Prompts
+              Question
 
               <img src="../assets/up.svg" alt="Toggle" />
             </button>
           </div>
 
           <div class="chat-box">
-            <textarea placeholder="Type here to ask"></textarea>
+            <textarea id="questionInput" placeholder="Type here to ask"></textarea>
 
-            <button class="send-btn">
+            <button id="sendBtn" class="send-btn">
               <img src="../assets/send.svg" alt="Send" />
             </button>
+
+            <div id="answerBox" class="answer-box hidden"></div>
           </div>
         </section>
       </div>
@@ -130,17 +130,17 @@
           </div>
 
           <label class="radio-option">
-            <input type="radio" name="format" checked />
+            <input type="radio" name="format" value="bullets" checked />
             <span>Bullet Points</span>
           </label>
 
           <label class="radio-option">
-            <input type="radio" name="format" />
+            <input type="radio" name="format" value="sentences" />
             <span>Short Sentences</span>
           </label>
 
           <label class="radio-option">
-            <input type="radio" name="format" />
+            <input type="radio" name="format" value="paragraphs" />
             <span>Paragraphs</span>
           </label>
         </div>
@@ -152,22 +152,22 @@
           </div>
 
           <label class="radio-option">
-            <input type="radio" name="summary" checked />
+            <input type="radio" name="summary" value="manual" checked />
             <span> Always ask to summarize content </span>
           </label>
 
           <label class="radio-option">
-            <input type="radio" name="summary" />
+            <input type="radio" name="summary" value="email" />
             <span> Auto-summarize email. </span>
           </label>
 
           <label class="radio-option">
-            <input type="radio" name="summary" />
+            <input type="radio" name="summary" value="youtube" />
             <span> Auto-summarize Youtube. </span>
           </label>
 
           <label class="radio-option">
-            <input type="radio" name="summary" />
+            <input type="radio" name="summary" value="both" />
             <span> Auto-summarize email and Youtube. </span>
           </label>
         </div>

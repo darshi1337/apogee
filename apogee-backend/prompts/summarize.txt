@@ -16,5 +16,10 @@ ARTICLE TITLE:
 ARTICLE URL:
 {url}
 
+SUMMARY STYLE:
+{style}
+
+The SUMMARY STYLE is mandatory. Follow it exactly.
+
 ARTICLE CONTENT:
 {content}

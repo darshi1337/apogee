@@ -20,7 +20,25 @@ const summaryView = document.getElementById("summaryView");
 
 const settingsView = document.getElementById("settingsView");
 
-const promptsSection = document.querySelector(".prompts");
+const summaryCard = document.getElementById("summaryCard");
+
+const promptsSection = document.getElementById("promptsSection");
+
+const questionHeading = document.getElementById("questionHeading");
+
+const answerHeading = document.getElementById("answerHeading");
+
+const questionInput = document.getElementById("questionInput");
+
+const sendBtn = document.getElementById("sendBtn");
+
+const answerBox = document.getElementById("answerBox");
+
+const promptCards = document.querySelectorAll(".prompt-card");
+
+const formatRadios = document.querySelectorAll('input[name="format"]');
+
+const summaryRadios = document.querySelectorAll('input[name="summary"]');
 
 const promptsCloseBtn = document.querySelector(".prompts-toggle");
 
@@ -42,7 +60,158 @@ const contentScriptFiles = [
   "content/content.js",
 ];
 
+const defaultQuestions = Array.from(promptCards, (card) =>
+  card.textContent.trim(),
+);
+
+const defaultSettings = {
+  responseFormat: "bullets",
+  summaryMode: "manual",
+};
+
 let typingTimeoutId = null;
+
+async function getSettings() {
+  const stored = await chrome.storage.local.get("settings");
+
+  return {
+    ...defaultSettings,
+    ...(stored.settings || {}),
+  };
+}
+
+async function saveSettings(partialSettings) {
+  const settings = {
+    ...(await getSettings()),
+    ...partialSettings,
+  };
+
+  await chrome.storage.local.set({
+    settings,
+  });
+
+  return settings;
+}
+
+async function clearStoredSummaries() {
+  const stored = await chrome.storage.local.get(null);
+  const summaryKeys = Object.keys(stored).filter((key) =>
+    key.startsWith("summary:"),
+  );
+
+  if (summaryKeys.length > 0) {
+    await chrome.storage.local.remove(summaryKeys);
+  }
+}
+
+function restoreSettingsControls(settings) {
+  const formatRadio = document.querySelector(
+    `input[name="format"][value="${settings.responseFormat}"]`,
+  );
+  const summaryRadio = document.querySelector(
+    `input[name="summary"][value="${settings.summaryMode}"]`,
+  );
+
+  if (formatRadio) {
+    formatRadio.checked = true;
+  }
+
+  if (summaryRadio) {
+    summaryRadio.checked = true;
+  }
+}
+
+function isEmailUrl(url) {
+  return url.includes("mail.google.com") || url.includes("gmail.com");
+}
+
+function isYoutubeUrl(url) {
+  return url.includes("youtube.com") || url.includes("youtu.be");
+}
+
+function shouldAutoSummarize(url, summaryMode) {
+  if (summaryMode === "email") {
+    return isEmailUrl(url);
+  }
+
+  if (summaryMode === "youtube") {
+    return isYoutubeUrl(url);
+  }
+
+  if (summaryMode === "both") {
+    return isEmailUrl(url) || isYoutubeUrl(url);
+  }
+
+  return false;
+}
+
+function getSummaryCacheKey(url, responseFormat) {
+  return `summary:${responseFormat}:${url}`;
+}
+
+function resetQuestionCards() {
+  promptCards.forEach((card, index) => {
+    card.textContent = defaultQuestions[index];
+    card.disabled = false;
+    card.classList.remove("hidden");
+  });
+}
+
+function showSummaryContext() {
+  summaryCard.classList.remove("hidden");
+  promptsSection.classList.remove("hidden");
+  questionHeading.textContent = "Question";
+  answerHeading.textContent = "Answer";
+  resetQuestionCards();
+  promptsCloseBtn.classList.remove("hidden");
+  questionInput.classList.remove("hidden");
+  sendBtn.classList.remove("hidden");
+  answerBox.classList.add("hidden");
+  questionInput.value = "";
+  answerBox.textContent = "";
+  togglePromptsBtn.style.display = "none";
+}
+
+function showAskContext() {
+  summaryCard.classList.add("hidden");
+  promptsSection.classList.remove("hidden");
+  questionHeading.textContent = "Question";
+  answerHeading.textContent = "Answer";
+  resetQuestionCards();
+  promptsCloseBtn.classList.add("hidden");
+  questionInput.classList.remove("hidden");
+  sendBtn.classList.remove("hidden");
+  answerBox.classList.add("hidden");
+  questionInput.value = "";
+  answerBox.textContent = "";
+  togglePromptsBtn.style.display = "none";
+}
+
+function showAnswerContext(question) {
+  summaryCard.classList.add("hidden");
+  promptsSection.classList.remove("hidden");
+  questionHeading.textContent = "Question";
+  answerHeading.textContent = "Answer";
+  promptsCloseBtn.classList.add("hidden");
+  togglePromptsBtn.style.display = "none";
+
+  promptCards.forEach((card, index) => {
+    if (index === 0) {
+      card.textContent = question;
+      card.disabled = true;
+      card.classList.remove("hidden");
+      return;
+    }
+
+    card.disabled = true;
+    card.classList.add("hidden");
+  });
+
+  questionInput.classList.add("hidden");
+  sendBtn.classList.add("hidden");
+  answerBox.classList.remove("hidden");
+  answerBox.textContent = "Thinking...";
+}
 
 function sendExtractMessage(tabId) {
   return new Promise((resolve, reject) => {
@@ -103,7 +272,9 @@ async function extractFromActiveTab(tab) {
   }
 }
 
-async function summarizePage(pageData) {
+async function summarizePage(pageData, responseFormat) {
+  console.log("SUMMARY FORMAT =", responseFormat);
+
   const response = await fetch("http://127.0.0.1:8000/summarize", {
     method: "POST",
     headers: {
@@ -113,7 +284,7 @@ async function summarizePage(pageData) {
       title: pageData.title,
       url: pageData.url,
       content: pageData.content,
-      mode: "concise",
+      mode: responseFormat,
     }),
   });
 
@@ -126,7 +297,77 @@ async function summarizePage(pageData) {
   return summary;
 }
 
-function typeTextByWord(element, text, speed = 45) {
+function wait(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function appendTextByWord(element, text, speed = 45) {
+  const words = text.split(/(\s+)/);
+
+  for (const word of words) {
+    element.textContent += word;
+    await wait(speed);
+  }
+}
+
+async function streamAnswer(pageData, question, element) {
+  const response = await fetch("http://127.0.0.1:8000/ask", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      title: pageData.title,
+      url: pageData.url,
+      content: pageData.content,
+      question,
+    }),
+  });
+
+  if (!response.ok) {
+    const answer = await response.text();
+    throw new Error(answer || `Ask request failed: ${response.status}`);
+  }
+
+  if (!response.body) {
+    const answer = await response.text();
+    await typeTextByWord(element, answer);
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let pendingText = "";
+
+  element.textContent = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    pendingText += decoder.decode(value, { stream: true });
+    const completeWords = pendingText.match(/\S+\s+/g) || [];
+
+    if (completeWords.length > 0) {
+      const typedText = completeWords.join("");
+      pendingText = pendingText.slice(typedText.length);
+      await appendTextByWord(element, typedText);
+    }
+  }
+
+  pendingText += decoder.decode();
+
+  if (pendingText) {
+    await appendTextByWord(element, pendingText);
+  }
+}
+
+function typeTextByWord(element, text, speed = 70) {
   if (typingTimeoutId) {
     clearTimeout(typingTimeoutId);
   }
@@ -153,30 +394,41 @@ function typeTextByWord(element, text, speed = 45) {
   });
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
+async function submitQuestion(question) {
+  const trimmedQuestion = question.trim();
+
+  if (!trimmedQuestion) {
+    questionInput.focus();
+    return;
+  }
+
+  showAnswerContext(trimmedQuestion);
+
   try {
     const [tab] = await chrome.tabs.query({
       active: true,
       currentWindow: true,
     });
-    const cached = await chrome.storage.local.get(tab.url);
-    if (cached[tab.url]) {
-      summaryText.textContent = cached[tab.url];
-      homeView.classList.add("hidden");
-      summaryView.classList.remove("hidden");
+
+    const pageData = await extractFromActiveTab(tab);
+
+    if (!pageData) {
+      answerBox.textContent = "Could not extract page.";
+      return;
     }
+
+    await streamAnswer(pageData, trimmedQuestion, answerBox);
   } catch (error) {
     console.error(error);
+
+    answerBox.textContent = error.message;
   }
-  promptsSection.classList.remove("hidden");
-  togglePromptsBtn.style.display = "none";
-});
+}
 
-summarizeBtn?.addEventListener("click", async () => {
+async function summarizeActivePage() {
   homeView.classList.add("hidden");
-
   summaryView.classList.remove("hidden");
-
+  showSummaryContext();
   summaryText.textContent = "Summarizing...";
 
   try {
@@ -191,22 +443,57 @@ summarizeBtn?.addEventListener("click", async () => {
 
     if (!pageData) {
       summaryText.textContent = "Could not extract page.";
-
       return;
     }
 
-    const text = await summarizePage(pageData);
+    const settings = await getSettings();
+    const text = await summarizePage(pageData, settings.responseFormat);
 
     await chrome.storage.local.set({
-      [pageData.url]: text,
+      [getSummaryCacheKey(pageData.url, settings.responseFormat)]: text,
     });
 
-    await typeTextByWord(summaryText, text);
+    summaryText.textContent = text.trimStart();
   } catch (error) {
     console.error(error);
 
     summaryText.textContent = error.message;
   }
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  try {
+    const settings = await getSettings();
+    restoreSettingsControls(settings);
+
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    const cacheKey = getSummaryCacheKey(tab.url, settings.responseFormat);
+    const cached = await chrome.storage.local.get(cacheKey);
+
+    if (cached[cacheKey]) {
+      summaryText.textContent = cached[cacheKey];
+      homeView.classList.add("hidden");
+      summaryView.classList.remove("hidden");
+      showSummaryContext();
+      return;
+    }
+
+    if (shouldAutoSummarize(tab.url, settings.summaryMode)) {
+      await summarizeActivePage();
+      return;
+    }
+  } catch (error) {
+    console.error(error);
+  }
+
+  showSummaryContext();
+});
+
+summarizeBtn?.addEventListener("click", () => {
+  summarizeActivePage();
 });
 
 settingsBtn?.addEventListener("click", () => {
@@ -234,7 +521,43 @@ closeBtn3?.addEventListener("click", () => {
 document.getElementById("askBtn")?.addEventListener("click", () => {
   homeView.classList.add("hidden");
   summaryView.classList.remove("hidden");
-  document.querySelector(".chat-box textarea")?.focus();
+  showAskContext();
+  questionInput.focus();
+});
+
+sendBtn?.addEventListener("click", () => {
+  submitQuestion(questionInput.value);
+});
+
+questionInput?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    submitQuestion(questionInput.value);
+  }
+});
+
+promptCards.forEach((card) => {
+  card.addEventListener("click", () => {
+    submitQuestion(card.textContent);
+  });
+});
+
+formatRadios.forEach((radio) => {
+  radio.addEventListener("change", async () => {
+    await saveSettings({
+      responseFormat: radio.value,
+    });
+
+    await clearStoredSummaries();
+  });
+});
+
+summaryRadios.forEach((radio) => {
+  radio.addEventListener("change", () => {
+    saveSettings({
+      summaryMode: radio.value,
+    });
+  });
 });
 
 promptsCloseBtn?.addEventListener("click", () => {
