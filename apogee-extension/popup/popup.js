@@ -38,7 +38,7 @@ const promptCards = document.querySelectorAll(".prompt-card");
 
 const formatRadios = document.querySelectorAll('input[name="format"]');
 
-const summaryRadios = document.querySelectorAll('input[name="summary"]');
+const modelRadios = document.querySelectorAll('input[name="model"]');
 
 const promptsCloseBtn = document.querySelector(".prompts-toggle");
 
@@ -66,7 +66,7 @@ const defaultQuestions = Array.from(promptCards, (card) =>
 
 const defaultSettings = {
   responseFormat: "bullets",
-  summaryMode: "manual",
+  model: "qwen3:8b",
 };
 
 let typingTimeoutId = null;
@@ -78,6 +78,19 @@ async function getSettings() {
     ...defaultSettings,
     ...(stored.settings || {}),
   };
+}
+
+function applySettingsToUI(settings) {
+  const formatRadio = document.querySelector(
+    `input[name="format"][value="${settings.responseFormat}"]`,
+  );
+
+  const modelRadio = document.querySelector(
+    `input[name="model"][value="${settings.model}"]`,
+  );
+
+  formatRadio && (formatRadio.checked = true);
+  modelRadio && (modelRadio.checked = true);
 }
 
 async function saveSettings(partialSettings) {
@@ -104,63 +117,38 @@ async function clearStoredSummaries() {
   }
 }
 
-function restoreSettingsControls(settings) {
-  const formatRadio = document.querySelector(
-    `input[name="format"][value="${settings.responseFormat}"]`,
-  );
-  const summaryRadio = document.querySelector(
-    `input[name="summary"][value="${settings.summaryMode}"]`,
-  );
+function resetQuestionCards() {
+  questionHeading.textContent = "Suggested Prompts";
 
-  if (formatRadio) {
-    formatRadio.checked = true;
-  }
+  promptsCloseBtn.classList.remove("hidden");
 
-  if (summaryRadio) {
-    summaryRadio.checked = true;
-  }
-}
+  document.getElementById("questionContainer").innerHTML = `
+    <button class="prompt-card">
+      Explain this like I'm five.
+    </button>
 
-function isEmailUrl(url) {
-  return url.includes("mail.google.com") || url.includes("gmail.com");
-}
+    <button class="prompt-card">
+      Give me the key takeaways.
+    </button>
+  `;
 
-function isYoutubeUrl(url) {
-  return url.includes("youtube.com") || url.includes("youtu.be");
-}
-
-function shouldAutoSummarize(url, summaryMode) {
-  if (summaryMode === "email") {
-    return isEmailUrl(url);
-  }
-
-  if (summaryMode === "youtube") {
-    return isYoutubeUrl(url);
-  }
-
-  if (summaryMode === "both") {
-    return isEmailUrl(url) || isYoutubeUrl(url);
-  }
-
-  return false;
+  document
+    .querySelectorAll("#questionContainer .prompt-card")
+    .forEach((card) => {
+      card.addEventListener("click", () => {
+        submitQuestion(card.textContent);
+      });
+    });
 }
 
 function getSummaryCacheKey(url, responseFormat) {
   return `summary:${responseFormat}:${url}`;
 }
 
-function resetQuestionCards() {
-  promptCards.forEach((card, index) => {
-    card.textContent = defaultQuestions[index];
-    card.disabled = false;
-    card.classList.remove("hidden");
-  });
-}
-
 function showSummaryContext() {
   summaryCard.classList.remove("hidden");
   promptsSection.classList.remove("hidden");
-  questionHeading.textContent = "Question";
+  questionHeading.textContent = "Suggested Prompts";
   answerHeading.textContent = "Answer";
   resetQuestionCards();
   promptsCloseBtn.classList.remove("hidden");
@@ -175,7 +163,7 @@ function showSummaryContext() {
 function showAskContext() {
   summaryCard.classList.add("hidden");
   promptsSection.classList.remove("hidden");
-  questionHeading.textContent = "Question";
+  questionHeading.textContent = "Suggested Prompts";
   answerHeading.textContent = "Answer";
   resetQuestionCards();
   promptsCloseBtn.classList.add("hidden");
@@ -188,6 +176,7 @@ function showAskContext() {
 }
 
 function showAnswerContext(question) {
+  showQuestion(question);
   summaryCard.classList.add("hidden");
   promptsSection.classList.remove("hidden");
   questionHeading.textContent = "Question";
@@ -272,9 +261,7 @@ async function extractFromActiveTab(tab) {
   }
 }
 
-async function summarizePage(pageData, responseFormat) {
-  console.log("SUMMARY FORMAT =", responseFormat);
-
+async function summarizePage(pageData, settings) {
   const response = await fetch("http://127.0.0.1:8000/summarize", {
     method: "POST",
     headers: {
@@ -284,7 +271,8 @@ async function summarizePage(pageData, responseFormat) {
       title: pageData.title,
       url: pageData.url,
       content: pageData.content,
-      mode: responseFormat,
+      mode: settings.responseFormat,
+      model: settings.model,
     }),
   });
 
@@ -303,6 +291,18 @@ function wait(ms) {
   });
 }
 
+function showQuestion(question) {
+  questionHeading.textContent = "Question";
+
+  promptsCloseBtn.classList.add("hidden");
+
+  document.getElementById("questionContainer").innerHTML = `
+    <button class="prompt-card" disabled>
+      ${question}
+    </button>
+  `;
+}
+
 async function appendTextByWord(element, text, speed = 45) {
   const words = text.split(/(\s+)/);
 
@@ -313,6 +313,7 @@ async function appendTextByWord(element, text, speed = 45) {
 }
 
 async function streamAnswer(pageData, question, element) {
+  const settings = await getSettings();
   const response = await fetch("http://127.0.0.1:8000/ask", {
     method: "POST",
     headers: {
@@ -323,6 +324,7 @@ async function streamAnswer(pageData, question, element) {
       url: pageData.url,
       content: pageData.content,
       question,
+      model: settings.model,
     }),
   });
 
@@ -447,7 +449,7 @@ async function summarizeActivePage() {
     }
 
     const settings = await getSettings();
-    const text = await summarizePage(pageData, settings.responseFormat);
+    const text = await summarizePage(pageData, settings);
 
     await chrome.storage.local.set({
       [getSummaryCacheKey(pageData.url, settings.responseFormat)]: text,
@@ -464,7 +466,7 @@ async function summarizeActivePage() {
 document.addEventListener("DOMContentLoaded", async () => {
   try {
     const settings = await getSettings();
-    restoreSettingsControls(settings);
+    applySettingsToUI(settings);
 
     const [tab] = await chrome.tabs.query({
       active: true,
@@ -480,16 +482,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       showSummaryContext();
       return;
     }
-
-    if (shouldAutoSummarize(tab.url, settings.summaryMode)) {
-      await summarizeActivePage();
-      return;
-    }
   } catch (error) {
     console.error(error);
   }
 
   showSummaryContext();
+  resetQuestionCards();
 });
 
 summarizeBtn?.addEventListener("click", () => {
@@ -536,12 +534,6 @@ questionInput?.addEventListener("keydown", (event) => {
   }
 });
 
-promptCards.forEach((card) => {
-  card.addEventListener("click", () => {
-    submitQuestion(card.textContent);
-  });
-});
-
 formatRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
     await saveSettings({
@@ -552,11 +544,13 @@ formatRadios.forEach((radio) => {
   });
 });
 
-summaryRadios.forEach((radio) => {
-  radio.addEventListener("change", () => {
-    saveSettings({
-      summaryMode: radio.value,
+modelRadios.forEach((radio) => {
+  radio.addEventListener("change", async () => {
+    await saveSettings({
+      model: radio.value,
     });
+
+    await clearStoredSummaries();
   });
 });
 
@@ -603,3 +597,15 @@ contactLogo?.addEventListener("click", () => {
   contactView.classList.add("hidden");
   homeView.classList.remove("hidden");
 });
+
+document
+  .getElementById("questionContainer")
+  ?.addEventListener("click", (event) => {
+    const card = event.target.closest(".prompt-card");
+
+    if (!card || card.disabled) {
+      return;
+    }
+
+    submitQuestion(card.textContent);
+  });

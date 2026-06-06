@@ -17,6 +17,11 @@
             <span class="brand-name">apogee</span>
           </div>
 
+          <div class="status-pill">
+            <span>Connected</span>
+            <span class="status-dot"></span>
+          </div>
+
           <div class="header-actions">
             <button id="settingsBtn" class="icon-btn">
               <img src="../assets/settings.svg" alt="Settings" />
@@ -50,6 +55,11 @@
             <span class="brand-name">apogee</span>
           </div>
 
+          <div class="status-pill">
+            <span>Connected</span>
+            <span class="status-dot"></span>
+          </div>
+
           <div class="header-actions">
             <button id="settingsBtn2" class="icon-btn">
               <img src="../assets/settings.svg" alt="Settings" />
@@ -69,15 +79,23 @@
 
         <section id="promptsSection" class="prompts">
           <div class="section-header">
-            <h3 id="questionHeading" class="section-title">Question</h3>
+            <h3 id="questionHeading" class="section-title">
+              Suggested Prompts
+            </h3>
 
-            <button class="prompts-toggle" aria-label="Hide prompts">
+            <button
+              id="promptsCloseBtn"
+              class="prompts-toggle"
+              aria-label="Hide prompts"
+            >
               <img src="../assets/cross_2.svg" alt="Hide" />
             </button>
           </div>
 
-          <button class="prompt-card">Explain this like I'm five.</button>
-          <button class="prompt-card">Give me the key takeaways.</button>
+          <div id="questionContainer">
+            <button class="prompt-card">Explain this like I'm five.</button>
+            <button class="prompt-card">Give me the key takeaways.</button>
+          </div>
         </section>
 
         <section class="chat-section">
@@ -92,7 +110,10 @@
           </div>
 
           <div class="chat-box">
-            <textarea id="questionInput" placeholder="Type here to ask"></textarea>
+            <textarea
+              id="questionInput"
+              placeholder="Type here to ask"
+            ></textarea>
 
             <button id="sendBtn" class="send-btn">
               <img src="../assets/send.svg" alt="Send" />
@@ -123,6 +144,45 @@
           </div>
         </header>
 
+        <div class="settings-card status-card">
+          <div class="card-title">
+            <img src="../assets/status.svg" alt="" />
+            <span>Status</span>
+          </div>
+
+          <div class="status-row">
+            <span>Connected</span>
+            <span class="status-dot"></span>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div class="card-title">
+            <img src="../assets/robot.svg" alt="" />
+            <span>Local LLM</span>
+          </div>
+
+          <label class="radio-option">
+            <input type="radio" name="model" value="qwen3:8b" checked />
+            <span>Qwen 3 8B</span>
+          </label>
+
+          <label class="radio-option">
+            <input type="radio" name="model" value="mistral:latest" />
+            <span>Mistral 7B</span>
+          </label>
+
+          <label class="radio-option">
+            <input type="radio" name="model" value="llama3.1:8b" />
+            <span>Llama 3.1 8B</span>
+          </label>
+
+          <label class="radio-option">
+            <input type="radio" name="model" value="gemma3:latest" />
+            <span>Gemma 3</span>
+          </label>
+        </div>
+
         <div class="settings-card">
           <div class="card-title">
             <img src="../assets/code.svg" alt="" />
@@ -142,33 +202,6 @@
           <label class="radio-option">
             <input type="radio" name="format" value="paragraphs" />
             <span>Paragraphs</span>
-          </label>
-        </div>
-
-        <div class="settings-card">
-          <div class="card-title">
-            <img src="../assets/summary.svg" alt="" />
-            <span>Summary</span>
-          </div>
-
-          <label class="radio-option">
-            <input type="radio" name="summary" value="manual" checked />
-            <span> Always ask to summarize content </span>
-          </label>
-
-          <label class="radio-option">
-            <input type="radio" name="summary" value="email" />
-            <span> Auto-summarize email. </span>
-          </label>
-
-          <label class="radio-option">
-            <input type="radio" name="summary" value="youtube" />
-            <span> Auto-summarize Youtube. </span>
-          </label>
-
-          <label class="radio-option">
-            <input type="radio" name="summary" value="both" />
-            <span> Auto-summarize email and Youtube. </span>
           </label>
         </div>
 

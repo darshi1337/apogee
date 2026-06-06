@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from models.request_models import AskRequest, SummaryRequest
 from services.prompt_service import build_answer_prompt, build_summary_prompt
-from services.mistral_service import stream_summary
+from services.llm_service import generate_stream
 from services.chunk_service import chunk_text
 from utils.cleaner import clean_text
 
@@ -28,65 +28,65 @@ async def summarize(data: SummaryRequest):
                 mode=data.mode
             )
             partial_summary = ""
-            for token in stream_summary(prompt):
+            for token in generate_stream(prompt, data.model):
                 partial_summary += token
             print(f"Finished chunk {index + 1}")
             chunk_summaries.append(
                 partial_summary.strip()
             )
-            print("All chunks summarized")
+        print("All chunks summarized")
 
-            # BULLET MODE
-            if data.mode == "bullets":
-                all_bullets = []
+        # BULLET MODE
+        if data.mode == "bullets":
+            all_bullets = []
 
-                for summary in chunk_summaries:
-                    for line in summary.splitlines():
-                        line = line.strip()
+            for summary in chunk_summaries:
+                for line in summary.splitlines():
+                    line = line.strip()
 
-                        if line.startswith("•"):
-                            all_bullets.append(line)
+                    if line.startswith("•"):
+                        all_bullets.append(line)
 
-                final_summary = "\n".join(all_bullets)
+            final_summary = "\n".join(all_bullets)
 
-            # SENTENCE MODE
-            elif data.mode == "sentences":
-                combined_text = "\n".join(chunk_summaries)
+        # SENTENCE MODE
+        elif data.mode == "sentences":
+            combined_text = "\n".join(chunk_summaries)
 
-                final_prompt = build_summary_prompt(
-                    title=data.title,
-                    url=data.url,
-                    content=combined_text,
-                    mode="sentences"
-                )
+            final_prompt = build_summary_prompt(
+                title=data.title,
+                url=data.url,
+                content=combined_text,
+                mode="sentences"
+            )
 
-                final_summary = ""
+            final_summary = ""
 
-                for token in stream_summary(final_prompt):
-                    final_summary += token
+            for token in generate_stream(final_prompt, data.model):
+                final_summary += token
 
-            # PARAGRAPH MODE
-            elif data.mode == "paragraphs":
-                combined_text = "\n".join(chunk_summaries)
+        # PARAGRAPH MODE
+        elif data.mode == "paragraphs":
+            combined_text = "\n".join(chunk_summaries)
 
-                final_prompt = build_summary_prompt(
-                    title=data.title,
-                    url=data.url,
-                    content=combined_text,
-                    mode="paragraphs"
-                )
+            final_prompt = build_summary_prompt(
+                title=data.title,
+                url=data.url,
+                content=combined_text,
+                mode="paragraphs"
+            )
 
-                final_summary = ""
+            final_summary = ""
 
-                for token in stream_summary(final_prompt):
-                    final_summary += token
+            for token in generate_stream(final_prompt, data.model):
+                final_summary += token
 
-            # FALLBACK
-            else:
-                final_summary = "\n\n".join(chunk_summaries)
+        # FALLBACK
+        else:
+            final_summary = "\n\n".join(chunk_summaries)
 
-            print("Returning combined summary")
-            yield final_summary
+        print("Returning combined summary")
+        yield final_summary
 
     return StreamingResponse(
         generate(),
@@ -104,6 +104,9 @@ async def ask(data: AskRequest):
     )
 
     return StreamingResponse(
-        stream_summary(prompt),
+        generate_stream(
+            prompt,
+            data.model
+        ),
         media_type="text/plain"
     )
