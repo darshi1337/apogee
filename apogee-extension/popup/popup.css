@@ -588,5 +588,12 @@ body {
   width: 7px;
   height: 7px;
   border-radius: 50%;
+}
+
+.status-dot.connected {
   background: #34a853;
+}
+
+.status-dot.disconnected {
+  background: #bdbdbd;
 }

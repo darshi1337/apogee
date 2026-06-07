@@ -466,6 +466,8 @@ async function summarizeActivePage() {
 document.addEventListener("DOMContentLoaded", async () => {
   try {
     const settings = await getSettings();
+    const connected = await checkOllamaConnection();
+    updateConnectionUI(connected);
     applySettingsToUI(settings);
 
     const [tab] = await chrome.tabs.query({
@@ -609,3 +611,39 @@ document
 
     submitQuestion(card.textContent);
   });
+
+async function checkOllamaConnection() {
+  try {
+    const response = await fetch("http://127.0.0.1:8000/health");
+
+    const data = await response.json();
+
+    return data.connected;
+  } catch {
+    return false;
+  }
+}
+
+function updateConnectionUI(connected) {
+  const homeStatusText = document.getElementById("homeStatusText");
+
+  const settingsStatusText = document.getElementById("settingsStatusText");
+
+  const homeStatusDot = document.getElementById("homeStatusDot");
+
+  const settingsStatusDot = document.getElementById("settingsStatusDot");
+
+  const text = connected ? "Connected" : "Disconnected";
+
+  homeStatusText.textContent = text;
+
+  settingsStatusText.textContent = text;
+
+  homeStatusDot.className = connected
+    ? "status-dot connected"
+    : "status-dot disconnected";
+
+  settingsStatusDot.className = connected
+    ? "status-dot connected"
+    : "status-dot disconnected";
+}
