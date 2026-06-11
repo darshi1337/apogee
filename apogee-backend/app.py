@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from routes.summarize import router as summarize_router
 from routes.health import router as health_router
+from routes.pdf import router as pdf_router
 
 app = FastAPI()
 
@@ -16,6 +17,7 @@ app.add_middleware(
 
 app.include_router(summarize_router)
 app.include_router(health_router)
+app.include_router(pdf_router)
 
 @app.get("/")
 async def root():

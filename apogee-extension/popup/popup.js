@@ -262,18 +262,35 @@ async function extractFromActiveTab(tab) {
 }
 
 async function summarizePage(pageData, settings) {
-  const response = await fetch("http://127.0.0.1:8000/summarize", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  let endpoint;
+  let payload;
+
+  if (pageData.isPdf) {
+    endpoint = "http://127.0.0.1:8000/pdf/url";
+
+    payload = {
+      url: pageData.url,
+      mode: settings.responseFormat,
+      model: settings.model,
+    };
+  } else {
+    endpoint = "http://127.0.0.1:8000/summarize";
+
+    payload = {
       title: pageData.title,
       url: pageData.url,
       content: pageData.content,
       mode: settings.responseFormat,
       model: settings.model,
-    }),
+    };
+  }
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
   });
 
   const summary = await response.text();

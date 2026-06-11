@@ -1,13 +1,25 @@
-def chunk_text(text: str, chunk_size: int = 1200):
-    paragraphs = text.split("\n")
+def chunk_text(text: str, chunk_size: int = 5000):
+    text = text.strip()
+
+    if not text:
+        return []
+
+    if len(text) <= 15000:
+        print(f"Small article ({len(text)} chars) -> 1 chunk")
+        return [text]
+
     chunks = []
-    current_chunk = ""
-    for para in paragraphs:
-        if len(current_chunk) + len(para) < chunk_size:
-            current_chunk += para + "\n"
-        else:
-            chunks.append(current_chunk)
-            current_chunk = para + "\n"
-    if current_chunk:
-        chunks.append(current_chunk)
+
+    for i in range(0, len(text), chunk_size):
+        chunks.append(
+            text[i:i + chunk_size]
+        )
+
+    print(f"Large article ({len(text)} chars)")
+    print(f"Total chunks: {len(chunks)}")
+    print(
+        "Chunk lengths:",
+        [len(chunk) for chunk in chunks]
+    )
+
     return chunks
