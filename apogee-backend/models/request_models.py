@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+
 class SummaryRequest(BaseModel):
     title: str
     url: str
@@ -11,4 +12,9 @@ class AskRequest(BaseModel):
     url: str
     content: str
     question: str
+    model: str = "qwen3:8b"
+
+class PdfUrlRequest(BaseModel):
+    url: str
+    mode: str = "bullets"
     model: str = "qwen3:8b"

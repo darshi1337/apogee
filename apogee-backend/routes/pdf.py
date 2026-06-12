@@ -1,69 +1,58 @@
-import tempfile
-
-from fastapi import APIRouter, UploadFile, File
-from fastapi.responses import StreamingResponse
-
+from fastapi import APIRouter
+from models.request_models import PdfUrlRequest
 from services.pdf_service import extract_pdf_text
-from services.chunk_service import chunk_text
-from services.prompt_service import build_summary_prompt
-from services.llm_service import generate_stream
-from utils.cleaner import clean_text
+from services.summary_service import summarize_text
+
+import requests
+import tempfile
+import urllib.parse
 
 router = APIRouter()
 
-@router.post("/pdf/summarize")
-async def summarize_pdf(
-    file: UploadFile = File(...)
-):
-    with tempfile.NamedTemporaryFile(
-        delete=False,
-        suffix=".pdf"
-    ) as tmp:
 
-        tmp.write(
-            await file.read()
+@router.post("/pdf/url")
+async def summarize_pdf_url(data: PdfUrlRequest):
+
+    print("PDF URL RECEIVED:")
+    print(data.url)
+
+    if data.url.startswith("file:///"):
+
+        pdf_path = urllib.parse.unquote(
+            data.url.replace(
+                "file:///",
+                ""
+            )
         )
 
-        pdf_path = tmp.name
+        print("LOCAL PDF:")
+        print(pdf_path)
+
+    else:
+
+        response = requests.get(data.url)
+
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=".pdf"
+        ) as tmp:
+
+            tmp.write(response.content)
+
+            pdf_path = tmp.name
+
+        print("DOWNLOADED PDF:")
+        print(pdf_path)
 
     text = extract_pdf_text(pdf_path)
 
-    cleaned_content = clean_text(text)
+    print("PDF LENGTH:")
+    print(len(text))
 
-    chunks = chunk_text(cleaned_content)
-
-    def generate():
-
-        chunk_summaries = []
-
-        for chunk in chunks:
-
-            prompt = build_summary_prompt(
-                title=file.filename,
-                url="PDF",
-                content=chunk,
-                mode="bullets"
-            )
-
-            partial_summary = ""
-
-            for token in generate_stream(
-                prompt,
-                "qwen3:8b"
-            ):
-                partial_summary += token
-
-            chunk_summaries.append(
-                partial_summary.strip()
-            )
-
-        final_summary = "\n".join(
-            chunk_summaries
-        )
-
-        yield final_summary
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/plain"
+    return summarize_text(
+        text=text,
+        title="PDF Document",
+        url=data.url,
+        mode=data.mode,
+        model=data.model
     )

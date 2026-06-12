@@ -456,6 +456,35 @@ async function summarizeActivePage() {
       currentWindow: true,
     });
 
+    const settings = await getSettings();
+
+    const isPdf =
+      tab.url.startsWith("file://") ||
+      tab.url.toLowerCase().includes("/pdf/") ||
+      tab.url.toLowerCase().endsWith(".pdf");
+
+    if (isPdf) {
+      summaryText.textContent = "Summarizing PDF...";
+
+      const response = await fetch("http://127.0.0.1:8000/pdf/url", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url: tab.url,
+          mode: settings.responseFormat,
+          model: settings.model,
+        }),
+      });
+
+      const text = await response.text();
+
+      summaryText.textContent = text;
+
+      return;
+    }
+
     const pageData = await extractFromActiveTab(tab);
 
     console.log("PAGE DATA:", pageData);
@@ -464,8 +493,6 @@ async function summarizeActivePage() {
       summaryText.textContent = "Could not extract page.";
       return;
     }
-
-    const settings = await getSettings();
     const text = await summarizePage(pageData, settings);
 
     await chrome.storage.local.set({
