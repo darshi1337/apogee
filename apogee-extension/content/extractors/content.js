@@ -1,6 +1,5 @@
 console.log(typeof extractGeneric);
 console.log(typeof extractYoutube);
-console.log(typeof extractGmail);
 
 function extractPageContent() {
   const host = window.location.hostname;

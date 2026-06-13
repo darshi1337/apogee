@@ -56,7 +56,6 @@ const contentScriptFiles = [
   "content/Readability.js",
   "content/extractors/generic.js",
   "content/extractors/youtube.js",
-  "content/extractors/gmail.js",
   "content/content.js",
 ];
 
