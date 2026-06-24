@@ -1,10 +1,10 @@
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
-from models.request_models import AskRequest, SummaryRequest
-from services.prompt_service import build_answer_prompt
-from services.llm_service import generate_stream
-from services.summary_service import summarize_text
-from utils.cleaner import clean_text
+from apogee.models.request_models import AskRequest, SummaryRequest
+from apogee.services.prompt_service import build_answer_prompt
+from apogee.services.llm_service import generate_stream
+from apogee.services.summary_service import summarize_text
+from apogee.utils.cleaner import clean_text
 
 router = APIRouter()
 

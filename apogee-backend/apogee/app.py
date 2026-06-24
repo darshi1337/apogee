@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes.summarize import router as summarize_router
-from routes.health import router as health_router
-from routes.pdf import router as pdf_router
+from apogee.routes.summarize import router as summarize_router
+from apogee.routes.health import router as health_router
+from apogee.routes.pdf import router as pdf_router
 
 app = FastAPI()
 

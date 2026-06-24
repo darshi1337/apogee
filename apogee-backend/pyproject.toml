@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "apogee-browser"
+version = "0.1.0"
+description = "Local-first browser assistant powered by Ollama"
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "requests",
+    "python-multipart",
+    "pymupdf",
+    "ollama",
+    "fitz"
+]
+
+[project.scripts]
+apogee = "apogee.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]

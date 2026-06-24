@@ -1,0 +1,2 @@
+[console_scripts]
+apogee = apogee.cli:main

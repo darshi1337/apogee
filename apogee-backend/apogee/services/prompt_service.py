@@ -39,8 +39,14 @@ SUMMARY_STYLES = {
     ),
 }
 
-def load_prompt(prompt_name: str):
-    path = PROMPT_DIR / f"{prompt_name}.txt"
+PROMPTS_DIR = (
+    Path(__file__).resolve().parent.parent
+    / "prompts"
+)
+
+
+def load_prompt(name):
+    path = PROMPTS_DIR / f"{name}.txt"
     with open(path, "r", encoding="utf-8") as file:
         return file.read()
 

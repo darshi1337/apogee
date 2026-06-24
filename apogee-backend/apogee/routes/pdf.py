@@ -1,7 +1,7 @@
 from fastapi import APIRouter
-from models.request_models import PdfUrlRequest
-from services.pdf_service import extract_pdf_text
-from services.summary_service import summarize_text
+from apogee.models.request_models import PdfUrlRequest
+from apogee.services.pdf_service import extract_pdf_text
+from apogee.services.summary_service import summarize_text
 
 import requests
 import tempfile

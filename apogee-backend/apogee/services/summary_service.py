@@ -1,10 +1,10 @@
 from fastapi.responses import StreamingResponse
 
-from services.chunk_service import chunk_text
-from services.prompt_service import build_summary_prompt
-from services.llm_service import generate_stream
+from apogee.services.chunk_service import chunk_text
+from apogee.services.prompt_service import build_summary_prompt
+from apogee.services.llm_service import generate_stream
 
-from utils.cleaner import clean_text
+from apogee.utils.cleaner import clean_text
 
 
 def summarize_text(

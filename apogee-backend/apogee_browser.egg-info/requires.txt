@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+requests
+python-multipart
+pymupdf
+ollama
+fitz
