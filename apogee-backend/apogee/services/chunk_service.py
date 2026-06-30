@@ -1,25 +1,62 @@
-def chunk_text(text: str, chunk_size: int = 5000):
+import re
+
+# Matches sentence-ending punctuation followed by whitespace
+_SENTENCE_END = re.compile(r'(?<=[.!?])\s+')
+
+
+def chunk_text(text: str, chunk_size: int = 5000) -> list[str]:
+    """Split text into chunks, breaking at sentence boundaries when possible."""
     text = text.strip()
 
     if not text:
         return []
 
     if len(text) <= 15000:
-        print(f"Small article ({len(text)} chars) -> 1 chunk")
         return [text]
 
-    chunks = []
+    # Split into sentences first
+    sentences = _SENTENCE_END.split(text)
 
-    for i in range(0, len(text), chunk_size):
-        chunks.append(
-            text[i:i + chunk_size]
-        )
+    chunks: list[str] = []
+    current_chunk: list[str] = []
+    current_length = 0
 
-    print(f"Large article ({len(text)} chars)")
-    print(f"Total chunks: {len(chunks)}")
-    print(
-        "Chunk lengths:",
-        [len(chunk) for chunk in chunks]
-    )
+    for sentence in sentences:
+        sentence_len = len(sentence)
+
+        # If a single sentence exceeds chunk_size, split it by whitespace
+        if sentence_len > chunk_size:
+            # Flush what we have
+            if current_chunk:
+                chunks.append(" ".join(current_chunk))
+                current_chunk = []
+                current_length = 0
+
+            # Hard-split the oversized sentence on word boundaries
+            words = sentence.split()
+            part: list[str] = []
+            part_len = 0
+            for word in words:
+                if part_len + len(word) + 1 > chunk_size and part:
+                    chunks.append(" ".join(part))
+                    part = []
+                    part_len = 0
+                part.append(word)
+                part_len += len(word) + 1
+            if part:
+                chunks.append(" ".join(part))
+            continue
+
+        # Would this sentence push us over the limit?
+        if current_length + sentence_len + 1 > chunk_size and current_chunk:
+            chunks.append(" ".join(current_chunk))
+            current_chunk = []
+            current_length = 0
+
+        current_chunk.append(sentence)
+        current_length += sentence_len + 1
+
+    if current_chunk:
+        chunks.append(" ".join(current_chunk))
 
     return chunks

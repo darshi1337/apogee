@@ -16,7 +16,7 @@ dependencies = [
     "python-multipart",
     "pymupdf",
     "ollama",
-    "fitz"
+    "pydantic",
 ]
 
 [project.scripts]

@@ -260,45 +260,44 @@ async function extractFromActiveTab(tab) {
   }
 }
 
-async function summarizePage(pageData, settings) {
-  let endpoint;
-  let payload;
-
-  if (pageData.isPdf) {
-    endpoint = "http://127.0.0.1:8000/pdf/url";
-
-    payload = {
-      url: pageData.url,
-      mode: settings.responseFormat,
-      model: settings.model,
-    };
-  } else {
-    endpoint = "http://127.0.0.1:8000/summarize";
-
-    payload = {
-      title: pageData.title,
-      url: pageData.url,
-      content: pageData.content,
-      mode: settings.responseFormat,
-      model: settings.model,
-    };
+async function streamIntoElement(response, element) {
+  if (!response.body) {
+    const text = await response.text();
+    element.textContent = text.trimStart();
+    return text;
   }
 
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let fullText = "";
+  element.textContent = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value, { stream: true });
+    fullText += chunk;
+    element.textContent = fullText.trimStart();
+  }
+
+  fullText += decoder.decode();
+  element.textContent = fullText.trimStart();
+  return fullText;
+}
+
+async function fetchSummaryStream(endpoint, payload) {
   const response = await fetch(endpoint, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
-  const summary = await response.text();
-
   if (!response.ok) {
-    throw new Error(summary || `Summarize request failed: ${response.status}`);
+    const errText = await response.text();
+    throw new Error(errText || `Request failed: ${response.status}`);
   }
 
-  return summary;
+  return response;
 }
 
 function wait(ms) {
@@ -462,43 +461,54 @@ async function summarizeActivePage() {
       tab.url.toLowerCase().includes("/pdf/") ||
       tab.url.toLowerCase().endsWith(".pdf");
 
+    let text;
+
     if (isPdf) {
       summaryText.textContent = "Summarizing PDF...";
 
-      const response = await fetch("http://127.0.0.1:8000/pdf/url", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const response = await fetchSummaryStream(
+        "http://127.0.0.1:8000/pdf/url",
+        {
           url: tab.url,
           mode: settings.responseFormat,
           model: settings.model,
-        }),
+        },
+      );
+
+      text = await streamIntoElement(response, summaryText);
+    } else {
+      const pageData = await extractFromActiveTab(tab);
+
+      if (!pageData) {
+        summaryText.textContent = "Could not extract page.";
+        return;
+      }
+
+      const response = await fetchSummaryStream(
+        pageData.isPdf
+          ? "http://127.0.0.1:8000/pdf/url"
+          : "http://127.0.0.1:8000/summarize",
+        pageData.isPdf
+          ? {
+              url: pageData.url,
+              mode: settings.responseFormat,
+              model: settings.model,
+            }
+          : {
+              title: pageData.title,
+              url: pageData.url,
+              content: pageData.content,
+              mode: settings.responseFormat,
+              model: settings.model,
+            },
+      );
+
+      text = await streamIntoElement(response, summaryText);
+
+      await chrome.storage.local.set({
+        [getSummaryCacheKey(pageData.url, settings.responseFormat)]: text,
       });
-
-      const text = await response.text();
-
-      summaryText.textContent = text;
-
-      return;
     }
-
-    const pageData = await extractFromActiveTab(tab);
-
-    console.log("PAGE DATA:", pageData);
-
-    if (!pageData) {
-      summaryText.textContent = "Could not extract page.";
-      return;
-    }
-    const text = await summarizePage(pageData, settings);
-
-    await chrome.storage.local.set({
-      [getSummaryCacheKey(pageData.url, settings.responseFormat)]: text,
-    });
-
-    summaryText.textContent = text.trimStart();
   } catch (error) {
     console.error(error);
 
@@ -672,21 +682,29 @@ function updateConnectionUI(connected) {
 
   const settingsStatusText = document.getElementById("settingsStatusText");
 
+  const summaryStatusText = document.getElementById("summaryStatusText");
+
   const homeStatusDot = document.getElementById("homeStatusDot");
 
   const settingsStatusDot = document.getElementById("settingsStatusDot");
 
+  const summaryStatusDot = document.getElementById("summaryStatusDot");
+
   const text = connected ? "Connected" : "Disconnected";
+
+  const dotClass = connected
+    ? "status-dot connected"
+    : "status-dot disconnected";
 
   homeStatusText.textContent = text;
 
   settingsStatusText.textContent = text;
 
-  homeStatusDot.className = connected
-    ? "status-dot connected"
-    : "status-dot disconnected";
+  if (summaryStatusText) summaryStatusText.textContent = text;
 
-  settingsStatusDot.className = connected
-    ? "status-dot connected"
-    : "status-dot disconnected";
+  homeStatusDot.className = dotClass;
+
+  settingsStatusDot.className = dotClass;
+
+  if (summaryStatusDot) summaryStatusDot.className = dotClass;
 }

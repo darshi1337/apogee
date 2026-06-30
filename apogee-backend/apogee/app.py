@@ -9,10 +9,11 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # Only allow requests from browser extensions and localhost
+    allow_origin_regex=r"^(chrome-extension://.*|moz-extension://.*|http://127\.0\.0\.1(:\d+)?|http://localhost(:\d+)?)$",
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 app.include_router(summarize_router)

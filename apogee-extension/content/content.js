@@ -1,6 +1,11 @@
+// Dispatches to the appropriate extractor based on the current site.
+// Extractors (generic.js, youtube.js) are loaded first via manifest.json.
+
 function extractPageContent() {
   const url = window.location.href.toLowerCase();
+  const host = window.location.hostname;
 
+  // PDF detection
   if (url.endsWith(".pdf") || document.contentType === "application/pdf") {
     return {
       title: document.title,
@@ -10,33 +15,17 @@ function extractPageContent() {
     };
   }
 
-  const documentClone = document.cloneNode(true);
-
-  const article = new Readability(documentClone).parse();
-
-  if (!article) {
-    console.log("Readability failed, using fallback");
-
-    return {
-      title: document.title,
-      url: window.location.href,
-      content: document.body.innerText,
-      isPdf: false,
-    };
+  // YouTube
+  if (host.includes("youtube.com")) {
+    console.log("Apogee: using YouTube extractor");
+    const data = extractYoutube();
+    return { ...data, isPdf: false };
   }
 
-  console.log(
-    "Readability succeeded",
-    "Extracted length:",
-    article.textContent.length,
-  );
-
-  return {
-    title: article.title,
-    url: window.location.href,
-    content: article.textContent,
-    isPdf: false,
-  };
+  // Default: Readability-based generic extractor
+  console.log("Apogee: using generic extractor");
+  const data = extractGeneric();
+  return { ...data, isPdf: false };
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

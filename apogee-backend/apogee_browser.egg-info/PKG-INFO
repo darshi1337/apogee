@@ -10,4 +10,4 @@ Requires-Dist: requests
 Requires-Dist: python-multipart
 Requires-Dist: pymupdf
 Requires-Dist: ollama
-Requires-Dist: fitz
+Requires-Dist: pydantic

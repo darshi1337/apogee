@@ -2,8 +2,7 @@ from fastapi.responses import StreamingResponse
 
 from apogee.services.chunk_service import chunk_text
 from apogee.services.prompt_service import build_summary_prompt
-from apogee.services.llm_service import generate_stream
-
+from apogee.services.llm_service import generate_stream, LLMError
 from apogee.utils.cleaner import clean_text
 
 
@@ -12,116 +11,65 @@ def summarize_text(
     title: str,
     url: str,
     mode: str,
-    model: str
+    model: str,
 ):
-
     cleaned_content = clean_text(text)
-
     chunks = chunk_text(cleaned_content)
 
-    print("Total chunks:", len(chunks))
-
     def generate():
+        try:
+            # --- Single chunk: stream tokens directly ---
+            if len(chunks) == 1:
+                prompt = build_summary_prompt(
+                    title=title,
+                    url=url,
+                    content=chunks[0],
+                    mode=mode,
+                )
+                yield from generate_stream(prompt, model)
+                return
 
-        chunk_summaries = []
+            # --- Multiple chunks: summarize each, then merge ---
+            chunk_summaries = []
+            for index, chunk in enumerate(chunks):
+                prompt = build_summary_prompt(
+                    title=title,
+                    url=url,
+                    content=chunk,
+                    mode=mode,
+                )
+                partial = ""
+                for token in generate_stream(prompt, model):
+                    partial += token
+                chunk_summaries.append(partial.strip())
 
-        for index, chunk in enumerate(chunks):
+            if mode == "bullets":
+                # Collect all bullets and stream them out
+                for summary in chunk_summaries:
+                    for line in summary.splitlines():
+                        line = line.strip()
+                        if line.startswith("•"):
+                            yield line + "\n"
+            else:
+                # For sentences / paragraphs, run a merge pass and stream it
+                combined_text = "\n".join(chunk_summaries)
+                merge_prompt = build_summary_prompt(
+                    title=title,
+                    url=url,
+                    content=combined_text,
+                    mode=mode,
+                )
+                yield from generate_stream(merge_prompt, model)
 
-            print(
-                f"Processing chunk {index + 1}/{len(chunks)}"
-            )
-
-            prompt = build_summary_prompt(
-                title=title,
-                url=url,
-                content=chunk,
-                mode=mode
-            )
-
-            partial_summary = ""
-
-            for token in generate_stream(
-                prompt,
-                model
-            ):
-                partial_summary += token
-
-            chunk_summaries.append(
-                partial_summary.strip()
-            )
-
-        print("All chunks summarized")
-
-        if mode == "bullets":
-
-            all_bullets = []
-
-            for summary in chunk_summaries:
-
-                for line in summary.splitlines():
-
-                    line = line.strip()
-
-                    if line.startswith("•"):
-                        all_bullets.append(line)
-
-            final_summary = "\n".join(
-                all_bullets
-            )
-
-        elif mode == "sentences":
-
-            combined_text = "\n".join(
-                chunk_summaries
-            )
-
-            final_prompt = build_summary_prompt(
-                title=title,
-                url=url,
-                content=combined_text,
-                mode="sentences"
-            )
-
-            final_summary = ""
-
-            for token in generate_stream(
-                final_prompt,
-                model
-            ):
-                final_summary += token
-
-        elif mode == "paragraphs":
-
-            combined_text = "\n".join(
-                chunk_summaries
-            )
-
-            final_prompt = build_summary_prompt(
-                title=title,
-                url=url,
-                content=combined_text,
-                mode="paragraphs"
-            )
-
-            final_summary = ""
-
-            for token in generate_stream(
-                final_prompt,
-                model
-            ):
-                final_summary += token
-
-        else:
-
-            final_summary = "\n\n".join(
-                chunk_summaries
-            )
-
-        print("Returning combined summary")
-
-        yield final_summary
+        except LLMError as exc:
+            # LLMError is raised during iteration, not during the initial
+            # call to summarize_text(). Since the StreamingResponse has
+            # already been sent with a 200 status at that point, we can't
+            # change the HTTP status code — we can only append the error
+            # to the stream so the user sees it.
+            yield f"\n\n[Error: {exc}]"
 
     return StreamingResponse(
         generate(),
-        media_type="text/plain"
+        media_type="text/plain",
     )

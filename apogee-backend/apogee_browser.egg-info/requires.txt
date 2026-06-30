@@ -4,4 +4,4 @@ requests
 python-multipart
 pymupdf
 ollama
-fitz
+pydantic
