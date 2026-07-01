@@ -11,7 +11,9 @@ def chunk_text(text: str, chunk_size: int = 5000) -> list[str]:
     if not text:
         return []
 
-    if len(text) <= 15000:
+    # Use chunk_size to derive the single-chunk threshold so the
+    # parameter isn't silently ignored for moderate-length texts.
+    if len(text) <= chunk_size * 3:
         return [text]
 
     # Split into sentences first

@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from apogee.models.request_models import AskRequest, SummaryRequest
@@ -9,20 +9,37 @@ from apogee.utils.cleaner import clean_text
 
 router = APIRouter()
 
+# Maximum content length accepted (approximately 500 KB of text).
+MAX_CONTENT_LENGTH = 500_000
+
 
 @router.post("/summarize")
-async def summarize(data: SummaryRequest):
-    return summarize_text(
-        text=data.content,
-        title=data.title,
-        url=data.url,
-        mode=data.mode,
-        model=data.model,
+def summarize(data: SummaryRequest):
+    if len(data.content) > MAX_CONTENT_LENGTH:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Content too large ({len(data.content)} chars). Maximum is {MAX_CONTENT_LENGTH}.",
+        )
+
+    return StreamingResponse(
+        summarize_text(
+            text=data.content,
+            title=data.title,
+            url=data.url,
+            mode=data.mode,
+            model=data.model,
+        ),
+        media_type="text/plain",
     )
 
 
 @router.post("/ask")
-async def ask(data: AskRequest):
+def ask(data: AskRequest):
+    if len(data.content) > MAX_CONTENT_LENGTH:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Content too large ({len(data.content)} chars). Maximum is {MAX_CONTENT_LENGTH}.",
+        )
 
     cleaned_content = clean_text(data.content)
 

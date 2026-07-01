@@ -23,7 +23,7 @@
 
 @font-face {
   font-family: "Mozilla_Text";
-  src: url("../assets/fonts/MozillaText-Bold.ttf") format("opentype");
+  src: url("../assets/fonts/MozillaText-Bold.ttf") format("truetype");
   font-weight: 700;
 }
 
@@ -72,7 +72,6 @@ body {
   font-family: "Mozilla_Text", sans-serif;
   font-weight: 700;
   font-size: 25px;
-  font-weight: bold;
   color: #2a374d;
 }
 
@@ -248,8 +247,7 @@ body {
 .send-btn {
   position: absolute;
   right: 12px;
-  top: 25%;
-  transform: translateY(-50%);
+  top: 12px;
   width: 24px;
   height: 24px;
   border: none;
@@ -429,31 +427,6 @@ body {
 .arrow-icon {
   width: 20px;
   height: 20px;
-}
-
-.contact-header {
-  padding: 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.contact-title {
-  font-family: "Metropolis";
-  font-size: 25px;
-  font-weight: 700;
-  color: #535050;
-}
-
-.contact-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.contact-logo {
-  width: 28px;
-  height: 28px;
 }
 
 .contact-links {

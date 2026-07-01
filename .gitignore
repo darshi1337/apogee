@@ -1,3 +1,9 @@
-web-ext-artifacts/
-apogee.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+.env
+build/
 dist/
+web-ext-artifacts/

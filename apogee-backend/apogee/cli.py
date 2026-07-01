@@ -23,6 +23,7 @@ def ollama_installed():
 
 
 def model_installed(model):
+    """Check whether a model is installed by parsing the first column of `ollama list`."""
     try:
         result = subprocess.run(
             ["ollama", "list"],
@@ -30,8 +31,13 @@ def model_installed(model):
             text=True,
             check=True,
         )
-
-        return model in result.stdout
+        # Skip the header row, split each line, and compare the model name column.
+        installed = {
+            line.split()[0]
+            for line in result.stdout.splitlines()[1:]
+            if line.strip()
+        }
+        return model in installed
 
     except Exception:
         return False
@@ -76,9 +82,13 @@ def doctor():
             text=True,
             check=True,
         )
-        installed_models = result.stdout
+        installed = {
+            line.split()[0]
+            for line in result.stdout.splitlines()[1:]
+            if line.strip()
+        }
         for model in MODELS:
-            if model in installed_models:
+            if model in installed:
                 print(f"✓ {model}")
             else:
                 print(f"✗ {model}")

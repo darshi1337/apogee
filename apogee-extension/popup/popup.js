@@ -1,5 +1,3 @@
-console.log("chrome =", typeof chrome);
-
 const summarizeBtn = document.getElementById("summarizeBtn");
 
 const summaryText = document.getElementById("summaryText");
@@ -13,6 +11,8 @@ const closeBtn = document.getElementById("closeBtn");
 const closeBtn2 = document.getElementById("closeBtn2");
 
 const closeBtn3 = document.getElementById("closeBtn3");
+
+const closeBtn4 = document.getElementById("closeBtn4");
 
 const homeView = document.getElementById("homeView");
 
@@ -68,8 +68,6 @@ const defaultSettings = {
   model: "qwen3:8b",
 };
 
-let typingTimeoutId = null;
-
 async function getSettings() {
   const stored = await chrome.storage.local.get("settings");
 
@@ -121,23 +119,23 @@ function resetQuestionCards() {
 
   promptsCloseBtn.classList.remove("hidden");
 
-  document.getElementById("questionContainer").innerHTML = `
-    <button class="prompt-card">
-      Explain this like I'm five.
-    </button>
+  const container = document.getElementById("questionContainer");
+  container.innerHTML = "";
 
-    <button class="prompt-card">
-      Give me the key takeaways.
-    </button>
-  `;
+  const prompts = [
+    "Explain this like I'm five.",
+    "Give me the key takeaways.",
+  ];
 
-  document
-    .querySelectorAll("#questionContainer .prompt-card")
-    .forEach((card) => {
-      card.addEventListener("click", () => {
-        submitQuestion(card.textContent);
-      });
+  prompts.forEach((text) => {
+    const btn = document.createElement("button");
+    btn.className = "prompt-card";
+    btn.textContent = text;
+    btn.addEventListener("click", () => {
+      submitQuestion(btn.textContent);
     });
+    container.appendChild(btn);
+  });
 }
 
 function getSummaryCacheKey(url, responseFormat) {
@@ -174,6 +172,19 @@ function showAskContext() {
   togglePromptsBtn.style.display = "none";
 }
 
+function showQuestion(question) {
+  questionHeading.textContent = "Question";
+  promptsCloseBtn.classList.add("hidden");
+
+  const container = document.getElementById("questionContainer");
+  container.innerHTML = "";
+  const btn = document.createElement("button");
+  btn.className = "prompt-card";
+  btn.disabled = true;
+  btn.textContent = question;
+  container.appendChild(btn);
+}
+
 function showAnswerContext(question) {
   showQuestion(question);
   summaryCard.classList.add("hidden");
@@ -182,18 +193,6 @@ function showAnswerContext(question) {
   answerHeading.textContent = "Answer";
   promptsCloseBtn.classList.add("hidden");
   togglePromptsBtn.style.display = "none";
-
-  promptCards.forEach((card, index) => {
-    if (index === 0) {
-      card.textContent = question;
-      card.disabled = true;
-      card.classList.remove("hidden");
-      return;
-    }
-
-    card.disabled = true;
-    card.classList.add("hidden");
-  });
 
   questionInput.classList.add("hidden");
   sendBtn.classList.add("hidden");
@@ -242,17 +241,10 @@ async function injectContentScripts(tabId) {
 }
 
 async function extractFromActiveTab(tab) {
-  console.log("ACTIVE TAB:");
-  console.log(tab.url);
-  console.log(tab.id);
-
   try {
     return await sendExtractMessage(tab.id);
   } catch (error) {
     console.error(error);
-    console.log(
-      "No content script receiver; injecting content scripts and retrying.",
-    );
 
     await injectContentScripts(tab.id);
 
@@ -306,18 +298,6 @@ function wait(ms) {
   });
 }
 
-function showQuestion(question) {
-  questionHeading.textContent = "Question";
-
-  promptsCloseBtn.classList.add("hidden");
-
-  document.getElementById("questionContainer").innerHTML = `
-    <button class="prompt-card" disabled>
-      ${question}
-    </button>
-  `;
-}
-
 async function appendTextByWord(element, text, speed = 45) {
   const words = text.split(/(\s+)/);
 
@@ -348,12 +328,6 @@ async function streamAnswer(pageData, question, element) {
     throw new Error(answer || `Ask request failed: ${response.status}`);
   }
 
-  if (!response.body) {
-    const answer = await response.text();
-    await typeTextByWord(element, answer);
-    return;
-  }
-
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let pendingText = "";
@@ -382,33 +356,6 @@ async function streamAnswer(pageData, question, element) {
   if (pendingText) {
     await appendTextByWord(element, pendingText);
   }
-}
-
-function typeTextByWord(element, text, speed = 70) {
-  if (typingTimeoutId) {
-    clearTimeout(typingTimeoutId);
-  }
-
-  const words = text.match(/\S+\s*/g) || [];
-  let index = 0;
-
-  element.textContent = "";
-
-  return new Promise((resolve) => {
-    function typeNextWord() {
-      if (index >= words.length) {
-        typingTimeoutId = null;
-        resolve();
-        return;
-      }
-
-      element.textContent += words[index];
-      index += 1;
-      typingTimeoutId = setTimeout(typeNextWord, speed);
-    }
-
-    typeNextWord();
-  });
 }
 
 async function submitQuestion(question) {
@@ -456,20 +403,25 @@ async function summarizeActivePage() {
 
     const settings = await getSettings();
 
-    const isPdf =
-      tab.url.startsWith("file://") ||
-      tab.url.toLowerCase().includes("/pdf/") ||
-      tab.url.toLowerCase().endsWith(".pdf");
+    // Try to extract page content first; use the content script's
+    // authoritative isPdf flag instead of guessing from the URL.
+    const pageData = await extractFromActiveTab(tab);
 
+    if (!pageData) {
+      summaryText.textContent = "Could not extract page.";
+      return;
+    }
+
+    const cacheKey = getSummaryCacheKey(tab.url, settings.responseFormat);
     let text;
 
-    if (isPdf) {
+    if (pageData.isPdf) {
       summaryText.textContent = "Summarizing PDF...";
 
       const response = await fetchSummaryStream(
         "http://127.0.0.1:8000/pdf/url",
         {
-          url: tab.url,
+          url: pageData.url,
           mode: settings.responseFormat,
           model: settings.model,
         },
@@ -477,38 +429,24 @@ async function summarizeActivePage() {
 
       text = await streamIntoElement(response, summaryText);
     } else {
-      const pageData = await extractFromActiveTab(tab);
-
-      if (!pageData) {
-        summaryText.textContent = "Could not extract page.";
-        return;
-      }
-
       const response = await fetchSummaryStream(
-        pageData.isPdf
-          ? "http://127.0.0.1:8000/pdf/url"
-          : "http://127.0.0.1:8000/summarize",
-        pageData.isPdf
-          ? {
-              url: pageData.url,
-              mode: settings.responseFormat,
-              model: settings.model,
-            }
-          : {
-              title: pageData.title,
-              url: pageData.url,
-              content: pageData.content,
-              mode: settings.responseFormat,
-              model: settings.model,
-            },
+        "http://127.0.0.1:8000/summarize",
+        {
+          title: pageData.title,
+          url: pageData.url,
+          content: pageData.content,
+          mode: settings.responseFormat,
+          model: settings.model,
+        },
       );
 
       text = await streamIntoElement(response, summaryText);
-
-      await chrome.storage.local.set({
-        [getSummaryCacheKey(pageData.url, settings.responseFormat)]: text,
-      });
     }
+
+    // Cache both PDF and non-PDF summaries
+    await chrome.storage.local.set({
+      [cacheKey]: text,
+    });
   } catch (error) {
     console.error(error);
 
@@ -568,6 +506,10 @@ closeBtn2?.addEventListener("click", () => {
 });
 
 closeBtn3?.addEventListener("click", () => {
+  window.close();
+});
+
+closeBtn4?.addEventListener("click", () => {
   window.close();
 });
 

@@ -1,5 +1,3 @@
-from fastapi.responses import StreamingResponse
-
 from apogee.services.chunk_service import chunk_text
 from apogee.services.prompt_service import build_summary_prompt
 from apogee.services.llm_service import generate_stream, LLMError
@@ -13,6 +11,11 @@ def summarize_text(
     mode: str,
     model: str,
 ):
+    """Return a generator that yields summary tokens.
+
+    The caller (route layer) is responsible for wrapping
+    this in a StreamingResponse.
+    """
     cleaned_content = clean_text(text)
     chunks = chunk_text(cleaned_content)
 
@@ -69,7 +72,4 @@ def summarize_text(
             # to the stream so the user sees it.
             yield f"\n\n[Error: {exc}]"
 
-    return StreamingResponse(
-        generate(),
-        media_type="text/plain",
-    )
+    return generate()

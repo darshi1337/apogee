@@ -11,15 +11,15 @@ IMPORTANT RULES:
 - Stay grounded in the provided text
 
 ARTICLE TITLE:
-{title}
+$title
 
 ARTICLE URL:
-{url}
+$url
 
 SUMMARY STYLE:
-{style}
+$style
 
 The SUMMARY STYLE is mandatory. Follow it exactly.
 
 ARTICLE CONTENT:
-{content}
+$content

@@ -1,4 +1,6 @@
+from functools import lru_cache
 from pathlib import Path
+from string import Template
 
 SUMMARY_STYLES = {
     "bullets": (
@@ -43,27 +45,28 @@ PROMPTS_DIR = (
 )
 
 
+@lru_cache(maxsize=None)
 def load_prompt(name):
+    """Load a prompt template from disk (cached after first read)."""
     path = PROMPTS_DIR / f"{name}.txt"
-    with open(path, "r", encoding="utf-8") as file:
-        return file.read()
+    return path.read_text(encoding="utf-8")
 
 def build_summary_prompt(title, url, content, mode):
-    template = load_prompt("summarize")
+    template_str = load_prompt("summarize")
     style = SUMMARY_STYLES.get(mode, SUMMARY_STYLES["bullets"])
 
-    return template.format(
+    return Template(template_str).safe_substitute(
         title=title,
         url=url,
         content=content,
-        style=style
+        style=style,
     )
 
 def build_answer_prompt(title, url, content, question):
-    template = load_prompt("answer")
-    return template.format(
+    template_str = load_prompt("answer")
+    return Template(template_str).safe_substitute(
         title=title,
         url=url,
         content=content,
-        question=question
+        question=question,
     )

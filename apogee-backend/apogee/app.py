@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from apogee.routes.summarize import router as summarize_router
 from apogee.routes.health import router as health_router
@@ -21,7 +22,5 @@ app.include_router(health_router)
 app.include_router(pdf_router)
 
 @app.get("/")
-async def root():
-    return {
-        "message": "Apogee backend running"
-    }
+def root():
+    return RedirectResponse(url="/health")

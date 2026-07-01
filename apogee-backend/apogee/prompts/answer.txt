@@ -8,13 +8,13 @@ Do not use bullet points unless necessary.
 If the article does not contain enough information, say that clearly.
 
 Title:
-{title}
+$title
 
 URL:
-{url}
+$url
 
 Question:
-{question}
+$question
 
 Article:
-{content}
+$content

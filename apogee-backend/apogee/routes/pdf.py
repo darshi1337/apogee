@@ -1,9 +1,12 @@
+import ipaddress
 import os
+import socket
 import tempfile
 import urllib.parse
 
 import requests
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from apogee.models.request_models import PdfUrlRequest
 from apogee.services.pdf_service import extract_pdf_text
@@ -11,12 +14,31 @@ from apogee.services.summary_service import summarize_text
 
 router = APIRouter()
 
+# Maximum extracted text length accepted (approximately 500 KB).
+MAX_CONTENT_LENGTH = 500_000
+
 # Directories that local PDF access is restricted to.
 # Users can only open PDFs from standard user-accessible locations.
 ALLOWED_PDF_ROOTS = [
     os.path.expanduser("~"),   # user's home directory
     "/tmp",
 ]
+
+
+def _is_safe_remote_url(url: str) -> bool:
+    """Reject URLs that target private/loopback addresses (SSRF protection)."""
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return False
+    if not parsed.hostname:
+        return False
+    try:
+        resolved_ip = ipaddress.ip_address(
+            socket.gethostbyname(parsed.hostname)
+        )
+        return resolved_ip.is_global
+    except (socket.gaierror, ValueError):
+        return False
 
 
 def _validate_local_path(raw_path: str) -> str:
@@ -45,14 +67,20 @@ def _validate_local_path(raw_path: str) -> str:
 
 
 @router.post("/pdf/url")
-async def summarize_pdf_url(data: PdfUrlRequest):
+def summarize_pdf_url(data: PdfUrlRequest):
 
     if data.url.startswith("file:///"):
         # Local file — validate the resolved path before reading
         raw_path = urllib.parse.unquote(data.url[len("file://"):])
         pdf_path = _validate_local_path(raw_path)
     else:
-        # Remote URL — download to a temp file, process, then clean up
+        # Remote URL — validate against SSRF, then download to a temp file
+        if not _is_safe_remote_url(data.url):
+            raise HTTPException(
+                status_code=400,
+                detail="URL is not allowed: only public http/https URLs are accepted.",
+            )
+
         try:
             response = requests.get(data.url, timeout=30)
             response.raise_for_status()
@@ -84,10 +112,19 @@ async def summarize_pdf_url(data: PdfUrlRequest):
             detail="Could not extract text from the PDF.",
         )
 
-    return summarize_text(
-        text=text,
-        title="PDF Document",
-        url=data.url,
-        mode=data.mode,
-        model=data.model,
+    if len(text) > MAX_CONTENT_LENGTH:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Extracted PDF text too large ({len(text)} chars). Maximum is {MAX_CONTENT_LENGTH}.",
+        )
+
+    return StreamingResponse(
+        summarize_text(
+            text=text,
+            title="PDF Document",
+            url=data.url,
+            mode=data.mode,
+            model=data.model,
+        ),
+        media_type="text/plain",
     )

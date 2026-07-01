@@ -17,13 +17,11 @@ function extractPageContent() {
 
   // YouTube
   if (host.includes("youtube.com")) {
-    console.log("Apogee: using YouTube extractor");
     const data = extractYoutube();
     return { ...data, isPdf: false };
   }
 
   // Default: Readability-based generic extractor
-  console.log("Apogee: using generic extractor");
   const data = extractGeneric();
   return { ...data, isPdf: false };
 }

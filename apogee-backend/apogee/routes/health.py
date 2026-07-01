@@ -4,7 +4,7 @@ import ollama
 router = APIRouter()
 
 @router.get("/health")
-async def health():
+def health():
     try:
         models = ollama.list()
 
