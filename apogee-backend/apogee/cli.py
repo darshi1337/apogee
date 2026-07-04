@@ -99,9 +99,8 @@ def doctor():
 
 
 def run_server():
-    # Host/port are overridable via env vars so the server can avoid a port
-    # already taken by another local process. The browser extension defaults
-    # to 127.0.0.1:8000, so change the extension endpoint too if you override.
+    # Override APOGEE_HOST/APOGEE_PORT to dodge a taken port; the extension
+    # defaults to 127.0.0.1:8000, so update its endpoint to match.
     host = os.environ.get("APOGEE_HOST", "127.0.0.1")
     try:
         port = int(os.environ.get("APOGEE_PORT", "8000"))

@@ -1,5 +1,4 @@
-// Base URL of the local Apogee backend. Change this (and start the backend
-// with a matching APOGEE_PORT) if port 8000 is already in use on your machine.
+// Must match the backend's APOGEE_HOST/APOGEE_PORT (default 127.0.0.1:8000).
 const API_BASE = "http://127.0.0.1:8000";
 
 const summarizeBtn = document.getElementById("summarizeBtn");
@@ -256,8 +255,7 @@ async function extractFromActiveTab(tab) {
   }
 }
 
-// Renders an animated spinner + label. `label` is a trusted internal string,
-// so building the markup with innerHTML here is safe.
+// `label` is a trusted literal, so innerHTML is safe here.
 function setLoadingIndicator(element, label) {
   element.innerHTML =
     '<span class="apogee-loading">' +
@@ -268,11 +266,9 @@ function setLoadingIndicator(element, label) {
     "</span>";
 }
 
-// --- Minimal, XSS-safe Markdown renderer -----------------------------------
-// The LLM output is escaped FIRST, then only a fixed whitelist of formatting
-// tags is emitted. No attributes, links, images, or raw HTML pass through, so
-// nothing from the model (or the summarized page) can inject markup/scripts.
-
+// Minimal Markdown renderer. Input is HTML-escaped first, then only a fixed
+// set of formatting tags is emitted — no attributes, links, or raw HTML — so
+// untrusted model/page output can't inject markup.
 function escapeHtml(text) {
   return text
     .replace(/&/g, "&amp;")
@@ -357,8 +353,7 @@ async function streamIntoElement(response, element) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let fullText = "";
-  // Keep the loading indicator visible until the first real (non-whitespace)
-  // token arrives, then swap it out for the streaming text.
+  // Hold the loading indicator until the first non-whitespace token.
   let started = false;
 
   while (true) {
@@ -431,8 +426,7 @@ async function streamAnswer(pageData, question, element) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let pendingText = "";
-  // Keep the loading indicator (set by showAnswerContext) until the first
-  // word is ready, then clear it and start the typewriter effect.
+  // Hold the loading indicator until the first word, then start typing.
   let started = false;
 
   const beginIfNeeded = () => {
@@ -468,7 +462,6 @@ async function streamAnswer(pageData, question, element) {
   }
 
   if (started) {
-    // Re-render the fully typed answer as formatted Markdown.
     element.innerHTML = renderMarkdown(element.textContent);
   } else {
     element.textContent = "";
