@@ -85,6 +85,20 @@ APOGEE_PORT=8123 apogee
 If you change the port, update the endpoint the browser extension talks to
 accordingly (it defaults to `http://127.0.0.1:8000`).
 
+### Performance
+
+Measured locally on an Apple M2 (`gemma3:4b`, GPU via Metal):
+
+| Metric | Value |
+| --- | --- |
+| Generation throughput | ~73 tokens/s |
+| Model cold-load | ~0.25 s |
+| Short page / question | ~1–1.5 s end to end |
+| Long page (~40k chars, multi-chunk) | first bullets in ~2 s, ~12 s total |
+
+Numbers vary by hardware and model — 8B models (`qwen3:8b`, `llama3.1:8b`) run
+roughly half as fast as `gemma3:4b` and need more memory.
+
 ## Browser Extension
 
 Install the Apogee browser extension and connect it to the local backend.
