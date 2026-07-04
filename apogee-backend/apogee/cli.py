@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 import uvicorn
@@ -98,10 +99,19 @@ def doctor():
 
 
 def run_server():
+    # Host/port are overridable via env vars so the server can avoid a port
+    # already taken by another local process. The browser extension defaults
+    # to 127.0.0.1:8000, so change the extension endpoint too if you override.
+    host = os.environ.get("APOGEE_HOST", "127.0.0.1")
+    try:
+        port = int(os.environ.get("APOGEE_PORT", "8000"))
+    except ValueError:
+        print("Invalid APOGEE_PORT; falling back to 8000.")
+        port = 8000
     uvicorn.run(
         "apogee.app:app",
-        host="127.0.0.1",
-        port=8000,
+        host=host,
+        port=port,
     )
 
 

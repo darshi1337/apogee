@@ -1,3 +1,7 @@
+// Base URL of the local Apogee backend. Change this (and start the backend
+// with a matching APOGEE_PORT) if port 8000 is already in use on your machine.
+const API_BASE = "http://127.0.0.1:8000";
+
 const summarizeBtn = document.getElementById("summarizeBtn");
 
 const summaryText = document.getElementById("summaryText");
@@ -197,7 +201,7 @@ function showAnswerContext(question) {
   questionInput.classList.add("hidden");
   sendBtn.classList.add("hidden");
   answerBox.classList.remove("hidden");
-  answerBox.textContent = "Thinking...";
+  setLoadingIndicator(answerBox, "Thinking");
 }
 
 function sendExtractMessage(tabId) {
@@ -252,28 +256,124 @@ async function extractFromActiveTab(tab) {
   }
 }
 
+// Renders an animated spinner + label. `label` is a trusted internal string,
+// so building the markup with innerHTML here is safe.
+function setLoadingIndicator(element, label) {
+  element.innerHTML =
+    '<span class="apogee-loading">' +
+    '<span class="apogee-spinner"></span>' +
+    '<span>' +
+    label +
+    '<span class="apogee-dots"></span></span>' +
+    "</span>";
+}
+
+// --- Minimal, XSS-safe Markdown renderer -----------------------------------
+// The LLM output is escaped FIRST, then only a fixed whitelist of formatting
+// tags is emitted. No attributes, links, images, or raw HTML pass through, so
+// nothing from the model (or the summarized page) can inject markup/scripts.
+
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function renderInline(escapedText) {
+  return escapedText
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+    .replace(/(^|[^_])_([^_\n]+)_/g, "$1<em>$2</em>");
+}
+
+function renderMarkdown(source) {
+  const lines = escapeHtml(source).split(/\r?\n/);
+  let html = "";
+  let listType = null;
+
+  const closeList = () => {
+    if (listType) {
+      html += `</${listType}>`;
+      listType = null;
+    }
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+
+    if (line.trim() === "") {
+      closeList();
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) {
+      closeList();
+      const level = heading[1].length;
+      html += `<h${level}>${renderInline(heading[2])}</h${level}>`;
+      continue;
+    }
+
+    const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
+    if (bullet) {
+      if (listType !== "ul") {
+        closeList();
+        html += "<ul>";
+        listType = "ul";
+      }
+      html += `<li>${renderInline(bullet[1])}</li>`;
+      continue;
+    }
+
+    const ordered = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (ordered) {
+      if (listType !== "ol") {
+        closeList();
+        html += "<ol>";
+        listType = "ol";
+      }
+      html += `<li>${renderInline(ordered[1])}</li>`;
+      continue;
+    }
+
+    closeList();
+    html += `<p>${renderInline(line)}</p>`;
+  }
+
+  closeList();
+  return html;
+}
+
 async function streamIntoElement(response, element) {
   if (!response.body) {
     const text = await response.text();
-    element.textContent = text.trimStart();
+    element.innerHTML = renderMarkdown(text.trimStart());
     return text;
   }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let fullText = "";
-  element.textContent = "";
+  // Keep the loading indicator visible until the first real (non-whitespace)
+  // token arrives, then swap it out for the streaming text.
+  let started = false;
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     const chunk = decoder.decode(value, { stream: true });
     fullText += chunk;
-    element.textContent = fullText.trimStart();
+    const visible = fullText.trimStart();
+    if (!started && visible === "") continue;
+    started = true;
+    element.textContent = visible;
   }
 
   fullText += decoder.decode();
-  element.textContent = fullText.trimStart();
+  element.innerHTML = renderMarkdown(fullText.trimStart());
   return fullText;
 }
 
@@ -309,7 +409,7 @@ async function appendTextByWord(element, text, speed = 45) {
 
 async function streamAnswer(pageData, question, element) {
   const settings = await getSettings();
-  const response = await fetch("http://127.0.0.1:8000/ask", {
+  const response = await fetch(`${API_BASE}/ask`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -331,8 +431,16 @@ async function streamAnswer(pageData, question, element) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let pendingText = "";
+  // Keep the loading indicator (set by showAnswerContext) until the first
+  // word is ready, then clear it and start the typewriter effect.
+  let started = false;
 
-  element.textContent = "";
+  const beginIfNeeded = () => {
+    if (!started) {
+      element.textContent = "";
+      started = true;
+    }
+  };
 
   while (true) {
     const { done, value } = await reader.read();
@@ -347,6 +455,7 @@ async function streamAnswer(pageData, question, element) {
     if (completeWords.length > 0) {
       const typedText = completeWords.join("");
       pendingText = pendingText.slice(typedText.length);
+      beginIfNeeded();
       await appendTextByWord(element, typedText);
     }
   }
@@ -354,7 +463,15 @@ async function streamAnswer(pageData, question, element) {
   pendingText += decoder.decode();
 
   if (pendingText) {
+    beginIfNeeded();
     await appendTextByWord(element, pendingText);
+  }
+
+  if (started) {
+    // Re-render the fully typed answer as formatted Markdown.
+    element.innerHTML = renderMarkdown(element.textContent);
+  } else {
+    element.textContent = "";
   }
 }
 
@@ -393,7 +510,7 @@ async function summarizeActivePage() {
   homeView.classList.add("hidden");
   summaryView.classList.remove("hidden");
   showSummaryContext();
-  summaryText.textContent = "Summarizing...";
+  setLoadingIndicator(summaryText, "Summarizing");
 
   try {
     const [tab] = await chrome.tabs.query({
@@ -416,10 +533,10 @@ async function summarizeActivePage() {
     let text;
 
     if (pageData.isPdf) {
-      summaryText.textContent = "Summarizing PDF...";
+      setLoadingIndicator(summaryText, "Summarizing PDF");
 
       const response = await fetchSummaryStream(
-        "http://127.0.0.1:8000/pdf/url",
+        `${API_BASE}/pdf/url`,
         {
           url: pageData.url,
           mode: settings.responseFormat,
@@ -430,7 +547,7 @@ async function summarizeActivePage() {
       text = await streamIntoElement(response, summaryText);
     } else {
       const response = await fetchSummaryStream(
-        "http://127.0.0.1:8000/summarize",
+        `${API_BASE}/summarize`,
         {
           title: pageData.title,
           url: pageData.url,
@@ -469,7 +586,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const cached = await chrome.storage.local.get(cacheKey);
 
     if (cached[cacheKey]) {
-      summaryText.textContent = cached[cacheKey];
+      summaryText.innerHTML = renderMarkdown(cached[cacheKey]);
       homeView.classList.add("hidden");
       summaryView.classList.remove("hidden");
       showSummaryContext();
@@ -609,7 +726,7 @@ document
 
 async function checkOllamaConnection() {
   try {
-    const response = await fetch("http://127.0.0.1:8000/health");
+    const response = await fetch(`${API_BASE}/health`);
 
     const data = await response.json();
 

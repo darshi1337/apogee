@@ -19,10 +19,29 @@ MAX_CONTENT_LENGTH = 500_000
 
 # Directories that local PDF access is restricted to.
 # Users can only open PDFs from standard user-accessible locations.
+# Roots are resolved with realpath so symlinked temp dirs (e.g. macOS
+# maps /tmp -> /private/tmp) still match the realpath()'d request path.
 ALLOWED_PDF_ROOTS = [
-    os.path.expanduser("~"),   # user's home directory
-    "/tmp",
+    os.path.realpath(os.path.expanduser("~")),   # user's home directory
+    os.path.realpath(tempfile.gettempdir()),     # platform temp dir
+    os.path.realpath("/tmp"),                    # macOS: -> /private/tmp
 ]
+
+
+def _is_within_allowed_roots(resolved: str) -> bool:
+    """True if `resolved` lives inside one of the allowed roots.
+
+    Uses commonpath rather than str.startswith so that a sibling like
+    "/tmpfoo" is not treated as being inside "/tmp".
+    """
+    for root in ALLOWED_PDF_ROOTS:
+        try:
+            if os.path.commonpath([resolved, root]) == root:
+                return True
+        except ValueError:
+            # Raised when paths are on different drives / not comparable.
+            continue
+    return False
 
 
 def _is_safe_remote_url(url: str) -> bool:
@@ -51,7 +70,7 @@ def _validate_local_path(raw_path: str) -> str:
             detail="Only .pdf files are allowed for local access.",
         )
 
-    if not any(resolved.startswith(root) for root in ALLOWED_PDF_ROOTS):
+    if not _is_within_allowed_roots(resolved):
         raise HTTPException(
             status_code=403,
             detail="Access denied: path is outside allowed directories.",

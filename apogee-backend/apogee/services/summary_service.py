@@ -32,9 +32,30 @@ def summarize_text(
                 yield from generate_stream(prompt, model)
                 return
 
-            # --- Multiple chunks: summarize each, then merge ---
+            # --- Multiple chunks ---
+            if mode == "bullets":
+                # Stream each chunk's bullets as soon as that chunk finishes,
+                # so long pages start showing output within a couple of seconds
+                # instead of blocking until every chunk has been summarized.
+                for chunk in chunks:
+                    prompt = build_summary_prompt(
+                        title=title,
+                        url=url,
+                        content=chunk,
+                        mode=mode,
+                    )
+                    partial = ""
+                    for token in generate_stream(prompt, model):
+                        partial += token
+                    for line in partial.splitlines():
+                        line = line.strip()
+                        if line.startswith("•"):
+                            yield line + "\n"
+                return
+
+            # --- sentences / paragraphs: summarize each chunk, then merge ---
             chunk_summaries = []
-            for index, chunk in enumerate(chunks):
+            for chunk in chunks:
                 prompt = build_summary_prompt(
                     title=title,
                     url=url,
@@ -46,23 +67,16 @@ def summarize_text(
                     partial += token
                 chunk_summaries.append(partial.strip())
 
-            if mode == "bullets":
-                # Collect all bullets and stream them out
-                for summary in chunk_summaries:
-                    for line in summary.splitlines():
-                        line = line.strip()
-                        if line.startswith("•"):
-                            yield line + "\n"
-            else:
-                # For sentences / paragraphs, run a merge pass and stream it
-                combined_text = "\n".join(chunk_summaries)
-                merge_prompt = build_summary_prompt(
-                    title=title,
-                    url=url,
-                    content=combined_text,
-                    mode=mode,
-                )
-                yield from generate_stream(merge_prompt, model)
+            # The merge pass itself streams, but it can only start once every
+            # chunk has been summarized above.
+            combined_text = "\n".join(chunk_summaries)
+            merge_prompt = build_summary_prompt(
+                title=title,
+                url=url,
+                content=combined_text,
+                mode=mode,
+            )
+            yield from generate_stream(merge_prompt, model)
 
         except LLMError as exc:
             # LLMError is raised during iteration, not during the initial
