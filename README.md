@@ -110,6 +110,20 @@ http://127.0.0.1:8000
 
 No user content is sent to external AI providers.
 
+### Privacy & permissions
+
+Apogee requests the minimum access needed to work:
+
+- **`activeTab` + `scripting`** — page content is read **only from the current
+  tab, only when you click Summarize/Ask**. Nothing runs on pages in the
+  background; there are no persistent, all-sites content scripts.
+- **`host_permissions`** are limited to loopback (`127.0.0.1` / `localhost`) —
+  the extension has no access to external websites.
+- **Content Security Policy** restricts network egress to loopback only
+  (`connect-src http://127.0.0.1:* http://localhost:*`), so the browser itself
+  enforces that no data can be sent to a remote server.
+- **`storage`** is used only to keep your settings and cached summaries locally.
+
 ### Load in Chrome / Chromium (unpacked)
 
 The extension is Manifest V3 and works in Chrome as well as Firefox.
