@@ -107,6 +107,13 @@ def run_server():
     except ValueError:
         print("Invalid APOGEE_PORT; falling back to 8000.")
         port = 8000
+
+    print(f"Starting Apogee on {host}:{port}")
+    if port != 8000 or host != "127.0.0.1":
+        print(
+            "  ⚠ Non-default endpoint — update API_BASE in the extension to match."
+        )
+
     uvicorn.run(
         "apogee.app:app",
         host=host,

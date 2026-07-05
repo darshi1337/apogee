@@ -255,15 +255,25 @@ async function extractFromActiveTab(tab) {
   }
 }
 
-// `label` is a trusted literal, so innerHTML is safe here.
 function setLoadingIndicator(element, label) {
-  element.innerHTML =
-    '<span class="apogee-loading">' +
-    '<span class="apogee-spinner"></span>' +
-    '<span>' +
-    label +
-    '<span class="apogee-dots"></span></span>' +
-    "</span>";
+  const wrapper = document.createElement("span");
+  wrapper.className = "apogee-loading";
+
+  const spinner = document.createElement("span");
+  spinner.className = "apogee-spinner";
+
+  const text = document.createElement("span");
+  text.textContent = label; // safe: textContent, never innerHTML
+
+  const dots = document.createElement("span");
+  dots.className = "apogee-dots";
+
+  text.appendChild(dots);
+  wrapper.appendChild(spinner);
+  wrapper.appendChild(text);
+
+  element.textContent = ""; // clear existing content
+  element.appendChild(wrapper);
 }
 
 // Minimal Markdown renderer. Input is HTML-escaped first, then only a fixed
@@ -279,10 +289,10 @@ function escapeHtml(text) {
 function renderInline(escapedText) {
   return escapedText
     .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
-    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
-    .replace(/(^|[^_])_([^_\n]+)_/g, "$1<em>$2</em>");
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/__(.+?)__/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+?)\*/g, "$1<em>$2</em>")
+    .replace(/(^|[^_])_([^_\n]+?)_/g, "$1<em>$2</em>");
 }
 
 function renderMarkdown(source) {
@@ -364,7 +374,7 @@ async function streamIntoElement(response, element) {
     const visible = fullText.trimStart();
     if (!started && visible === "") continue;
     started = true;
-    element.textContent = visible;
+    element.innerHTML = renderMarkdown(visible);
   }
 
   fullText += decoder.decode();
@@ -560,7 +570,10 @@ async function summarizeActivePage() {
   } catch (error) {
     console.error(error);
 
-    summaryText.textContent = error.message;
+    summaryText.innerHTML =
+      '<p style="color:#d93025;font-size:13px">' +
+      escapeHtml(error.message) +
+      "</p>";
   }
 }
 
@@ -720,6 +733,7 @@ document
 async function checkOllamaConnection() {
   try {
     const response = await fetch(`${API_BASE}/health`);
+    if (!response.ok) return false;
 
     const data = await response.json();
 
