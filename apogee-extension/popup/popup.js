@@ -1,3 +1,6 @@
+// Must match the backend's APOGEE_HOST/APOGEE_PORT (default 127.0.0.1:8000).
+const API_BASE = "http://127.0.0.1:8000";
+
 const summarizeBtn = document.getElementById("summarizeBtn");
 
 const summaryText = document.getElementById("summaryText");
@@ -197,7 +200,7 @@ function showAnswerContext(question) {
   questionInput.classList.add("hidden");
   sendBtn.classList.add("hidden");
   answerBox.classList.remove("hidden");
-  answerBox.textContent = "Thinking...";
+  setLoadingIndicator(answerBox, "Thinking");
 }
 
 function sendExtractMessage(tabId) {
@@ -252,28 +255,130 @@ async function extractFromActiveTab(tab) {
   }
 }
 
+function setLoadingIndicator(element, label) {
+  const wrapper = document.createElement("span");
+  wrapper.className = "apogee-loading";
+
+  const spinner = document.createElement("span");
+  spinner.className = "apogee-spinner";
+
+  const text = document.createElement("span");
+  text.textContent = label; // safe: textContent, never innerHTML
+
+  const dots = document.createElement("span");
+  dots.className = "apogee-dots";
+
+  text.appendChild(dots);
+  wrapper.appendChild(spinner);
+  wrapper.appendChild(text);
+
+  element.textContent = ""; // clear existing content
+  element.appendChild(wrapper);
+}
+
+// Minimal Markdown renderer. Input is HTML-escaped first, then only a fixed
+// set of formatting tags is emitted — no attributes, links, or raw HTML — so
+// untrusted model/page output can't inject markup.
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function renderInline(escapedText) {
+  return escapedText
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/__(.+?)__/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+?)\*/g, "$1<em>$2</em>")
+    .replace(/(^|[^_])_([^_\n]+?)_/g, "$1<em>$2</em>");
+}
+
+function renderMarkdown(source) {
+  const lines = escapeHtml(source).split(/\r?\n/);
+  let html = "";
+  let listType = null;
+
+  const closeList = () => {
+    if (listType) {
+      html += `</${listType}>`;
+      listType = null;
+    }
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+
+    if (line.trim() === "") {
+      closeList();
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) {
+      closeList();
+      const level = heading[1].length;
+      html += `<h${level}>${renderInline(heading[2])}</h${level}>`;
+      continue;
+    }
+
+    const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
+    if (bullet) {
+      if (listType !== "ul") {
+        closeList();
+        html += "<ul>";
+        listType = "ul";
+      }
+      html += `<li>${renderInline(bullet[1])}</li>`;
+      continue;
+    }
+
+    const ordered = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (ordered) {
+      if (listType !== "ol") {
+        closeList();
+        html += "<ol>";
+        listType = "ol";
+      }
+      html += `<li>${renderInline(ordered[1])}</li>`;
+      continue;
+    }
+
+    closeList();
+    html += `<p>${renderInline(line)}</p>`;
+  }
+
+  closeList();
+  return html;
+}
+
 async function streamIntoElement(response, element) {
   if (!response.body) {
     const text = await response.text();
-    element.textContent = text.trimStart();
+    element.innerHTML = renderMarkdown(text.trimStart());
     return text;
   }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let fullText = "";
-  element.textContent = "";
+  // Hold the loading indicator until the first non-whitespace token.
+  let started = false;
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     const chunk = decoder.decode(value, { stream: true });
     fullText += chunk;
-    element.textContent = fullText.trimStart();
+    const visible = fullText.trimStart();
+    if (!started && visible === "") continue;
+    started = true;
+    element.innerHTML = renderMarkdown(visible);
   }
 
   fullText += decoder.decode();
-  element.textContent = fullText.trimStart();
+  element.innerHTML = renderMarkdown(fullText.trimStart());
   return fullText;
 }
 
@@ -309,7 +414,7 @@ async function appendTextByWord(element, text, speed = 45) {
 
 async function streamAnswer(pageData, question, element) {
   const settings = await getSettings();
-  const response = await fetch("http://127.0.0.1:8000/ask", {
+  const response = await fetch(`${API_BASE}/ask`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -331,8 +436,15 @@ async function streamAnswer(pageData, question, element) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let pendingText = "";
+  // Hold the loading indicator until the first word, then start typing.
+  let started = false;
 
-  element.textContent = "";
+  const beginIfNeeded = () => {
+    if (!started) {
+      element.textContent = "";
+      started = true;
+    }
+  };
 
   while (true) {
     const { done, value } = await reader.read();
@@ -347,6 +459,7 @@ async function streamAnswer(pageData, question, element) {
     if (completeWords.length > 0) {
       const typedText = completeWords.join("");
       pendingText = pendingText.slice(typedText.length);
+      beginIfNeeded();
       await appendTextByWord(element, typedText);
     }
   }
@@ -354,7 +467,14 @@ async function streamAnswer(pageData, question, element) {
   pendingText += decoder.decode();
 
   if (pendingText) {
+    beginIfNeeded();
     await appendTextByWord(element, pendingText);
+  }
+
+  if (started) {
+    element.innerHTML = renderMarkdown(element.textContent);
+  } else {
+    element.textContent = "";
   }
 }
 
@@ -393,7 +513,7 @@ async function summarizeActivePage() {
   homeView.classList.add("hidden");
   summaryView.classList.remove("hidden");
   showSummaryContext();
-  summaryText.textContent = "Summarizing...";
+  setLoadingIndicator(summaryText, "Summarizing");
 
   try {
     const [tab] = await chrome.tabs.query({
@@ -416,10 +536,10 @@ async function summarizeActivePage() {
     let text;
 
     if (pageData.isPdf) {
-      summaryText.textContent = "Summarizing PDF...";
+      setLoadingIndicator(summaryText, "Summarizing PDF");
 
       const response = await fetchSummaryStream(
-        "http://127.0.0.1:8000/pdf/url",
+        `${API_BASE}/pdf/url`,
         {
           url: pageData.url,
           mode: settings.responseFormat,
@@ -430,7 +550,7 @@ async function summarizeActivePage() {
       text = await streamIntoElement(response, summaryText);
     } else {
       const response = await fetchSummaryStream(
-        "http://127.0.0.1:8000/summarize",
+        `${API_BASE}/summarize`,
         {
           title: pageData.title,
           url: pageData.url,
@@ -450,7 +570,10 @@ async function summarizeActivePage() {
   } catch (error) {
     console.error(error);
 
-    summaryText.textContent = error.message;
+    summaryText.innerHTML =
+      '<p style="color:#d93025;font-size:13px">' +
+      escapeHtml(error.message) +
+      "</p>";
   }
 }
 
@@ -469,7 +592,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const cached = await chrome.storage.local.get(cacheKey);
 
     if (cached[cacheKey]) {
-      summaryText.textContent = cached[cacheKey];
+      summaryText.innerHTML = renderMarkdown(cached[cacheKey]);
       homeView.classList.add("hidden");
       summaryView.classList.remove("hidden");
       showSummaryContext();
@@ -609,7 +732,8 @@ document
 
 async function checkOllamaConnection() {
   try {
-    const response = await fetch("http://127.0.0.1:8000/health");
+    const response = await fetch(`${API_BASE}/health`);
+    if (!response.ok) return false;
 
     const data = await response.json();
 

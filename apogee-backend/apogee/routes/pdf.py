@@ -17,12 +17,23 @@ router = APIRouter()
 # Maximum extracted text length accepted (approximately 500 KB).
 MAX_CONTENT_LENGTH = 500_000
 
-# Directories that local PDF access is restricted to.
-# Users can only open PDFs from standard user-accessible locations.
+# realpath() so symlinked roots (e.g. macOS /tmp -> /private/tmp) match.
 ALLOWED_PDF_ROOTS = [
-    os.path.expanduser("~"),   # user's home directory
-    "/tmp",
+    os.path.realpath(os.path.expanduser("~")),
+    os.path.realpath(tempfile.gettempdir()),
+    os.path.realpath("/tmp"),
 ]
+
+
+def _is_within_allowed_roots(resolved: str) -> bool:
+    # commonpath (not startswith) so "/tmpfoo" isn't treated as under "/tmp".
+    for root in ALLOWED_PDF_ROOTS:
+        try:
+            if os.path.commonpath([resolved, root]) == root:
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 def _is_safe_remote_url(url: str) -> bool:
@@ -51,7 +62,7 @@ def _validate_local_path(raw_path: str) -> str:
             detail="Only .pdf files are allowed for local access.",
         )
 
-    if not any(resolved.startswith(root) for root in ALLOWED_PDF_ROOTS):
+    if not _is_within_allowed_roots(resolved):
         raise HTTPException(
             status_code=403,
             detail="Access denied: path is outside allowed directories.",

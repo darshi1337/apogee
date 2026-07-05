@@ -109,7 +109,7 @@ body {
   margin-bottom: 10px;
 }
 
-.summary-card p {
+#summaryText {
   font-family: "Metropolis";
   font-size: 13.5px;
   line-height: 1.35;
@@ -117,6 +117,66 @@ body {
   text-align: justify;
   text-justify: inter-word;
   white-space: pre-wrap;
+}
+
+/* Rendered Markdown styling (shared by summary + answer) */
+#summaryText p,
+.answer-box p {
+  margin: 0 0 8px;
+}
+
+#summaryText p:last-child,
+.answer-box p:last-child {
+  margin-bottom: 0;
+}
+
+#summaryText h1,
+#summaryText h2,
+#summaryText h3,
+#summaryText h4,
+#summaryText h5,
+#summaryText h6,
+.answer-box h1,
+.answer-box h2,
+.answer-box h3,
+.answer-box h4,
+.answer-box h5,
+.answer-box h6 {
+  font-family: "Metropolis";
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.3;
+  color: #4a4a4a;
+  margin: 10px 0 6px;
+}
+
+#summaryText ul,
+#summaryText ol,
+.answer-box ul,
+.answer-box ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+#summaryText li,
+.answer-box li {
+  margin-bottom: 4px;
+}
+
+#summaryText code,
+.answer-box code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: #ecebff;
+  color: #4b48b5;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+#summaryText strong,
+.answer-box strong {
+  font-weight: 700;
+  color: #4a4a4a;
 }
 
 .prompts {
@@ -569,4 +629,61 @@ body {
 
 .status-dot.disconnected {
   background: #bdbdbd;
+}
+
+/* Loading indicator shown before the first streamed token arrives */
+.apogee-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #827fff;
+  font-family: "Metropolis";
+  font-weight: 500;
+  font-size: 13.5px;
+}
+
+.apogee-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #dedcff;
+  border-top-color: #827fff;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: apogee-spin 0.7s linear infinite;
+}
+
+@keyframes apogee-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.apogee-dots::after {
+  content: "";
+  animation: apogee-dots 1.4s steps(1, end) infinite;
+}
+
+@keyframes apogee-dots {
+  0% {
+    content: "";
+  }
+  25% {
+    content: ".";
+  }
+  50% {
+    content: "..";
+  }
+  75% {
+    content: "...";
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .apogee-spinner {
+    animation: none;
+  }
+  .apogee-dots::after {
+    animation: none;
+    content: "...";
+  }
 }

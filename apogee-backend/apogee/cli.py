@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 import uvicorn
@@ -98,10 +99,25 @@ def doctor():
 
 
 def run_server():
+    # Override APOGEE_HOST/APOGEE_PORT to dodge a taken port; the extension
+    # defaults to 127.0.0.1:8000, so update its endpoint to match.
+    host = os.environ.get("APOGEE_HOST", "127.0.0.1")
+    try:
+        port = int(os.environ.get("APOGEE_PORT", "8000"))
+    except ValueError:
+        print("Invalid APOGEE_PORT; falling back to 8000.")
+        port = 8000
+
+    print(f"Starting Apogee on {host}:{port}")
+    if port != 8000 or host != "127.0.0.1":
+        print(
+            "  ⚠ Non-default endpoint — update API_BASE in the extension to match."
+        )
+
     uvicorn.run(
         "apogee.app:app",
-        host="127.0.0.1",
-        port=8000,
+        host=host,
+        port=port,
     )
 
 

@@ -47,10 +47,61 @@ apogee setup
 apogee
 ```
 
+## Running on macOS (Apple Silicon)
+
+Apogee runs well on Apple Silicon (M1/M2/M3). Ollama uses the GPU via Metal
+automatically, so no extra configuration is needed.
+
+```bash
+# 1. Install Ollama and a Python 3.10+ interpreter
+brew install ollama python@3.11
+
+# 2. Start the Ollama server (leave running, or use: brew services start ollama)
+ollama serve &
+
+# 3. Pull a model (gemma3:4b is the lightest; good for 8 GB machines)
+ollama pull gemma3:4b
+
+# 4. Create an isolated environment and install the backend
+python3.11 -m venv ~/apogee-env
+source ~/apogee-env/bin/activate
+pip install apogee-browser==0.1.0   # or: pip install -e apogee-backend
+
+# 5. Start the backend
+apogee
+```
+
+Verify it is up: open <http://127.0.0.1:8000/health> — it should report
+`{"connected": true, "models": [...]}`.
+
+### Custom port
+
+If port 8000 is already in use, start the backend on another port:
+
+```bash
+APOGEE_PORT=8123 apogee
+```
+
+If you change the port, update the endpoint the browser extension talks to
+accordingly (it defaults to `http://127.0.0.1:8000`).
+
+### Performance
+
+Measured locally on an Apple M2 (`gemma3:4b`, GPU via Metal):
+
+| Metric | Value |
+| --- | --- |
+| Generation throughput | ~73 tokens/s |
+| Model cold-load | ~0.25 s |
+| Short page / question | ~1–1.5 s end to end |
+| Long page (~40k chars, multi-chunk) | first bullets in ~2 s, ~12 s total |
+
+Numbers vary by hardware and model — 8B models (`qwen3:8b`, `llama3.1:8b`) run
+roughly half as fast as `gemma3:4b` and need more memory.
+
 ## Browser Extension
 
 Install the Apogee browser extension and connect it to the local backend.
-
 The extension communicates only with:
 
 ```text
@@ -58,6 +109,21 @@ http://127.0.0.1:8000
 ```
 
 No user content is sent to external AI providers.
+
+### Load in Chrome / Chromium (unpacked)
+
+The extension is Manifest V3 and works in Chrome as well as Firefox.
+
+1. Go to `chrome://extensions`.
+2. Enable **Developer mode** (top-right).
+3. Click **Load unpacked** and select the `apogee-extension` folder.
+4. Make sure the model selected in the extension's Settings matches a model you
+   pulled with `ollama pull` (e.g. Gemma 3 for `gemma3:4b`).
+
+### Load in Firefox (temporary add-on)
+
+1. Go to `about:debugging#/runtime/this-firefox`.
+2. Click **Load Temporary Add-on** and select `apogee-extension/manifest.json`.
 
 ## Usage
 
