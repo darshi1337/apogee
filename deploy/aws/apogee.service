@@ -1,0 +1,15 @@
+[Unit]
+Description=Apogee FastAPI backend
+After=network-online.target ollama.service
+Wants=network-online.target ollama.service
+
+[Service]
+User=ubuntu
+WorkingDirectory=/opt/apogee/apogee-backend
+EnvironmentFile=/etc/apogee/apogee.env
+ExecStart=/opt/apogee/venv/bin/apogee
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

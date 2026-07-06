@@ -7,4 +7,7 @@ __pycache__/
 build/
 dist/
 web-ext-artifacts/
-deploy/
+*.pem
+.env
+.env.*
+/etc/apogee/
