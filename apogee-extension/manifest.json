@@ -3,15 +3,14 @@
   "name": "Apogee",
   "version": "0.1.0",
   "description": "Local-first browser summarizer for articles, videos, emails and more.",
-
   "permissions": ["activeTab", "scripting", "storage"],
-
-  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
-
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
   "content_security_policy": {
     "extension_pages": "default-src 'self'; connect-src http://127.0.0.1:* http://localhost:*; img-src 'self' data:; font-src 'self'"
   },
-
   "icons": {
     "16": "assets/icon.png",
     "32": "assets/icon.png",
@@ -19,16 +18,16 @@
     "96": "assets/icon.png",
     "128": "assets/icon.png"
   },
-
   "action": {
     "default_popup": "popup/popup.html"
   },
-
   "browser_specific_settings": {
     "gecko": {
       "id": "apogee@darshi.dev",
       "data_collection_permissions": {
-        "required": ["none"],
+        "required": [
+          "none"
+        ],
         "optional": []
       }
     }

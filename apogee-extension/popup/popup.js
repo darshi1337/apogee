@@ -59,10 +59,11 @@ const settingsLogo = document.getElementById("settingsLogo");
 const contactLogo = document.getElementById("contactLogo");
 
 const contentScriptFiles = [
-  "content/Readability.js",
-  "content/extractors/generic.js",
-  "content/extractors/youtube.js",
-  "content/content.js",
+  "/content/Readability.js",
+  "/content/extractors/generic.js",
+  "/content/extractors/youtube.js",
+  "/content/extractors/gmail.js",
+  "/content/content.js",
 ];
 
 let currentPageData = null;
@@ -274,59 +275,74 @@ async function fetchSuggestedQuestions(settings, pageData, summary) {
   return Array.isArray(data.questions) ? data.questions.slice(0, 2) : [];
 }
 
-function sendExtractMessage(tabId) {
-  return new Promise((resolve, reject) => {
-    chrome.tabs.sendMessage(tabId, { action: "extract" }, (pageData) => {
-      const error = chrome.runtime.lastError;
-
-      if (error) {
-        reject(new Error(error.message));
-        return;
-      }
-
-      resolve(pageData);
-    });
-  });
-}
-
-async function injectContentScripts(tabId) {
-  for (const file of contentScriptFiles) {
-    await new Promise((resolve, reject) => {
-      chrome.scripting.executeScript(
-        {
-          target: {
-            tabId,
-          },
-          files: [file],
-        },
-        () => {
-          const error = chrome.runtime.lastError;
-
-          if (error) {
-            reject(new Error(error.message));
-            return;
-          }
-
-          resolve();
-        },
-      );
-    });
-  }
-}
-
+// Content scripts are injected on demand (activeTab), not on every page.
+// Because the popup does not use always-on content scripts or broad messaging permissions,
+// we execute all extractor files and a runner script in a single injection session.
+// The runner script (`run_extraction.js`) writes the serialized result to a custom
+// DOM attribute on the page (`data-apogee-result`), which the popup then reads and parses.
 async function extractFromActiveTab(tab) {
-  // Content scripts are injected on demand (activeTab), not on every page.
-  // The first extraction in a tab has no listener yet, so we inject then
-  // retry. Subsequent extractions in the same tab reuse the injected script.
+  const tabId = tab.id;
+
+  // Clear any existing attribute to avoid stale data
   try {
-    return await sendExtractMessage(tab.id);
-  } catch (error) {
-    console.debug("Injecting content scripts on demand:", error.message);
-
-    await injectContentScripts(tab.id);
-
-    return sendExtractMessage(tab.id);
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        document.documentElement.removeAttribute("data-apogee-result");
+      },
+    });
+  } catch (e) {
+    // Ignore errors on pages where scripting is blocked (e.g. chrome:// tabs)
   }
+
+  // Check if content scripts are already injected to reuse them
+  let isAlreadyInjected = false;
+  try {
+    const checkResult = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => typeof window.extractPageContent === "function",
+    });
+    isAlreadyInjected = checkResult?.[0]?.result;
+  } catch (e) {
+    // Ignore
+  }
+
+  if (isAlreadyInjected) {
+    // Only inject the runner script to execute the extraction
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["/content/run_extraction.js"],
+    });
+  } else {
+    // Inject all scripts and run extraction in a single files call
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: [
+        "/content/Readability.js",
+        "/content/extractors/generic.js",
+        "/content/extractors/youtube.js",
+        "/content/extractors/gmail.js",
+        "/content/content.js",
+        "/content/run_extraction.js",
+      ],
+    });
+  }
+
+  // Retrieve the result from the DOM where run_extraction.js wrote it
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => {
+      const val = document.documentElement.getAttribute("data-apogee-result");
+      document.documentElement.removeAttribute("data-apogee-result"); // clean up
+      return val ? JSON.parse(val) : null;
+    },
+  });
+
+  const pageData = results?.[0]?.result;
+  if (pageData && pageData.error) {
+    throw new Error(pageData.error);
+  }
+  return pageData;
 }
 
 function setLoadingIndicator(element, label) {
