@@ -4,9 +4,13 @@
   "version": "0.1.0",
   "description": "Local-first browser summarizer for articles, videos, emails and more.",
 
-  "permissions": ["activeTab", "scripting", "storage", "tabs"],
+  "permissions": ["activeTab", "scripting", "storage"],
 
-  "host_permissions": ["<all_urls>", "http://127.0.0.1:8000/*"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; connect-src http://127.0.0.1:* http://localhost:*; img-src 'self' data:; font-src 'self'"
+  },
 
   "icons": {
     "16": "assets/icon.png",
@@ -19,18 +23,6 @@
   "action": {
     "default_popup": "popup/popup.html"
   },
-
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": [
-        "content/Readability.js",
-        "content/extractors/generic.js",
-        "content/extractors/youtube.js",
-        "content/content.js"
-      ]
-    }
-  ],
 
   "browser_specific_settings": {
     "gecko": {

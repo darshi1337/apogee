@@ -315,10 +315,13 @@ async function injectContentScripts(tabId) {
 }
 
 async function extractFromActiveTab(tab) {
+  // Content scripts are injected on demand (activeTab), not on every page.
+  // The first extraction in a tab has no listener yet, so we inject then
+  // retry. Subsequent extractions in the same tab reuse the injected script.
   try {
     return await sendExtractMessage(tab.id);
   } catch (error) {
-    console.error(error);
+    console.debug("Injecting content scripts on demand:", error.message);
 
     await injectContentScripts(tab.id);
 
