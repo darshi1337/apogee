@@ -1,12 +1,15 @@
 from fastapi import APIRouter
 import ollama
 
+from apogee.config import get_ollama_health_timeout
+
 router = APIRouter()
 
 @router.get("/health")
 def health():
     try:
-        models = ollama.list()
+        client = ollama.Client(timeout=get_ollama_health_timeout())
+        models = client.list()
 
         return {
             "connected": True,

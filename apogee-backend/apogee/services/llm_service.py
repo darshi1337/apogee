@@ -31,3 +31,7 @@ def generate_stream(prompt: str, model: str = "qwen3:8b"):
         raise LLMError(
             f"Could not connect to Ollama. Is it running? Error: {exc}"
         ) from exc
+
+
+def generate_text(prompt: str, model: str = "qwen3:8b") -> str:
+    return "".join(generate_stream(prompt, model))

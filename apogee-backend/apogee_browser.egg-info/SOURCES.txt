@@ -4,9 +4,12 @@ pyproject.toml
 apogee/__init__.py
 apogee/app.py
 apogee/cli.py
+apogee/config.py
+apogee/security.py
 apogee/models/__init__.py
 apogee/models/request_models.py
 apogee/prompts/answer.txt
+apogee/prompts/suggest_questions.txt
 apogee/prompts/summarize.txt
 apogee/routes/__init__.py
 apogee/routes/health.py

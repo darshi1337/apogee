@@ -92,15 +92,12 @@
             </button>
           </div>
 
-          <div id="questionContainer">
-            <button class="prompt-card">Explain this like I'm five.</button>
-            <button class="prompt-card">Give me the key takeaways.</button>
-          </div>
+          <div id="questionContainer"></div>
         </section>
 
         <section class="chat-section">
           <div class="chat-header">
-            <h3 id="answerHeading">Answer</h3>
+            <h3 id="answerHeading">Ask Apogee</h3>
 
             <button class="suggested-tag" id="togglePromptsBtn">
               Question
@@ -155,6 +152,32 @@
 
             <span id="settingsStatusDot" class="status-dot disconnected"></span>
           </div>
+        </div>
+
+        <div class="settings-card">
+          <div class="card-title">
+            <img src="../assets/settings.svg" alt="" />
+            <span>Backend</span>
+          </div>
+
+          <label class="settings-field">
+            <span>URL</span>
+            <input
+              id="backendUrlInput"
+              type="url"
+              placeholder="http://127.0.0.1:8000"
+            />
+          </label>
+
+          <label class="settings-field">
+            <span>API key</span>
+            <input
+              id="apiKeyInput"
+              type="password"
+              autocomplete="off"
+              placeholder="Required for cloud"
+            />
+          </label>
         </div>
 
         <div class="settings-card">

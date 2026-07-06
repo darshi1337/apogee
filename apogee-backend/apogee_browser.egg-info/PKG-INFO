@@ -4,10 +4,10 @@ Version: 0.1.0
 Summary: Local-first browser assistant powered by Ollama
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
-Requires-Dist: fastapi
-Requires-Dist: uvicorn
-Requires-Dist: requests
-Requires-Dist: python-multipart
-Requires-Dist: pymupdf
-Requires-Dist: ollama
-Requires-Dist: pydantic
+Requires-Dist: fastapi<1,>=0.115
+Requires-Dist: uvicorn[standard]>=0.34
+Requires-Dist: requests>=2.31
+Requires-Dist: python-multipart>=0.0.18
+Requires-Dist: pymupdf>=1.25
+Requires-Dist: ollama<1,>=0.4
+Requires-Dist: pydantic<3,>=2.10

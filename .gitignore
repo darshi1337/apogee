@@ -7,3 +7,4 @@ __pycache__/
 build/
 dist/
 web-ext-artifacts/
+deploy/

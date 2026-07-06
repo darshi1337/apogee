@@ -4,38 +4,48 @@ from string import Template
 
 SUMMARY_STYLES = {
     "bullets": (
-        "IMPORTANT:\n"
-        "Return ONLY bullet points.\n"
-        "Use 5-8 concise bullets.\n"
-        "Each bullet must start with '• '.\n"
-        "Each bullet must be on a separate line.\n"
-        "Leave one blank line between bullets.\n"
-        "Do not write paragraphs.\n"
-        "Do not write introductions.\n"
-        "Do not write conclusions.\n"
-        "Do not write explanations.\n"
-        "Output only the bullets."
+        "Return only the final answer.\n\n"
+        "Rules:\n"
+        "- Output 5-13 concise bullet points.\n"
+        "- Each bullet must be on its own line.\n"
+        "- Do not write any introduction.\n"
+        "- Do not write any heading.\n"
+        "- Do not write any conclusion.\n"
+        "- Do not explain what you are doing.\n"
+        "- Do not prefix the output with phrases like "
+        "'Here is the summary', 'Summary:', or similar.\n"
+        "- Output only the bullet points."
     ),
 
     "sentences": (
-        "IMPORTANT:\n"
-        "Return ONLY short sentences.\n"
-        "Write 3-5 concise sentences.\n"
-        "Each sentence must be on a separate line.\n"
-        "Do not use bullet points.\n"
-        "Do not use numbered lists.\n"
-        "Do not write a paragraph.\n"
-        "Output only the sentences."
+        "Return only the final answer.\n\n"
+        "Rules:\n"
+        "- Output exactly 7-10 concise sentences.\n"
+        "- Put each sentence on a separate line.\n"
+        "- Do not use bullets.\n"
+        "- Do not use numbering.\n"
+        "- Do not write a paragraph.\n"
+        "- Do not write any introduction.\n"
+        "- Do not write any heading.\n"
+        "- Do not write any conclusion.\n"
+        "- Do not prefix the response with phrases like "
+        "'Here is the summary', 'Summary:', "
+        "'Below is a summary', or similar.\n"
+        "- Output only the sentences."
     ),
 
     "paragraphs": (
-        "IMPORTANT:\n"
-        "Return ONLY one concise paragraph.\n"
-        "Use 4-6 sentences.\n"
-        "Do not use bullet points.\n"
-        "Do not use numbered lists.\n"
-        "Do not add headings.\n"
-        "Output only the paragraph."
+        "Return only the final answer.\n\n"
+        "Rules:\n"
+        "- Output one concise paragraph containing 7-10 sentences.\n"
+        "- Do not use bullets.\n"
+        "- Do not use numbering.\n"
+        "- Do not add a heading.\n"
+        "- Do not write an introduction.\n"
+        "- Do not write a conclusion.\n"
+        "- Do not prefix the response with phrases like "
+        "'Here is the summary', 'Summary:', or similar.\n"
+        "- Output only the paragraph."
     ),
 }
 
@@ -69,4 +79,13 @@ def build_answer_prompt(title, url, content, question):
         url=url,
         content=content,
         question=question,
+    )
+
+
+def build_suggested_questions_prompt(title, url, summary):
+    template_str = load_prompt("suggest_questions")
+    return Template(template_str).safe_substitute(
+        title=title,
+        url=url,
+        summary=summary,
     )

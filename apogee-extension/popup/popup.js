@@ -1,5 +1,4 @@
-// Must match the backend's APOGEE_HOST/APOGEE_PORT (default 127.0.0.1:8000).
-const API_BASE = "http://127.0.0.1:8000";
+const DEFAULT_API_BASE = "http://127.0.0.1:8000";
 
 const summarizeBtn = document.getElementById("summarizeBtn");
 
@@ -27,6 +26,8 @@ const summaryCard = document.getElementById("summaryCard");
 
 const promptsSection = document.getElementById("promptsSection");
 
+const chatSection = document.querySelector(".chat-section");
+
 const questionHeading = document.getElementById("questionHeading");
 
 const answerHeading = document.getElementById("answerHeading");
@@ -37,11 +38,13 @@ const sendBtn = document.getElementById("sendBtn");
 
 const answerBox = document.getElementById("answerBox");
 
-const promptCards = document.querySelectorAll(".prompt-card");
-
 const formatRadios = document.querySelectorAll('input[name="format"]');
 
 const modelRadios = document.querySelectorAll('input[name="model"]');
+
+const backendUrlInput = document.getElementById("backendUrlInput");
+
+const apiKeyInput = document.getElementById("apiKeyInput");
 
 const promptsCloseBtn = document.querySelector(".prompts-toggle");
 
@@ -62,11 +65,12 @@ const contentScriptFiles = [
   "content/content.js",
 ];
 
-const defaultQuestions = Array.from(promptCards, (card) =>
-  card.textContent.trim(),
-);
+let currentPageData = null;
+let currentSummaryText = "";
 
 const defaultSettings = {
+  apiBase: DEFAULT_API_BASE,
+  apiKey: "",
   responseFormat: "bullets",
   model: "qwen3:8b",
 };
@@ -81,6 +85,9 @@ async function getSettings() {
 }
 
 function applySettingsToUI(settings) {
+  if (backendUrlInput) backendUrlInput.value = settings.apiBase;
+  if (apiKeyInput) apiKeyInput.value = settings.apiKey;
+
   const formatRadio = document.querySelector(
     `input[name="format"][value="${settings.responseFormat}"]`,
   );
@@ -91,6 +98,22 @@ function applySettingsToUI(settings) {
 
   formatRadio && (formatRadio.checked = true);
   modelRadio && (modelRadio.checked = true);
+}
+
+function normalizeApiBase(value) {
+  return (value || DEFAULT_API_BASE).trim().replace(/\/+$/, "");
+}
+
+function getApiHeaders(settings) {
+  const headers = {
+    "Content-Type": "application/json",
+  };
+
+  if (settings.apiKey) {
+    headers["X-Apogee-API-Key"] = settings.apiKey;
+  }
+
+  return headers;
 }
 
 async function saveSettings(partialSettings) {
@@ -108,8 +131,9 @@ async function saveSettings(partialSettings) {
 
 async function clearStoredSummaries() {
   const stored = await chrome.storage.local.get(null);
-  const summaryKeys = Object.keys(stored).filter((key) =>
-    key.startsWith("summary:"),
+  const summaryKeys = Object.keys(stored).filter(
+    (key) =>
+      key.startsWith("summary:") || key.startsWith("suggested-prompts:"),
   );
 
   if (summaryKeys.length > 0) {
@@ -118,6 +142,10 @@ async function clearStoredSummaries() {
 }
 
 function resetQuestionCards() {
+  setSuggestedQuestions([]);
+}
+
+function setSuggestedQuestions(questions) {
   questionHeading.textContent = "Suggested Prompts";
 
   promptsCloseBtn.classList.remove("hidden");
@@ -125,32 +153,53 @@ function resetQuestionCards() {
   const container = document.getElementById("questionContainer");
   container.innerHTML = "";
 
-  const prompts = [
-    "Explain this like I'm five.",
-    "Give me the key takeaways.",
-  ];
-
-  prompts.forEach((text) => {
+  questions.slice(0, 2).forEach((text) => {
     const btn = document.createElement("button");
     btn.className = "prompt-card";
     btn.textContent = text;
-    btn.addEventListener("click", () => {
-      submitQuestion(btn.textContent);
-    });
     container.appendChild(btn);
   });
+}
+
+function setSuggestedQuestionsLoading() {
+  questionHeading.textContent = "Suggested Prompts";
+
+  const container = document.getElementById("questionContainer");
+  container.innerHTML = "";
+
+  const btn = document.createElement("button");
+  btn.className = "prompt-card";
+  btn.disabled = true;
+  btn.textContent = "Generating suggested prompts...";
+  container.appendChild(btn);
 }
 
 function getSummaryCacheKey(url, responseFormat) {
   return `summary:${responseFormat}:${url}`;
 }
 
-function showSummaryContext() {
+function getSuggestedPromptsCacheKey(url, responseFormat) {
+  return `suggested-prompts:${responseFormat}:${url}`;
+}
+
+function showSummarizingContext() {
+  summaryCard.classList.remove("hidden");
+  promptsSection.classList.add("hidden");
+  chatSection.classList.add("hidden");
+  resetQuestionCards();
+  questionInput.value = "";
+  answerBox.textContent = "";
+  answerBox.classList.add("hidden");
+  togglePromptsBtn.style.display = "none";
+}
+
+function showSummaryContext(questions = []) {
   summaryCard.classList.remove("hidden");
   promptsSection.classList.remove("hidden");
   questionHeading.textContent = "Suggested Prompts";
-  answerHeading.textContent = "Answer";
-  resetQuestionCards();
+  answerHeading.textContent = "Ask Apogee";
+  setSuggestedQuestions(questions);
+  chatSection.classList.remove("hidden");
   promptsCloseBtn.classList.remove("hidden");
   questionInput.classList.remove("hidden");
   sendBtn.classList.remove("hidden");
@@ -164,8 +213,9 @@ function showAskContext() {
   summaryCard.classList.add("hidden");
   promptsSection.classList.remove("hidden");
   questionHeading.textContent = "Suggested Prompts";
-  answerHeading.textContent = "Answer";
+  answerHeading.textContent = "Ask Apogee";
   resetQuestionCards();
+  chatSection.classList.remove("hidden");
   promptsCloseBtn.classList.add("hidden");
   questionInput.classList.remove("hidden");
   sendBtn.classList.remove("hidden");
@@ -201,6 +251,27 @@ function showAnswerContext(question) {
   sendBtn.classList.add("hidden");
   answerBox.classList.remove("hidden");
   setLoadingIndicator(answerBox, "Thinking");
+}
+
+async function fetchSuggestedQuestions(settings, pageData, summary) {
+  const response = await fetch(`${settings.apiBase}/suggest-questions`, {
+    method: "POST",
+    headers: getApiHeaders(settings),
+    body: JSON.stringify({
+      title: pageData.title || "Untitled",
+      url: pageData.url,
+      summary,
+      model: settings.model,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(errText || `Prompt request failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return Array.isArray(data.questions) ? data.questions.slice(0, 2) : [];
 }
 
 function sendExtractMessage(tabId) {
@@ -382,10 +453,10 @@ async function streamIntoElement(response, element) {
   return fullText;
 }
 
-async function fetchSummaryStream(endpoint, payload) {
+async function fetchSummaryStream(settings, endpoint, payload) {
   const response = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getApiHeaders(settings),
     body: JSON.stringify(payload),
   });
 
@@ -414,15 +485,19 @@ async function appendTextByWord(element, text, speed = 45) {
 
 async function streamAnswer(pageData, question, element) {
   const settings = await getSettings();
-  const response = await fetch(`${API_BASE}/ask`, {
+  const content = pageData.content || currentSummaryText;
+
+  if (!content) {
+    throw new Error("Could not extract enough page content to answer.");
+  }
+
+  const response = await fetch(`${settings.apiBase}/ask`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getApiHeaders(settings),
     body: JSON.stringify({
-      title: pageData.title,
+      title: pageData.title || "Untitled",
       url: pageData.url,
-      content: pageData.content,
+      content,
       question,
       model: settings.model,
     }),
@@ -501,6 +576,7 @@ async function submitQuestion(question) {
       return;
     }
 
+    currentPageData = pageData;
     await streamAnswer(pageData, trimmedQuestion, answerBox);
   } catch (error) {
     console.error(error);
@@ -512,7 +588,7 @@ async function submitQuestion(question) {
 async function summarizeActivePage() {
   homeView.classList.add("hidden");
   summaryView.classList.remove("hidden");
-  showSummaryContext();
+  showSummarizingContext();
   setLoadingIndicator(summaryText, "Summarizing");
 
   try {
@@ -532,14 +608,21 @@ async function summarizeActivePage() {
       return;
     }
 
+    currentPageData = pageData;
+
     const cacheKey = getSummaryCacheKey(tab.url, settings.responseFormat);
+    const promptsCacheKey = getSuggestedPromptsCacheKey(
+      tab.url,
+      settings.responseFormat,
+    );
     let text;
 
     if (pageData.isPdf) {
       setLoadingIndicator(summaryText, "Summarizing PDF");
 
       const response = await fetchSummaryStream(
-        `${API_BASE}/pdf/url`,
+        settings,
+        `${settings.apiBase}/pdf/url`,
         {
           url: pageData.url,
           mode: settings.responseFormat,
@@ -550,7 +633,8 @@ async function summarizeActivePage() {
       text = await streamIntoElement(response, summaryText);
     } else {
       const response = await fetchSummaryStream(
-        `${API_BASE}/summarize`,
+        settings,
+        `${settings.apiBase}/summarize`,
         {
           title: pageData.title,
           url: pageData.url,
@@ -567,6 +651,26 @@ async function summarizeActivePage() {
     await chrome.storage.local.set({
       [cacheKey]: text,
     });
+    currentSummaryText = text;
+    showSummaryContext();
+    setSuggestedQuestionsLoading();
+
+    let suggestedQuestions = [];
+    try {
+      suggestedQuestions = await fetchSuggestedQuestions(
+        settings,
+        pageData,
+        text,
+      );
+    } catch (error) {
+      console.error(error);
+    }
+
+    await chrome.storage.local.set({
+      [promptsCacheKey]: suggestedQuestions,
+    });
+
+    setSuggestedQuestions(suggestedQuestions);
   } catch (error) {
     console.error(error);
 
@@ -589,13 +693,21 @@ document.addEventListener("DOMContentLoaded", async () => {
       currentWindow: true,
     });
     const cacheKey = getSummaryCacheKey(tab.url, settings.responseFormat);
-    const cached = await chrome.storage.local.get(cacheKey);
+    const promptsCacheKey = getSuggestedPromptsCacheKey(
+      tab.url,
+      settings.responseFormat,
+    );
+    const cached = await chrome.storage.local.get([
+      cacheKey,
+      promptsCacheKey,
+    ]);
 
     if (cached[cacheKey]) {
+      currentSummaryText = cached[cacheKey];
       summaryText.innerHTML = renderMarkdown(cached[cacheKey]);
       homeView.classList.add("hidden");
       summaryView.classList.remove("hidden");
-      showSummaryContext();
+      showSummaryContext(cached[promptsCacheKey] || []);
       return;
     }
   } catch (error) {
@@ -603,7 +715,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   showSummaryContext();
-  resetQuestionCards();
 });
 
 summarizeBtn?.addEventListener("click", () => {
@@ -674,6 +785,26 @@ modelRadios.forEach((radio) => {
   });
 });
 
+backendUrlInput?.addEventListener("change", async () => {
+  await saveSettings({
+    apiBase: normalizeApiBase(backendUrlInput.value),
+  });
+
+  const settings = await getSettings();
+  applySettingsToUI(settings);
+  await clearStoredSummaries();
+  updateConnectionUI(await checkOllamaConnection());
+});
+
+apiKeyInput?.addEventListener("change", async () => {
+  await saveSettings({
+    apiKey: apiKeyInput.value.trim(),
+  });
+
+  await clearStoredSummaries();
+  updateConnectionUI(await checkOllamaConnection());
+});
+
 promptsCloseBtn?.addEventListener("click", () => {
   promptsSection.classList.add("hidden");
   togglePromptsBtn.style.display = "flex";
@@ -732,7 +863,10 @@ document
 
 async function checkOllamaConnection() {
   try {
-    const response = await fetch(`${API_BASE}/health`);
+    const settings = await getSettings();
+    const response = await fetch(`${settings.apiBase}/health`, {
+      headers: getApiHeaders(settings),
+    });
     if (!response.ok) return false;
 
     const data = await response.json();

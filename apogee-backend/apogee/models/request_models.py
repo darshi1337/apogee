@@ -28,6 +28,13 @@ class AskRequest(BaseModel):
     model: ALLOWED_MODELS = "qwen3:8b"
 
 
+class SuggestedQuestionsRequest(BaseModel):
+    title: str
+    url: str
+    summary: str = Field(..., min_length=1)
+    model: ALLOWED_MODELS = "qwen3:8b"
+
+
 class PdfUrlRequest(BaseModel):
     url: str
     mode: ALLOWED_MODES = "bullets"

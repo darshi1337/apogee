@@ -111,8 +111,12 @@ def run_server():
     print(f"Starting Apogee on {host}:{port}")
     if port != 8000 or host != "127.0.0.1":
         print(
-            "  ⚠ Non-default endpoint — update API_BASE in the extension to match."
+            "  Non-default endpoint: update the extension backend URL to match."
         )
+    if os.environ.get("APOGEE_API_KEY"):
+        print("  API key authentication enabled.")
+    elif host not in {"127.0.0.1", "localhost"}:
+        print("  Warning: set APOGEE_API_KEY before exposing Apogee publicly.")
 
     uvicorn.run(
         "apogee.app:app",

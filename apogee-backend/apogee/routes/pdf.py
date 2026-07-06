@@ -8,6 +8,7 @@ import requests
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
+from apogee.config import allow_local_pdf_access
 from apogee.models.request_models import PdfUrlRequest
 from apogee.services.pdf_service import extract_pdf_text
 from apogee.services.summary_service import summarize_text
@@ -81,6 +82,12 @@ def _validate_local_path(raw_path: str) -> str:
 def summarize_pdf_url(data: PdfUrlRequest):
 
     if data.url.startswith("file:///"):
+        if not allow_local_pdf_access():
+            raise HTTPException(
+                status_code=403,
+                detail="Local PDF access is disabled on this Apogee server.",
+            )
+
         # Local file — validate the resolved path before reading
         raw_path = urllib.parse.unquote(data.url[len("file://"):])
         pdf_path = _validate_local_path(raw_path)

@@ -110,6 +110,45 @@ http://127.0.0.1:8000
 
 No user content is sent to external AI providers.
 
+### Privacy & permissions
+
+Apogee requests the minimum access needed to work:
+
+- **`activeTab` + `scripting`** — page content is read **only from the current
+  tab, only when you click Summarize/Ask**. Nothing runs on pages in the
+  background; there are no persistent, all-sites content scripts.
+- **`host_permissions`** are limited to loopback (`127.0.0.1` / `localhost`) —
+  the extension has no access to external websites.
+- **Content Security Policy** restricts network egress to loopback only
+  (`connect-src http://127.0.0.1:* http://localhost:*`), so the browser itself
+  enforces that no data can be sent to a remote server.
+- **`storage`** is used only to keep your settings and cached summaries locally.
+
+## Optional Cloud Mode
+
+Apogee can also run on your own EC2 instance while still using open-source
+models through Ollama. In this mode, the browser extension sends page content to
+your server, so protect it with TLS and an API key.
+
+Deployment files live in `deploy/aws/`.
+
+Minimum server environment:
+
+```bash
+APOGEE_HOST=127.0.0.1
+APOGEE_PORT=8000
+APOGEE_API_KEY=replace-with-a-long-random-token
+APOGEE_ALLOW_LOCAL_PDFS=0
+```
+
+Run the FastAPI app behind Nginx/Caddy on HTTPS, then open the extension
+Settings and set:
+
+- Backend URL: `https://your-domain.example`
+- API key: the same value as `APOGEE_API_KEY`
+
+See `deploy/aws/README.md` for the EC2 setup.
+
 ### Load in Chrome / Chromium (unpacked)
 
 The extension is Manifest V3 and works in Chrome as well as Firefox.
