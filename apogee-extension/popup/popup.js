@@ -72,9 +72,35 @@ async function clearStoredSummaries() {
 }
 
 // ─── WebGPU detection ────────────────────────────────────────────────────────
+// NOTE: The popup runs in a chrome-extension:// context where navigator.gpu is
+// always undefined. The actual WebGPU context lives in the offscreen document.
+// We probe the offscreen doc via the service worker instead.
 
-function hasWebGPU() {
-  return typeof navigator !== "undefined" && !!navigator.gpu;
+let _webgpuSupported = null; // cached result
+
+async function checkWebGPUSupport() {
+  if (_webgpuSupported !== null) return _webgpuSupported;
+  try {
+    // Ask the service worker to create the offscreen doc and check WebGPU
+    const response = await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        { target: "service-worker", action: "check-webgpu" },
+        (resp) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(resp);
+          }
+        },
+      );
+    });
+    _webgpuSupported = response?.supported === true;
+  } catch {
+    // If we can't reach the service worker, assume supported and let the
+    // offscreen doc surface the real error when inference is attempted.
+    _webgpuSupported = true;
+  }
+  return _webgpuSupported;
 }
 
 // ─── Build WebLLM model radio list ───────────────────────────────────────────
@@ -107,7 +133,7 @@ function buildWebllmModelUI(selectedId) {
 
 // ─── Apply settings to UI ────────────────────────────────────────────────────
 
-function applySettingsToUI(settings) {
+async function applySettingsToUI(settings) {
   // Provider
   const provRadio = document.querySelector(
     `input[name="provider"][value="${settings.provider}"]`,
@@ -136,9 +162,14 @@ function applySettingsToUI(settings) {
   );
   if (fmtRadio) fmtRadio.checked = true;
 
-  // WebGPU warning
-  if (!hasWebGPU() && isWebllm) {
-    webgpuWarning?.classList.remove("hidden");
+  // WebGPU warning — check via offscreen document, not popup context
+  if (isWebllm) {
+    const supported = await checkWebGPUSupport();
+    if (!supported) {
+      webgpuWarning?.classList.remove("hidden");
+    } else {
+      webgpuWarning?.classList.add("hidden");
+    }
   } else {
     webgpuWarning?.classList.add("hidden");
   }
@@ -539,12 +570,7 @@ function updateConnectionUI(connected) {
 document.addEventListener("DOMContentLoaded", async () => {
   try {
     const settings = await getSettings();
-    applySettingsToUI(settings);
-
-    // Check WebGPU support
-    if (!hasWebGPU() && settings.provider === PROVIDERS.WEBLLM) {
-      webgpuWarning?.classList.remove("hidden");
-    }
+    await applySettingsToUI(settings);
 
     const connected = await checkConnection();
     updateConnectionUI(connected);
@@ -601,7 +627,7 @@ questionInput?.addEventListener("keydown", (e) => {
 providerRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
     const settings = await saveSettings({ provider: radio.value });
-    applySettingsToUI(settings);
+    await applySettingsToUI(settings);
     await clearStoredSummaries();
     updateConnectionUI(await checkConnection());
   });
@@ -627,7 +653,7 @@ localModelRadios.forEach((radio) => {
 backendUrlInput?.addEventListener("change", async () => {
   const val = (backendUrlInput.value || DEFAULT_LOCAL_API_BASE).trim().replace(/\/+$/, "");
   const settings = await saveSettings({ localApiBase: val });
-  applySettingsToUI(settings);
+  await applySettingsToUI(settings);
   await clearStoredSummaries();
   updateConnectionUI(await checkConnection());
 });

@@ -189,6 +189,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           break;
         }
 
+        case "check-webgpu": {
+          // The offscreen document has a real window context with WebGPU access
+          if (!navigator.gpu) {
+            sendResponse({ supported: false, reason: "navigator.gpu is undefined" });
+            break;
+          }
+          try {
+            const adapter = await navigator.gpu.requestAdapter();
+            sendResponse({ supported: adapter !== null, reason: adapter ? "ok" : "no adapter" });
+          } catch (err) {
+            sendResponse({ supported: false, reason: err.message });
+          }
+          break;
+        }
+
         case "load-model": {
           await ensureEngine(message.payload.model);
           sendResponse({ ready: true, currentModel: currentModelId });

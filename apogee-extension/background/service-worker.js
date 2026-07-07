@@ -2,20 +2,37 @@
 // Routes requests from the popup to either the offscreen document (WebLLM)
 // or lets the popup handle local backend calls directly.
 
+// Firefox does not support chrome.offscreen or chrome.runtime.getContexts.
+// WebLLM (which requires an offscreen document for WebGPU) is only available
+// on Chrome/Edge. Firefox users must use the Local Ollama provider.
+const hasOffscreenAPI =
+  typeof chrome !== "undefined" &&
+  typeof chrome.offscreen !== "undefined" &&
+  typeof chrome.offscreen.createDocument === "function";
+
 let offscreenReady = false;
 
 async function ensureOffscreenDocument() {
+  if (!hasOffscreenAPI) {
+    throw new Error(
+      "In-browser AI (WebLLM) is not supported in Firefox. " +
+      "Please switch to Local Ollama mode in Settings."
+    );
+  }
+
   if (offscreenReady) return;
 
-  // Check if the offscreen document already exists
-  const existingContexts = await chrome.runtime.getContexts({
-    contextTypes: ["OFFSCREEN_DOCUMENT"],
-    documentUrls: [chrome.runtime.getURL("offscreen/offscreen.html")],
-  });
+  // Check if the offscreen document already exists (Chrome-only API)
+  if (typeof chrome.runtime.getContexts === "function") {
+    const existingContexts = await chrome.runtime.getContexts({
+      contextTypes: ["OFFSCREEN_DOCUMENT"],
+      documentUrls: [chrome.runtime.getURL("offscreen/offscreen.html")],
+    });
 
-  if (existingContexts.length > 0) {
-    offscreenReady = true;
-    return;
+    if (existingContexts.length > 0) {
+      offscreenReady = true;
+      return;
+    }
   }
 
   await chrome.offscreen.createDocument({
@@ -138,6 +155,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           });
 
           sendResponse(response);
+          break;
+        }
+
+        case "check-webgpu": {
+          if (!hasOffscreenAPI) {
+            // Firefox — no offscreen doc support, WebGPU not available for WebLLM
+            sendResponse({ supported: false, reason: "offscreen API unavailable (Firefox)" });
+            break;
+          }
+
+          await ensureOffscreenDocument();
+
+          const wgpuResponse = await chrome.runtime.sendMessage({
+            target: "offscreen",
+            action: "check-webgpu",
+          });
+
+          sendResponse(wgpuResponse);
           break;
         }
 
