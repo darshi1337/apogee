@@ -44,6 +44,12 @@
             <span>Ask Apogee a question</span>
           </button>
         </div>
+
+        <!-- WebGPU not supported warning (shown/hidden by JS) -->
+        <div id="webgpuWarning" class="webgpu-warning hidden">
+          <span class="warning-icon">⚠️</span>
+          <span>WebGPU is not supported in this browser. Use <strong>Local Ollama</strong> mode in Settings, or switch to Chrome/Edge.</span>
+        </div>
       </div>
 
       <!-- SUMMARY VIEW -->
@@ -70,6 +76,17 @@
             </button>
           </div>
         </header>
+
+        <!-- Model download progress bar -->
+        <div id="modelProgress" class="model-progress hidden">
+          <div class="model-progress-label">
+            <span id="modelProgressText">Downloading model...</span>
+            <span id="modelProgressPercent"></span>
+          </div>
+          <div class="model-progress-bar">
+            <div id="modelProgressFill" class="model-progress-fill"></div>
+          </div>
+        </div>
 
         <section id="summaryCard" class="summary-card">
           <h2>Summarize the page</h2>
@@ -154,7 +171,37 @@
           </div>
         </div>
 
+        <!-- Provider Selection -->
         <div class="settings-card">
+          <div class="card-title">
+            <img src="../assets/robot.svg" alt="" />
+            <span>AI Provider</span>
+          </div>
+
+          <label class="radio-option">
+            <input type="radio" name="provider" value="webllm" checked />
+            <span>In-Browser AI <small class="provider-badge">WebGPU</small></span>
+          </label>
+
+          <label class="radio-option">
+            <input type="radio" name="provider" value="local" />
+            <span>Local Ollama</span>
+          </label>
+        </div>
+
+        <!-- WebLLM Model Selection (visible when provider=webllm) -->
+        <div id="webllmModelsCard" class="settings-card">
+          <div class="card-title">
+            <img src="../assets/sparkles.svg" alt="" />
+            <span>In-Browser Model</span>
+          </div>
+
+          <!-- Populated dynamically from constants.js -->
+          <div id="webllmModelList"></div>
+        </div>
+
+        <!-- Local Backend Settings (visible when provider=local) -->
+        <div id="localSettingsCard" class="settings-card hidden">
           <div class="card-title">
             <img src="../assets/settings.svg" alt="" />
             <span>Backend</span>
@@ -168,45 +215,37 @@
               placeholder="http://127.0.0.1:8000"
             />
           </label>
-
-          <label class="settings-field">
-            <span>API key</span>
-            <input
-              id="apiKeyInput"
-              type="password"
-              autocomplete="off"
-              placeholder="Required for cloud"
-            />
-          </label>
         </div>
 
-        <div class="settings-card">
+        <!-- Local Model Selection (visible when provider=local) -->
+        <div id="localModelsCard" class="settings-card hidden">
           <div class="card-title">
             <img src="../assets/robot.svg" alt="" />
             <span>Local LLM</span>
           </div>
 
           <label class="radio-option">
-            <input type="radio" name="model" value="qwen3:8b" checked />
+            <input type="radio" name="localModel" value="qwen3:8b" checked />
             <span>Qwen 3 8B</span>
           </label>
 
           <label class="radio-option">
-            <input type="radio" name="model" value="mistral:latest" />
+            <input type="radio" name="localModel" value="mistral:latest" />
             <span>Mistral Latest</span>
           </label>
 
           <label class="radio-option">
-            <input type="radio" name="model" value="llama3.1:8b" />
+            <input type="radio" name="localModel" value="llama3.1:8b" />
             <span>Llama 3.1 8B</span>
           </label>
 
           <label class="radio-option">
-            <input type="radio" name="model" value="gemma3:4b" />
+            <input type="radio" name="localModel" value="gemma3:4b" />
             <span>Gemma 3</span>
           </label>
         </div>
 
+        <!-- Response Format -->
         <div class="settings-card">
           <div class="card-title">
             <img src="../assets/code.svg" alt="" />
@@ -295,17 +334,18 @@
         <h2>About Apogee</h2>
 
         <p>
-          Local-first browser assistant for articles, videos, emails and more.
+          AI browser assistant for articles, videos, emails and more.
+          Runs entirely in your browser — no backend needed.
         </p>
       </div>
 
       <div class="contact-footer">
-        <div class="version">v0.1.0</div>
+        <div class="version">v0.2.0</div>
 
         <div class="made-with">Made with ❤️ by darshi1337</div>
       </div>
     </div>
 
-    <script src="popup.js"></script>
+    <script type="module" src="popup.js"></script>
   </body>
 </html>

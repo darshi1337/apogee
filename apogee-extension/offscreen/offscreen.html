@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Apogee WebLLM Engine</title>
+  </head>
+  <body>
+    <!-- This page is never visible — it exists solely to provide a stable
+         window context for WebGPU / MLCEngine inference. The service worker
+         creates it on demand via chrome.offscreen.createDocument(). -->
+    <script type="module" src="offscreen.js"></script>
+  </body>
+</html>

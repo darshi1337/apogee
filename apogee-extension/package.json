@@ -1,0 +1,17 @@
+{
+  "name": "apogee-extension",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@mlc-ai/web-llm": "^0.2.78"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5",
+    "@anthropic-ai/sdk": "^0.39.0"
+  }
+}

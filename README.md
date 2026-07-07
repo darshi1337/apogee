@@ -1,91 +1,97 @@
 # Apogee
 
-**Apogee** is a local-first AI browser assistant inspired by Mozilla Orbit. It helps users summarize webpages, PDFs, emails, and YouTube content using open-source language models running locally through Ollama.
+**Apogee** is an AI browser assistant for articles, videos, emails, and more.
+It runs **entirely in your browser** via WebGPU — no backend, no API keys,
+no cloud. Just install the extension and go.
 
-Unlike cloud-based AI assistants, Apogee keeps your data on your machine. Content is processed through locally running models, giving you complete control over your privacy, models, and infrastructure.
+For power users, Apogee also supports a local Ollama backend with larger models.
 
-## Supported Models
+## How It Works
 
-Apogee currently supports:
+Apogee uses [WebLLM](https://github.com/mlc-ai/web-llm) to run quantized
+language models directly in your browser using WebGPU. The first time you use
+it, the model weights (~700 MB – 2 GB depending on your choice) are downloaded
+and cached locally. After that, everything runs offline.
 
-- Qwen 3 8B
-- Mistral
-- Llama 3.1 8B
-- Gemma 3
+## Quick Start
 
-All models are served locally using Ollama.
+1. **Install the extension** (see below).
+2. Open any webpage.
+3. Click the Apogee icon → **Summarize this page**.
+4. On first use, the model downloads automatically. After that it's instant.
 
-## Installation
+That's it. No backend installation, no terminal commands.
+
+## Supported In-Browser Models
+
+| Model                   | Download Size | Best For                   |
+| ----------------------- | ------------- | -------------------------- |
+| Qwen 2.5 1.5B (default) | ~900 MB       | Multilingual summarization |
+| SmolLM2 1.7B            | ~1 GB         | General tasks              |
+| Llama 3.2 1B            | ~700 MB       | Lightweight, fast          |
+| Phi 3.5 Mini            | ~2.2 GB       | Stronger reasoning         |
+
+## Browser Requirements
+
+- **Chrome 113+** or **Edge 113+** (WebGPU required)
+- A GPU with WebGPU support (most modern GPUs)
+- Firefox: WebGPU is not yet stable — use **Local Ollama** mode instead
+
+## Install the Extension
+
+### Chrome / Chromium (unpacked)
+
+1. Clone or download this repository.
+2. `cd apogee-extension && npm install && npm run build`
+3. Go to `chrome://extensions`.
+4. Enable **Developer mode** (top-right).
+5. Click **Load unpacked** and select the `apogee-extension/dist` folder.
+
+### Firefox (temporary add-on, Local Ollama mode only)
+
+1. Go to `about:debugging#/runtime/this-firefox`.
+2. Click **Load Temporary Add-on** and select `apogee-extension/dist/manifest.json`.
+3. Open Settings → switch to **Local Ollama** mode (WebGPU is not supported).
+
+## Advanced: Local Ollama Backend
+
+If you prefer running larger models (8B+) locally through Ollama, Apogee still
+supports that as a fallback.
 
 ### 1. Install Ollama
 
-Install Ollama from:
-
-https://ollama.com
-
-Verify installation:
+Install from https://ollama.com, then:
 
 ```bash
-ollama --version
+ollama pull gemma3:4b   # and qwen3:8b, mistral:latest, llama3.1:8b
 ```
 
-### 2. Install Apogee
+### 2. Install Apogee Backend
 
 ```bash
-pip install apogee-browser==0.1.0
+pip install apogee-browser==0.2.0
 ```
 
-### 3. Download Models
-
-```bash
-apogee setup
-```
-
-### 4. Start Apogee
+### 3. Start the Backend
 
 ```bash
 apogee
 ```
 
-## Running on macOS (Apple Silicon)
+### 4. Switch the Extension
 
-Apogee runs well on Apple Silicon (M1/M2/M3). Ollama uses the GPU via Metal
-automatically, so no extra configuration is needed.
+Open the extension → Settings → select **Local Ollama** → set the URL
+(defaults to `http://127.0.0.1:8000`).
 
-```bash
-# 1. Install Ollama and a Python 3.10+ interpreter
-brew install ollama python@3.11
-
-# 2. Start the Ollama server (leave running, or use: brew services start ollama)
-ollama serve &
-
-# 3. Pull a model (gemma3:4b is the lightest; good for 8 GB machines)
-ollama pull gemma3:4b
-
-# 4. Create an isolated environment and install the backend
-python3.11 -m venv ~/apogee-env
-source ~/apogee-env/bin/activate
-pip install apogee-browser==0.1.0   # or: pip install -e apogee-backend
-
-# 5. Start the backend
-apogee
-```
-
-Verify it is up: open <http://127.0.0.1:8000/health> — it should report
-`{"connected": true, "models": [...]}`.
-
-### Custom port
-
-If port 8000 is already in use, start the backend on another port:
+### Custom Port
 
 ```bash
 APOGEE_PORT=8123 apogee
 ```
 
-If you change the port, update the endpoint the browser extension talks to
-accordingly (it defaults to `http://127.0.0.1:8000`).
+Update the extension backend URL to match.
 
-### Performance
+### Performance (Apple Silicon)
 
 Measured locally on an Apple M2 (`gemma3:4b`, GPU via Metal):
 
@@ -96,92 +102,22 @@ Measured locally on an Apple M2 (`gemma3:4b`, GPU via Metal):
 | Short page / question               | ~1–1.5 s end to end                |
 | Long page (~40k chars, multi-chunk) | first bullets in ~2 s, ~12 s total |
 
-Numbers vary by hardware and model — 8B models (`qwen3:8b`, `llama3.1:8b`) run
-roughly half as fast as `gemma3:4b` and need more memory.
+## Privacy & Permissions
 
-## Browser Extension
+- **In-Browser mode**: All inference happens on your device. No data leaves
+  your browser. Model weights are cached in browser storage.
+- **Local Ollama mode**: Data goes only to `127.0.0.1` (your own machine).
+- **`activeTab` + `scripting`**: Page content is read only from the current tab,
+  only when you click Summarize/Ask.
+- **`storage`**: Used only for settings and cached summaries.
+- **No telemetry. No analytics. No cloud.**
 
-Install the Apogee browser extension and connect it to the local backend.
-The extension communicates only with:
-
-```text
-http://127.0.0.1:8000
-```
-
-No user content is sent to external AI providers.
-
-### Privacy & permissions
-
-Apogee requests the minimum access needed to work:
-
-- **`activeTab` + `scripting`** — page content is read **only from the current
-  tab, only when you click Summarize/Ask**. Nothing runs on pages in the
-  background; there are no persistent, all-sites content scripts.
-- **`host_permissions`** are limited to loopback (`127.0.0.1` / `localhost`) —
-  the extension has no access to external websites.
-- **Content Security Policy** restricts network egress to loopback only
-  (`connect-src http://127.0.0.1:* http://localhost:*`), so the browser itself
-  enforces that no data can be sent to a remote server.
-- **`storage`** is used only to keep your settings and cached summaries locally.
-
-## Optional Cloud Mode
-
-Apogee can also run on your own EC2 instance while still using open-source
-models through Ollama. In this mode, the browser extension sends page content to
-your server, so protect it with TLS and an API key.
-
-Deployment files live in `deploy/aws/`.
-
-Minimum server environment:
+## Development
 
 ```bash
-APOGEE_HOST=127.0.0.1
-APOGEE_PORT=8000
-APOGEE_API_KEY=replace-with-a-long-random-token
-APOGEE_ALLOW_LOCAL_PDFS=0
+cd apogee-extension
+npm install
+npm run dev    # watch mode — rebuilds on changes
 ```
 
-Run the FastAPI app behind Nginx/Caddy on HTTPS, then open the extension
-Settings and set:
-
-- Backend URL: `https://your-domain.example`
-- API key: the same value as `APOGEE_API_KEY`
-
-See `deploy/aws/README.md` for the EC2 setup.
-
-### Privacy & permissions
-
-Apogee requests the minimum access needed to work:
-
-- **`activeTab` + `scripting`** — page content is read **only from the current
-  tab, only when you click Summarize/Ask**. Nothing runs on pages in the
-  background; there are no persistent, all-sites content scripts.
-- **`host_permissions`** are limited to loopback (`127.0.0.1` / `localhost`) —
-  the extension has no access to external websites.
-- **Content Security Policy** restricts network egress to loopback only
-  (`connect-src http://127.0.0.1:* http://localhost:*`), so the browser itself
-  enforces that no data can be sent to a remote server.
-- **`storage`** is used only to keep your settings and cached summaries locally.
-
-### Load in Chrome / Chromium (unpacked)
-
-The extension is Manifest V3 and works in Chrome as well as Firefox.
-
-1. Go to `chrome://extensions`.
-2. Enable **Developer mode** (top-right).
-3. Click **Load unpacked** and select the `apogee-extension` folder.
-4. Make sure the model selected in the extension's Settings matches a model you
-   pulled with `ollama pull` (e.g. Gemma 3 for `gemma3:4b`).
-
-### Load in Firefox (temporary add-on)
-
-1. Go to `about:debugging#/runtime/this-firefox`.
-2. Click **Load Temporary Add-on** and select `apogee-extension/manifest.json`.
-
-## Usage
-
-### Summarize a Webpage
-
-1. Open any webpage.
-2. Click the Apogee extension.
-3. Press **Summarize**.
+Load the `dist/` folder as an unpacked extension in Chrome.

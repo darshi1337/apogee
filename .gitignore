@@ -11,3 +11,4 @@ web-ext-artifacts/
 .env
 .env.*
 /etc/apogee/
+node_modules/

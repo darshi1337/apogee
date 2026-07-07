@@ -482,17 +482,13 @@ body {
   width: calc(100% - 32px);
   margin: 0 16px;
   height: 40px;
-
   border: 1px solid #827fff;
   border-radius: 5px;
   background: #ffffff;
-
   padding: 0 12px;
-
   display: flex;
   align-items: center;
   justify-content: space-between;
-
   cursor: pointer;
 }
 
@@ -533,17 +529,13 @@ body {
 .contact-card {
   width: 100%;
   height: 40px;
-
   border: 1px solid #827fff;
   border-radius: 5px;
   background: #ffffff;
-
   padding: 0 12px;
-
   display: flex;
   align-items: center;
   justify-content: space-between;
-
   cursor: pointer;
 }
 
@@ -633,7 +625,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-
   padding: 12px;
 }
 
@@ -645,7 +636,6 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-
   font-family: "Metropolis";
   font-size: 14px;
   color: #5c5c5c;
@@ -720,4 +710,88 @@ body {
     animation: none;
     content: "...";
   }
+}
+
+/* ─── WebGPU warning banner ─────────────────────────────────────────────── */
+
+.webgpu-warning {
+  margin: 0 15px 10px;
+  padding: 10px 12px;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 5px;
+  font-family: "Metropolis";
+  font-size: 12px;
+  line-height: 1.4;
+  color: #5d4037;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.webgpu-warning .warning-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+/* ─── Model download progress bar ───────────────────────────────────────── */
+
+.model-progress {
+  margin: 0 15px 8px;
+  padding: 10px 12px;
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  border-radius: 5px;
+}
+
+.model-progress-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-family: "Metropolis";
+  font-size: 12px;
+  color: #5c5c5c;
+}
+
+.model-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: #e8e5ff;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.model-progress-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #827fff, #b8b2ff);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* ─── Provider badge ────────────────────────────────────────────────────── */
+
+.provider-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  background: #ede9fe;
+  color: #7c3aed;
+  font-family: "Metropolis";
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+  letter-spacing: 0.3px;
+}
+
+/* ─── Model size labels ─────────────────────────────────────────────────── */
+
+.model-size {
+  font-family: "Metropolis";
+  font-size: 11px;
+  font-weight: 400;
+  color: #9e9e9e;
+  margin-left: 4px;
 }

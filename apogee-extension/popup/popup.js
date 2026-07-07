@@ -1,159 +1,293 @@
-const DEFAULT_API_BASE = "http://127.0.0.1:8000";
+import { getProvider } from "../lib/providers.js";
+import {
+  PROVIDERS,
+  DEFAULT_SETTINGS,
+  WEBLLM_MODELS,
+  DEFAULT_LOCAL_API_BASE,
+} from "../lib/constants.js";
+
+// ─── DOM references ──────────────────────────────────────────────────────────
 
 const summarizeBtn = document.getElementById("summarizeBtn");
-
 const summaryText = document.getElementById("summaryText");
-
 const settingsBtn = document.getElementById("settingsBtn");
-
 const settingsBtn2 = document.getElementById("settingsBtn2");
-
 const closeBtn = document.getElementById("closeBtn");
-
 const closeBtn2 = document.getElementById("closeBtn2");
-
 const closeBtn3 = document.getElementById("closeBtn3");
-
 const closeBtn4 = document.getElementById("closeBtn4");
-
 const homeView = document.getElementById("homeView");
-
 const summaryView = document.getElementById("summaryView");
-
 const settingsView = document.getElementById("settingsView");
-
 const summaryCard = document.getElementById("summaryCard");
-
 const promptsSection = document.getElementById("promptsSection");
-
 const chatSection = document.querySelector(".chat-section");
-
 const questionHeading = document.getElementById("questionHeading");
-
 const answerHeading = document.getElementById("answerHeading");
-
 const questionInput = document.getElementById("questionInput");
-
 const sendBtn = document.getElementById("sendBtn");
-
 const answerBox = document.getElementById("answerBox");
-
 const formatRadios = document.querySelectorAll('input[name="format"]');
-
-const modelRadios = document.querySelectorAll('input[name="model"]');
-
+const providerRadios = document.querySelectorAll('input[name="provider"]');
+const localModelRadios = document.querySelectorAll('input[name="localModel"]');
 const backendUrlInput = document.getElementById("backendUrlInput");
-
-const apiKeyInput = document.getElementById("apiKeyInput");
-
 const promptsCloseBtn = document.querySelector(".prompts-toggle");
-
 const togglePromptsBtn = document.getElementById("togglePromptsBtn");
-
 const getInTouchBtn = document.getElementById("getInTouchBtn");
-
 const contactView = document.getElementById("contactView");
-
 const settingsLogo = document.getElementById("settingsLogo");
-
 const contactLogo = document.getElementById("contactLogo");
-
-const contentScriptFiles = [
-  "/content/Readability.js",
-  "/content/extractors/generic.js",
-  "/content/extractors/youtube.js",
-  "/content/extractors/gmail.js",
-  "/content/content.js",
-];
+const webllmModelsCard = document.getElementById("webllmModelsCard");
+const localSettingsCard = document.getElementById("localSettingsCard");
+const localModelsCard = document.getElementById("localModelsCard");
+const webllmModelList = document.getElementById("webllmModelList");
+const webgpuWarning = document.getElementById("webgpuWarning");
+const modelProgress = document.getElementById("modelProgress");
+const modelProgressText = document.getElementById("modelProgressText");
+const modelProgressPercent = document.getElementById("modelProgressPercent");
+const modelProgressFill = document.getElementById("modelProgressFill");
 
 let currentPageData = null;
 let currentSummaryText = "";
 
-const defaultSettings = {
-  apiBase: DEFAULT_API_BASE,
-  apiKey: "",
-  responseFormat: "bullets",
-  model: "qwen3:8b",
-};
+// ─── Settings ────────────────────────────────────────────────────────────────
 
 async function getSettings() {
   const stored = await chrome.storage.local.get("settings");
-
-  return {
-    ...defaultSettings,
-    ...(stored.settings || {}),
-  };
+  return { ...DEFAULT_SETTINGS, ...(stored.settings || {}) };
 }
 
-function applySettingsToUI(settings) {
-  if (backendUrlInput) backendUrlInput.value = settings.apiBase;
-  if (apiKeyInput) apiKeyInput.value = settings.apiKey;
-
-  const formatRadio = document.querySelector(
-    `input[name="format"][value="${settings.responseFormat}"]`,
-  );
-
-  const modelRadio = document.querySelector(
-    `input[name="model"][value="${settings.model}"]`,
-  );
-
-  formatRadio && (formatRadio.checked = true);
-  modelRadio && (modelRadio.checked = true);
-}
-
-function normalizeApiBase(value) {
-  return (value || DEFAULT_API_BASE).trim().replace(/\/+$/, "");
-}
-
-function getApiHeaders(settings) {
-  const headers = {
-    "Content-Type": "application/json",
-  };
-
-  if (settings.apiKey) {
-    headers["X-Apogee-API-Key"] = settings.apiKey;
-  }
-
-  return headers;
-}
-
-async function saveSettings(partialSettings) {
-  const settings = {
-    ...(await getSettings()),
-    ...partialSettings,
-  };
-
-  await chrome.storage.local.set({
-    settings,
-  });
-
+async function saveSettings(partial) {
+  const settings = { ...(await getSettings()), ...partial };
+  await chrome.storage.local.set({ settings });
   return settings;
 }
 
 async function clearStoredSummaries() {
   const stored = await chrome.storage.local.get(null);
-  const summaryKeys = Object.keys(stored).filter(
-    (key) =>
-      key.startsWith("summary:") || key.startsWith("suggested-prompts:"),
+  const keys = Object.keys(stored).filter(
+    (k) => k.startsWith("summary:") || k.startsWith("suggested-prompts:"),
   );
+  if (keys.length > 0) await chrome.storage.local.remove(keys);
+}
 
-  if (summaryKeys.length > 0) {
-    await chrome.storage.local.remove(summaryKeys);
+// ─── WebGPU detection ────────────────────────────────────────────────────────
+
+function hasWebGPU() {
+  return typeof navigator !== "undefined" && !!navigator.gpu;
+}
+
+// ─── Build WebLLM model radio list ───────────────────────────────────────────
+
+function buildWebllmModelUI(selectedId) {
+  webllmModelList.innerHTML = "";
+  for (const model of WEBLLM_MODELS) {
+    const label = document.createElement("label");
+    label.className = "radio-option";
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "webllmModel";
+    input.value = model.id;
+    if (model.id === selectedId) input.checked = true;
+    const span = document.createElement("span");
+    span.innerHTML = `${model.label} <small class="model-size">${model.size}</small>`;
+    label.appendChild(input);
+    label.appendChild(span);
+    webllmModelList.appendChild(label);
+  }
+
+  // Bind change events
+  webllmModelList.querySelectorAll('input[name="webllmModel"]').forEach((r) => {
+    r.addEventListener("change", async () => {
+      await saveSettings({ webllmModel: r.value });
+      await clearStoredSummaries();
+    });
+  });
+}
+
+// ─── Apply settings to UI ────────────────────────────────────────────────────
+
+function applySettingsToUI(settings) {
+  // Provider
+  const provRadio = document.querySelector(
+    `input[name="provider"][value="${settings.provider}"]`,
+  );
+  if (provRadio) provRadio.checked = true;
+
+  // Show/hide provider-specific cards
+  const isWebllm = settings.provider === PROVIDERS.WEBLLM;
+  webllmModelsCard.classList.toggle("hidden", !isWebllm);
+  localSettingsCard.classList.toggle("hidden", isWebllm);
+  localModelsCard.classList.toggle("hidden", isWebllm);
+
+  // WebLLM models
+  buildWebllmModelUI(settings.webllmModel);
+
+  // Local settings
+  if (backendUrlInput) backendUrlInput.value = settings.localApiBase;
+  const localRadio = document.querySelector(
+    `input[name="localModel"][value="${settings.localModel}"]`,
+  );
+  if (localRadio) localRadio.checked = true;
+
+  // Format
+  const fmtRadio = document.querySelector(
+    `input[name="format"][value="${settings.responseFormat}"]`,
+  );
+  if (fmtRadio) fmtRadio.checked = true;
+
+  // WebGPU warning
+  if (!hasWebGPU() && isWebllm) {
+    webgpuWarning?.classList.remove("hidden");
+  } else {
+    webgpuWarning?.classList.add("hidden");
   }
 }
 
-function resetQuestionCards() {
-  setSuggestedQuestions([]);
+// ─── Content extraction ──────────────────────────────────────────────────────
+
+async function extractFromActiveTab(tab) {
+  const tabId = tab.id;
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        document.documentElement.removeAttribute("data-apogee-result");
+      },
+    });
+  } catch {
+    // scripting blocked
+  }
+
+  let isAlreadyInjected = false;
+  try {
+    const checkResult = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => typeof window.extractPageContent === "function",
+    });
+    isAlreadyInjected = checkResult?.[0]?.result;
+  } catch {
+    // ignore
+  }
+
+  if (isAlreadyInjected) {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["/content/run_extraction.js"],
+    });
+  } else {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: [
+        "/content/Readability.js",
+        "/content/extractors/generic.js",
+        "/content/extractors/youtube.js",
+        "/content/extractors/gmail.js",
+        "/content/content.js",
+        "/content/run_extraction.js",
+      ],
+    });
+  }
+
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => {
+      const val = document.documentElement.getAttribute("data-apogee-result");
+      document.documentElement.removeAttribute("data-apogee-result");
+      return val ? JSON.parse(val) : null;
+    },
+  });
+
+  const pageData = results?.[0]?.result;
+  if (pageData?.error) throw new Error(pageData.error);
+  return pageData;
 }
+
+// ─── Model progress listener ─────────────────────────────────────────────────
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === "model-progress" && message.progress) {
+    const p = message.progress;
+    modelProgress?.classList.remove("hidden");
+    modelProgressText.textContent = p.text || "Loading model...";
+    if (typeof p.progress === "number") {
+      const pct = Math.round(p.progress * 100);
+      modelProgressPercent.textContent = `${pct}%`;
+      modelProgressFill.style.width = `${pct}%`;
+      if (pct >= 100) {
+        setTimeout(() => modelProgress?.classList.add("hidden"), 1500);
+      }
+    }
+  }
+});
+
+// ─── UI helpers ──────────────────────────────────────────────────────────────
+
+function setLoadingIndicator(element, label) {
+  const wrapper = document.createElement("span");
+  wrapper.className = "apogee-loading";
+  const spinner = document.createElement("span");
+  spinner.className = "apogee-spinner";
+  const text = document.createElement("span");
+  text.textContent = label;
+  const dots = document.createElement("span");
+  dots.className = "apogee-dots";
+  text.appendChild(dots);
+  wrapper.appendChild(spinner);
+  wrapper.appendChild(text);
+  element.textContent = "";
+  element.appendChild(wrapper);
+}
+
+function escapeHtml(text) {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function renderInline(escapedText) {
+  return escapedText
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/__(.+?)__/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+?)\*/g, "$1<em>$2</em>")
+    .replace(/(^|[^_])_([^_\n]+?)_/g, "$1<em>$2</em>");
+}
+
+function renderMarkdown(source) {
+  const lines = escapeHtml(source).split(/\r?\n/);
+  let html = "";
+  let listType = null;
+  const closeList = () => {
+    if (listType) { html += `</${listType}>`; listType = null; }
+  };
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (line.trim() === "") { closeList(); continue; }
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) { closeList(); html += `<h${heading[1].length}>${renderInline(heading[2])}</h${heading[1].length}>`; continue; }
+    const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
+    if (bullet) {
+      if (listType !== "ul") { closeList(); html += "<ul>"; listType = "ul"; }
+      html += `<li>${renderInline(bullet[1])}</li>`; continue;
+    }
+    const ordered = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (ordered) {
+      if (listType !== "ol") { closeList(); html += "<ol>"; listType = "ol"; }
+      html += `<li>${renderInline(ordered[1])}</li>`; continue;
+    }
+    closeList();
+    html += `<p>${renderInline(line)}</p>`;
+  }
+  closeList();
+  return html;
+}
+
+function resetQuestionCards() { setSuggestedQuestions([]); }
 
 function setSuggestedQuestions(questions) {
   questionHeading.textContent = "Suggested Prompts";
-
   promptsCloseBtn.classList.remove("hidden");
-
   const container = document.getElementById("questionContainer");
   container.innerHTML = "";
-
   questions.slice(0, 2).forEach((text) => {
     const btn = document.createElement("button");
     btn.className = "prompt-card";
@@ -164,10 +298,8 @@ function setSuggestedQuestions(questions) {
 
 function setSuggestedQuestionsLoading() {
   questionHeading.textContent = "Suggested Prompts";
-
   const container = document.getElementById("questionContainer");
   container.innerHTML = "";
-
   const btn = document.createElement("button");
   btn.className = "prompt-card";
   btn.disabled = true;
@@ -175,13 +307,8 @@ function setSuggestedQuestionsLoading() {
   container.appendChild(btn);
 }
 
-function getSummaryCacheKey(url, responseFormat) {
-  return `summary:${responseFormat}:${url}`;
-}
-
-function getSuggestedPromptsCacheKey(url, responseFormat) {
-  return `suggested-prompts:${responseFormat}:${url}`;
-}
+function getSummaryCacheKey(url, fmt) { return `summary:${fmt}:${url}`; }
+function getPromptsCacheKey(url, fmt) { return `suggested-prompts:${fmt}:${url}`; }
 
 function showSummarizingContext() {
   summaryCard.classList.remove("hidden");
@@ -226,10 +353,7 @@ function showAskContext() {
   togglePromptsBtn.style.display = "none";
 }
 
-function showQuestion(question) {
-  questionHeading.textContent = "Question";
-  promptsCloseBtn.classList.add("hidden");
-
+function showAnswerContext(question) {
   const container = document.getElementById("questionContainer");
   container.innerHTML = "";
   const btn = document.createElement("button");
@@ -237,372 +361,35 @@ function showQuestion(question) {
   btn.disabled = true;
   btn.textContent = question;
   container.appendChild(btn);
-}
-
-function showAnswerContext(question) {
-  showQuestion(question);
   summaryCard.classList.add("hidden");
   promptsSection.classList.remove("hidden");
   questionHeading.textContent = "Question";
   answerHeading.textContent = "Answer";
   promptsCloseBtn.classList.add("hidden");
   togglePromptsBtn.style.display = "none";
-
   questionInput.classList.add("hidden");
   sendBtn.classList.add("hidden");
   answerBox.classList.remove("hidden");
   setLoadingIndicator(answerBox, "Thinking");
 }
 
-async function fetchSuggestedQuestions(settings, pageData, summary) {
-  const response = await fetch(`${settings.apiBase}/suggest-questions`, {
-    method: "POST",
-    headers: getApiHeaders(settings),
-    body: JSON.stringify({
-      title: pageData.title || "Untitled",
-      url: pageData.url,
-      summary,
-      model: settings.model,
-    }),
-  });
+// ─── Streaming into DOM ──────────────────────────────────────────────────────
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(errText || `Prompt request failed: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return Array.isArray(data.questions) ? data.questions.slice(0, 2) : [];
-}
-
-// Content scripts are injected on demand (activeTab), not on every page.
-// Because the popup does not use always-on content scripts or broad messaging permissions,
-// we execute all extractor files and a runner script in a single injection session.
-// The runner script (`run_extraction.js`) writes the serialized result to a custom
-// DOM attribute on the page (`data-apogee-result`), which the popup then reads and parses.
-async function extractFromActiveTab(tab) {
-  const tabId = tab.id;
-
-  // Clear any existing attribute to avoid stale data
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => {
-        document.documentElement.removeAttribute("data-apogee-result");
-      },
-    });
-  } catch (e) {
-    // Ignore errors on pages where scripting is blocked (e.g. chrome:// tabs)
-  }
-
-  // Check if content scripts are already injected to reuse them
-  let isAlreadyInjected = false;
-  try {
-    const checkResult = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => typeof window.extractPageContent === "function",
-    });
-    isAlreadyInjected = checkResult?.[0]?.result;
-  } catch (e) {
-    // Ignore
-  }
-
-  if (isAlreadyInjected) {
-    // Only inject the runner script to execute the extraction
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ["/content/run_extraction.js"],
-    });
-  } else {
-    // Inject all scripts and run extraction in a single files call
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: [
-        "/content/Readability.js",
-        "/content/extractors/generic.js",
-        "/content/extractors/youtube.js",
-        "/content/extractors/gmail.js",
-        "/content/content.js",
-        "/content/run_extraction.js",
-      ],
-    });
-  }
-
-  // Retrieve the result from the DOM where run_extraction.js wrote it
-  const results = await chrome.scripting.executeScript({
-    target: { tabId },
-    func: () => {
-      const val = document.documentElement.getAttribute("data-apogee-result");
-      document.documentElement.removeAttribute("data-apogee-result"); // clean up
-      return val ? JSON.parse(val) : null;
-    },
-  });
-
-  const pageData = results?.[0]?.result;
-  if (pageData && pageData.error) {
-    throw new Error(pageData.error);
-  }
-  return pageData;
-}
-
-function setLoadingIndicator(element, label) {
-  const wrapper = document.createElement("span");
-  wrapper.className = "apogee-loading";
-
-  const spinner = document.createElement("span");
-  spinner.className = "apogee-spinner";
-
-  const text = document.createElement("span");
-  text.textContent = label; // safe: textContent, never innerHTML
-
-  const dots = document.createElement("span");
-  dots.className = "apogee-dots";
-
-  text.appendChild(dots);
-  wrapper.appendChild(spinner);
-  wrapper.appendChild(text);
-
-  element.textContent = ""; // clear existing content
-  element.appendChild(wrapper);
-}
-
-// Minimal Markdown renderer. Input is HTML-escaped first, then only a fixed
-// set of formatting tags is emitted — no attributes, links, or raw HTML — so
-// untrusted model/page output can't inject markup.
-function escapeHtml(text) {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-function renderInline(escapedText) {
-  return escapedText
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/__(.+?)__/g, "<strong>$1</strong>")
-    .replace(/(^|[^*])\*([^*\n]+?)\*/g, "$1<em>$2</em>")
-    .replace(/(^|[^_])_([^_\n]+?)_/g, "$1<em>$2</em>");
-}
-
-function renderMarkdown(source) {
-  const lines = escapeHtml(source).split(/\r?\n/);
-  let html = "";
-  let listType = null;
-
-  const closeList = () => {
-    if (listType) {
-      html += `</${listType}>`;
-      listType = null;
-    }
-  };
-
-  for (const rawLine of lines) {
-    const line = rawLine.trimEnd();
-
-    if (line.trim() === "") {
-      closeList();
-      continue;
-    }
-
-    const heading = line.match(/^(#{1,6})\s+(.*)$/);
-    if (heading) {
-      closeList();
-      const level = heading[1].length;
-      html += `<h${level}>${renderInline(heading[2])}</h${level}>`;
-      continue;
-    }
-
-    const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
-    if (bullet) {
-      if (listType !== "ul") {
-        closeList();
-        html += "<ul>";
-        listType = "ul";
-      }
-      html += `<li>${renderInline(bullet[1])}</li>`;
-      continue;
-    }
-
-    const ordered = line.match(/^\s*\d+[.)]\s+(.*)$/);
-    if (ordered) {
-      if (listType !== "ol") {
-        closeList();
-        html += "<ol>";
-        listType = "ol";
-      }
-      html += `<li>${renderInline(ordered[1])}</li>`;
-      continue;
-    }
-
-    closeList();
-    html += `<p>${renderInline(line)}</p>`;
-  }
-
-  closeList();
-  return html;
-}
-
-async function streamIntoElement(response, element) {
-  if (!response.body) {
-    const text = await response.text();
-    element.innerHTML = renderMarkdown(text.trimStart());
-    return text;
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
+async function streamGeneratorIntoElement(generator, element) {
   let fullText = "";
-  // Hold the loading indicator until the first non-whitespace token.
   let started = false;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
+  for await (const chunk of generator) {
     fullText += chunk;
     const visible = fullText.trimStart();
     if (!started && visible === "") continue;
     started = true;
     element.innerHTML = renderMarkdown(visible);
   }
-
-  fullText += decoder.decode();
   element.innerHTML = renderMarkdown(fullText.trimStart());
   return fullText;
 }
 
-async function fetchSummaryStream(settings, endpoint, payload) {
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: getApiHeaders(settings),
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(errText || `Request failed: ${response.status}`);
-  }
-
-  return response;
-}
-
-function wait(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-async function appendTextByWord(element, text, speed = 45) {
-  const words = text.split(/(\s+)/);
-
-  for (const word of words) {
-    element.textContent += word;
-    await wait(speed);
-  }
-}
-
-async function streamAnswer(pageData, question, element) {
-  const settings = await getSettings();
-  const content = pageData.content || currentSummaryText;
-
-  if (!content) {
-    throw new Error("Could not extract enough page content to answer.");
-  }
-
-  const response = await fetch(`${settings.apiBase}/ask`, {
-    method: "POST",
-    headers: getApiHeaders(settings),
-    body: JSON.stringify({
-      title: pageData.title || "Untitled",
-      url: pageData.url,
-      content,
-      question,
-      model: settings.model,
-    }),
-  });
-
-  if (!response.ok) {
-    const answer = await response.text();
-    throw new Error(answer || `Ask request failed: ${response.status}`);
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let pendingText = "";
-  // Hold the loading indicator until the first word, then start typing.
-  let started = false;
-
-  const beginIfNeeded = () => {
-    if (!started) {
-      element.textContent = "";
-      started = true;
-    }
-  };
-
-  while (true) {
-    const { done, value } = await reader.read();
-
-    if (done) {
-      break;
-    }
-
-    pendingText += decoder.decode(value, { stream: true });
-    const completeWords = pendingText.match(/\S+\s+/g) || [];
-
-    if (completeWords.length > 0) {
-      const typedText = completeWords.join("");
-      pendingText = pendingText.slice(typedText.length);
-      beginIfNeeded();
-      await appendTextByWord(element, typedText);
-    }
-  }
-
-  pendingText += decoder.decode();
-
-  if (pendingText) {
-    beginIfNeeded();
-    await appendTextByWord(element, pendingText);
-  }
-
-  if (started) {
-    element.innerHTML = renderMarkdown(element.textContent);
-  } else {
-    element.textContent = "";
-  }
-}
-
-async function submitQuestion(question) {
-  const trimmedQuestion = question.trim();
-
-  if (!trimmedQuestion) {
-    questionInput.focus();
-    return;
-  }
-
-  showAnswerContext(trimmedQuestion);
-
-  try {
-    const [tab] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-
-    const pageData = await extractFromActiveTab(tab);
-
-    if (!pageData) {
-      answerBox.textContent = "Could not extract page.";
-      return;
-    }
-
-    currentPageData = pageData;
-    await streamAnswer(pageData, trimmedQuestion, answerBox);
-  } catch (error) {
-    console.error(error);
-
-    answerBox.textContent = error.message;
-  }
-}
+// ─── Core actions ────────────────────────────────────────────────────────────
 
 async function summarizeActivePage() {
   homeView.classList.add("hidden");
@@ -611,115 +398,161 @@ async function summarizeActivePage() {
   setLoadingIndicator(summaryText, "Summarizing");
 
   try {
-    const [tab] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const settings = await getSettings();
-
-    // Try to extract page content first; use the content script's
-    // authoritative isPdf flag instead of guessing from the URL.
+    const provider = getProvider(settings);
     const pageData = await extractFromActiveTab(tab);
 
-    if (!pageData) {
-      summaryText.textContent = "Could not extract page.";
-      return;
-    }
-
+    if (!pageData) { summaryText.textContent = "Could not extract page."; return; }
     currentPageData = pageData;
 
     const cacheKey = getSummaryCacheKey(tab.url, settings.responseFormat);
-    const promptsCacheKey = getSuggestedPromptsCacheKey(
-      tab.url,
-      settings.responseFormat,
-    );
+    const promptsCacheKey = getPromptsCacheKey(tab.url, settings.responseFormat);
     let text;
 
     if (pageData.isPdf) {
       setLoadingIndicator(summaryText, "Summarizing PDF");
-
-      const response = await fetchSummaryStream(
-        settings,
-        `${settings.apiBase}/pdf/url`,
-        {
-          url: pageData.url,
-          mode: settings.responseFormat,
-          model: settings.model,
-        },
-      );
-
-      text = await streamIntoElement(response, summaryText);
+      if (settings.provider === PROVIDERS.LOCAL) {
+        // Local backend handles PDF download + extraction
+        text = await streamGeneratorIntoElement(
+          provider.summarizePdf({ url: pageData.url, mode: settings.responseFormat }),
+          summaryText,
+        );
+      } else {
+        // WebLLM: PDF text extraction not available in-browser without pdf.js
+        // Fall back to summarizing whatever content the content script got
+        if (!pageData.content) {
+          summaryText.innerHTML =
+            '<p style="color:#d93025;font-size:13px">' +
+            "PDF summarization requires Local Ollama mode. " +
+            "Switch to Local Ollama in Settings to summarize PDFs.</p>";
+          return;
+        }
+        text = await streamGeneratorIntoElement(
+          provider.summarize({
+            title: pageData.title,
+            url: pageData.url,
+            content: pageData.content,
+            mode: settings.responseFormat,
+          }),
+          summaryText,
+        );
+      }
     } else {
-      const response = await fetchSummaryStream(
-        settings,
-        `${settings.apiBase}/summarize`,
-        {
+      text = await streamGeneratorIntoElement(
+        provider.summarize({
           title: pageData.title,
           url: pageData.url,
           content: pageData.content,
           mode: settings.responseFormat,
-          model: settings.model,
-        },
+        }),
+        summaryText,
       );
-
-      text = await streamIntoElement(response, summaryText);
     }
 
-    // Cache both PDF and non-PDF summaries
-    await chrome.storage.local.set({
-      [cacheKey]: text,
-    });
+    await chrome.storage.local.set({ [cacheKey]: text });
     currentSummaryText = text;
     showSummaryContext();
     setSuggestedQuestionsLoading();
 
     let suggestedQuestions = [];
     try {
-      suggestedQuestions = await fetchSuggestedQuestions(
-        settings,
-        pageData,
-        text,
-      );
+      suggestedQuestions = await provider.suggestQuestions({
+        title: pageData.title,
+        url: pageData.url,
+        summary: text,
+      });
     } catch (error) {
       console.error(error);
     }
 
-    await chrome.storage.local.set({
-      [promptsCacheKey]: suggestedQuestions,
-    });
-
+    await chrome.storage.local.set({ [promptsCacheKey]: suggestedQuestions });
     setSuggestedQuestions(suggestedQuestions);
   } catch (error) {
     console.error(error);
-
     summaryText.innerHTML =
-      '<p style="color:#d93025;font-size:13px">' +
-      escapeHtml(error.message) +
-      "</p>";
+      '<p style="color:#d93025;font-size:13px">' + escapeHtml(error.message) + "</p>";
   }
 }
+
+async function submitQuestion(question) {
+  const trimmed = question.trim();
+  if (!trimmed) { questionInput.focus(); return; }
+  showAnswerContext(trimmed);
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const pageData = await extractFromActiveTab(tab);
+    if (!pageData) { answerBox.textContent = "Could not extract page."; return; }
+    currentPageData = pageData;
+
+    const settings = await getSettings();
+    const provider = getProvider(settings);
+    const content = pageData.content || currentSummaryText;
+    if (!content) { throw new Error("Could not extract enough page content to answer."); }
+
+    let fullText = "";
+    let started = false;
+    for await (const chunk of provider.ask({
+      title: pageData.title,
+      url: pageData.url,
+      content,
+      question: trimmed,
+    })) {
+      fullText += chunk;
+      if (!started && fullText.trim() === "") continue;
+      if (!started) { answerBox.textContent = ""; started = true; }
+      answerBox.textContent = fullText.trimStart();
+    }
+    if (started) answerBox.innerHTML = renderMarkdown(answerBox.textContent);
+    else answerBox.textContent = "";
+  } catch (error) {
+    console.error(error);
+    answerBox.textContent = error.message;
+  }
+}
+
+// ─── Connection status ───────────────────────────────────────────────────────
+
+async function checkConnection() {
+  const settings = await getSettings();
+  const provider = getProvider(settings);
+  const status = await provider.checkReady();
+  return status?.ready === true;
+}
+
+function updateConnectionUI(connected) {
+  const text = connected ? "Connected" : "Disconnected";
+  const cls = connected ? "status-dot connected" : "status-dot disconnected";
+  for (const id of ["homeStatusText", "settingsStatusText", "summaryStatusText"]) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+  for (const id of ["homeStatusDot", "settingsStatusDot", "summaryStatusDot"]) {
+    const el = document.getElementById(id);
+    if (el) el.className = cls;
+  }
+}
+
+// ─── Event listeners ─────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", async () => {
   try {
     const settings = await getSettings();
-    const connected = await checkOllamaConnection();
-    updateConnectionUI(connected);
     applySettingsToUI(settings);
 
-    const [tab] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
+    // Check WebGPU support
+    if (!hasWebGPU() && settings.provider === PROVIDERS.WEBLLM) {
+      webgpuWarning?.classList.remove("hidden");
+    }
+
+    const connected = await checkConnection();
+    updateConnectionUI(connected);
+
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const cacheKey = getSummaryCacheKey(tab.url, settings.responseFormat);
-    const promptsCacheKey = getSuggestedPromptsCacheKey(
-      tab.url,
-      settings.responseFormat,
-    );
-    const cached = await chrome.storage.local.get([
-      cacheKey,
-      promptsCacheKey,
-    ]);
+    const promptsCacheKey = getPromptsCacheKey(tab.url, settings.responseFormat);
+    const cached = await chrome.storage.local.get([cacheKey, promptsCacheKey]);
 
     if (cached[cacheKey]) {
       currentSummaryText = cached[cacheKey];
@@ -732,13 +565,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   } catch (error) {
     console.error(error);
   }
-
   showSummaryContext();
 });
 
-summarizeBtn?.addEventListener("click", () => {
-  summarizeActivePage();
-});
+summarizeBtn?.addEventListener("click", () => summarizeActivePage());
 
 settingsBtn?.addEventListener("click", () => {
   homeView.classList.add("hidden");
@@ -750,21 +580,10 @@ settingsBtn2?.addEventListener("click", () => {
   settingsView.classList.remove("hidden");
 });
 
-closeBtn?.addEventListener("click", () => {
-  window.close();
-});
-
-closeBtn2?.addEventListener("click", () => {
-  window.close();
-});
-
-closeBtn3?.addEventListener("click", () => {
-  window.close();
-});
-
-closeBtn4?.addEventListener("click", () => {
-  window.close();
-});
+closeBtn?.addEventListener("click", () => window.close());
+closeBtn2?.addEventListener("click", () => window.close());
+closeBtn3?.addEventListener("click", () => window.close());
+closeBtn4?.addEventListener("click", () => window.close());
 
 document.getElementById("askBtn")?.addEventListener("click", () => {
   homeView.classList.add("hidden");
@@ -773,55 +592,44 @@ document.getElementById("askBtn")?.addEventListener("click", () => {
   questionInput.focus();
 });
 
-sendBtn?.addEventListener("click", () => {
-  submitQuestion(questionInput.value);
+sendBtn?.addEventListener("click", () => submitQuestion(questionInput.value));
+questionInput?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitQuestion(questionInput.value); }
 });
 
-questionInput?.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !event.shiftKey) {
-    event.preventDefault();
-    submitQuestion(questionInput.value);
-  }
+// Provider radio
+providerRadios.forEach((radio) => {
+  radio.addEventListener("change", async () => {
+    const settings = await saveSettings({ provider: radio.value });
+    applySettingsToUI(settings);
+    await clearStoredSummaries();
+    updateConnectionUI(await checkConnection());
+  });
 });
 
+// Format radio
 formatRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
-    await saveSettings({
-      responseFormat: radio.value,
-    });
-
+    await saveSettings({ responseFormat: radio.value });
     await clearStoredSummaries();
   });
 });
 
-modelRadios.forEach((radio) => {
+// Local model radio
+localModelRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
-    await saveSettings({
-      model: radio.value,
-    });
-
+    await saveSettings({ localModel: radio.value });
     await clearStoredSummaries();
   });
 });
 
+// Backend URL
 backendUrlInput?.addEventListener("change", async () => {
-  await saveSettings({
-    apiBase: normalizeApiBase(backendUrlInput.value),
-  });
-
-  const settings = await getSettings();
+  const val = (backendUrlInput.value || DEFAULT_LOCAL_API_BASE).trim().replace(/\/+$/, "");
+  const settings = await saveSettings({ localApiBase: val });
   applySettingsToUI(settings);
   await clearStoredSummaries();
-  updateConnectionUI(await checkOllamaConnection());
-});
-
-apiKeyInput?.addEventListener("change", async () => {
-  await saveSettings({
-    apiKey: apiKeyInput.value.trim(),
-  });
-
-  await clearStoredSummaries();
-  updateConnectionUI(await checkOllamaConnection());
+  updateConnectionUI(await checkConnection());
 });
 
 promptsCloseBtn?.addEventListener("click", () => {
@@ -840,21 +648,13 @@ getInTouchBtn?.addEventListener("click", () => {
 });
 
 document.getElementById("contributeBtn")?.addEventListener("click", () => {
-  chrome.tabs.create({
-    url: "https://github.com/darshi1337/apogee",
-  });
+  chrome.tabs.create({ url: "https://github.com/darshi1337/apogee" });
 });
-
 document.getElementById("bugBtn")?.addEventListener("click", () => {
-  chrome.tabs.create({
-    url: "https://github.com/darshi1337/apogee/issues",
-  });
+  chrome.tabs.create({ url: "https://github.com/darshi1337/apogee/issues" });
 });
-
 document.getElementById("featureBtn")?.addEventListener("click", () => {
-  chrome.tabs.create({
-    url: "https://github.com/darshi1337/apogee/issues",
-  });
+  chrome.tabs.create({ url: "https://github.com/darshi1337/apogee/issues" });
 });
 
 settingsLogo?.addEventListener("click", () => {
@@ -868,62 +668,8 @@ contactLogo?.addEventListener("click", () => {
   homeView.classList.remove("hidden");
 });
 
-document
-  .getElementById("questionContainer")
-  ?.addEventListener("click", (event) => {
-    const card = event.target.closest(".prompt-card");
-
-    if (!card || card.disabled) {
-      return;
-    }
-
-    submitQuestion(card.textContent);
-  });
-
-async function checkOllamaConnection() {
-  try {
-    const settings = await getSettings();
-    const response = await fetch(`${settings.apiBase}/health`, {
-      headers: getApiHeaders(settings),
-    });
-    if (!response.ok) return false;
-
-    const data = await response.json();
-
-    return data.connected;
-  } catch {
-    return false;
-  }
-}
-
-function updateConnectionUI(connected) {
-  const homeStatusText = document.getElementById("homeStatusText");
-
-  const settingsStatusText = document.getElementById("settingsStatusText");
-
-  const summaryStatusText = document.getElementById("summaryStatusText");
-
-  const homeStatusDot = document.getElementById("homeStatusDot");
-
-  const settingsStatusDot = document.getElementById("settingsStatusDot");
-
-  const summaryStatusDot = document.getElementById("summaryStatusDot");
-
-  const text = connected ? "Connected" : "Disconnected";
-
-  const dotClass = connected
-    ? "status-dot connected"
-    : "status-dot disconnected";
-
-  homeStatusText.textContent = text;
-
-  settingsStatusText.textContent = text;
-
-  if (summaryStatusText) summaryStatusText.textContent = text;
-
-  homeStatusDot.className = dotClass;
-
-  settingsStatusDot.className = dotClass;
-
-  if (summaryStatusDot) summaryStatusDot.className = dotClass;
-}
+document.getElementById("questionContainer")?.addEventListener("click", (event) => {
+  const card = event.target.closest(".prompt-card");
+  if (!card || card.disabled) return;
+  submitQuestion(card.textContent);
+});
