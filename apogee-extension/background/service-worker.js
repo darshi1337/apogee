@@ -12,7 +12,7 @@ let offscreenScriptReady = false;
 
 // Resolve when the offscreen document's script signals it has loaded.
 let _offscreenScriptReadyResolve = null;
-const offscreenScriptReadyPromise = new Promise((resolve) => {
+let offscreenScriptReadyPromise = new Promise((resolve) => {
   _offscreenScriptReadyResolve = resolve;
 });
 
@@ -24,8 +24,6 @@ async function ensureOffscreenDocument() {
     );
   }
 
-  if (offscreenReady) return;
-
   // Check if the offscreen document already exists (Chrome-only API)
   if (typeof chrome.runtime.getContexts === "function") {
     const existingContexts = await chrome.runtime.getContexts({
@@ -36,10 +34,17 @@ async function ensureOffscreenDocument() {
     if (existingContexts.length > 0) {
       offscreenReady = true;
       offscreenScriptReady = true;
-      _offscreenScriptReadyResolve();
       return;
     }
+  } else if (offscreenReady) {
+    return;
   }
+
+  offscreenReady = false;
+  offscreenScriptReady = false;
+  offscreenScriptReadyPromise = new Promise((resolve) => {
+    _offscreenScriptReadyResolve = resolve;
+  });
 
   await chrome.offscreen.createDocument({
     url: "offscreen/offscreen.html",

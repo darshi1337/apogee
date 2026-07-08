@@ -74,7 +74,7 @@ async function ensureEngine(modelId) {
   return engine;
 }
 
-async function streamCompletion(eng, prompt, port) {
+async function streamCompletion(eng, prompt, port, isDisconnected) {
   const chunks = await eng.chat.completions.create({
     messages: [{ role: "user", content: prompt }],
     stream: true,
@@ -83,13 +83,22 @@ async function streamCompletion(eng, prompt, port) {
   });
 
   for await (const chunk of chunks) {
+    if (isDisconnected()) break;
     const text = chunk.choices?.[0]?.delta?.content || "";
     if (text) {
-      port.postMessage({ type: "chunk", text });
+      try {
+        port.postMessage({ type: "chunk", text });
+      } catch {
+        break;
+      }
     }
   }
 
-  port.postMessage({ type: "done" });
+  if (!isDisconnected()) {
+    try {
+      port.postMessage({ type: "done" });
+    } catch {}
+  }
 }
 
 async function generateText(eng, prompt) {
@@ -111,17 +120,28 @@ chrome.runtime.onConnect.addListener((port) => {
   const pending = pendingStreams.get(streamId);
 
   if (!pending) {
-    port.postMessage({ type: "error", error: "Unknown stream ID" });
-    port.disconnect();
+    try {
+      port.postMessage({ type: "error", error: "Unknown stream ID" });
+    } catch {}
+    try {
+      port.disconnect();
+    } catch {}
     return;
   }
 
   pendingStreams.delete(streamId);
 
+  let disconnected = false;
+  port.onDisconnect.addListener(() => {
+    disconnected = true;
+  });
+
   (async () => {
     const release = await acquireLock();
     try {
+      if (disconnected) return;
       const eng = await ensureEngine(pending.model);
+      if (disconnected) return;
       const prompts = await getPrompts();
       let prompt;
 
@@ -145,26 +165,35 @@ chrome.runtime.onConnect.addListener((port) => {
           break;
 
         default:
-          port.postMessage({
-            type: "error",
-            error: `Unknown action: ${pending.action}`,
-          });
-          port.disconnect();
+          if (!disconnected) {
+            try {
+              port.postMessage({
+                type: "error",
+                error: `Unknown action: ${pending.action}`,
+              });
+            } catch {}
+            try {
+              port.disconnect();
+            } catch {}
+          }
           return;
       }
 
-      await streamCompletion(eng, prompt, port);
+      if (disconnected) return;
+      await streamCompletion(eng, prompt, port, () => disconnected);
     } catch (err) {
-      try {
-        port.postMessage({ type: "error", error: err.message });
-      } catch {}
-      chrome.runtime
-        .sendMessage({
-          target: "service-worker",
-          type: "model-progress",
-          progress: { text: `Error: ${err.message}`, progress: 0 },
-        })
-        .catch(() => {});
+      if (!disconnected) {
+        try {
+          port.postMessage({ type: "error", error: err.message });
+        } catch {}
+        chrome.runtime
+          .sendMessage({
+            target: "service-worker",
+            type: "model-progress",
+            progress: { text: `Error: ${err.message}`, progress: 0 },
+          })
+          .catch(() => {});
+      }
     } finally {
       release();
     }
