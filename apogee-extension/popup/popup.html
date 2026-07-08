@@ -8,8 +8,6 @@
 
   <body>
     <div class="container">
-      <!-- HOME VIEW -->
-
       <div id="homeView">
         <header class="header">
           <div class="brand">
@@ -45,14 +43,15 @@
           </button>
         </div>
 
-        <!-- WebGPU not supported warning (shown/hidden by JS) -->
         <div id="webgpuWarning" class="webgpu-warning hidden">
           <span class="warning-icon">⚠️</span>
-          <span>WebGPU is not supported in this browser. Use <strong>Local Ollama</strong> mode in Settings, or switch to Chrome/Edge.</span>
+          <span
+            >WebGPU is not supported in this browser. Use
+            <strong>Local Ollama</strong> mode in Settings, or switch to
+            Chrome/Edge.</span
+          >
         </div>
       </div>
-
-      <!-- SUMMARY VIEW -->
 
       <div id="summaryView" class="hidden">
         <header class="header">
@@ -77,7 +76,6 @@
           </div>
         </header>
 
-        <!-- Model download progress bar -->
         <div id="modelProgress" class="model-progress hidden">
           <div class="model-progress-label">
             <span id="modelProgressText">Downloading model...</span>
@@ -138,214 +136,288 @@
         </section>
       </div>
 
-      <!-- SETTINGS VIEW -->
-
       <div id="settingsView" class="hidden">
-        <header class="settings-header">
-          <h1>Settings</h1>
+        <header class="header">
+          <div class="header-left">
+            <button id="settingsBackBtn" class="icon-btn back-btn" aria-label="Back">
+              <img src="../assets/arrow-right.svg" alt="Back" />
+            </button>
+            <h1 class="header-title">Settings</h1>
+          </div>
 
-          <div class="settings-actions">
-            <img
-              src="../assets/logo.png"
-              id="settingsLogo"
-              class="settings-logo"
-              alt="Apogee"
-            />
-
+          <div class="header-actions">
             <button id="closeBtn3" class="icon-btn">
               <img src="../assets/cross_1.svg" alt="Close" />
             </button>
           </div>
         </header>
 
-        <div class="settings-card status-card">
-          <div class="card-title">
-            <img src="../assets/status.svg" alt="" />
-            <span>Status</span>
+        <div class="settings-content">
+          <div class="settings-card status-card">
+            <div class="card-title">
+              <img src="../assets/status.svg" alt="" />
+              <span>Status</span>
+            </div>
+
+            <div class="status-row">
+              <span id="settingsStatusText"> Checking... </span>
+
+              <span id="settingsStatusDot" class="status-dot disconnected"></span>
+            </div>
           </div>
 
-          <div class="status-row">
-            <span id="settingsStatusText"> Checking... </span>
+          <div class="settings-card">
+            <div class="card-title">
+              <img src="../assets/robot.svg" alt="" />
+              <span>AI Provider</span>
+            </div>
 
-            <span id="settingsStatusDot" class="status-dot disconnected"></span>
-          </div>
-        </div>
+            <label class="radio-option">
+              <input type="radio" name="provider" value="webllm" checked />
+              <span
+                >In-Browser AI <small class="provider-badge">WebGPU</small></span
+              >
+            </label>
 
-        <!-- Provider Selection -->
-        <div class="settings-card">
-          <div class="card-title">
-            <img src="../assets/robot.svg" alt="" />
-            <span>AI Provider</span>
-          </div>
-
-          <label class="radio-option">
-            <input type="radio" name="provider" value="webllm" checked />
-            <span>In-Browser AI <small class="provider-badge">WebGPU</small></span>
-          </label>
-
-          <label class="radio-option">
-            <input type="radio" name="provider" value="local" />
-            <span>Local Ollama</span>
-          </label>
-        </div>
-
-        <!-- WebLLM Model Selection (visible when provider=webllm) -->
-        <div id="webllmModelsCard" class="settings-card">
-          <div class="card-title">
-            <img src="../assets/sparkles.svg" alt="" />
-            <span>In-Browser Model</span>
+            <label class="radio-option">
+              <input type="radio" name="provider" value="local" />
+              <span>Local Ollama</span>
+            </label>
           </div>
 
-          <!-- Populated dynamically from constants.js -->
-          <div id="webllmModelList"></div>
-        </div>
+          <div id="webllmModelsCard" class="settings-card">
+            <div class="card-title">
+              <img src="../assets/sparkles.svg" alt="" />
+              <span>In-Browser Model</span>
+            </div>
 
-        <!-- Local Backend Settings (visible when provider=local) -->
-        <div id="localSettingsCard" class="settings-card hidden">
-          <div class="card-title">
-            <img src="../assets/settings.svg" alt="" />
-            <span>Backend</span>
+            <div id="webllmModelList"></div>
           </div>
 
-          <label class="settings-field">
-            <span>URL</span>
-            <input
-              id="backendUrlInput"
-              type="url"
-              placeholder="http://127.0.0.1:8000"
-            />
-          </label>
-        </div>
+          <div id="localSettingsCard" class="settings-card hidden">
+            <div class="card-title">
+              <img src="../assets/settings.svg" alt="" />
+              <span>Backend</span>
+            </div>
 
-        <!-- Local Model Selection (visible when provider=local) -->
-        <div id="localModelsCard" class="settings-card hidden">
-          <div class="card-title">
-            <img src="../assets/robot.svg" alt="" />
-            <span>Local LLM</span>
+            <label class="settings-field">
+              <span>URL</span>
+              <input
+                id="backendUrlInput"
+                type="url"
+                placeholder="http://127.0.0.1:8000"
+              />
+            </label>
           </div>
 
-          <label class="radio-option">
-            <input type="radio" name="localModel" value="qwen3:8b" checked />
-            <span>Qwen 3 8B</span>
-          </label>
+          <div id="localModelsCard" class="settings-card hidden">
+            <div class="card-title">
+              <img src="../assets/robot.svg" alt="" />
+              <span>Local LLM</span>
+            </div>
 
-          <label class="radio-option">
-            <input type="radio" name="localModel" value="mistral:latest" />
-            <span>Mistral Latest</span>
-          </label>
+            <label class="radio-option">
+              <input type="radio" name="localModel" value="qwen3:8b" checked />
+              <span>Qwen 3 8B</span>
+            </label>
 
-          <label class="radio-option">
-            <input type="radio" name="localModel" value="llama3.1:8b" />
-            <span>Llama 3.1 8B</span>
-          </label>
+            <label class="radio-option">
+              <input type="radio" name="localModel" value="mistral:latest" />
+              <span>Mistral Latest</span>
+            </label>
 
-          <label class="radio-option">
-            <input type="radio" name="localModel" value="gemma3:4b" />
-            <span>Gemma 3</span>
-          </label>
-        </div>
+            <label class="radio-option">
+              <input type="radio" name="localModel" value="llama3.1:8b" />
+              <span>Llama 3.1 8B</span>
+            </label>
 
-        <!-- Response Format -->
-        <div class="settings-card">
-          <div class="card-title">
-            <img src="../assets/code.svg" alt="" />
-            <span>Response Format</span>
+            <label class="radio-option">
+              <input type="radio" name="localModel" value="gemma3:4b" />
+              <span>Gemma 3</span>
+            </label>
           </div>
 
-          <label class="radio-option">
-            <input type="radio" name="format" value="bullets" checked />
-            <span>Bullet Points</span>
-          </label>
+          <div class="settings-card">
+            <div class="card-title">
+              <img src="../assets/code.svg" alt="" />
+              <span>Response Format</span>
+            </div>
 
-          <label class="radio-option">
-            <input type="radio" name="format" value="sentences" />
-            <span>Short Sentences</span>
-          </label>
+            <label class="radio-option">
+              <input type="radio" name="format" value="bullets" checked />
+              <span>Bullet Points</span>
+            </label>
 
-          <label class="radio-option">
-            <input type="radio" name="format" value="paragraphs" />
-            <span>Paragraphs</span>
-          </label>
-        </div>
+            <label class="radio-option">
+              <input type="radio" name="format" value="sentences" />
+              <span>Short Sentences</span>
+            </label>
 
-        <div class="settings-divider"></div>
-
-        <button id="getInTouchBtn" class="settings-contact-btn">
-          <div class="settings-contact-left">
-            <img src="../assets/mail.svg" alt="" />
-            <span>Get in touch</span>
+            <label class="radio-option">
+              <input type="radio" name="format" value="paragraphs" />
+              <span>Paragraphs</span>
+            </label>
           </div>
 
-          <img src="../assets/arrow-right.svg" class="arrow-icon" alt="" />
-        </button>
-      </div>
-    </div>
+          <div class="settings-card">
+            <div class="card-title">
+              <img src="../assets/sparkles.svg" alt="" />
+              <span>Appearance Theme</span>
+            </div>
 
-    <!-- CONTACT VIEW -->
+            <label class="radio-option">
+              <input type="radio" name="theme" value="dark" checked />
+              <span>Dark Theme</span>
+            </label>
 
-    <div id="contactView" class="hidden">
-      <header class="settings-header">
-        <h1>Get in touch</h1>
+            <label class="radio-option">
+              <input type="radio" name="theme" value="light" />
+              <span>Light Theme</span>
+            </label>
 
-        <div class="settings-actions">
-          <img
-            src="../assets/logo.png"
-            id="contactLogo"
-            class="settings-logo"
-            alt="Apogee"
-          />
+            <label class="radio-option">
+              <input type="radio" name="theme" value="system" />
+              <span>System Preference</span>
+            </label>
+          </div>
 
-          <button id="closeBtn4" class="icon-btn">
-            <img src="../assets/cross_1.svg" alt="Close" />
+          <div class="settings-divider"></div>
+
+          <button id="getInTouchBtn" class="settings-contact-btn">
+            <div class="settings-contact-left">
+              <img src="../assets/mail.svg" alt="" />
+              <span>Get in touch</span>
+            </div>
+
+            <img src="../assets/arrow-right.svg" class="arrow-icon" alt="" />
           </button>
         </div>
-      </header>
-
-      <div class="contact-links">
-        <button id="contributeBtn" class="contact-card">
-          <div class="contact-card-left">
-            <img src="../assets/github.svg" alt="" />
-            <span>Contribute</span>
-          </div>
-
-          <img src="../assets/arrow-right.svg" class="contact-arrow" alt="" />
-        </button>
-
-        <button id="bugBtn" class="contact-card">
-          <div class="contact-card-left">
-            <img src="../assets/bug.svg" alt="" />
-            <span>Report a bug</span>
-          </div>
-
-          <img src="../assets/arrow-right.svg" class="contact-arrow" alt="" />
-        </button>
-
-        <button id="featureBtn" class="contact-card">
-          <div class="contact-card-left">
-            <img src="../assets/feature.svg" alt="" />
-            <span>Request a feature</span>
-          </div>
-
-          <img src="../assets/arrow-right.svg" class="contact-arrow" alt="" />
-        </button>
       </div>
 
-      <div class="about-apogee">
-        <h2>About Apogee</h2>
+      <div id="contactView" class="hidden">
+        <header class="header">
+          <div class="header-left">
+            <button id="contactBackBtn" class="icon-btn back-btn" aria-label="Back">
+              <img src="../assets/arrow-right.svg" alt="Back" />
+            </button>
+            <h1 class="header-title">Get in touch</h1>
+          </div>
 
-        <p>
-          AI browser assistant for articles, videos, emails and more.
-          Runs entirely in your browser — no backend needed.
-        </p>
-      </div>
+          <div class="header-actions">
+            <button id="closeBtn4" class="icon-btn">
+              <img src="../assets/cross_1.svg" alt="Close" />
+            </button>
+          </div>
+        </header>
 
-      <div class="contact-footer">
-        <div class="version">v0.2.0</div>
+        <div class="contact-content">
+          <div class="contact-links">
+            <button id="contributeBtn" class="contact-card">
+              <div class="contact-card-left">
+                <img src="../assets/github.svg" alt="" />
+                <span>Contribute</span>
+              </div>
 
-        <div class="made-with">Made with ❤️ by darshi1337</div>
+              <img src="../assets/arrow-right.svg" class="contact-arrow" alt="" />
+            </button>
+
+            <button id="bugBtn" class="contact-card">
+              <div class="contact-card-left">
+                <img src="../assets/bug.svg" alt="" />
+                <span>Report a bug</span>
+              </div>
+
+              <img src="../assets/arrow-right.svg" class="contact-arrow" alt="" />
+            </button>
+
+            <button id="featureBtn" class="contact-card">
+              <div class="contact-card-left">
+                <img src="../assets/feature.svg" alt="" />
+                <span>Request a feature</span>
+              </div>
+
+              <img src="../assets/arrow-right.svg" class="contact-arrow" alt="" />
+            </button>
+          </div>
+
+          <div class="about-apogee">
+            <h2>About Apogee</h2>
+
+            <p>
+              AI browser assistant for articles, videos, emails and more. Runs
+              in-browser via WebGPU and Ollama.
+            </p>
+          </div>
+
+          <div class="contact-footer">
+            <div class="version">v0.1.1</div>
+
+            <div class="made-with">Made with ❤️ by darshi1337</div>
+          </div>
+        </div>
       </div>
     </div>
 
+    <script>
+      // Mock chrome extension APIs for local web previewing/testing
+      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+        window.chrome = {
+          runtime: {
+            onMessage: {
+              addListener: (listener) => {
+                window.addEventListener('message', (event) => {
+                  if (event.data && event.data.type) {
+                    listener(event.data);
+                  }
+                });
+              }
+            },
+            sendMessage: (msg, callback) => {
+              if (msg.action === 'check-webgpu') {
+                setTimeout(() => callback({ supported: true }), 0);
+              } else if (msg.action === 'status') {
+                setTimeout(() => callback({ ready: true }), 0);
+              } else {
+                setTimeout(() => callback({ ready: true }), 0);
+              }
+            },
+            connect: () => ({
+              onMessage: { addListener: () => {} },
+              onDisconnect: { addListener: () => {} },
+              disconnect: () => {}
+            }),
+            lastError: null
+          },
+          storage: {
+            local: {
+              get: async (keys) => {
+                const settings = JSON.parse(localStorage.getItem('settings') || '{}');
+                if (keys === null) return { settings };
+                if (typeof keys === 'string') return { [keys]: settings[keys] };
+                if (Array.isArray(keys)) {
+                  const res = {};
+                  keys.forEach(k => res[k] = settings[k]);
+                  return res;
+                }
+                return { settings };
+              },
+              set: async (obj) => {
+                const settings = JSON.parse(localStorage.getItem('settings') || '{}');
+                Object.assign(settings, obj.settings || obj);
+                localStorage.setItem('settings', JSON.stringify(settings));
+              },
+              remove: async (keys) => {}
+            }
+          },
+          tabs: {
+            query: async () => [{ id: 1, url: 'https://example.com', title: 'Example Page' }]
+          },
+          scripting: {
+            executeScript: async () => [{ result: { title: 'Example Page', content: 'This is mock content of the active page to demonstrate Apogee.', url: 'https://example.com' } }]
+          }
+        };
+      }
+    </script>
     <script type="module" src="popup.js"></script>
   </body>
 </html>

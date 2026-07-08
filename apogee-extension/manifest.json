@@ -1,15 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Apogee",
-  "version": "0.2.0",
-  "description": "AI browser assistant for articles, videos, emails and more. Runs in-browser via WebGPU — no backend needed.",
+  "version": "0.1.1",
+  "description": "AI browser assistant for articles, videos, emails and more. Runs in-browser via WebGPU and Ollama.",
   "permissions": ["activeTab", "scripting", "storage", "offscreen"],
-  "host_permissions": [
-    "http://127.0.0.1/*",
-    "http://localhost/*"
-  ],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; default-src 'self'; connect-src http://127.0.0.1:* http://localhost:* https://huggingface.co https://*.huggingface.co https://raw.githubusercontent.com; img-src 'self' data:; font-src 'self'; style-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; default-src 'self'; connect-src http://127.0.0.1:* http://localhost:* https://huggingface.co https://*.huggingface.co https://*.hf.co https://raw.githubusercontent.com; img-src 'self' data:; font-src 'self'; style-src 'self'"
   },
   "background": {
     "service_worker": "background/service-worker.js",
@@ -30,9 +27,7 @@
     "gecko": {
       "id": "apogee@darshi.dev",
       "data_collection_permissions": {
-        "required": [
-          "none"
-        ],
+        "required": ["none"],
         "optional": []
       }
     }

@@ -12,3 +12,5 @@ web-ext-artifacts/
 .env.*
 /etc/apogee/
 node_modules/
+*.zip
+*.xpi

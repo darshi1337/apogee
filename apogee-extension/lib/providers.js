@@ -1,9 +1,7 @@
-// Provider abstraction — routes inference requests to either WebLLM
-// (in-browser via offscreen document) or Local Ollama backend.
+// Provider abstraction — routes inference requests to either WebLLM (in-browser via offscreen document) or Local Ollama backend.
 
 import { PROVIDERS, DEFAULT_LOCAL_API_BASE } from "./constants.js";
 
-// ─── Message-based WebLLM provider ───────────────────────────────────────────
 // Sends requests to the service worker, which forwards to the offscreen doc.
 
 function sendToServiceWorker(message) {
@@ -20,10 +18,6 @@ function sendToServiceWorker(message) {
   });
 }
 
-/**
- * Stream tokens from WebLLM via the service worker.
- * Yields string chunks as they arrive via message-based streaming.
- */
 async function* webllmStreamTokens(action, payload) {
   // Send the initial request, get a stream ID back
   const { streamId } = await sendToServiceWorker({
@@ -36,60 +30,54 @@ async function* webllmStreamTokens(action, payload) {
     throw new Error("No streamId returned from service worker");
   }
 
-  // Poll for streamed chunks via a port-based connection
-  const port = chrome.runtime.connect({ name: `stream-${streamId}` });
+  // Poll for streamed chunks via a port-based connection.
+  // We use the `popup-stream-` prefix specifically so that the offscreen document does not receive this port connection directly (preventing duplicate listeners/errors).
+  const port = chrome.runtime.connect({ name: `popup-stream-${streamId}` });
+  const queue = [];
+  let resolvePromise = null;
+  let error = null;
   let done = false;
-  const chunks = [];
-  let resolveChunk = null;
 
   port.onMessage.addListener((msg) => {
     if (msg.type === "chunk") {
-      if (resolveChunk) {
-        const r = resolveChunk;
-        resolveChunk = null;
-        r(msg.text);
-      } else {
-        chunks.push(msg.text);
-      }
+      queue.push(msg.text);
     } else if (msg.type === "done") {
       done = true;
-      if (resolveChunk) {
-        const r = resolveChunk;
-        resolveChunk = null;
-        r(null);
-      }
     } else if (msg.type === "error") {
+      error = msg.error || "Unknown error during streaming";
       done = true;
-      if (resolveChunk) {
-        const r = resolveChunk;
-        resolveChunk = null;
-        r(null);
-      }
+    }
+    if (resolvePromise) {
+      resolvePromise();
+      resolvePromise = null;
     }
   });
 
   port.onDisconnect.addListener(() => {
     done = true;
-    if (resolveChunk) {
-      const r = resolveChunk;
-      resolveChunk = null;
-      r(null);
+    if (resolvePromise) {
+      resolvePromise();
+      resolvePromise = null;
     }
   });
 
-  while (!done) {
-    if (chunks.length > 0) {
-      yield chunks.shift();
-    } else {
-      const text = await new Promise((resolve) => {
-        resolveChunk = resolve;
-      });
-      if (text === null) break;
-      yield text;
+  try {
+    while (true) {
+      if (queue.length > 0) {
+        yield queue.shift();
+      } else if (error) {
+        throw new Error(error);
+      } else if (done) {
+        break;
+      } else {
+        await new Promise((resolve) => {
+          resolvePromise = resolve;
+        });
+      }
     }
+  } finally {
+    port.disconnect();
   }
-
-  port.disconnect();
 }
 
 class WebLLMProvider {
@@ -130,15 +118,12 @@ class WebLLMProvider {
   }
 
   async *summarizePdf({ url, mode }) {
-    // For WebLLM, PDF text must be extracted client-side first,
-    // then summarized as regular text. The popup handles this.
     throw new Error(
       "PDF summarization via WebLLM should use client-side extraction. " +
-      "Call summarize() with the extracted text instead."
+        "Call summarize() with the extracted text instead.",
     );
   }
 
-  /** Check if the engine is ready. */
   async checkReady() {
     const response = await sendToServiceWorker({
       target: "service-worker",
@@ -147,9 +132,6 @@ class WebLLMProvider {
     return response;
   }
 }
-
-// ─── Local Ollama backend provider ───────────────────────────────────────────
-// Direct fetch to the FastAPI backend — same as the original extension behavior.
 
 class LocalProvider {
   constructor(model, apiBase) {
@@ -176,7 +158,13 @@ class LocalProvider {
     const response = await fetch(`${this.apiBase}/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, url, content, question, model: this.model }),
+      body: JSON.stringify({
+        title,
+        url,
+        content,
+        question,
+        model: this.model,
+      }),
     });
 
     if (!response.ok) {
@@ -244,8 +232,6 @@ class LocalProvider {
     yield decoder.decode();
   }
 }
-
-// ─── Factory ─────────────────────────────────────────────────────────────────
 
 export function getProvider(settings) {
   if (settings.provider === PROVIDERS.LOCAL) {

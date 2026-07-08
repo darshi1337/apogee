@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: apogee-browser
-Version: 0.1.0
+Version: 0.1.1
 Summary: Local-first browser assistant powered by Ollama
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown

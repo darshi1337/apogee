@@ -6,8 +6,6 @@ import {
   DEFAULT_LOCAL_API_BASE,
 } from "../lib/constants.js";
 
-// ─── DOM references ──────────────────────────────────────────────────────────
-
 const summarizeBtn = document.getElementById("summarizeBtn");
 const summaryText = document.getElementById("summaryText");
 const settingsBtn = document.getElementById("settingsBtn");
@@ -30,13 +28,14 @@ const answerBox = document.getElementById("answerBox");
 const formatRadios = document.querySelectorAll('input[name="format"]');
 const providerRadios = document.querySelectorAll('input[name="provider"]');
 const localModelRadios = document.querySelectorAll('input[name="localModel"]');
+const themeRadios = document.querySelectorAll('input[name="theme"]');
 const backendUrlInput = document.getElementById("backendUrlInput");
 const promptsCloseBtn = document.querySelector(".prompts-toggle");
 const togglePromptsBtn = document.getElementById("togglePromptsBtn");
 const getInTouchBtn = document.getElementById("getInTouchBtn");
 const contactView = document.getElementById("contactView");
-const settingsLogo = document.getElementById("settingsLogo");
-const contactLogo = document.getElementById("contactLogo");
+const settingsBackBtn = document.getElementById("settingsBackBtn");
+const contactBackBtn = document.getElementById("contactBackBtn");
 const webllmModelsCard = document.getElementById("webllmModelsCard");
 const localSettingsCard = document.getElementById("localSettingsCard");
 const localModelsCard = document.getElementById("localModelsCard");
@@ -49,8 +48,6 @@ const modelProgressFill = document.getElementById("modelProgressFill");
 
 let currentPageData = null;
 let currentSummaryText = "";
-
-// ─── Settings ────────────────────────────────────────────────────────────────
 
 async function getSettings() {
   const stored = await chrome.storage.local.get("settings");
@@ -71,9 +68,7 @@ async function clearStoredSummaries() {
   if (keys.length > 0) await chrome.storage.local.remove(keys);
 }
 
-// ─── WebGPU detection ────────────────────────────────────────────────────────
-// NOTE: The popup runs in a chrome-extension:// context where navigator.gpu is
-// always undefined. The actual WebGPU context lives in the offscreen document.
+// NOTE: The popup runs in a chrome-extension:// context where navigator.gpu is always undefined. The actual WebGPU context lives in the offscreen document.
 // We probe the offscreen doc via the service worker instead.
 
 let _webgpuSupported = null; // cached result
@@ -96,14 +91,11 @@ async function checkWebGPUSupport() {
     });
     _webgpuSupported = response?.supported === true;
   } catch {
-    // If we can't reach the service worker, assume supported and let the
-    // offscreen doc surface the real error when inference is attempted.
+    // If we can't reach the service worker, assume supported and let the offscreen doc surface the real error when inference is attempted.
     _webgpuSupported = true;
   }
   return _webgpuSupported;
 }
-
-// ─── Build WebLLM model radio list ───────────────────────────────────────────
 
 function buildWebllmModelUI(selectedId) {
   webllmModelList.innerHTML = "";
@@ -122,7 +114,6 @@ function buildWebllmModelUI(selectedId) {
     webllmModelList.appendChild(label);
   }
 
-  // Bind change events
   webllmModelList.querySelectorAll('input[name="webllmModel"]').forEach((r) => {
     r.addEventListener("change", async () => {
       await saveSettings({ webllmModel: r.value });
@@ -131,38 +122,56 @@ function buildWebllmModelUI(selectedId) {
   });
 }
 
-// ─── Apply settings to UI ────────────────────────────────────────────────────
+function applyTheme(themeName) {
+  document.documentElement.classList.remove("theme-light", "theme-dark");
+  let activeTheme = themeName;
+  if (themeName === "system") {
+    const prefersDark = window.matchMedia(
+      "(prefers-color-scheme: dark)",
+    ).matches;
+    activeTheme = prefersDark ? "dark" : "light";
+  }
+  document.documentElement.classList.add(`theme-${activeTheme}`);
+}
+
+window
+  .matchMedia("(prefers-color-scheme: dark)")
+  .addEventListener("change", async () => {
+    const settings = await getSettings();
+    if (settings.theme === "system") {
+      applyTheme("system");
+    }
+  });
 
 async function applySettingsToUI(settings) {
-  // Provider
+  const themeRadio = document.querySelector(
+    `input[name="theme"][value="${settings.theme}"]`,
+  );
+  if (themeRadio) themeRadio.checked = true;
+  applyTheme(settings.theme);
   const provRadio = document.querySelector(
     `input[name="provider"][value="${settings.provider}"]`,
   );
   if (provRadio) provRadio.checked = true;
 
-  // Show/hide provider-specific cards
   const isWebllm = settings.provider === PROVIDERS.WEBLLM;
   webllmModelsCard.classList.toggle("hidden", !isWebllm);
   localSettingsCard.classList.toggle("hidden", isWebllm);
   localModelsCard.classList.toggle("hidden", isWebllm);
 
-  // WebLLM models
   buildWebllmModelUI(settings.webllmModel);
 
-  // Local settings
   if (backendUrlInput) backendUrlInput.value = settings.localApiBase;
   const localRadio = document.querySelector(
     `input[name="localModel"][value="${settings.localModel}"]`,
   );
   if (localRadio) localRadio.checked = true;
 
-  // Format
   const fmtRadio = document.querySelector(
     `input[name="format"][value="${settings.responseFormat}"]`,
   );
   if (fmtRadio) fmtRadio.checked = true;
 
-  // WebGPU warning — check via offscreen document, not popup context
   if (isWebllm) {
     const supported = await checkWebGPUSupport();
     if (!supported) {
@@ -175,8 +184,6 @@ async function applySettingsToUI(settings) {
   }
 }
 
-// ─── Content extraction ──────────────────────────────────────────────────────
-
 async function extractFromActiveTab(tab) {
   const tabId = tab.id;
   try {
@@ -186,9 +193,7 @@ async function extractFromActiveTab(tab) {
         document.documentElement.removeAttribute("data-apogee-result");
       },
     });
-  } catch {
-    // scripting blocked
-  }
+  } catch {}
 
   let isAlreadyInjected = false;
   try {
@@ -197,9 +202,7 @@ async function extractFromActiveTab(tab) {
       func: () => typeof window.extractPageContent === "function",
     });
     isAlreadyInjected = checkResult?.[0]?.result;
-  } catch {
-    // ignore
-  }
+  } catch {}
 
   if (isAlreadyInjected) {
     await chrome.scripting.executeScript({
@@ -234,8 +237,6 @@ async function extractFromActiveTab(tab) {
   return pageData;
 }
 
-// ─── Model progress listener ─────────────────────────────────────────────────
-
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === "model-progress" && message.progress) {
     const p = message.progress;
@@ -251,8 +252,6 @@ chrome.runtime.onMessage.addListener((message) => {
     }
   }
 });
-
-// ─── UI helpers ──────────────────────────────────────────────────────────────
 
 function setLoadingIndicator(element, label) {
   const wrapper = document.createElement("span");
@@ -271,7 +270,10 @@ function setLoadingIndicator(element, label) {
 }
 
 function escapeHtml(text) {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function renderInline(escapedText) {
@@ -288,22 +290,42 @@ function renderMarkdown(source) {
   let html = "";
   let listType = null;
   const closeList = () => {
-    if (listType) { html += `</${listType}>`; listType = null; }
+    if (listType) {
+      html += `</${listType}>`;
+      listType = null;
+    }
   };
   for (const rawLine of lines) {
     const line = rawLine.trimEnd();
-    if (line.trim() === "") { closeList(); continue; }
+    if (line.trim() === "") {
+      closeList();
+      continue;
+    }
     const heading = line.match(/^(#{1,6})\s+(.*)$/);
-    if (heading) { closeList(); html += `<h${heading[1].length}>${renderInline(heading[2])}</h${heading[1].length}>`; continue; }
+    if (heading) {
+      closeList();
+      html += `<h${heading[1].length}>${renderInline(heading[2])}</h${heading[1].length}>`;
+      continue;
+    }
     const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
     if (bullet) {
-      if (listType !== "ul") { closeList(); html += "<ul>"; listType = "ul"; }
-      html += `<li>${renderInline(bullet[1])}</li>`; continue;
+      if (listType !== "ul") {
+        closeList();
+        html += "<ul>";
+        listType = "ul";
+      }
+      html += `<li>${renderInline(bullet[1])}</li>`;
+      continue;
     }
     const ordered = line.match(/^\s*\d+[.)]\s+(.*)$/);
     if (ordered) {
-      if (listType !== "ol") { closeList(); html += "<ol>"; listType = "ol"; }
-      html += `<li>${renderInline(ordered[1])}</li>`; continue;
+      if (listType !== "ol") {
+        closeList();
+        html += "<ol>";
+        listType = "ol";
+      }
+      html += `<li>${renderInline(ordered[1])}</li>`;
+      continue;
     }
     closeList();
     html += `<p>${renderInline(line)}</p>`;
@@ -312,7 +334,9 @@ function renderMarkdown(source) {
   return html;
 }
 
-function resetQuestionCards() { setSuggestedQuestions([]); }
+function resetQuestionCards() {
+  setSuggestedQuestions([]);
+}
 
 function setSuggestedQuestions(questions) {
   questionHeading.textContent = "Suggested Prompts";
@@ -338,8 +362,12 @@ function setSuggestedQuestionsLoading() {
   container.appendChild(btn);
 }
 
-function getSummaryCacheKey(url, fmt) { return `summary:${fmt}:${url}`; }
-function getPromptsCacheKey(url, fmt) { return `suggested-prompts:${fmt}:${url}`; }
+function getSummaryCacheKey(url, fmt) {
+  return `summary:${fmt}:${url}`;
+}
+function getPromptsCacheKey(url, fmt) {
+  return `suggested-prompts:${fmt}:${url}`;
+}
 
 function showSummarizingContext() {
   summaryCard.classList.remove("hidden");
@@ -404,8 +432,6 @@ function showAnswerContext(question) {
   setLoadingIndicator(answerBox, "Thinking");
 }
 
-// ─── Streaming into DOM ──────────────────────────────────────────────────────
-
 async function streamGeneratorIntoElement(generator, element) {
   let fullText = "";
   let started = false;
@@ -420,8 +446,6 @@ async function streamGeneratorIntoElement(generator, element) {
   return fullText;
 }
 
-// ─── Core actions ────────────────────────────────────────────────────────────
-
 async function summarizeActivePage() {
   homeView.classList.add("hidden");
   summaryView.classList.remove("hidden");
@@ -429,29 +453,38 @@ async function summarizeActivePage() {
   setLoadingIndicator(summaryText, "Summarizing");
 
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
     const settings = await getSettings();
     const provider = getProvider(settings);
     const pageData = await extractFromActiveTab(tab);
 
-    if (!pageData) { summaryText.textContent = "Could not extract page."; return; }
+    if (!pageData) {
+      summaryText.textContent = "Could not extract page.";
+      return;
+    }
     currentPageData = pageData;
 
     const cacheKey = getSummaryCacheKey(tab.url, settings.responseFormat);
-    const promptsCacheKey = getPromptsCacheKey(tab.url, settings.responseFormat);
+    const promptsCacheKey = getPromptsCacheKey(
+      tab.url,
+      settings.responseFormat,
+    );
     let text;
 
     if (pageData.isPdf) {
       setLoadingIndicator(summaryText, "Summarizing PDF");
       if (settings.provider === PROVIDERS.LOCAL) {
-        // Local backend handles PDF download + extraction
         text = await streamGeneratorIntoElement(
-          provider.summarizePdf({ url: pageData.url, mode: settings.responseFormat }),
+          provider.summarizePdf({
+            url: pageData.url,
+            mode: settings.responseFormat,
+          }),
           summaryText,
         );
       } else {
-        // WebLLM: PDF text extraction not available in-browser without pdf.js
-        // Fall back to summarizing whatever content the content script got
         if (!pageData.content) {
           summaryText.innerHTML =
             '<p style="color:#d93025;font-size:13px">' +
@@ -502,25 +535,38 @@ async function summarizeActivePage() {
   } catch (error) {
     console.error(error);
     summaryText.innerHTML =
-      '<p style="color:#d93025;font-size:13px">' + escapeHtml(error.message) + "</p>";
+      '<p style="color:#d93025;font-size:13px">' +
+      escapeHtml(error.message) +
+      "</p>";
   }
 }
 
 async function submitQuestion(question) {
   const trimmed = question.trim();
-  if (!trimmed) { questionInput.focus(); return; }
+  if (!trimmed) {
+    questionInput.focus();
+    return;
+  }
   showAnswerContext(trimmed);
 
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
     const pageData = await extractFromActiveTab(tab);
-    if (!pageData) { answerBox.textContent = "Could not extract page."; return; }
+    if (!pageData) {
+      answerBox.textContent = "Could not extract page.";
+      return;
+    }
     currentPageData = pageData;
 
     const settings = await getSettings();
     const provider = getProvider(settings);
     const content = pageData.content || currentSummaryText;
-    if (!content) { throw new Error("Could not extract enough page content to answer."); }
+    if (!content) {
+      throw new Error("Could not extract enough page content to answer.");
+    }
 
     let fullText = "";
     let started = false;
@@ -532,7 +578,10 @@ async function submitQuestion(question) {
     })) {
       fullText += chunk;
       if (!started && fullText.trim() === "") continue;
-      if (!started) { answerBox.textContent = ""; started = true; }
+      if (!started) {
+        answerBox.textContent = "";
+        started = true;
+      }
       answerBox.textContent = fullText.trimStart();
     }
     if (started) answerBox.innerHTML = renderMarkdown(answerBox.textContent);
@@ -542,8 +591,6 @@ async function submitQuestion(question) {
     answerBox.textContent = error.message;
   }
 }
-
-// ─── Connection status ───────────────────────────────────────────────────────
 
 async function checkConnection() {
   const settings = await getSettings();
@@ -555,7 +602,11 @@ async function checkConnection() {
 function updateConnectionUI(connected) {
   const text = connected ? "Connected" : "Disconnected";
   const cls = connected ? "status-dot connected" : "status-dot disconnected";
-  for (const id of ["homeStatusText", "settingsStatusText", "summaryStatusText"]) {
+  for (const id of [
+    "homeStatusText",
+    "settingsStatusText",
+    "summaryStatusText",
+  ]) {
     const el = document.getElementById(id);
     if (el) el.textContent = text;
   }
@@ -565,8 +616,6 @@ function updateConnectionUI(connected) {
   }
 }
 
-// ─── Event listeners ─────────────────────────────────────────────────────────
-
 document.addEventListener("DOMContentLoaded", async () => {
   try {
     const settings = await getSettings();
@@ -575,9 +624,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     const connected = await checkConnection();
     updateConnectionUI(connected);
 
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
     const cacheKey = getSummaryCacheKey(tab.url, settings.responseFormat);
-    const promptsCacheKey = getPromptsCacheKey(tab.url, settings.responseFormat);
+    const promptsCacheKey = getPromptsCacheKey(
+      tab.url,
+      settings.responseFormat,
+    );
     const cached = await chrome.storage.local.get([cacheKey, promptsCacheKey]);
 
     if (cached[cacheKey]) {
@@ -620,10 +675,12 @@ document.getElementById("askBtn")?.addEventListener("click", () => {
 
 sendBtn?.addEventListener("click", () => submitQuestion(questionInput.value));
 questionInput?.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitQuestion(questionInput.value); }
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    submitQuestion(questionInput.value);
+  }
 });
 
-// Provider radio
 providerRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
     const settings = await saveSettings({ provider: radio.value });
@@ -633,7 +690,6 @@ providerRadios.forEach((radio) => {
   });
 });
 
-// Format radio
 formatRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
     await saveSettings({ responseFormat: radio.value });
@@ -641,7 +697,13 @@ formatRadios.forEach((radio) => {
   });
 });
 
-// Local model radio
+themeRadios.forEach((radio) => {
+  radio.addEventListener("change", async () => {
+    const settings = await saveSettings({ theme: radio.value });
+    applyTheme(settings.theme);
+  });
+});
+
 localModelRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
     await saveSettings({ localModel: radio.value });
@@ -649,9 +711,10 @@ localModelRadios.forEach((radio) => {
   });
 });
 
-// Backend URL
 backendUrlInput?.addEventListener("change", async () => {
-  const val = (backendUrlInput.value || DEFAULT_LOCAL_API_BASE).trim().replace(/\/+$/, "");
+  const val = (backendUrlInput.value || DEFAULT_LOCAL_API_BASE)
+    .trim()
+    .replace(/\/+$/, "");
   const settings = await saveSettings({ localApiBase: val });
   await applySettingsToUI(settings);
   await clearStoredSummaries();
@@ -683,19 +746,21 @@ document.getElementById("featureBtn")?.addEventListener("click", () => {
   chrome.tabs.create({ url: "https://github.com/darshi1337/apogee/issues" });
 });
 
-settingsLogo?.addEventListener("click", () => {
+settingsBackBtn?.addEventListener("click", () => {
   settingsView.classList.add("hidden");
   contactView.classList.add("hidden");
   homeView.classList.remove("hidden");
 });
 
-contactLogo?.addEventListener("click", () => {
+contactBackBtn?.addEventListener("click", () => {
   contactView.classList.add("hidden");
-  homeView.classList.remove("hidden");
+  settingsView.classList.remove("hidden");
 });
 
-document.getElementById("questionContainer")?.addEventListener("click", (event) => {
-  const card = event.target.closest(".prompt-card");
-  if (!card || card.disabled) return;
-  submitQuestion(card.textContent);
-});
+document
+  .getElementById("questionContainer")
+  ?.addEventListener("click", (event) => {
+    const card = event.target.closest(".prompt-card");
+    if (!card || card.disabled) return;
+    submitQuestion(card.textContent);
+  });

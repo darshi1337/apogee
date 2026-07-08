@@ -1,14 +1,12 @@
-// Client-side prompt templates — ported from apogee-backend/apogee/prompts/*.txt
-// and apogee-backend/apogee/services/prompt_service.py.
-// Used by the WebLLM offscreen engine so it can generate prompts without
-// a backend server.
+// Client-side prompt templates — ported from apogee-backend/apogee/prompts/*.txt and apogee-backend/apogee/services/prompt_service.py.
+// Used by the WebLLM offscreen engine so it can generate prompts without a backend server.
 
 export const SUMMARY_STYLES = {
   bullets: [
     "Return only the final answer.",
     "",
     "Rules:",
-    "- Output 5-13 concise bullet points.",
+    "- Output 5-8 concise bullet points.",
     "- Each bullet must be on its own line.",
     "- Do not write any introduction.",
     "- Do not write any heading.",

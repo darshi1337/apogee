@@ -30,8 +30,6 @@ export const WEBLLM_MODELS = [
 ];
 
 export const DEFAULT_WEBLLM_MODEL = WEBLLM_MODELS.find((m) => m.default).id;
-
-// Local Ollama model list (must match backend's ALLOWED_MODELS).
 export const LOCAL_MODELS = [
   { id: "qwen3:8b", label: "Qwen 3 8B" },
   { id: "mistral:latest", label: "Mistral Latest" },
@@ -56,4 +54,5 @@ export const DEFAULT_SETTINGS = {
   localModel: DEFAULT_LOCAL_MODEL,
   localApiBase: DEFAULT_LOCAL_API_BASE,
   responseFormat: "bullets",
+  theme: "dark",
 };

@@ -1,22 +1,26 @@
 // Service Worker — central message router for the Apogee extension.
-// Routes requests from the popup to either the offscreen document (WebLLM)
-// or lets the popup handle local backend calls directly.
-
+// Routes requests from the popup to either the offscreen document (WebLLM) or lets the popup handle local backend calls directly.
 // Firefox does not support chrome.offscreen or chrome.runtime.getContexts.
-// WebLLM (which requires an offscreen document for WebGPU) is only available
-// on Chrome/Edge. Firefox users must use the Local Ollama provider.
+// WebLLM (which requires an offscreen document for WebGPU) is only available on Chrome/Edge. Firefox users must use the Local Ollama provider.
 const hasOffscreenAPI =
   typeof chrome !== "undefined" &&
   typeof chrome.offscreen !== "undefined" &&
   typeof chrome.offscreen.createDocument === "function";
 
 let offscreenReady = false;
+let offscreenScriptReady = false;
+
+// Resolve when the offscreen document's script signals it has loaded.
+let _offscreenScriptReadyResolve = null;
+const offscreenScriptReadyPromise = new Promise((resolve) => {
+  _offscreenScriptReadyResolve = resolve;
+});
 
 async function ensureOffscreenDocument() {
   if (!hasOffscreenAPI) {
     throw new Error(
       "In-browser AI (WebLLM) is not supported in Firefox. " +
-      "Please switch to Local Ollama mode in Settings."
+        "Please switch to Local Ollama mode in Settings.",
     );
   }
 
@@ -31,6 +35,8 @@ async function ensureOffscreenDocument() {
 
     if (existingContexts.length > 0) {
       offscreenReady = true;
+      offscreenScriptReady = true;
+      _offscreenScriptReadyResolve();
       return;
     }
   }
@@ -42,6 +48,14 @@ async function ensureOffscreenDocument() {
   });
 
   offscreenReady = true;
+
+  // Wait for the offscreen document's module script to finish loading.
+  // The offscreen.js sends an "offscreen-ready" message once its handlers
+  // are registered. We use a timeout so the popup isn't stuck indefinitely.
+  await Promise.race([
+    offscreenScriptReadyPromise,
+    new Promise((resolve) => setTimeout(resolve, 8000)),
+  ]);
 }
 
 // Counter for unique stream IDs
@@ -50,25 +64,23 @@ let streamCounter = 0;
 // Active port connections from the popup, keyed by streamId
 const popupPorts = new Map();
 
-// ─── Port-based streaming relay ──────────────────────────────────────────────
 // The popup connects with a port named `stream-{streamId}`.
 // We relay it by opening an identical port to the offscreen document.
 
 chrome.runtime.onConnect.addListener((popupPort) => {
-  if (!popupPort.name.startsWith("stream-")) return;
+  if (!popupPort.name.startsWith("popup-stream-")) return;
 
-  const streamId = popupPort.name.replace("stream-", "");
+  const streamId = popupPort.name.replace("popup-stream-", "");
   popupPorts.set(streamId, popupPort);
 
-  // Open a matching port to the offscreen document to relay tokens
-  const offscreenPort = chrome.runtime.connect({ name: `stream-${streamId}` });
+  const offscreenPort = chrome.runtime.connect({
+    name: `offscreen-stream-${streamId}`,
+  });
 
   offscreenPort.onMessage.addListener((msg) => {
     try {
       popupPort.postMessage(msg);
-    } catch {
-      // popup port may have closed
-    }
+    } catch {}
     if (msg.type === "done" || msg.type === "error") {
       popupPorts.delete(streamId);
     }
@@ -78,37 +90,34 @@ chrome.runtime.onConnect.addListener((popupPort) => {
     popupPorts.delete(streamId);
     try {
       popupPort.disconnect();
-    } catch {
-      // ignore
-    }
+    } catch {}
   });
 
   popupPort.onDisconnect.addListener(() => {
     popupPorts.delete(streamId);
     try {
       offscreenPort.disconnect();
-    } catch {
-      // ignore
-    }
+    } catch {}
   });
 });
 
-// ─── Message handler ─────────────────────────────────────────────────────────
-
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Only handle messages targeted at the service worker
   if (message.target !== "service-worker") return false;
 
-  // Forward model progress from offscreen → popup via stored ports
+  if (message.type === "offscreen-ready") {
+    offscreenScriptReady = true;
+    _offscreenScriptReadyResolve();
+    return false;
+  }
+
   if (message.type === "model-progress") {
-    // Broadcast progress to all connected popup contexts
-    chrome.runtime.sendMessage({
-      type: "model-progress",
-      progress: message.progress,
-      modelId: message.modelId,
-    }).catch(() => {
-      // No listener — that's fine
-    });
+    chrome.runtime
+      .sendMessage({
+        type: "model-progress",
+        progress: message.progress,
+        modelId: message.modelId,
+      })
+      .catch(() => {});
     return false;
   }
 
@@ -121,7 +130,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
           const streamId = String(++streamCounter);
 
-          // Forward to offscreen document — it registers a pending stream
           await chrome.runtime.sendMessage({
             target: "offscreen",
             action: message.action,
@@ -160,19 +168,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case "check-webgpu": {
           if (!hasOffscreenAPI) {
-            // Firefox — no offscreen doc support, WebGPU not available for WebLLM
-            sendResponse({ supported: false, reason: "offscreen API unavailable (Firefox)" });
+            sendResponse({
+              supported: false,
+              reason: "offscreen API unavailable (Firefox)",
+            });
             break;
           }
 
           await ensureOffscreenDocument();
+          let wgpuResponse = null;
+          const delays = [0, 200, 500, 1000, 2000];
+          for (const delay of delays) {
+            if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+            try {
+              wgpuResponse = await chrome.runtime.sendMessage({
+                target: "offscreen",
+                action: "check-webgpu",
+              });
+            } catch {
+              wgpuResponse = null;
+            }
+            if (wgpuResponse && typeof wgpuResponse.supported === "boolean") {
+              break;
+            }
+          }
 
-          const wgpuResponse = await chrome.runtime.sendMessage({
-            target: "offscreen",
-            action: "check-webgpu",
-          });
-
-          sendResponse(wgpuResponse);
+          sendResponse(
+            wgpuResponse || {
+              supported: false,
+              reason: "offscreen document did not respond",
+            },
+          );
           break;
         }
 
@@ -213,5 +239,5 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   };
 
   handler();
-  return true; // async sendResponse
+  return true;
 });
