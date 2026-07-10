@@ -39,12 +39,13 @@ export const LOCAL_MODELS = [
 
 export const DEFAULT_LOCAL_MODEL = "qwen3:8b";
 
-export const PROVIDERS = {
-  WEBLLM: "webllm",
-  LOCAL: "local",
-};
+const isFirefox = process.env.TARGET_BROWSER === "firefox";
 
-export const DEFAULT_PROVIDER = PROVIDERS.WEBLLM;
+export const PROVIDERS = isFirefox
+  ? { LOCAL: "local" }
+  : { WEBLLM: "webllm", LOCAL: "local" };
+
+export const DEFAULT_PROVIDER = isFirefox ? PROVIDERS.LOCAL : PROVIDERS.WEBLLM;
 
 export const DEFAULT_LOCAL_API_BASE = "http://127.0.0.1:8000";
 

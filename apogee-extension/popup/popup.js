@@ -45,6 +45,7 @@ const modelProgress = document.getElementById("modelProgress");
 const modelProgressText = document.getElementById("modelProgressText");
 const modelProgressPercent = document.getElementById("modelProgressPercent");
 const modelProgressFill = document.getElementById("modelProgressFill");
+const providerSettingsCard = document.getElementById("providerSettingsCard");
 
 let currentPageData = null;
 let currentSummaryText = "";
@@ -149,12 +150,15 @@ async function applySettingsToUI(settings) {
   );
   if (themeRadio) themeRadio.checked = true;
   applyTheme(settings.theme);
+  const isFirefox = process.env.TARGET_BROWSER === "firefox";
+  const provider = isFirefox ? "local" : settings.provider;
+
   const provRadio = document.querySelector(
-    `input[name="provider"][value="${settings.provider}"]`,
+    `input[name="provider"][value="${provider}"]`,
   );
   if (provRadio) provRadio.checked = true;
 
-  const isWebllm = settings.provider === PROVIDERS.WEBLLM;
+  const isWebllm = provider === PROVIDERS.WEBLLM;
   webllmModelsCard.classList.toggle("hidden", !isWebllm);
   localSettingsCard.classList.toggle("hidden", isWebllm);
   localModelsCard.classList.toggle("hidden", isWebllm);
@@ -617,6 +621,10 @@ function updateConnectionUI(connected) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+  const isFirefox = process.env.TARGET_BROWSER === "firefox";
+  if (isFirefox && providerSettingsCard) {
+    providerSettingsCard.classList.add("hidden");
+  }
   try {
     const settings = await getSettings();
     await applySettingsToUI(settings);
@@ -764,3 +772,6 @@ document
     if (!card || card.disabled) return;
     submitQuestion(card.textContent);
   });
+
+// Signal popup lifecycle to the service worker to handle offscreen document cleanup
+chrome.runtime.connect({ name: "popup-lifecycle" });

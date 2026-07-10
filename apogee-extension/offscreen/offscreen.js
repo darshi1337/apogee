@@ -56,7 +56,7 @@ async function ensureEngine(modelId) {
 
   loadingModelId = modelId;
 
-  const { CreateMLCEngine } = await getWebLLM();
+  const { CreateMLCEngine, prebuiltAppConfig } = await getWebLLM();
 
   engine = await CreateMLCEngine(modelId, {
     initProgressCallback: (report) => {
@@ -67,6 +67,10 @@ async function ensureEngine(modelId) {
         modelId,
       });
     },
+    appConfig: {
+      ...prebuiltAppConfig,
+      cacheBackend: "indexeddb"
+    }
   });
 
   currentModelId = modelId;

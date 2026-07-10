@@ -234,7 +234,8 @@ class LocalProvider {
 }
 
 export function getProvider(settings) {
-  if (settings.provider === PROVIDERS.LOCAL) {
+  const isFirefox = process.env.TARGET_BROWSER === "firefox";
+  if (isFirefox || settings.provider === PROVIDERS.LOCAL) {
     return new LocalProvider(settings.localModel, settings.localApiBase);
   }
   return new WebLLMProvider(settings.webllmModel);

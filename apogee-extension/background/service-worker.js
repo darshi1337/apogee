@@ -69,11 +69,24 @@ let streamCounter = 0;
 // Active port connections from the popup, keyed by streamId
 const popupPorts = new Map();
 
-// The popup connects with a port named `stream-{streamId}`.
-// We relay it by opening an identical port to the offscreen document.
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === "popup-lifecycle") {
+    port.onDisconnect.addListener(async () => {
+      try {
+        if (typeof chrome !== "undefined" && chrome.offscreen) {
+          await chrome.offscreen.closeDocument();
+        }
+      } catch (err) {
+        // ignore if already closed
+      }
+      offscreenReady = false;
+      offscreenScriptReady = false;
+    });
+    return;
+  }
 
-chrome.runtime.onConnect.addListener((popupPort) => {
-  if (!popupPort.name.startsWith("popup-stream-")) return;
+  if (!port.name.startsWith("popup-stream-")) return;
+  const popupPort = port;
 
   const streamId = popupPort.name.replace("popup-stream-", "");
   popupPorts.set(streamId, popupPort);
