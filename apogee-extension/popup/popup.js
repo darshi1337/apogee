@@ -190,15 +190,9 @@ async function applySettingsToUI(settings) {
 
 async function extractFromActiveTab(tab) {
   const tabId = tab.id;
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => {
-        document.documentElement.removeAttribute("data-apogee-result");
-      },
-    });
-  } catch {}
 
+  // Inject the extractor scripts once if they aren't already present in the
+  // page's isolated world.
   let isAlreadyInjected = false;
   try {
     const checkResult = await chrome.scripting.executeScript({
@@ -208,12 +202,7 @@ async function extractFromActiveTab(tab) {
     isAlreadyInjected = checkResult?.[0]?.result;
   } catch {}
 
-  if (isAlreadyInjected) {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ["/content/run_extraction.js"],
-    });
-  } else {
+  if (!isAlreadyInjected) {
     await chrome.scripting.executeScript({
       target: { tabId },
       files: [
@@ -222,23 +211,27 @@ async function extractFromActiveTab(tab) {
         "/content/extractors/youtube.js",
         "/content/extractors/gmail.js",
         "/content/content.js",
-        "/content/run_extraction.js",
       ],
     });
   }
 
+  // Return the extractor's result directly. executeScript structured-clones
+  // the return value, so there's no need to round-trip it through a DOM
+  // attribute + JSON.parse (which also mutated the host page).
   const results = await chrome.scripting.executeScript({
     target: { tabId },
     func: () => {
-      const val = document.documentElement.getAttribute("data-apogee-result");
-      document.documentElement.removeAttribute("data-apogee-result");
-      return val ? JSON.parse(val) : null;
+      try {
+        return window.extractPageContent();
+      } catch (e) {
+        return { error: e?.message || String(e) };
+      }
     },
   });
 
   const pageData = results?.[0]?.result;
   if (pageData?.error) throw new Error(pageData.error);
-  return pageData;
+  return pageData || null;
 }
 
 chrome.runtime.onMessage.addListener((message) => {
