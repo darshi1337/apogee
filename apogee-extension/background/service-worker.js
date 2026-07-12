@@ -69,18 +69,49 @@ let streamCounter = 0;
 // Active port connections from the popup, keyed by streamId
 const popupPorts = new Map();
 
+// The Chrome action popup closes whenever it loses focus, which is constant.
+// Tearing down the offscreen document (and therefore the loaded MLCEngine +
+// WebGPU device) on every close forces a full model reload on the next use.
+// Instead we keep it alive and only close after a period of inactivity, so
+// consecutive interactions reuse the already-loaded model.
+const OFFSCREEN_IDLE_MS = 5 * 60 * 1000;
+let offscreenIdleTimer = null;
+
+function cancelOffscreenIdleClose() {
+  if (offscreenIdleTimer !== null) {
+    clearTimeout(offscreenIdleTimer);
+    offscreenIdleTimer = null;
+  }
+}
+
+function scheduleOffscreenIdleClose() {
+  cancelOffscreenIdleClose();
+  offscreenIdleTimer = setTimeout(async () => {
+    offscreenIdleTimer = null;
+    // Don't close while a stream is still active.
+    if (popupPorts.size > 0) {
+      scheduleOffscreenIdleClose();
+      return;
+    }
+    try {
+      if (typeof chrome !== "undefined" && chrome.offscreen) {
+        await chrome.offscreen.closeDocument();
+      }
+    } catch (err) {
+      // ignore if already closed
+    }
+    offscreenReady = false;
+    offscreenScriptReady = false;
+  }, OFFSCREEN_IDLE_MS);
+}
+
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name === "popup-lifecycle") {
-    port.onDisconnect.addListener(async () => {
-      try {
-        if (typeof chrome !== "undefined" && chrome.offscreen) {
-          await chrome.offscreen.closeDocument();
-        }
-      } catch (err) {
-        // ignore if already closed
-      }
-      offscreenReady = false;
-      offscreenScriptReady = false;
+    // A popup is open — keep the model warm.
+    cancelOffscreenIdleClose();
+    port.onDisconnect.addListener(() => {
+      // Defer teardown; a new popup may reopen almost immediately.
+      scheduleOffscreenIdleClose();
     });
     return;
   }
