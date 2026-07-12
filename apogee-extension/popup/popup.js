@@ -558,7 +558,13 @@ async function submitQuestion(question) {
       active: true,
       currentWindow: true,
     });
-    const pageData = await extractFromActiveTab(tab);
+    // Reuse the page data captured during summarize when it's for the same
+    // tab/URL; extraction (a full Readability DOM clone) is expensive and
+    // doesn't change between asking questions about the same page.
+    let pageData =
+      currentPageData && currentPageData.url === tab.url
+        ? currentPageData
+        : await extractFromActiveTab(tab);
     if (!pageData) {
       answerBox.textContent = "Could not extract page.";
       return;
