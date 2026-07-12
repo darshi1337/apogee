@@ -2,6 +2,8 @@
 // Receives messages from the service worker, runs inference, and streams tokens back via chrome.runtime port connections.
 // IMPORTANT: We use dynamic imports for @mlc-ai/web-llm and prompt helpers so that message handlers (especially check-webgpu) register immediately without waiting for the heavy ~6 MB web-llm module to load. If the static import fails at the top level, the entire module dies and no handlers register,this was the root cause of the false "WebGPU not supported" bug.
 
+import { chunkText, truncateForPrompt } from "../lib/chunk.js";
+
 let engine = null;
 let currentModelId = null;
 let loadingModelId = null;
@@ -105,14 +107,66 @@ async function streamCompletion(eng, prompt, port, isDisconnected) {
   }
 }
 
-async function generateText(eng, prompt) {
+async function generateText(eng, prompt, maxTokens = 512) {
   const reply = await eng.chat.completions.create({
     messages: [{ role: "user", content: prompt }],
     temperature: 0.3,
-    max_tokens: 512,
+    max_tokens: maxTokens,
   });
 
   return reply.choices?.[0]?.message?.content || "";
+}
+
+function reportProgress(text) {
+  chrome.runtime
+    .sendMessage({
+      target: "service-worker",
+      type: "model-progress",
+      progress: { text, progress: 0 },
+    })
+    .catch(() => {});
+}
+
+// Chunk-aware summarization for the small in-browser models. Long pages are
+// split into context-sized chunks; each chunk is summarized independently and
+// the partial summaries are merged in a final streamed pass (map-reduce),
+// mirroring the backend's behavior. Short pages stream directly.
+async function runSummarize(eng, prompts, pending, port, isDisconnected) {
+  const chunks = chunkText(pending.content);
+
+  if (chunks.length <= 1) {
+    const prompt = prompts.buildSummaryPrompt(
+      pending.title,
+      pending.url,
+      chunks[0] || pending.content || "",
+      pending.mode,
+    );
+    await streamCompletion(eng, prompt, port, isDisconnected);
+    return;
+  }
+
+  const partials = [];
+  for (let i = 0; i < chunks.length; i++) {
+    if (isDisconnected()) return;
+    reportProgress(`Summarizing part ${i + 1} of ${chunks.length}...`);
+    const prompt = prompts.buildSummaryPrompt(
+      pending.title,
+      pending.url,
+      chunks[i],
+      pending.mode,
+    );
+    partials.push((await generateText(eng, prompt, 1024)).trim());
+  }
+
+  if (isDisconnected()) return;
+  reportProgress("Merging summary...");
+  const mergePrompt = prompts.buildSummaryPrompt(
+    pending.title,
+    pending.url,
+    partials.join("\n"),
+    pending.mode,
+  );
+  await streamCompletion(eng, mergePrompt, port, isDisconnected);
 }
 
 const pendingStreams = new Map();
@@ -147,26 +201,23 @@ chrome.runtime.onConnect.addListener((port) => {
       const eng = await ensureEngine(pending.model);
       if (disconnected) return;
       const prompts = await getPrompts();
-      let prompt;
 
       switch (pending.action) {
         case "summarize":
-          prompt = prompts.buildSummaryPrompt(
-            pending.title,
-            pending.url,
-            pending.content,
-            pending.mode,
-          );
+          await runSummarize(eng, prompts, pending, port, () => disconnected);
           break;
 
-        case "ask":
-          prompt = prompts.buildAnswerPrompt(
+        case "ask": {
+          const prompt = prompts.buildAnswerPrompt(
             pending.title,
             pending.url,
-            pending.content,
+            truncateForPrompt(pending.content),
             pending.question,
           );
+          if (disconnected) return;
+          await streamCompletion(eng, prompt, port, () => disconnected);
           break;
+        }
 
         default:
           if (!disconnected) {
@@ -182,9 +233,6 @@ chrome.runtime.onConnect.addListener((port) => {
           }
           return;
       }
-
-      if (disconnected) return;
-      await streamCompletion(eng, prompt, port, () => disconnected);
     } catch (err) {
       if (!disconnected) {
         try {
