@@ -91,11 +91,14 @@ async function checkWebGPUSupport() {
       );
     });
     _webgpuSupported = response?.supported === true;
+    return _webgpuSupported;
   } catch {
-    // If we can't reach the service worker, assume supported and let the offscreen doc surface the real error when inference is attempted.
-    _webgpuSupported = true;
+    // If we can't reach the service worker, optimistically assume support so
+    // the user isn't blocked, and let the offscreen doc surface the real error
+    // at inference time. Do NOT cache this — a transient messaging failure
+    // should not suppress the warning for the rest of the session.
+    return true;
   }
-  return _webgpuSupported;
 }
 
 function buildWebllmModelUI(selectedId) {
