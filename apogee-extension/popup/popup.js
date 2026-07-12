@@ -66,7 +66,29 @@ async function clearStoredSummaries() {
   const keys = Object.keys(stored).filter(
     (k) => k.startsWith("summary:") || k.startsWith("suggested-prompts:"),
   );
-  if (keys.length > 0) await chrome.storage.local.remove(keys);
+  keys.push("cacheOrder");
+  await chrome.storage.local.remove(keys);
+}
+
+// Cap how many pages we keep cached so storage doesn't grow without bound.
+// `cacheOrder` is an insertion-ordered list of { s, p } key pairs used as a
+// simple FIFO eviction index.
+const MAX_CACHED_PAGES = 50;
+
+async function persistSummary(cacheKey, promptsCacheKey, text) {
+  const { cacheOrder = [] } = await chrome.storage.local.get("cacheOrder");
+  const order = cacheOrder.filter((e) => e && e.s !== cacheKey);
+  order.push({ s: cacheKey, p: promptsCacheKey });
+
+  const removeKeys = [];
+  while (order.length > MAX_CACHED_PAGES) {
+    const old = order.shift();
+    if (old?.s) removeKeys.push(old.s);
+    if (old?.p) removeKeys.push(old.p);
+  }
+
+  await chrome.storage.local.set({ [cacheKey]: text, cacheOrder: order });
+  if (removeKeys.length > 0) await chrome.storage.local.remove(removeKeys);
 }
 
 // NOTE: The popup runs in a chrome-extension:// context where navigator.gpu is always undefined. The actual WebGPU context lives in the offscreen document.
@@ -514,7 +536,7 @@ async function summarizeActivePage() {
       );
     }
 
-    await chrome.storage.local.set({ [cacheKey]: text });
+    await persistSummary(cacheKey, promptsCacheKey, text);
     currentSummaryText = text;
     showSummaryContext();
     setSuggestedQuestionsLoading();
