@@ -63,8 +63,11 @@ async function ensureOffscreenDocument() {
   ]);
 }
 
-// Counter for unique stream IDs
-let streamCounter = 0;
+// Unique stream IDs. A plain counter resets whenever the MV3 service worker is
+// evicted, so IDs could collide across worker restarts; use a UUID instead.
+function nextStreamId() {
+  return crypto.randomUUID();
+}
 
 // Active port connections from the popup, keyed by streamId
 const popupPorts = new Map();
@@ -177,7 +180,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case "ask": {
           await ensureOffscreenDocument();
 
-          const streamId = String(++streamCounter);
+          const streamId = nextStreamId();
 
           await chrome.runtime.sendMessage({
             target: "offscreen",
