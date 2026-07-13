@@ -1,7 +1,0 @@
-fastapi<1,>=0.115
-uvicorn[standard]>=0.34
-requests>=2.31
-python-multipart>=0.0.18
-pymupdf>=1.25
-ollama<1,>=0.4
-pydantic<3,>=2.10
