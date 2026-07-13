@@ -127,6 +127,10 @@ function reportProgress(text) {
     .catch(() => {});
 }
 
+// Chunk-aware summarization for the small in-browser models. Long pages are
+// split into context-sized chunks; each chunk is summarized independently and
+// the partial summaries are merged in a final streamed pass (map-reduce),
+// mirroring the backend's behavior. Short pages stream directly.
 async function runSummarize(eng, prompts, pending, port, isDisconnected) {
   const chunks = chunkText(pending.content);
 

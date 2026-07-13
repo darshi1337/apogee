@@ -43,6 +43,8 @@ def summarize_text(
                         partial += token
                     for line in partial.splitlines():
                         line = line.strip()
+                        # Models emit bullets as -, * or • interchangeably;
+                        # filtering on • alone silently dropped whole chunks.
                         if line[:1] in ("•", "-", "*"):
                             yield line + "\n"
                 return

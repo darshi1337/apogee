@@ -63,6 +63,8 @@ async function ensureOffscreenDocument() {
   ]);
 }
 
+// Unique stream IDs. A plain counter resets whenever the MV3 service worker is
+// evicted, so IDs could collide across worker restarts; use a UUID instead.
 function nextStreamId() {
   return crypto.randomUUID();
 }
@@ -70,6 +72,11 @@ function nextStreamId() {
 // Active port connections from the popup, keyed by streamId
 const popupPorts = new Map();
 
+// The Chrome action popup closes whenever it loses focus, which is constant.
+// Tearing down the offscreen document (and therefore the loaded MLCEngine +
+// WebGPU device) on every close forces a full model reload on the next use.
+// Instead we keep it alive and only close after a period of inactivity, so
+// consecutive interactions reuse the already-loaded model.
 const OFFSCREEN_IDLE_MS = 5 * 60 * 1000;
 let offscreenIdleTimer = null;
 
