@@ -77,7 +77,7 @@ def _parse_suggested_questions(text: str) -> list[str]:
         for prefix in ("1.", "2.", "1)", "2)"):
             cleaned = cleaned.removeprefix(prefix).strip()
 
-        if cleaned:
+        if cleaned and cleaned.endswith("?"):
             questions.append(cleaned)
 
         if len(questions) == 2:

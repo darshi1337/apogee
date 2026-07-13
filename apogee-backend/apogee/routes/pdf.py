@@ -3,6 +3,7 @@ import os
 import socket
 import tempfile
 import urllib.parse
+from contextlib import contextmanager
 
 import requests
 from fastapi import APIRouter, HTTPException
@@ -37,20 +38,33 @@ def _is_within_allowed_roots(resolved: str) -> bool:
     return False
 
 
-def _is_safe_remote_url(url: str) -> bool:
+@contextmanager
+def _pinned_dns(host: str, ip: str):
+    original_getaddrinfo = socket.getaddrinfo
+    def patched_getaddrinfo(h, *args, **kwargs):
+        if h == host:
+            return original_getaddrinfo(ip, *args, **kwargs)
+        return original_getaddrinfo(h, *args, **kwargs)
+    socket.getaddrinfo = patched_getaddrinfo
+    try:
+        yield
+    finally:
+        socket.getaddrinfo = original_getaddrinfo
+
+
+def _is_safe_remote_url(url: str) -> tuple[bool, str]:
     """Reject URLs that target private/loopback addresses (SSRF protection)."""
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in ("http", "https"):
-        return False
+        return False, ""
     if not parsed.hostname:
-        return False
+        return False, ""
     try:
-        resolved_ip = ipaddress.ip_address(
-            socket.gethostbyname(parsed.hostname)
-        )
-        return resolved_ip.is_global
+        ip = socket.gethostbyname(parsed.hostname)
+        resolved_ip = ipaddress.ip_address(ip)
+        return resolved_ip.is_global, ip
     except (socket.gaierror, ValueError):
-        return False
+        return False, ""
 
 
 def _validate_local_path(raw_path: str) -> str:
@@ -93,15 +107,18 @@ def summarize_pdf_url(data: PdfUrlRequest):
         pdf_path = _validate_local_path(raw_path)
     else:
         # Remote URL — validate against SSRF, then download to a temp file
-        if not _is_safe_remote_url(data.url):
+        is_safe, resolved_ip = _is_safe_remote_url(data.url)
+        if not is_safe:
             raise HTTPException(
                 status_code=400,
                 detail="URL is not allowed: only public http/https URLs are accepted.",
             )
 
+        parsed = urllib.parse.urlparse(data.url)
         try:
-            response = requests.get(data.url, timeout=30)
-            response.raise_for_status()
+            with _pinned_dns(parsed.hostname, resolved_ip):
+                response = requests.get(data.url, timeout=30)
+                response.raise_for_status()
         except requests.RequestException as exc:
             raise HTTPException(
                 status_code=502,

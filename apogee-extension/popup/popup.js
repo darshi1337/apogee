@@ -1,3 +1,4 @@
+import "./mock.js";
 import { getProvider } from "../lib/providers.js";
 import {
   PROVIDERS,
@@ -46,6 +47,10 @@ const modelProgressText = document.getElementById("modelProgressText");
 const modelProgressPercent = document.getElementById("modelProgressPercent");
 const modelProgressFill = document.getElementById("modelProgressFill");
 const providerSettingsCard = document.getElementById("providerSettingsCard");
+const toggleDebugLogsBtn = document.getElementById("toggleDebugLogsBtn");
+const debugLogsCard = document.getElementById("debugLogsCard");
+const debugLogsContent = document.getElementById("debugLogsContent");
+const clearDebugLogsBtn = document.getElementById("clearDebugLogsBtn");
 
 let currentPageData = null;
 let currentSummaryText = "";
@@ -270,6 +275,19 @@ chrome.runtime.onMessage.addListener((message) => {
       modelProgressFill.style.width = `${pct}%`;
       if (pct >= 100) {
         setTimeout(() => modelProgress?.classList.add("hidden"), 1500);
+      }
+    }
+  }
+
+  if (message.type === "live-offscreen-log" && message.log) {
+    if (debugLogsContent && debugLogsCard && !debugLogsCard.classList.contains("hidden")) {
+      const isScrollAtBottom = debugLogsCard.scrollHeight - debugLogsCard.clientHeight <= debugLogsCard.scrollTop + 10;
+      if (debugLogsContent.textContent === "No logs recorded. Try starting summary or chat.") {
+        debugLogsContent.textContent = "";
+      }
+      debugLogsContent.textContent += (debugLogsContent.textContent ? "\n" : "") + message.log;
+      if (isScrollAtBottom) {
+        debugLogsCard.scrollTop = debugLogsCard.scrollHeight;
       }
     }
   }
@@ -510,10 +528,12 @@ async function summarizeActivePage() {
         );
       } else {
         if (!pageData.content) {
-          summaryText.innerHTML =
-            '<p style="color:#d93025;font-size:13px">' +
-            "PDF summarization requires Local Ollama mode. " +
-            "Switch to Local Ollama in Settings to summarize PDFs.</p>";
+          const p = document.createElement("p");
+          p.style.color = "#d93025";
+          p.style.fontSize = "13px";
+          p.textContent = "PDF summarization requires Local Ollama mode. Switch to Local Ollama in Settings to summarize PDFs.";
+          summaryText.textContent = "";
+          summaryText.appendChild(p);
           return;
         }
         text = await streamGeneratorIntoElement(
@@ -558,10 +578,12 @@ async function summarizeActivePage() {
     setSuggestedQuestions(suggestedQuestions);
   } catch (error) {
     console.error(error);
-    summaryText.innerHTML =
-      '<p style="color:#d93025;font-size:13px">' +
-      escapeHtml(error.message) +
-      "</p>";
+    const p = document.createElement("p");
+    p.style.color = "#d93025";
+    p.style.fontSize = "13px";
+    p.textContent = error.message;
+    summaryText.textContent = "";
+    summaryText.appendChild(p);
   }
 }
 
@@ -801,3 +823,43 @@ document
 
 // Signal popup lifecycle to the service worker to handle offscreen document cleanup
 chrome.runtime.connect({ name: "popup-lifecycle" });
+
+async function updateDebugLogsUI() {
+  if (!debugLogsCard || debugLogsCard.classList.contains("hidden")) return;
+  try {
+    const res = await chrome.runtime.sendMessage({
+      target: "service-worker",
+      action: "get-offscreen-logs"
+    });
+    if (res && Array.isArray(res.logs)) {
+      debugLogsContent.textContent = res.logs.join("\n") || "No logs recorded. Try starting summary or chat.";
+      debugLogsCard.scrollTop = debugLogsCard.scrollHeight;
+    }
+  } catch (err) {
+    debugLogsContent.textContent = `Error fetching logs: ${err.message}`;
+  }
+}
+
+toggleDebugLogsBtn?.addEventListener("click", async () => {
+  const isHidden = debugLogsCard.classList.contains("hidden");
+  if (isHidden) {
+    debugLogsCard.classList.remove("hidden");
+    toggleDebugLogsBtn.textContent = "Hide Logs";
+    await updateDebugLogsUI();
+  } else {
+    debugLogsCard.classList.add("hidden");
+    toggleDebugLogsBtn.textContent = "Show Logs";
+  }
+});
+
+clearDebugLogsBtn?.addEventListener("click", async () => {
+  try {
+    await chrome.runtime.sendMessage({
+      target: "service-worker",
+      action: "clear-offscreen-logs"
+    });
+    debugLogsContent.textContent = "No logs recorded. Try starting summary or chat.";
+  } catch (err) {
+    debugLogsContent.textContent = `Error clearing logs: ${err.message}`;
+  }
+});

@@ -9,6 +9,7 @@ const hasOffscreenAPI =
 
 let offscreenReady = false;
 let offscreenScriptReady = false;
+const offscreenLogs = [];
 
 // Resolve when the offscreen document's script signals it has loaded.
 let _offscreenScriptReadyResolve = null;
@@ -173,6 +174,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  if (message.type === "offscreen-log") {
+    const timestamp = new Date().toLocaleTimeString();
+    offscreenLogs.push(`[${timestamp}] [${message.level.toUpperCase()}] ${message.message}`);
+    if (offscreenLogs.length > 50) {
+      offscreenLogs.shift();
+    }
+    chrome.runtime
+      .sendMessage({
+        type: "live-offscreen-log",
+        log: `[${timestamp}] [${message.level.toUpperCase()}] ${message.message}`,
+      })
+      .catch(() => {});
+    return false;
+  }
+
   const handler = async () => {
     try {
       switch (message.action) {
@@ -279,6 +295,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           });
 
           sendResponse(response);
+          break;
+        }
+
+        case "get-offscreen-logs": {
+          sendResponse({ logs: offscreenLogs });
+          break;
+        }
+
+        case "clear-offscreen-logs": {
+          offscreenLogs.length = 0;
+          sendResponse({ success: true });
           break;
         }
 

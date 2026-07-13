@@ -14,7 +14,6 @@
     "@mlc-ai/web-llm": "^0.2.78"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
     "vite": "^6.3.5"
   }
 }

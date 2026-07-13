@@ -79,11 +79,22 @@
         <div id="modelProgress" class="model-progress hidden">
           <div class="model-progress-label">
             <span id="modelProgressText">Downloading model...</span>
-            <span id="modelProgressPercent"></span>
+            <div style="display: flex; align-items: center;">
+              <span id="modelProgressPercent"></span>
+              <span id="toggleDebugLogsBtn" style="font-size: 10px; color: var(--text-muted); cursor: pointer; text-decoration: underline; margin-left: 8px; font-weight: bold; opacity: 0.8; user-select: none;">Show Logs</span>
+            </div>
           </div>
           <div class="model-progress-bar">
             <div id="modelProgressFill" class="model-progress-fill"></div>
           </div>
+        </div>
+
+        <div id="debugLogsCard" class="hidden" style="margin: 0 16px 10px; padding: 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10.5px; max-height: 140px; overflow-y: auto; border: 1px solid var(--btn-border); line-height: 1.4;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; border-bottom: 1px solid var(--btn-border); padding-bottom: 4px;">
+            <span style="font-weight: bold; color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px;">Offscreen Logs</span>
+            <button id="clearDebugLogsBtn" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 9.5px; padding: 0 4px; font-weight: bold;">Clear</button>
+          </div>
+          <div id="debugLogsContent" style="white-space: pre-wrap; word-break: break-all; color: var(--text-muted);">No logs recorded. Try starting summary or chat.</div>
         </div>
 
         <section id="summaryCard" class="summary-card">
@@ -358,66 +369,6 @@
       </div>
     </div>
 
-    <script>
-      // Mock chrome extension APIs for local web previewing/testing
-      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
-        window.chrome = {
-          runtime: {
-            onMessage: {
-              addListener: (listener) => {
-                window.addEventListener('message', (event) => {
-                  if (event.data && event.data.type) {
-                    listener(event.data);
-                  }
-                });
-              }
-            },
-            sendMessage: (msg, callback) => {
-              if (msg.action === 'check-webgpu') {
-                setTimeout(() => callback({ supported: true }), 0);
-              } else if (msg.action === 'status') {
-                setTimeout(() => callback({ ready: true }), 0);
-              } else {
-                setTimeout(() => callback({ ready: true }), 0);
-              }
-            },
-            connect: () => ({
-              onMessage: { addListener: () => {} },
-              onDisconnect: { addListener: () => {} },
-              disconnect: () => {}
-            }),
-            lastError: null
-          },
-          storage: {
-            local: {
-              get: async (keys) => {
-                const settings = JSON.parse(localStorage.getItem('settings') || '{}');
-                if (keys === null) return { settings };
-                if (typeof keys === 'string') return { [keys]: settings[keys] };
-                if (Array.isArray(keys)) {
-                  const res = {};
-                  keys.forEach(k => res[k] = settings[k]);
-                  return res;
-                }
-                return { settings };
-              },
-              set: async (obj) => {
-                const settings = JSON.parse(localStorage.getItem('settings') || '{}');
-                Object.assign(settings, obj.settings || obj);
-                localStorage.setItem('settings', JSON.stringify(settings));
-              },
-              remove: async (keys) => {}
-            }
-          },
-          tabs: {
-            query: async () => [{ id: 1, url: 'https://example.com', title: 'Example Page' }]
-          },
-          scripting: {
-            executeScript: async () => [{ result: { title: 'Example Page', content: 'This is mock content of the active page to demonstrate Apogee.', url: 'https://example.com' } }]
-          }
-        };
-      }
-    </script>
     <script type="module" src="popup.js"></script>
   </body>
 </html>

@@ -4,6 +4,56 @@
 
 import { chunkText, truncateForPrompt } from "../lib/chunk.js";
 
+// Forward all console logs to the service worker for remote debugging
+const originalConsole = {
+  log: console.log,
+  error: console.error,
+  warn: console.warn,
+  info: console.info,
+};
+
+function sendLogToServiceWorker(level, args) {
+  const message = args.map(arg => {
+    if (arg instanceof Error) return arg.stack || arg.message;
+    if (typeof arg === "object") {
+      try { return JSON.stringify(arg); } catch { return String(arg); }
+    }
+    return String(arg);
+  }).join(" ");
+
+  chrome.runtime.sendMessage({
+    target: "service-worker",
+    type: "offscreen-log",
+    level,
+    message,
+  }).catch(() => {});
+}
+
+console.log = (...args) => {
+  originalConsole.log(...args);
+  sendLogToServiceWorker("log", args);
+};
+console.error = (...args) => {
+  originalConsole.error(...args);
+  sendLogToServiceWorker("error", args);
+};
+console.warn = (...args) => {
+  originalConsole.warn(...args);
+  sendLogToServiceWorker("warn", args);
+};
+console.info = (...args) => {
+  originalConsole.info(...args);
+  sendLogToServiceWorker("info", args);
+};
+
+window.addEventListener("error", (event) => {
+  console.error("Global error in offscreen document:", event.message, "at", event.filename, ":", event.lineno);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  console.error("Unhandled promise rejection in offscreen document:", event.reason?.stack || event.reason?.message || event.reason);
+});
+
 let engine = null;
 let currentModelId = null;
 let loadingModelId = null;
@@ -71,7 +121,7 @@ async function ensureEngine(modelId) {
     },
     appConfig: {
       ...prebuiltAppConfig,
-      cacheBackend: "indexeddb"
+      cacheBackend: "cache"
     }
   });
 
@@ -293,7 +343,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                   .replace(/^[-*•\d.)]+\s*/, "")
                   .trim(),
               )
-              .filter((line) => line.length > 0)
+              .filter((line) => line.length > 0 && line.endsWith("?"))
               .slice(0, 2);
 
             sendResponse({ questions });

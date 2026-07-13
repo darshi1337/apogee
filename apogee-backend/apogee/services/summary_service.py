@@ -38,15 +38,18 @@ def summarize_text(
                         content=chunk,
                         mode=mode,
                     )
-                    partial = ""
+                    line_buffer = ""
                     for token in generate_stream(prompt, model):
-                        partial += token
-                    for line in partial.splitlines():
-                        line = line.strip()
-                        # Models emit bullets as -, * or • interchangeably;
-                        # filtering on • alone silently dropped whole chunks.
-                        if line[:1] in ("•", "-", "*"):
-                            yield line + "\n"
+                        line_buffer += token
+                        while "\n" in line_buffer:
+                            line, line_buffer = line_buffer.split("\n", 1)
+                            line_stripped = line.strip()
+                            if line_stripped[:1] in ("•", "-", "*"):
+                                yield line_stripped + "\n"
+                    if line_buffer:
+                        line_stripped = line_buffer.strip()
+                        if line_stripped[:1] in ("•", "-", "*"):
+                            yield line_stripped + "\n"
                 return
 
             # Sentences/paragraphs: summarize every chunk, then merge.
