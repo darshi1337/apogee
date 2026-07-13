@@ -17,6 +17,10 @@ export const MAX_SINGLE_PROMPT_CHARS = 8000;
 
 // Split text into chunks of at most `maxChars`, preferring to break on
 // paragraph, then sentence, then whitespace boundaries so we don't cut words.
+export const MAX_CHUNK_CHARS = 6000;
+
+export const MAX_SINGLE_PROMPT_CHARS = 8000;
+
 export function chunkText(text, maxChars = MAX_CHUNK_CHARS) {
   const clean = (text || "").trim();
   if (clean.length <= maxChars) {
@@ -32,6 +36,7 @@ export function chunkText(text, maxChars = MAX_CHUNK_CHARS) {
     if (splitAt < maxChars * 0.5) splitAt = window.lastIndexOf(". ");
     if (splitAt < maxChars * 0.5) splitAt = window.lastIndexOf(" ");
     if (splitAt <= 0) splitAt = maxChars; // no good boundary — hard cut
+    if (splitAt <= 0) splitAt = maxChars;
 
     chunks.push(remaining.slice(0, splitAt).trim());
     remaining = remaining.slice(splitAt).trim();
