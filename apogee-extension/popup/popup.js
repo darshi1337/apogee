@@ -70,9 +70,6 @@ async function clearStoredSummaries() {
   await chrome.storage.local.remove(keys);
 }
 
-// Cap how many pages we keep cached so storage doesn't grow without bound.
-// `cacheOrder` is an insertion-ordered list of { s, p } key pairs used as a
-// simple FIFO eviction index.
 const MAX_CACHED_PAGES = 50;
 
 async function persistSummary(cacheKey, promptsCacheKey, text) {
@@ -115,10 +112,6 @@ async function checkWebGPUSupport() {
     _webgpuSupported = response?.supported === true;
     return _webgpuSupported;
   } catch {
-    // If we can't reach the service worker, optimistically assume support so
-    // the user isn't blocked, and let the offscreen doc surface the real error
-    // at inference time. Do NOT cache this — a transient messaging failure
-    // should not suppress the warning for the rest of the session.
     return true;
   }
 }
@@ -216,8 +209,6 @@ async function applySettingsToUI(settings) {
 async function extractFromActiveTab(tab) {
   const tabId = tab.id;
 
-  // Inject the extractor scripts once if they aren't already present in the
-  // page's isolated world.
   let isAlreadyInjected = false;
   try {
     const checkResult = await chrome.scripting.executeScript({
@@ -240,9 +231,6 @@ async function extractFromActiveTab(tab) {
     });
   }
 
-  // Return the extractor's result directly. executeScript structured-clones
-  // the return value, so there's no need to round-trip it through a DOM
-  // attribute + JSON.parse (which also mutated the host page).
   const results = await chrome.scripting.executeScript({
     target: { tabId },
     func: () => {
@@ -578,9 +566,6 @@ async function submitQuestion(question) {
       active: true,
       currentWindow: true,
     });
-    // Reuse the page data captured during summarize when it's for the same
-    // tab/URL; extraction (a full Readability DOM clone) is expensive and
-    // doesn't change between asking questions about the same page.
     let pageData =
       currentPageData && currentPageData.url === tab.url
         ? currentPageData
