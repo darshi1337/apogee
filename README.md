@@ -82,24 +82,24 @@ Apogee offers two modes of operation to balance ease-of-use and raw capabilities
 
 ## Browser Requirements
 
-- **Chrome 113+** or **Edge 113+** (WebGPU required)
+- **Chrome 113+** or **Edge 113+** or **Dia** (WebGPU required)
 - A GPU with WebGPU support (most modern GPUs)
 - Firefox: WebGPU is not yet stable so use **Local Ollama** mode instead
 
 ## Install the Extension
 
-### Chrome / Chromium
+### Chrome / Dia
 
 1. Download the packaged extension `.zip` from [Releases](https://github.com/darshi1337/apogee/releases).
 2. Extract/unzip the downloaded `.zip` file on your machine.
-3. Open Chrome and go to `chrome://extensions`.
+3. Open the browser and go to `chrome://extensions` or `dia://extensions/`.
 4. Enable **Developer mode** (toggle in the top-right).
 5. Click **Load unpacked** and select the extracted folder (containing `manifest.json`, not the ZIP file itself).
 
 #### Build from Source (Developer Option)
 1. Clone this repository.
 2. `cd apogee-extension && npm install && npm run build`
-3. Go to `chrome://extensions` and enable **Developer mode**.
+3. Go to `chrome://extensions` or `dia://extensions/` and enable **Developer mode**.
 4. Click **Load unpacked** and select the `apogee-extension/dist` folder.
 
 ### Firefox
@@ -185,4 +185,4 @@ npm install
 npm run dev    # watch mode — rebuilds on changes
 ```
 
-Load the `dist/` folder as an unpacked extension in Chrome.
+Load the `dist/` folder as an unpacked extension in your browser.
