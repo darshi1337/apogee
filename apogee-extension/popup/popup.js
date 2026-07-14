@@ -1,4 +1,16 @@
-import "./mock.js";
+// Only load the dev-only chrome.* shim when running outside a real
+// extension context (e.g. popup.html opened directly in a browser tab for
+// UI iteration). In the shipped extension chrome.runtime.sendMessage is
+// always defined, so this branch — and the network fetch for mock.js it
+// would trigger — never runs for real users.
+if (
+  typeof chrome === "undefined" ||
+  !chrome.runtime ||
+  !chrome.runtime.sendMessage
+) {
+  await import("./mock.js");
+}
+
 import { getProvider } from "../lib/providers.js";
 import {
   PROVIDERS,

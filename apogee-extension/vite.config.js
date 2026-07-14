@@ -68,6 +68,11 @@ export default defineConfig(() => {
       outDir: `dist/${targetBrowser}`,
       emptyDirFirst: true,
       minify: false,
+      // Default esbuild target (~Chrome 87/Firefox 78) predates top-level
+      // await. The extension already requires MV3 offscreen (Chrome 109+)
+      // and WebGPU-capable browsers, so target the browsers this actually
+      // runs on instead.
+      target: "es2022",
       rollupOptions: {
         input,
         output: {

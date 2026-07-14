@@ -2,6 +2,15 @@
 
 import { PROVIDERS, DEFAULT_LOCAL_API_BASE } from "./constants.js";
 
+// The backend rejects POSTs without this header (see apogee.app on the
+// server). A custom header forces a CORS preflight, which a plain <form>
+// post or a non-preflighted "simple" fetch from an arbitrary webpage can't
+// trigger — closing off blind CSRF-style requests to the local backend.
+const LOCAL_BACKEND_HEADERS = {
+  "Content-Type": "application/json",
+  "X-Apogee-Client": "1",
+};
+
 // Sends requests to the service worker, which forwards to the offscreen doc.
 
 function sendToServiceWorker(message) {
@@ -142,7 +151,7 @@ class LocalProvider {
   async *summarize({ title, url, content, mode }) {
     const response = await fetch(`${this.apiBase}/summarize`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: LOCAL_BACKEND_HEADERS,
       body: JSON.stringify({ title, url, content, mode, model: this.model }),
     });
 
@@ -157,7 +166,7 @@ class LocalProvider {
   async *ask({ title, url, content, question }) {
     const response = await fetch(`${this.apiBase}/ask`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: LOCAL_BACKEND_HEADERS,
       body: JSON.stringify({
         title,
         url,
@@ -178,7 +187,7 @@ class LocalProvider {
   async suggestQuestions({ title, url, summary }) {
     const response = await fetch(`${this.apiBase}/suggest-questions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: LOCAL_BACKEND_HEADERS,
       body: JSON.stringify({ title, url, summary, model: this.model }),
     });
 
@@ -194,7 +203,7 @@ class LocalProvider {
   async *summarizePdf({ url, mode }) {
     const response = await fetch(`${this.apiBase}/pdf/url`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: LOCAL_BACKEND_HEADERS,
       body: JSON.stringify({ url, mode, model: this.model }),
     });
 
