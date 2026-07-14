@@ -245,6 +245,7 @@ const pendingSuggestKeys = new Set();
 async function runSuggestQuestionsJob(payload) {
   const {
     promptsCacheKey,
+    persist = true,
     providerType,
     apiBase,
     title,
@@ -286,9 +287,17 @@ async function runSuggestQuestionsJob(payload) {
     questions = [];
   }
 
-  // Always write a result (even []) so the popup can distinguish "generated,
-  // none" from "still pending / not started" (a missing key).
-  await chrome.storage.local.set({ [promptsCacheKey]: questions });
+  // Persist only when allowed (write even [] so the popup can distinguish
+  // "generated, none" from "still pending" — a missing key). When history is
+  // off or the host is sensitive, keep it ephemeral and rely on the message
+  // below for delivery.
+  if (persist) {
+    await chrome.storage.local.set({ [promptsCacheKey]: questions });
+  }
+  // Direct delivery to any open popup (the only path when not persisted).
+  chrome.runtime
+    .sendMessage({ type: "suggested-prompts-ready", promptsCacheKey, questions })
+    .catch(() => {});
   pendingSuggestKeys.delete(promptsCacheKey);
 }
 

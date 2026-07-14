@@ -63,6 +63,9 @@ const toggleDebugLogsBtn = document.getElementById("toggleDebugLogsBtn");
 const debugLogsCard = document.getElementById("debugLogsCard");
 const debugLogsContent = document.getElementById("debugLogsContent");
 const clearDebugLogsBtn = document.getElementById("clearDebugLogsBtn");
+const saveHistoryRadios = document.querySelectorAll('input[name="saveHistory"]');
+const clearDataBtn = document.getElementById("clearDataBtn");
+const clearDataStatus = document.getElementById("clearDataStatus");
 
 let currentPageData = null;
 let currentSummaryText = "";
@@ -76,10 +79,11 @@ let activeTabId = null;
 // See runSuggestQuestionsJob in service-worker.js.
 let currentPromptsCacheKey = null;
 
-// Kicks off suggested-question generation as a background job; the result
-// arrives via the chrome.storage.onChanged listener below, so closing the
-// popup can't abandon it.
-function startSuggestedQuestionsBg(promptsCacheKey, { title, url, summary }, settings) {
+// Kicks off suggested-question generation as a background job. When `persist`
+// is true the result is cached (and delivered via storage.onChanged, so a
+// reopened popup still gets it); when false it's kept ephemeral and delivered
+// only via the runtime message below to a still-open popup.
+function startSuggestedQuestionsBg(promptsCacheKey, { title, url, summary }, settings, persist = true) {
   currentPromptsCacheKey = promptsCacheKey;
   const isFirefox = process.env.TARGET_BROWSER === "firefox";
   const providerType =
@@ -90,6 +94,7 @@ function startSuggestedQuestionsBg(promptsCacheKey, { title, url, summary }, set
       action: "suggest-questions-bg",
       payload: {
         promptsCacheKey,
+        persist,
         providerType,
         apiBase: settings.localApiBase,
         title,
@@ -101,13 +106,27 @@ function startSuggestedQuestionsBg(promptsCacheKey, { title, url, summary }, set
     .catch(() => {});
 }
 
-// Renders suggested prompts when the background job writes them to storage.
+// Renders suggested prompts when the background job persists them to storage
+// (covers the reopen-while-generating case).
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !currentPromptsCacheKey) return;
   const change = changes[currentPromptsCacheKey];
   if (!change) return;
   const questions = Array.isArray(change.newValue) ? change.newValue : [];
   setSuggestedQuestions(questions);
+});
+
+// Direct delivery from the background job — the only path when prompts aren't
+// persisted (history off / sensitive host), and a fast path when they are.
+chrome.runtime.onMessage.addListener((message) => {
+  if (
+    message.type === "suggested-prompts-ready" &&
+    message.promptsCacheKey === currentPromptsCacheKey
+  ) {
+    setSuggestedQuestions(
+      Array.isArray(message.questions) ? message.questions : [],
+    );
+  }
 });
 
 // Persists which "page" of the popup the user was last on (plus enough
@@ -124,6 +143,11 @@ const MAX_VIEW_STATES = 50;
 
 async function saveViewState(tabId, partial) {
   if (tabId == null) return null;
+  // Page-specific states carry a `url` (summary/answer/ask resume state);
+  // pure app-navigation states (settings/home/contact) don't. Skip persisting
+  // the former when the page isn't persistable, so private summaries/Q&A and
+  // stream-resume pointers don't linger on disk.
+  if (partial.url && !(await shouldPersist(partial.url))) return null;
   const key = viewStateKey(tabId);
   const { viewStateOrder = [], ...rest } = await chrome.storage.local.get([
     key,
@@ -329,6 +353,11 @@ async function applySettingsToUI(settings) {
   );
   if (fmtRadio) fmtRadio.checked = true;
 
+  const historyRadio = document.querySelector(
+    `input[name="saveHistory"][value="${settings.saveHistory === false ? "off" : "on"}"]`,
+  );
+  if (historyRadio) historyRadio.checked = true;
+
   if (isWebllm) {
     const supported = await checkWebGPUSupport();
     if (!supported) {
@@ -429,7 +458,7 @@ async function getPageData(tab) {
   const pageData = await extractFromActiveTab(tab);
   if (pageData) {
     currentPageData = pageData;
-    if (CACHEABLE_PAGE_TYPES.has(pageData.type)) {
+    if (CACHEABLE_PAGE_TYPES.has(pageData.type) && (await shouldPersist(tab.url))) {
       await persistContent(tab.url, pageData);
     }
   }
@@ -576,18 +605,63 @@ function setSuggestedQuestionsLoading() {
   container.appendChild(btn);
 }
 
+// Hash the URL (cyrb53) so raw URLs — which can carry session tokens or reset
+// links in their query strings — aren't left sitting in plaintext storage
+// keys. Non-cryptographic, but wide enough to avoid collisions in the small
+// bounded cache.
+function hashUrl(url) {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < url.length; i++) {
+    const ch = url.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
 function getSummaryCacheKey(url, fmt, model) {
-  return `summary:${fmt}:${model}:${url}`;
+  return `summary:${fmt}:${model}:${hashUrl(url)}`;
 }
 function getPromptsCacheKey(url, fmt, model) {
-  return `suggested-prompts:${fmt}:${model}:${url}`;
+  return `suggested-prompts:${fmt}:${model}:${hashUrl(url)}`;
 }
 // Extracted page content is independent of format/model, so it's cached
 // separately and survives model switches and popup close/reopen — avoids
 // re-scraping (a full Readability parse on generic pages) just to ask a
 // follow-up question or regenerate a summary in a different format.
 function getContentCacheKey(url) {
-  return `content:${url}`;
+  return `content:${hashUrl(url)}`;
+}
+
+// Hosts whose pages routinely contain private content (email, etc.). Their
+// summaries and Q&A are never persisted to disk, regardless of the
+// saveHistory setting — see shouldPersist.
+const SENSITIVE_HOST_PATTERNS = [
+  /(^|\.)mail\.google\.com$/,
+  /(^|\.)outlook\.(live|office|office365)\.com$/,
+  /(^|\.)mail\.proton\.me$/,
+  /(^|\.)mail\.yahoo\.com$/,
+  /(^|\.)messages\.google\.com$/,
+  /(^|\.)web\.whatsapp\.com$/,
+];
+
+function isSensitiveUrl(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return SENSITIVE_HOST_PATTERNS.some((re) => re.test(host));
+  } catch {
+    return false;
+  }
+}
+
+// Whether page-derived data for this URL may be written to disk.
+async function shouldPersist(url) {
+  if (isSensitiveUrl(url)) return false;
+  const settings = await getSettings();
+  return settings.saveHistory !== false;
 }
 
 function showSummarizingContext() {
@@ -674,7 +748,8 @@ async function streamGeneratorIntoElement(generator, element) {
 async function consumeSummaryStream(stream, { tab, cacheKey, promptsCacheKey, pageData }) {
   const text = await streamGeneratorIntoElement(stream, summaryText);
 
-  await persistSummary(cacheKey, promptsCacheKey, text);
+  const persist = await shouldPersist(tab.url);
+  if (persist) await persistSummary(cacheKey, promptsCacheKey, text);
   currentSummaryText = text;
   showSummaryContext();
   await saveViewState(tab.id, {
@@ -695,6 +770,7 @@ async function consumeSummaryStream(stream, { tab, cacheKey, promptsCacheKey, pa
       summary: text,
     },
     settings,
+    persist,
   );
   return text;
 }
@@ -737,7 +813,7 @@ async function summarizeActivePage() {
       return;
     }
     currentPageData = pageData;
-    if (CACHEABLE_PAGE_TYPES.has(pageData.type)) {
+    if (CACHEABLE_PAGE_TYPES.has(pageData.type) && (await shouldPersist(tab.url))) {
       await persistContent(tab.url, pageData);
     }
 
@@ -1041,6 +1117,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           promptsCacheKey,
           { title: tab.title || "", url: tab.url, summary: cached[cacheKey] },
           settings,
+          await shouldPersist(tab.url),
         );
       }
       return;
@@ -1120,6 +1197,44 @@ localModelRadios.forEach((radio) => {
   });
 });
 
+saveHistoryRadios.forEach((radio) => {
+  radio.addEventListener("change", async () => {
+    await saveSettings({ saveHistory: radio.value === "on" });
+  });
+});
+
+// Removes every persisted summary, suggested-prompt set, extracted page body,
+// and per-tab view state (plus their FIFO indexes) — the "clear cached data"
+// control. Preferences (the `settings` key) are intentionally left intact.
+async function clearCachedData() {
+  const all = await chrome.storage.local.get(null);
+  const keys = Object.keys(all).filter(
+    (k) =>
+      k.startsWith("summary:") ||
+      k.startsWith("suggested-prompts:") ||
+      k.startsWith("content:") ||
+      k.startsWith("popupViewState:") ||
+      k === "cacheOrder" ||
+      k === "contentCacheOrder" ||
+      k === "viewStateOrder",
+  );
+  if (keys.length > 0) await chrome.storage.local.remove(keys);
+  return keys.length;
+}
+
+clearDataBtn?.addEventListener("click", async () => {
+  clearDataBtn.disabled = true;
+  try {
+    await clearCachedData();
+    currentSummaryText = "";
+    if (clearDataStatus) clearDataStatus.textContent = "Cached data cleared.";
+  } catch (err) {
+    if (clearDataStatus) clearDataStatus.textContent = `Error: ${err.message}`;
+  } finally {
+    clearDataBtn.disabled = false;
+  }
+});
+
 backendUrlInput?.addEventListener("change", async () => {
   const val = (backendUrlInput.value || DEFAULT_LOCAL_API_BASE)
     .trim()
@@ -1192,14 +1307,18 @@ async function updateDebugLogsUI() {
 }
 
 toggleDebugLogsBtn?.addEventListener("click", async () => {
+  // Update only the label span so the leading icon isn't clobbered; fall back
+  // to the element itself if the markup ever changes.
+  const label =
+    toggleDebugLogsBtn.querySelector(".logs-toggle-label") || toggleDebugLogsBtn;
   const isHidden = debugLogsCard.classList.contains("hidden");
   if (isHidden) {
     debugLogsCard.classList.remove("hidden");
-    toggleDebugLogsBtn.textContent = "Hide Logs";
+    label.textContent = "Hide logs";
     await updateDebugLogsUI();
   } else {
     debugLogsCard.classList.add("hidden");
-    toggleDebugLogsBtn.textContent = "Show Logs";
+    label.textContent = "Show logs";
   }
 });
 

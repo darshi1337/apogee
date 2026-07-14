@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Apogee",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "AI browser assistant for articles, videos, emails and more. Runs in-browser via WebGPU and Ollama.",
   "permissions": ["activeTab", "scripting", "storage", "offscreen", "unlimitedStorage"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],

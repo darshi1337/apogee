@@ -1025,37 +1025,167 @@ body {
 }
 
 .model-progress {
-  margin: 0 16px 10px;
-  padding: 12px;
-  background: var(--btn-hover-bg);
-  border: 1px solid var(--btn-border);
-  border-radius: 10px;
+  margin: 0 16px 12px;
+  padding: 13px 14px;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(130, 127, 255, 0.14) 0%,
+      rgba(130, 127, 255, 0.05) 100%
+    );
+  border: 1px solid var(--btn-hover-border);
+  border-radius: 14px;
+  box-shadow: 0 6px 20px -12px rgba(130, 127, 255, 0.6);
 }
 
-.model-progress-label {
+.model-progress-top {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.model-progress-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  color: #827fff;
+}
+
+.model-progress-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.model-progress-title {
+  flex: 1;
+  min-width: 0;
   font-family: "Metropolis";
-  font-size: 11.5px;
-  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model-progress-percent {
+  flex-shrink: 0;
+  font-family: "Metropolis";
+  font-size: 11px;
+  font-weight: 700;
+  color: #827fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.model-progress-percent:empty {
+  display: none;
 }
 
 .model-progress-bar {
+  position: relative;
   width: 100%;
-  height: 6px;
+  height: 7px;
   background: var(--progress-track);
-  border-radius: 3px;
+  border-radius: 99px;
   overflow: hidden;
 }
 
 .model-progress-fill {
   width: 0%;
   height: 100%;
-  background: var(--brand-color-gradient);
-  border-radius: 3px;
+  background: linear-gradient(135deg, #a7b5ff 0%, #827fff 100%);
+  border-radius: 99px;
   transition: width 0.3s ease;
+}
+
+.model-progress-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 9px;
+}
+
+.logs-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: rgba(130, 127, 255, 0.12);
+  border: 1px solid var(--btn-border);
+  color: var(--text-secondary);
+  font-family: "Metropolis";
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.logs-toggle:hover {
+  background: rgba(130, 127, 255, 0.2);
+  border-color: var(--btn-hover-border);
+  color: var(--text-main);
+}
+
+.logs-toggle svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.clear-data-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+  font-family: "Metropolis";
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.clear-data-btn svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.clear-data-btn:hover {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.55);
+}
+
+.clear-data-btn:active {
+  background: rgba(239, 68, 68, 0.22);
+}
+
+.clear-data-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.clear-data-status {
+  margin-top: 7px;
+  min-height: 13px;
+  font-family: "Metropolis";
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-align: center;
 }
 
 .provider-badge {

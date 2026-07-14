@@ -18,7 +18,7 @@ stays on `127.0.0.1`; nothing is sent to the cloud.
 From a release artifact:
 
 ```bash
-pip install apogee_browser-0.1.3-py3-none-any.whl
+pip install apogee_browser-0.1.4-py3-none-any.whl
 ```
 
 Or from source:

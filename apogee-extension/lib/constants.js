@@ -56,4 +56,9 @@ export const DEFAULT_SETTINGS = {
   localApiBase: DEFAULT_LOCAL_API_BASE,
   responseFormat: "bullets",
   theme: "dark",
+  // When false, summaries/page content/Q&A are never written to disk (kept
+  // only in memory for the current popup session). Sensitive hosts (see
+  // isSensitiveUrl in popup.js) are always treated as non-persistable
+  // regardless of this setting.
+  saveHistory: true,
 };

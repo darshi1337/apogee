@@ -31,6 +31,7 @@ For power users, Apogee also supports a local Ollama backend with larger models.
 Apogee was inspired by Mozilla's discontinued **Orbit** project (read the [Review of Orbit by Mozilla](https://matduggan.com/review-of-orbit-by-mozilla/)). Orbit attempted to provide browser-based page summarization, but it relied on centralized API servers (Mistral 7B) and cached summaries on the server side using endpoints like `store_result`.
 
 Apogee fixes Orbit's architectural and privacy flaws by being fully local-first:
+
 - **Zero Server Overhead**: Instead of routing queries through remote cloud APIs, Apogee performs tokenization and inference completely on-device via WebGPU.
 - **No Data Leaks**: Apogee does not send page content or generated summaries to any external endpoint—your data never leaves your machine.
 - **Corporate Independence**: Because Apogee has no server dependencies or cloud infrastructure to pay for, it can never be shut down or sunset.
@@ -55,12 +56,12 @@ That's it. No backend installation, no terminal commands.
 
 Apogee offers two modes of operation to balance ease-of-use and raw capabilities:
 
-| WebLLM (In-Browser AI) | Ollama (Local Backend) |
-| --- | --- |
-| **Model Size**: Small, fast models (~700 MB – 2.2 GB) | **Model Size**: Larger, more capable models (4B–8B+) |
-| **Setup**: Zero setup required; automatic download on first run | **Setup**: Requires installing Ollama & Apogee Python backend |
-| **Execution**: Runs directly in the browser via WebGPU | **Execution**: Runs locally on your machine via localhost server |
-| **Offline**: Fully offline after model weights are cached | **Offline**: Fully offline, communicating over `127.0.0.1` |
+| WebLLM (In-Browser AI)                                          | Ollama (Local Backend)                                           |
+| --------------------------------------------------------------- | ---------------------------------------------------------------- |
+| **Model Size**: Small, fast models (~700 MB – 2.2 GB)           | **Model Size**: Larger, more capable models (4B–8B+)             |
+| **Setup**: Zero setup required; automatic download on first run | **Setup**: Requires installing Ollama & Apogee Python backend    |
+| **Execution**: Runs directly in the browser via WebGPU          | **Execution**: Runs locally on your machine via localhost server |
+| **Offline**: Fully offline after model weights are cached       | **Offline**: Fully offline, communicating over `127.0.0.1`       |
 
 ## Supported In-Browser Models
 
@@ -73,12 +74,12 @@ Apogee offers two modes of operation to balance ease-of-use and raw capabilities
 
 ## Supported Ollama Models
 
-| Model          | Size    | Command to pull             | Recommended For             |
-| -------------- | ------- | --------------------------- | --------------------------- |
-| Gemma 3        | ~4B     | `ollama pull gemma3:4b`     | Excellent lightweight tasks |
-| Qwen 3 8B      | ~8B     | `ollama pull qwen3:8b`      | Multi-turn chat & reasoning |
-| Mistral Latest | ~7B     | `ollama pull mistral:latest` | General language capabilities|
-| Llama 3.1 8B   | ~8B     | `ollama pull llama3.1:8b`   | General reasoning & coding  |
+| Model          | Size | Command to pull              | Recommended For               |
+| -------------- | ---- | ---------------------------- | ----------------------------- |
+| Gemma 3        | ~4B  | `ollama pull gemma3:4b`      | Excellent lightweight tasks   |
+| Qwen 3 8B      | ~8B  | `ollama pull qwen3:8b`       | Multi-turn chat & reasoning   |
+| Mistral Latest | ~7B  | `ollama pull mistral:latest` | General language capabilities |
+| Llama 3.1 8B   | ~8B  | `ollama pull llama3.1:8b`    | General reasoning & coding    |
 
 ## Browser Requirements
 
@@ -97,6 +98,7 @@ Apogee offers two modes of operation to balance ease-of-use and raw capabilities
 5. Click **Load unpacked** and select the extracted folder (containing `manifest.json`, not the ZIP file itself).
 
 #### Build from Source (Developer Option)
+
 1. Clone this repository.
 2. `cd apogee-extension && npm install && npm run build`
 3. Go to `chrome://extensions` or `dia://extensions/` and enable **Developer mode**.
@@ -108,7 +110,7 @@ Apogee offers two modes of operation to balance ease-of-use and raw capabilities
 
 You can install Apogee directly from [Mozilla Add-ons](https://addons.mozilla.org/en-US/firefox/addon/apogeeext/) or download the package from [Releases](https://github.com/darshi1337/apogee/releases).
 
-*Note: WebGPU is not yet stable in Firefox, so switch to **Local Ollama** mode in settings after installation.*
+_Note: WebGPU is not yet stable in Firefox, so switch to **Local Ollama** mode in settings after installation._
 
 ## Advanced: Local Ollama Backend
 
@@ -125,10 +127,10 @@ ollama pull gemma3:4b   # and qwen3:8b, mistral:latest, llama3.1:8b
 
 ### 2. Install and Start Apogee Backend
 
-To use the Local Ollama mode, install the Apogee backend package. Download the latest release package distribution file (`apogee_browser-0.1.3-py3-none-any.whl` or `apogee_browser-0.1.3.tar.gz`) from releases, or clone this repository and install it locally:
+To use the Local Ollama mode, install the Apogee backend package. Download the latest release package distribution file (`apogee_browser-0.1.4-py3-none-any.whl` or `apogee_browser-0.1.4.tar.gz`) from releases, or clone this repository and install it locally:
 
 ```bash
-pip install apogee_browser-0.1.3-py3-none-any.whl
+pip install apogee_browser-0.1.4-py3-none-any.whl
 apogee setup
 apogee doctor
 apogee
@@ -161,11 +163,13 @@ Update the extension backend URL to match.
 ## Performance Benchmarks
 
 ### In-Browser AI (WebGPU)
+
 - **Generation Throughput**: ~30–50 tokens/s (GPU dependent)
 - **Model Cold-load**: ~1–3 seconds (once cached in browser storage)
 - **First-run Cache Download**: ~1–3 minutes depending on network bandwidth (to download the ~700 MB – 2.2 GB model weights)
 
 ### Local Ollama Backend
+
 Measured locally on an Apple M2 (`gemma3:4b`, GPU via Metal):
 
 | Metric                              | Value                              |
@@ -177,16 +181,24 @@ Measured locally on an Apple M2 (`gemma3:4b`, GPU via Metal):
 
 ## Privacy & Permissions
 
-Privacy is the core pillar of Apogee. The following concrete measures are taken to guarantee your data remains entirely yours:
+Privacy is the core pillar of Apogee. The key guarantee is simple: **your page content and the summaries/answers generated from it are never sent to any cloud service or third party.** Inference happens on your own device (WebGPU) or your own machine (`127.0.0.1` Ollama). The details below are precise about the few network requests that do occur and what is kept on disk.
 
-- **Offline-First & Zero Cloud Latency**: 
-  - **In-Browser mode**: Every single operation (tokenization, inference, processing) happens on your local device's GPU. No external network requests are made.
-  - **Local Ollama mode**: Data travels exclusively over a local loopback (`127.0.0.1`) to your locally running Ollama service.
-- **No Telemetry, Tracking, or Analytics**: Apogee does not include Google Analytics, Mixpanel, crash-reporting SDKs, or any other forms of telemetry. No usage data or page contents are ever collected or stored outside your device.
+- **Where inference happens**:
+  - **In-Browser mode**: Tokenization and inference run entirely on your local device's GPU via WebGPU. Your page content and summaries are never transmitted anywhere.
+  - **Local Ollama mode**: Page content travels exclusively over local loopback (`127.0.0.1`) to your own Ollama service, never to the cloud.
+- **The only outbound network requests Apogee makes**:
+  - **Model weights** are downloaded once from **Hugging Face** (in-browser mode) or pulled by **Ollama** (local mode), then cached and reused offline. This transfers no page content, only the model files themselves.
+  - **YouTube transcripts**: on a YouTube page, the extractor fetches that video's caption track from YouTube/Google (the site you're already on) to feed the transcript to the model. It is restricted to genuine `youtube.com`/`googlevideo.com` hosts.
+  - That's it — there are no other external calls.
+- **No Telemetry, Tracking, or Analytics**: Apogee includes no Google Analytics, Mixpanel, crash-reporting SDKs, or telemetry of any kind. No usage data is collected.
+- **What's stored on your device (and how to control it)**:
+  - To make reopening the popup instant, Apogee caches **summaries, suggested prompts, extracted page text (for articles), and your recent questions/answers** in local extension storage (`chrome.storage.local`), never transmitted, capped in size, and keyed by a hash of the URL (so URLs with tokens aren't stored in plaintext keys).
+  - **Sensitive sites are never cached**, pages on known webmail/messaging hosts (Gmail, Outlook, Proton Mail, Yahoo Mail, Google Messages, WhatsApp Web) are always treated as ephemeral, regardless of your setting.
+  - **Settings → Privacy** lets you switch to **"Don't save (this session only)"** so nothing page-derived is written to disk, and **"Clear cached summaries & page data"** wipes all cached content on demand (your preferences are kept).
 - **Browser Permission Sandboxing**:
-  - **`activeTab` + `scripting`**: Apogee cannot read your browsing history or inspect other open tabs. It gains access to the *currently active tab* only when you click the action buttons ("Summarize" or "Ask").
-  - **`storage`**: Used strictly to store your preferences (such as selected theme, AI provider, and response format) and cached summaries on your local machine.
-- **Secure Local Storage**: Cached model weights are stored in standard browser cache structures locally and never transmitted.
+  - **`activeTab` + `scripting`**: Apogee cannot read your browsing history or inspect other open tabs. It reads the _currently active tab_ only when you click "Summarize" or "Ask".
+  - **`storage`**: Holds your preferences plus the local cache described above.
+- **Model weights** are stored in standard browser cache structures locally and never transmitted.
 
 ## Development
 

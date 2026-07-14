@@ -77,15 +77,26 @@
         </header>
 
         <div id="modelProgress" class="model-progress hidden">
-          <div class="model-progress-label">
-            <span id="modelProgressText">Downloading model...</span>
-            <div style="display: flex; align-items: center;">
-              <span id="modelProgressPercent"></span>
-              <span id="toggleDebugLogsBtn" style="font-size: 10px; color: var(--text-muted); cursor: pointer; text-decoration: underline; margin-left: 8px; font-weight: bold; opacity: 0.8; user-select: none;">Show Logs</span>
-            </div>
+          <div class="model-progress-top">
+            <span class="model-progress-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M12 3v11m0 0 4-4m-4 4-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+            </span>
+            <span id="modelProgressText" class="model-progress-title">Downloading model...</span>
+            <span id="modelProgressPercent" class="model-progress-percent"></span>
           </div>
           <div class="model-progress-bar">
             <div id="modelProgressFill" class="model-progress-fill"></div>
+          </div>
+          <div class="model-progress-footer">
+            <span id="toggleDebugLogsBtn" class="logs-toggle">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M5 6h14M5 12h14M5 18h9" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+              <span class="logs-toggle-label">Show logs</span>
+            </span>
           </div>
         </div>
 
@@ -290,6 +301,37 @@
               <input type="radio" name="theme" value="system" />
               <span>System Preference</span>
             </label>
+          </div>
+
+          <div class="settings-card">
+            <div class="card-title">
+              <img src="../assets/status.svg" alt="" />
+              <span>Privacy</span>
+            </div>
+
+            <label class="radio-option">
+              <input type="radio" name="saveHistory" value="on" checked />
+              <span>Save summaries &amp; history locally</span>
+            </label>
+
+            <label class="radio-option">
+              <input type="radio" name="saveHistory" value="off" />
+              <span>Don't save (this session only)</span>
+            </label>
+
+            <button id="clearDataBtn" class="clear-data-btn">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M10 11v6M14 11v6"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <span>Clear cached summaries &amp; page data</span>
+            </button>
+            <div id="clearDataStatus" class="clear-data-status"></div>
           </div>
 
           <div class="settings-divider"></div>
