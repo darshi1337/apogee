@@ -100,7 +100,9 @@ Apogee offers two modes of operation to balance ease-of-use and raw capabilities
 1. Clone this repository.
 2. `cd apogee-extension && npm install && npm run build`
 3. Go to `chrome://extensions` or `dia://extensions/` and enable **Developer mode**.
-4. Click **Load unpacked** and select the `apogee-extension/dist` folder.
+4. Click **Load unpacked** and select the `apogee-extension/dist/chrome` folder.
+
+   > `npm run build` produces both `dist/chrome` and `dist/firefox`. Use `dist/chrome` for Chrome/Edge/Dia and `dist/firefox` for Firefox. You can also build a single target with `npm run build:chrome` or `npm run build:firefox`.
 
 ### Firefox
 
@@ -123,12 +125,21 @@ ollama pull gemma3:4b   # and qwen3:8b, mistral:latest, llama3.1:8b
 
 ### 2. Install and Start Apogee Backend
 
-To use the Local Ollama mode, install the Apogee backend package. Download the latest release package distribution file (`apogee_browser-0.1.1-py3-none-any.whl` or `aapogee_browser-0.1.1.tar.gz`) from releases, or clone this repository and install it locally:
+To use the Local Ollama mode, install the Apogee backend package. Download the latest release package distribution file (`apogee_browser-0.1.3-py3-none-any.whl` or `apogee_browser-0.1.3.tar.gz`) from releases, or clone this repository and install it locally:
 
 ```bash
-pip install apogee_browser-0.1.1-py3-none-any.whl
+pip install apogee_browser-0.1.3-py3-none-any.whl
 apogee setup
 apogee doctor
+apogee
+```
+
+Or install from source:
+
+```bash
+cd apogee-backend
+pip install .
+apogee setup
 apogee
 ```
 
@@ -140,7 +151,7 @@ The backend CLI provides commands to set up, verify, and run the service:
 - **`apogee setup`**: Checks if Ollama is installed and automatically pulls the recommended models (`gemma3:4b`, `qwen3:8b`, `mistral:latest`, `llama3.1:8b`).
 - **`apogee doctor`**: Runs local diagnostics to verify the Ollama installation, check connection status, and list installed models.
 
-### 4. Switch the Extension
+### 3. Switch the Extension
 
 Open the extension → Settings → select **Local Ollama** → set the URL
 (defaults to `http://127.0.0.1:8000`).
@@ -185,4 +196,4 @@ npm install
 npm run dev    # watch mode — rebuilds on changes
 ```
 
-Load the `dist/` folder as an unpacked extension in your browser.
+Load the `dist/chrome` folder (or `dist/firefox`) as an unpacked extension in your browser.

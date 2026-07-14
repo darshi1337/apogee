@@ -84,12 +84,10 @@ function nextStreamId() {
   return crypto.randomUUID();
 }
 
-// Streaming jobs (WebLLM generation or local-backend fetches) are tracked
-// here independently of any popup connection. The popup closes constantly
-// (loses focus -> closes), but the job itself must keep running and
-// buffering output so a later-reopened popup (or a different tab of the
-// same popup) can pick the buffered text back up and keep receiving live
-// chunks. Keyed by streamId.
+// Streaming jobs, keyed by streamId, tracked independently of any popup
+// connection: the popup closes constantly (on focus loss), but the job keeps
+// running and buffering so a reopened popup can replay the text and keep
+// receiving chunks.
 const activeStreams = new Map();
 
 const STREAM_CLEANUP_MS = 2 * 60 * 1000;
@@ -105,9 +103,8 @@ function broadcastToStream(stream, msg) {
   }
 }
 
-// Starts a WebLLM generation job against the offscreen document. This is
-// called once, right when the job is created — NOT when a popup attaches a
-// port — so the job runs to completion even if no popup is ever listening.
+// Starts a WebLLM generation job against the offscreen document, decoupled
+// from any popup port so it runs to completion even if nothing is listening.
 function startOffscreenStream(streamId) {
   const stream = { text: "", done: false, error: null, subscribers: new Set() };
   activeStreams.set(streamId, stream);
@@ -141,6 +138,36 @@ function startOffscreenStream(streamId) {
   });
 }
 
+// The service worker isn't bound by the extension CSP `connect-src`, so
+// constrain the relay to loopback hosts and the providers' fixed endpoints —
+// otherwise a bad apiBase/endpoint could turn it into an SSRF fetch proxy.
+const ALLOWED_BACKEND_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+const ALLOWED_BACKEND_ENDPOINTS = new Set([
+  "/summarize",
+  "/ask",
+  "/pdf/url",
+  "/suggest-questions",
+]);
+
+function resolveBackendUrl(apiBase, endpoint) {
+  if (!ALLOWED_BACKEND_ENDPOINTS.has(endpoint)) {
+    throw new Error(`Disallowed backend endpoint: ${endpoint}`);
+  }
+  let url;
+  try {
+    url = new URL(`${apiBase}${endpoint}`);
+  } catch {
+    throw new Error("Invalid backend URL");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`Disallowed backend protocol: ${url.protocol}`);
+  }
+  if (!ALLOWED_BACKEND_HOSTS.has(url.hostname)) {
+    throw new Error(`Disallowed backend host: ${url.hostname}`);
+  }
+  return url.toString();
+}
+
 // Runs a streaming fetch against the local Ollama backend, buffering chunks
 // the same way as startOffscreenStream so it survives popup close/reopen.
 async function startBackendStream(streamId, { apiBase, endpoint, body }) {
@@ -163,8 +190,16 @@ async function startBackendStream(streamId, { apiBase, endpoint, body }) {
     broadcastToStream(stream, { type: "chunk", text });
   };
 
+  let requestUrl;
   try {
-    const response = await fetch(`${apiBase}${endpoint}`, {
+    requestUrl = resolveBackendUrl(apiBase, endpoint);
+  } catch (err) {
+    finish({ type: "error", error: err.message });
+    return;
+  }
+
+  try {
+    const response = await fetch(requestUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -202,6 +237,61 @@ async function startBackendStream(streamId, { apiBase, endpoint, body }) {
   }
 }
 
+// Suggested-question generation runs here (not the popup) so it survives the
+// popup closing; the popup observes the result via chrome.storage under
+// promptsCacheKey. The Set dedupes concurrent requests for the same key.
+const pendingSuggestKeys = new Set();
+
+async function runSuggestQuestionsJob(payload) {
+  const {
+    promptsCacheKey,
+    providerType,
+    apiBase,
+    title,
+    url,
+    summary,
+    model,
+  } = payload || {};
+  if (!promptsCacheKey || pendingSuggestKeys.has(promptsCacheKey)) return;
+  pendingSuggestKeys.add(promptsCacheKey);
+
+  let questions = [];
+  try {
+    if (providerType === "local") {
+      const requestUrl = resolveBackendUrl(apiBase, "/suggest-questions");
+      const res = await fetch(requestUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Apogee-Client": "1",
+        },
+        body: JSON.stringify({ title, url, summary, model }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        questions = Array.isArray(data.questions)
+          ? data.questions.slice(0, 2)
+          : [];
+      }
+    } else {
+      await ensureOffscreenDocument();
+      const resp = await chrome.runtime.sendMessage({
+        target: "offscreen",
+        action: "suggest-questions",
+        payload: { title, url, summary, model },
+      });
+      questions = resp?.questions || [];
+    }
+  } catch {
+    questions = [];
+  }
+
+  // Always write a result (even []) so the popup can distinguish "generated,
+  // none" from "still pending / not started" (a missing key).
+  await chrome.storage.local.set({ [promptsCacheKey]: questions });
+  pendingSuggestKeys.delete(promptsCacheKey);
+}
+
 // The Chrome action popup closes whenever it loses focus, which is constant.
 // Tearing down the offscreen document (and therefore the loaded MLCEngine +
 // WebGPU device) on every close forces a full model reload on the next use.
@@ -221,9 +311,10 @@ function scheduleOffscreenIdleClose() {
   cancelOffscreenIdleClose();
   offscreenIdleTimer = setTimeout(async () => {
     offscreenIdleTimer = null;
-    // Don't close while a generation job is still running — jobs now run
-    // independently of whether a popup is attached to watch them.
-    const hasActiveJob = [...activeStreams.values()].some((s) => !s.done);
+    // Don't close while a stream or suggested-question job is still running.
+    const hasActiveJob =
+      [...activeStreams.values()].some((s) => !s.done) ||
+      pendingSuggestKeys.size > 0;
     if (hasActiveJob) {
       scheduleOffscreenIdleClose();
       return;
@@ -267,11 +358,9 @@ chrome.runtime.onConnect.addListener((port) => {
     return;
   }
 
-  // The job (offscreen generation or backend fetch) was already started
-  // when the stream was created — attaching here just subscribes this
-  // popup to receive the buffered text-so-far plus any further live
-  // chunks. Closing the popup later only removes it as a subscriber; it
-  // does not stop the job.
+  // Attaching just subscribes this popup to the already-running job: replay
+  // the buffered text, then stream live chunks. Disconnecting only
+  // unsubscribes — it doesn't stop the job.
   stream.subscribers.add(popupPort);
   if (stream.text) {
     try {
@@ -295,6 +384,11 @@ chrome.runtime.onConnect.addListener((port) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.target !== "service-worker") return false;
+
+  // Only accept messages from this extension's own contexts. Web pages or
+  // other extensions carry a different sender.id (or none) and must not
+  // be able to drive backend fetches or offscreen inference.
+  if (sender.id !== chrome.runtime.id) return false;
 
   if (message.type === "offscreen-ready") {
     offscreenScriptReady = true;
@@ -344,9 +438,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             payload: message.payload,
           });
 
-          // Kick the job off now, independent of any popup port — it keeps
-          // running and buffering even if the popup that requested it never
-          // attaches or later disconnects.
+          // Start the job now, independent of any popup port.
           startOffscreenStream(streamId);
 
           sendResponse({ streamId });
@@ -355,10 +447,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case "backend-stream": {
           const streamId = nextStreamId();
-          // Fire and forget — startBackendStream runs the fetch/stream loop
-          // on its own; the streamId lets callers (re)attach to its output.
           startBackendStream(streamId, message.payload);
           sendResponse({ streamId });
+          break;
+        }
+
+        case "suggest-questions-bg": {
+          // Fire and forget — the job persists its result to storage itself.
+          runSuggestQuestionsJob(message.payload);
+          sendResponse({ started: true });
           break;
         }
 

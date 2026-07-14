@@ -27,12 +27,9 @@ function sendToServiceWorker(message) {
   });
 }
 
-// Attaches to a job (WebLLM generation or local-backend fetch) that the
-// service worker is already running for the given streamId, and yields any
-// buffered text plus further live chunks. Because the job runs independently
-// of any popup connection (see service-worker.js), this can be called fresh
-// right after starting a job, or later to resume watching one that's still
-// in flight (e.g. after the popup was closed and reopened).
+// Subscribes to the service-worker job for streamId, yielding buffered text
+// plus live chunks. Works both right after starting a job and when resuming
+// one still in flight (e.g. after the popup was closed and reopened).
 export async function* attachToStream(streamId) {
   // We use the `popup-stream-` prefix specifically so that the offscreen document does not receive this port connection directly (preventing duplicate listeners/errors).
   const port = chrome.runtime.connect({ name: `popup-stream-${streamId}` });
@@ -83,10 +80,8 @@ export async function* attachToStream(streamId) {
   }
 }
 
-// Starts a job on the service worker and immediately attaches to it.
-// Returns { streamId, stream } — the streamId lets a caller persist it and
-// later call attachToStream(streamId) again (e.g. from a freshly reopened
-// popup) to resume watching a job that kept running in the background.
+// Starts a job on the service worker and attaches to it. The returned
+// streamId can be persisted and reattached later via attachToStream.
 async function startWebllmStream(action, payload) {
   const { streamId } = await sendToServiceWorker({
     target: "service-worker",

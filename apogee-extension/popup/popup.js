@@ -72,6 +72,44 @@ let currentSummaryText = "";
 // doesn't follow tab switches while it's open.
 let activeTabId = null;
 
+// The prompts-cache key the storage listener below is currently watching for.
+// See runSuggestQuestionsJob in service-worker.js.
+let currentPromptsCacheKey = null;
+
+// Kicks off suggested-question generation as a background job; the result
+// arrives via the chrome.storage.onChanged listener below, so closing the
+// popup can't abandon it.
+function startSuggestedQuestionsBg(promptsCacheKey, { title, url, summary }, settings) {
+  currentPromptsCacheKey = promptsCacheKey;
+  const isFirefox = process.env.TARGET_BROWSER === "firefox";
+  const providerType =
+    isFirefox || settings.provider === PROVIDERS.LOCAL ? "local" : "webllm";
+  chrome.runtime
+    .sendMessage({
+      target: "service-worker",
+      action: "suggest-questions-bg",
+      payload: {
+        promptsCacheKey,
+        providerType,
+        apiBase: settings.localApiBase,
+        title,
+        url,
+        summary,
+        model: getModelForSettings(settings),
+      },
+    })
+    .catch(() => {});
+}
+
+// Renders suggested prompts when the background job writes them to storage.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || !currentPromptsCacheKey) return;
+  const change = changes[currentPromptsCacheKey];
+  if (!change) return;
+  const questions = Array.isArray(change.newValue) ? change.newValue : [];
+  setSuggestedQuestions(questions);
+});
+
 // Persists which "page" of the popup the user was last on (plus enough
 // state to resume an in-flight summarize/ask stream) so reopening the
 // popup — which fully destroys and recreates this script every time —
@@ -80,12 +118,28 @@ function viewStateKey(tabId) {
   return `popupViewState:${tabId}`;
 }
 
+// Cap retained per-tab view states (each is keyed by tabId and can hold
+// answer/summary text) with an oldest-first FIFO, like the other caches.
+const MAX_VIEW_STATES = 50;
+
 async function saveViewState(tabId, partial) {
   if (tabId == null) return null;
   const key = viewStateKey(tabId);
-  const stored = await chrome.storage.local.get(key);
-  const state = { ...(stored[key] || {}), ...partial };
-  await chrome.storage.local.set({ [key]: state });
+  const { viewStateOrder = [], ...rest } = await chrome.storage.local.get([
+    key,
+    "viewStateOrder",
+  ]);
+  const state = { ...(rest[key] || {}), ...partial };
+
+  const order = viewStateOrder.filter((k) => k !== key);
+  order.push(key);
+  const removeKeys = [];
+  while (order.length > MAX_VIEW_STATES) {
+    removeKeys.push(order.shift());
+  }
+
+  await chrome.storage.local.set({ [key]: state, viewStateOrder: order });
+  if (removeKeys.length > 0) await chrome.storage.local.remove(removeKeys);
   return state;
 }
 
@@ -290,18 +344,23 @@ async function applySettingsToUI(settings) {
 async function extractFromActiveTab(tab) {
   const tabId = tab.id;
 
-  // Inject the extractor scripts once if they aren't already present in the
-  // page's isolated world.
-  let isAlreadyInjected = false;
+  // Inject the extractors once per page, re-injecting when the injected copy
+  // is from an older extension version — otherwise a tab left open across an
+  // update keeps running the stale extractor until manually refreshed.
+  const expectedVersion = chrome.runtime.getManifest().version;
+  let injectedVersion = null;
   try {
     const checkResult = await chrome.scripting.executeScript({
       target: { tabId },
-      func: () => typeof window.extractPageContent === "function",
+      func: () =>
+        typeof window.extractPageContent === "function"
+          ? window.__apogeeExtractorVersion || "unknown"
+          : null,
     });
-    isAlreadyInjected = checkResult?.[0]?.result;
+    injectedVersion = checkResult?.[0]?.result;
   } catch {}
 
-  if (!isAlreadyInjected) {
+  if (injectedVersion !== expectedVersion) {
     await chrome.scripting.executeScript({
       target: { tabId },
       files: [
@@ -311,6 +370,14 @@ async function extractFromActiveTab(tab) {
         "/content/extractors/gmail.js",
         "/content/content.js",
       ],
+    });
+    // Stamp the version so the check above can detect staleness next time.
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (v) => {
+        window.__apogeeExtractorVersion = v;
+      },
+      args: [expectedVersion],
     });
   }
 
@@ -618,21 +685,17 @@ async function consumeSummaryStream(stream, { tab, cacheKey, promptsCacheKey, pa
   });
   setSuggestedQuestionsLoading();
 
-  let suggestedQuestions = [];
-  try {
-    const settings = await getSettings();
-    const provider = getProvider(settings);
-    suggestedQuestions = await provider.suggestQuestions({
+  // Generate prompts in the background so they persist if the popup closes.
+  const settings = await getSettings();
+  startSuggestedQuestionsBg(
+    promptsCacheKey,
+    {
       title: pageData?.title || tab.title || "",
       url: pageData?.url || tab.url,
       summary: text,
-    });
-  } catch (error) {
-    console.error(error);
-  }
-
-  await chrome.storage.local.set({ [promptsCacheKey]: suggestedQuestions });
-  setSuggestedQuestions(suggestedQuestions);
+    },
+    settings,
+  );
   return text;
 }
 
@@ -882,10 +945,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const state = await loadViewState(tab.id);
 
-    // The user was mid-summarize or mid-answer when the popup last closed.
-    // The job kept running in the background (see service-worker.js /
-    // providers.js) — reattach to it and pick the stream back up rather
-    // than losing progress or re-triggering a fresh request.
+    // Mid-summarize or mid-answer when the popup last closed: the job kept
+    // running in the background, so reattach instead of restarting it.
     if (state && state.url === tab.url && state.streamId) {
       if (state.subview === "summarizing") {
         showOnlyView("summaryView");
@@ -968,7 +1029,20 @@ document.addEventListener("DOMContentLoaded", async () => {
       currentSummaryText = cached[cacheKey];
       summaryText.innerHTML = renderMarkdown(cached[cacheKey]);
       showOnlyView("summaryView");
-      showSummaryContext(cached[promptsCacheKey] || []);
+      // A present key (even []) means prompts finished; a missing key means
+      // they were still generating when the popup closed — show loading and
+      // re-kick the job so the storage listener can fill them in.
+      if (cached[promptsCacheKey] !== undefined) {
+        showSummaryContext(cached[promptsCacheKey]);
+      } else {
+        showSummaryContext([]);
+        setSuggestedQuestionsLoading();
+        startSuggestedQuestionsBg(
+          promptsCacheKey,
+          { title: tab.title || "", url: tab.url, summary: cached[cacheKey] },
+          settings,
+        );
+      }
       return;
     }
   } catch (error) {
