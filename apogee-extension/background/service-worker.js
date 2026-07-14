@@ -47,6 +47,20 @@ async function ensureOffscreenDocument() {
     _offscreenScriptReadyResolve = resolve;
   });
 
+  // The offscreen doc (and the loaded WebLLM engine) gets torn down after
+  // OFFSCREEN_IDLE_MS of inactivity — see scheduleOffscreenIdleClose. If the
+  // popup is reopened after that, the model has to reload from scratch,
+  // which can take anywhere from a few seconds to over a minute. Without
+  // this, the popup just shows a generic "Summarizing"/"Thinking" spinner
+  // for that whole stretch with no indication a reload is happening.
+  // Piggyback on the existing model-progress UI to surface it.
+  chrome.runtime
+    .sendMessage({
+      type: "model-progress",
+      progress: { text: "Reconnecting to local model...", progress: 0 },
+    })
+    .catch(() => {});
+
   await chrome.offscreen.createDocument({
     url: "offscreen/offscreen.html",
     reasons: ["WORKERS"],
@@ -70,8 +84,123 @@ function nextStreamId() {
   return crypto.randomUUID();
 }
 
-// Active port connections from the popup, keyed by streamId
-const popupPorts = new Map();
+// Streaming jobs (WebLLM generation or local-backend fetches) are tracked
+// here independently of any popup connection. The popup closes constantly
+// (loses focus -> closes), but the job itself must keep running and
+// buffering output so a later-reopened popup (or a different tab of the
+// same popup) can pick the buffered text back up and keep receiving live
+// chunks. Keyed by streamId.
+const activeStreams = new Map();
+
+const STREAM_CLEANUP_MS = 2 * 60 * 1000;
+function scheduleStreamCleanup(streamId) {
+  setTimeout(() => activeStreams.delete(streamId), STREAM_CLEANUP_MS);
+}
+
+function broadcastToStream(stream, msg) {
+  for (const port of stream.subscribers) {
+    try {
+      port.postMessage(msg);
+    } catch {}
+  }
+}
+
+// Starts a WebLLM generation job against the offscreen document. This is
+// called once, right when the job is created — NOT when a popup attaches a
+// port — so the job runs to completion even if no popup is ever listening.
+function startOffscreenStream(streamId) {
+  const stream = { text: "", done: false, error: null, subscribers: new Set() };
+  activeStreams.set(streamId, stream);
+
+  const offscreenPort = chrome.runtime.connect({
+    name: `offscreen-stream-${streamId}`,
+  });
+
+  offscreenPort.onMessage.addListener((msg) => {
+    if (msg.type === "chunk") {
+      stream.text += msg.text || "";
+    } else if (msg.type === "done") {
+      stream.done = true;
+    } else if (msg.type === "error") {
+      stream.error = msg.error || "Unknown error during streaming";
+      stream.done = true;
+    }
+    broadcastToStream(stream, msg);
+    if (msg.type === "done" || msg.type === "error") {
+      scheduleStreamCleanup(streamId);
+    }
+  });
+
+  offscreenPort.onDisconnect.addListener(() => {
+    if (!stream.done) {
+      stream.error = "Connection to local model was lost";
+      stream.done = true;
+      broadcastToStream(stream, { type: "error", error: stream.error });
+    }
+    scheduleStreamCleanup(streamId);
+  });
+}
+
+// Runs a streaming fetch against the local Ollama backend, buffering chunks
+// the same way as startOffscreenStream so it survives popup close/reopen.
+async function startBackendStream(streamId, { apiBase, endpoint, body }) {
+  const stream = { text: "", done: false, error: null, subscribers: new Set() };
+  activeStreams.set(streamId, stream);
+
+  const finish = (msg) => {
+    if (msg.type === "done") stream.done = true;
+    if (msg.type === "error") {
+      stream.error = msg.error;
+      stream.done = true;
+    }
+    broadcastToStream(stream, msg);
+    scheduleStreamCleanup(streamId);
+  };
+
+  const emitChunk = (text) => {
+    if (!text) return;
+    stream.text += text;
+    broadcastToStream(stream, { type: "chunk", text });
+  };
+
+  try {
+    const response = await fetch(`${apiBase}${endpoint}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Apogee-Client": "1",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      finish({
+        type: "error",
+        error: errText || `Request failed: ${response.status}`,
+      });
+      return;
+    }
+
+    if (!response.body) {
+      emitChunk(await response.text());
+      finish({ type: "done" });
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      emitChunk(decoder.decode(value, { stream: true }));
+    }
+    emitChunk(decoder.decode());
+    finish({ type: "done" });
+  } catch (err) {
+    finish({ type: "error", error: err.message });
+  }
+}
 
 // The Chrome action popup closes whenever it loses focus, which is constant.
 // Tearing down the offscreen document (and therefore the loaded MLCEngine +
@@ -92,8 +221,10 @@ function scheduleOffscreenIdleClose() {
   cancelOffscreenIdleClose();
   offscreenIdleTimer = setTimeout(async () => {
     offscreenIdleTimer = null;
-    // Don't close while a stream is still active.
-    if (popupPorts.size > 0) {
+    // Don't close while a generation job is still running — jobs now run
+    // independently of whether a popup is attached to watch them.
+    const hasActiveJob = [...activeStreams.values()].some((s) => !s.done);
+    if (hasActiveJob) {
       scheduleOffscreenIdleClose();
       return;
     }
@@ -124,33 +255,41 @@ chrome.runtime.onConnect.addListener((port) => {
   const popupPort = port;
 
   const streamId = popupPort.name.replace("popup-stream-", "");
-  popupPorts.set(streamId, popupPort);
+  const stream = activeStreams.get(streamId);
 
-  const offscreenPort = chrome.runtime.connect({
-    name: `offscreen-stream-${streamId}`,
-  });
-
-  offscreenPort.onMessage.addListener((msg) => {
+  if (!stream) {
     try {
-      popupPort.postMessage(msg);
+      popupPort.postMessage({ type: "error", error: "Unknown or expired stream" });
     } catch {}
-    if (msg.type === "done" || msg.type === "error") {
-      popupPorts.delete(streamId);
-    }
-  });
-
-  offscreenPort.onDisconnect.addListener(() => {
-    popupPorts.delete(streamId);
     try {
       popupPort.disconnect();
     } catch {}
-  });
+    return;
+  }
+
+  // The job (offscreen generation or backend fetch) was already started
+  // when the stream was created — attaching here just subscribes this
+  // popup to receive the buffered text-so-far plus any further live
+  // chunks. Closing the popup later only removes it as a subscriber; it
+  // does not stop the job.
+  stream.subscribers.add(popupPort);
+  if (stream.text) {
+    try {
+      popupPort.postMessage({ type: "chunk", text: stream.text });
+    } catch {}
+  }
+  if (stream.error) {
+    try {
+      popupPort.postMessage({ type: "error", error: stream.error });
+    } catch {}
+  } else if (stream.done) {
+    try {
+      popupPort.postMessage({ type: "done" });
+    } catch {}
+  }
 
   popupPort.onDisconnect.addListener(() => {
-    popupPorts.delete(streamId);
-    try {
-      offscreenPort.disconnect();
-    } catch {}
+    stream.subscribers.delete(popupPort);
   });
 });
 
@@ -205,6 +344,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             payload: message.payload,
           });
 
+          // Kick the job off now, independent of any popup port — it keeps
+          // running and buffering even if the popup that requested it never
+          // attaches or later disconnects.
+          startOffscreenStream(streamId);
+
+          sendResponse({ streamId });
+          break;
+        }
+
+        case "backend-stream": {
+          const streamId = nextStreamId();
+          // Fire and forget — startBackendStream runs the fetch/stream loop
+          // on its own; the streamId lets callers (re)attach to its output.
+          startBackendStream(streamId, message.payload);
           sendResponse({ streamId });
           break;
         }

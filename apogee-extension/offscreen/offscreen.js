@@ -205,7 +205,7 @@ async function runSummarize(eng, prompts, pending, port, isDisconnected) {
       chunks[i],
       pending.mode,
     );
-    partials.push((await generateText(eng, prompt, 1024)).trim());
+    partials.push((await generateText(eng, prompt, 1536)).trim());
   }
 
   if (isDisconnected()) return;

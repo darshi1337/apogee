@@ -11,7 +11,7 @@ if (
   await import("./mock.js");
 }
 
-import { getProvider } from "../lib/providers.js";
+import { getProvider, attachToStream } from "../lib/providers.js";
 import {
   PROVIDERS,
   DEFAULT_SETTINGS,
@@ -67,6 +67,35 @@ const clearDebugLogsBtn = document.getElementById("clearDebugLogsBtn");
 let currentPageData = null;
 let currentSummaryText = "";
 
+// The tab the popup is currently associated with. Set once on
+// DOMContentLoaded and reused by view-state persistence below — the popup
+// doesn't follow tab switches while it's open.
+let activeTabId = null;
+
+// Persists which "page" of the popup the user was last on (plus enough
+// state to resume an in-flight summarize/ask stream) so reopening the
+// popup — which fully destroys and recreates this script every time —
+// lands back where the user left off instead of always resetting to home.
+function viewStateKey(tabId) {
+  return `popupViewState:${tabId}`;
+}
+
+async function saveViewState(tabId, partial) {
+  if (tabId == null) return null;
+  const key = viewStateKey(tabId);
+  const stored = await chrome.storage.local.get(key);
+  const state = { ...(stored[key] || {}), ...partial };
+  await chrome.storage.local.set({ [key]: state });
+  return state;
+}
+
+async function loadViewState(tabId) {
+  if (tabId == null) return null;
+  const key = viewStateKey(tabId);
+  const stored = await chrome.storage.local.get(key);
+  return stored[key] || null;
+}
+
 async function getSettings() {
   const stored = await chrome.storage.local.get("settings");
   return { ...DEFAULT_SETTINGS, ...(stored.settings || {}) };
@@ -76,15 +105,6 @@ async function saveSettings(partial) {
   const settings = { ...(await getSettings()), ...partial };
   await chrome.storage.local.set({ settings });
   return settings;
-}
-
-async function clearStoredSummaries() {
-  const stored = await chrome.storage.local.get(null);
-  const keys = Object.keys(stored).filter(
-    (k) => k.startsWith("summary:") || k.startsWith("suggested-prompts:"),
-  );
-  keys.push("cacheOrder");
-  await chrome.storage.local.remove(keys);
 }
 
 // Cap how many pages we keep cached so storage doesn't grow without bound.
@@ -106,6 +126,41 @@ async function persistSummary(cacheKey, promptsCacheKey, text) {
 
   await chrome.storage.local.set({ [cacheKey]: text, cacheOrder: order });
   if (removeKeys.length > 0) await chrome.storage.local.remove(removeKeys);
+}
+
+// Extracted content is cached separately (keyed only by URL, see
+// getContentCacheKey) so it outlives format/model switches and popup
+// close/reopen — re-asking a question or regenerating in a new format
+// shouldn't require re-scraping the page.
+async function persistContent(url, pageData) {
+  const contentKey = getContentCacheKey(url);
+  const { contentCacheOrder = [] } =
+    await chrome.storage.local.get("contentCacheOrder");
+  const order = contentCacheOrder.filter((k) => k !== contentKey);
+  order.push(contentKey);
+
+  const removeKeys = [];
+  while (order.length > MAX_CACHED_PAGES) {
+    removeKeys.push(order.shift());
+  }
+
+  await chrome.storage.local.set({
+    [contentKey]: pageData,
+    contentCacheOrder: order,
+  });
+  if (removeKeys.length > 0) await chrome.storage.local.remove(removeKeys);
+}
+
+async function getCachedContent(url) {
+  const contentKey = getContentCacheKey(url);
+  const stored = await chrome.storage.local.get(contentKey);
+  return stored[contentKey] || null;
+}
+
+function getModelForSettings(settings) {
+  const isFirefox = process.env.TARGET_BROWSER === "firefox";
+  const provider = isFirefox ? "local" : settings.provider;
+  return provider === PROVIDERS.LOCAL ? settings.localModel : settings.webllmModel;
 }
 
 // NOTE: The popup runs in a chrome-extension:// context where navigator.gpu is always undefined. The actual WebGPU context lives in the offscreen document.
@@ -159,8 +214,10 @@ function buildWebllmModelUI(selectedId) {
 
   webllmModelList.querySelectorAll('input[name="webllmModel"]').forEach((r) => {
     r.addEventListener("change", async () => {
+      // No cache wipe needed — summary/prompt cache keys are namespaced by
+      // model, so switching models just starts reading/writing a different
+      // slot instead of losing everything.
       await saveSettings({ webllmModel: r.value });
-      await clearStoredSummaries();
     });
   });
 }
@@ -262,9 +319,12 @@ async function extractFromActiveTab(tab) {
   // attribute + JSON.parse (which also mutated the host page).
   const results = await chrome.scripting.executeScript({
     target: { tabId },
-    func: () => {
+    func: async () => {
       try {
-        return window.extractPageContent();
+        // extractPageContent() is async (YouTube's extractor fetches the
+        // transcript) — await it here so a rejection is caught below
+        // instead of leaking an unhandled promise rejection past executeScript.
+        return await window.extractPageContent();
       } catch (e) {
         return { error: e?.message || String(e) };
       }
@@ -274,6 +334,39 @@ async function extractFromActiveTab(tab) {
   const pageData = results?.[0]?.result;
   if (pageData?.error) throw new Error(pageData.error);
   return pageData || null;
+}
+
+// Only the generic Readability-parsed extraction is expensive enough to be
+// worth caching/reusing. Gmail and YouTube extractors are cheap DOM reads,
+// and — unlike a fresh page load — those sites navigate between threads/
+// videos via the History API, so a cached/reused result can go stale
+// without `tab.url` necessarily changing in a way we'd catch. Always
+// re-extract live for those instead of trusting any cache.
+const CACHEABLE_PAGE_TYPES = new Set(["article", "generic"]);
+
+async function getPageData(tab) {
+  if (
+    currentPageData &&
+    currentPageData.url === tab.url &&
+    CACHEABLE_PAGE_TYPES.has(currentPageData.type)
+  ) {
+    return currentPageData;
+  }
+
+  const cached = await getCachedContent(tab.url);
+  if (cached && CACHEABLE_PAGE_TYPES.has(cached.type)) {
+    currentPageData = cached;
+    return cached;
+  }
+
+  const pageData = await extractFromActiveTab(tab);
+  if (pageData) {
+    currentPageData = pageData;
+    if (CACHEABLE_PAGE_TYPES.has(pageData.type)) {
+      await persistContent(tab.url, pageData);
+    }
+  }
+  return pageData;
 }
 
 chrome.runtime.onMessage.addListener((message) => {
@@ -416,11 +509,18 @@ function setSuggestedQuestionsLoading() {
   container.appendChild(btn);
 }
 
-function getSummaryCacheKey(url, fmt) {
-  return `summary:${fmt}:${url}`;
+function getSummaryCacheKey(url, fmt, model) {
+  return `summary:${fmt}:${model}:${url}`;
 }
-function getPromptsCacheKey(url, fmt) {
-  return `suggested-prompts:${fmt}:${url}`;
+function getPromptsCacheKey(url, fmt, model) {
+  return `suggested-prompts:${fmt}:${model}:${url}`;
+}
+// Extracted page content is independent of format/model, so it's cached
+// separately and survives model switches and popup close/reopen — avoids
+// re-scraping (a full Readability parse on generic pages) just to ask a
+// follow-up question or regenerate a summary in a different format.
+function getContentCacheKey(url) {
+  return `content:${url}`;
 }
 
 function showSummarizingContext() {
@@ -500,6 +600,42 @@ async function streamGeneratorIntoElement(generator, element) {
   return fullText;
 }
 
+// Consumes a summary stream to completion (persisting the result, showing
+// the summary view, and fetching suggested questions). Shared between a
+// freshly started summarize job and one being resumed after the popup was
+// reopened mid-stream.
+async function consumeSummaryStream(stream, { tab, cacheKey, promptsCacheKey, pageData }) {
+  const text = await streamGeneratorIntoElement(stream, summaryText);
+
+  await persistSummary(cacheKey, promptsCacheKey, text);
+  currentSummaryText = text;
+  showSummaryContext();
+  await saveViewState(tab.id, {
+    view: "summaryView",
+    subview: "summary",
+    url: tab.url,
+    streamId: null,
+  });
+  setSuggestedQuestionsLoading();
+
+  let suggestedQuestions = [];
+  try {
+    const settings = await getSettings();
+    const provider = getProvider(settings);
+    suggestedQuestions = await provider.suggestQuestions({
+      title: pageData?.title || tab.title || "",
+      url: pageData?.url || tab.url,
+      summary: text,
+    });
+  } catch (error) {
+    console.error(error);
+  }
+
+  await chrome.storage.local.set({ [promptsCacheKey]: suggestedQuestions });
+  setSuggestedQuestions(suggestedQuestions);
+  return text;
+}
+
 async function summarizeActivePage() {
   homeView.classList.add("hidden");
   summaryView.classList.remove("hidden");
@@ -511,33 +647,53 @@ async function summarizeActivePage() {
       active: true,
       currentWindow: true,
     });
+    await saveViewState(tab.id, {
+      view: "summaryView",
+      subview: "summarizing",
+      url: tab.url,
+      streamId: null,
+    });
     const settings = await getSettings();
     const provider = getProvider(settings);
+    const model = getModelForSettings(settings);
+    // Explicit "Summarize" click always re-reads the live page — unlike
+    // getPageData()'s reuse path (used by follow-up questions), we don't
+    // want a stale cached extraction here.
     const pageData = await extractFromActiveTab(tab);
 
     if (!pageData) {
       summaryText.textContent = "Could not extract page.";
       return;
     }
+    // Gmail returns empty content when no thread is open rather than
+    // dumping the inbox chrome — surface that instead of sending blank
+    // content to the model.
+    if (!pageData.isPdf && !pageData.content) {
+      summaryText.textContent =
+        "Could not find anything to summarize on this page.";
+      return;
+    }
     currentPageData = pageData;
+    if (CACHEABLE_PAGE_TYPES.has(pageData.type)) {
+      await persistContent(tab.url, pageData);
+    }
 
-    const cacheKey = getSummaryCacheKey(tab.url, settings.responseFormat);
+    const cacheKey = getSummaryCacheKey(tab.url, settings.responseFormat, model);
     const promptsCacheKey = getPromptsCacheKey(
       tab.url,
       settings.responseFormat,
+      model,
     );
-    let text;
+
+    let streamId, stream;
 
     if (pageData.isPdf) {
       setLoadingIndicator(summaryText, "Summarizing PDF");
       if (settings.provider === PROVIDERS.LOCAL) {
-        text = await streamGeneratorIntoElement(
-          provider.summarizePdf({
-            url: pageData.url,
-            mode: settings.responseFormat,
-          }),
-          summaryText,
-        );
+        ({ streamId, stream } = await provider.summarizePdf({
+          url: pageData.url,
+          mode: settings.responseFormat,
+        }));
       } else {
         if (!pageData.content) {
           const p = document.createElement("p");
@@ -548,46 +704,32 @@ async function summarizeActivePage() {
           summaryText.appendChild(p);
           return;
         }
-        text = await streamGeneratorIntoElement(
-          provider.summarize({
-            title: pageData.title,
-            url: pageData.url,
-            content: pageData.content,
-            mode: settings.responseFormat,
-          }),
-          summaryText,
-        );
-      }
-    } else {
-      text = await streamGeneratorIntoElement(
-        provider.summarize({
+        ({ streamId, stream } = await provider.summarize({
           title: pageData.title,
           url: pageData.url,
           content: pageData.content,
           mode: settings.responseFormat,
-        }),
-        summaryText,
-      );
-    }
-
-    await persistSummary(cacheKey, promptsCacheKey, text);
-    currentSummaryText = text;
-    showSummaryContext();
-    setSuggestedQuestionsLoading();
-
-    let suggestedQuestions = [];
-    try {
-      suggestedQuestions = await provider.suggestQuestions({
+        }));
+      }
+    } else {
+      ({ streamId, stream } = await provider.summarize({
         title: pageData.title,
         url: pageData.url,
-        summary: text,
-      });
-    } catch (error) {
-      console.error(error);
+        content: pageData.content,
+        mode: settings.responseFormat,
+      }));
     }
 
-    await chrome.storage.local.set({ [promptsCacheKey]: suggestedQuestions });
-    setSuggestedQuestions(suggestedQuestions);
+    await saveViewState(tab.id, {
+      view: "summaryView",
+      subview: "summarizing",
+      url: tab.url,
+      streamId,
+      cacheKey,
+      promptsCacheKey,
+    });
+
+    await consumeSummaryStream(stream, { tab, cacheKey, promptsCacheKey, pageData });
   } catch (error) {
     console.error(error);
     const p = document.createElement("p");
@@ -597,6 +739,36 @@ async function summarizeActivePage() {
     summaryText.textContent = "";
     summaryText.appendChild(p);
   }
+}
+
+// Consumes an "ask" stream to completion, rendering into answerBox and
+// persisting the final answer text so a reopened popup can show it without
+// needing to re-run the question. Shared between a freshly started ask and
+// one being resumed after the popup was closed mid-stream.
+async function consumeAnswerStream(stream, { tab, question }) {
+  let fullText = "";
+  let started = false;
+  for await (const chunk of stream) {
+    fullText += chunk;
+    if (!started && fullText.trim() === "") continue;
+    if (!started) {
+      answerBox.textContent = "";
+      started = true;
+    }
+    answerBox.textContent = fullText.trimStart();
+  }
+  if (started) answerBox.innerHTML = renderMarkdown(answerBox.textContent);
+  else answerBox.textContent = "";
+
+  await saveViewState(tab.id, {
+    view: "summaryView",
+    subview: "answer",
+    url: tab.url,
+    streamId: null,
+    question,
+    answerText: fullText,
+  });
+  return fullText;
 }
 
 async function submitQuestion(question) {
@@ -612,13 +784,18 @@ async function submitQuestion(question) {
       active: true,
       currentWindow: true,
     });
-    // Reuse the page data captured during summarize when it's for the same
-    // tab/URL; extraction (a full Readability DOM clone) is expensive and
-    // doesn't change between asking questions about the same page.
-    let pageData =
-      currentPageData && currentPageData.url === tab.url
-        ? currentPageData
-        : await extractFromActiveTab(tab);
+    await saveViewState(tab.id, {
+      view: "summaryView",
+      subview: "answer",
+      url: tab.url,
+      streamId: null,
+      question: trimmed,
+      answerText: "",
+    });
+    // Reuse cached page data (in-memory or persisted) when it's safe to —
+    // see getPageData()/CACHEABLE_PAGE_TYPES for why Gmail/YouTube are
+    // always re-extracted live instead.
+    let pageData = await getPageData(tab);
     if (!pageData) {
       answerBox.textContent = "Could not extract page.";
       return;
@@ -632,24 +809,22 @@ async function submitQuestion(question) {
       throw new Error("Could not extract enough page content to answer.");
     }
 
-    let fullText = "";
-    let started = false;
-    for await (const chunk of provider.ask({
+    const { streamId, stream } = await provider.ask({
       title: pageData.title,
       url: pageData.url,
       content,
       question: trimmed,
-    })) {
-      fullText += chunk;
-      if (!started && fullText.trim() === "") continue;
-      if (!started) {
-        answerBox.textContent = "";
-        started = true;
-      }
-      answerBox.textContent = fullText.trimStart();
-    }
-    if (started) answerBox.innerHTML = renderMarkdown(answerBox.textContent);
-    else answerBox.textContent = "";
+    });
+
+    await saveViewState(tab.id, {
+      view: "summaryView",
+      subview: "answer",
+      url: tab.url,
+      streamId,
+      question: trimmed,
+    });
+
+    await consumeAnswerStream(stream, { tab, question: trimmed });
   } catch (error) {
     console.error(error);
     answerBox.textContent = error.message;
@@ -680,6 +855,13 @@ function updateConnectionUI(connected) {
   }
 }
 
+function showOnlyView(view) {
+  homeView.classList.toggle("hidden", view !== "homeView");
+  summaryView.classList.toggle("hidden", view !== "summaryView");
+  settingsView.classList.toggle("hidden", view !== "settingsView");
+  contactView.classList.toggle("hidden", view !== "contactView");
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   const isFirefox = process.env.TARGET_BROWSER === "firefox";
   if (isFirefox && providerSettingsCard) {
@@ -696,37 +878,115 @@ document.addEventListener("DOMContentLoaded", async () => {
       active: true,
       currentWindow: true,
     });
-    const cacheKey = getSummaryCacheKey(tab.url, settings.responseFormat);
+    activeTabId = tab.id;
+
+    const state = await loadViewState(tab.id);
+
+    // The user was mid-summarize or mid-answer when the popup last closed.
+    // The job kept running in the background (see service-worker.js /
+    // providers.js) — reattach to it and pick the stream back up rather
+    // than losing progress or re-triggering a fresh request.
+    if (state && state.url === tab.url && state.streamId) {
+      if (state.subview === "summarizing") {
+        showOnlyView("summaryView");
+        showSummarizingContext();
+        setLoadingIndicator(summaryText, "Summarizing");
+        try {
+          const pageData = await getPageData(tab);
+          await consumeSummaryStream(attachToStream(state.streamId), {
+            tab,
+            cacheKey: state.cacheKey,
+            promptsCacheKey: state.promptsCacheKey,
+            pageData,
+          });
+        } catch (error) {
+          console.error(error);
+          const p = document.createElement("p");
+          p.style.color = "#d93025";
+          p.style.fontSize = "13px";
+          p.textContent = error.message;
+          summaryText.textContent = "";
+          summaryText.appendChild(p);
+        }
+        return;
+      }
+
+      if (state.subview === "answer") {
+        showOnlyView("summaryView");
+        showAnswerContext(state.question || "");
+        try {
+          await consumeAnswerStream(attachToStream(state.streamId), {
+            tab,
+            question: state.question || "",
+          });
+        } catch (error) {
+          console.error(error);
+          answerBox.textContent = error.message;
+        }
+        return;
+      }
+    }
+
+    // No in-flight job — restore whichever static page the user was last on.
+    if (state && state.url === tab.url) {
+      if (state.view === "settingsView") {
+        showOnlyView("settingsView");
+        return;
+      }
+      if (state.view === "contactView") {
+        showOnlyView("contactView");
+        return;
+      }
+      if (state.view === "summaryView") {
+        if (state.subview === "answer" && state.question) {
+          showOnlyView("summaryView");
+          showAnswerContext(state.question);
+          answerBox.innerHTML = renderMarkdown(state.answerText || "");
+          return;
+        }
+        if (state.subview === "ask") {
+          showOnlyView("summaryView");
+          showAskContext();
+          questionInput.focus();
+          return;
+        }
+        // subview === "summary" (or unknown) falls through to the cache
+        // lookup below, which is the source of truth for summary text.
+      }
+    }
+
+    const model = getModelForSettings(settings);
+    const cacheKey = getSummaryCacheKey(tab.url, settings.responseFormat, model);
     const promptsCacheKey = getPromptsCacheKey(
       tab.url,
       settings.responseFormat,
+      model,
     );
     const cached = await chrome.storage.local.get([cacheKey, promptsCacheKey]);
 
     if (cached[cacheKey]) {
       currentSummaryText = cached[cacheKey];
       summaryText.innerHTML = renderMarkdown(cached[cacheKey]);
-      homeView.classList.add("hidden");
-      summaryView.classList.remove("hidden");
+      showOnlyView("summaryView");
       showSummaryContext(cached[promptsCacheKey] || []);
       return;
     }
   } catch (error) {
     console.error(error);
   }
-  showSummaryContext();
+  showOnlyView("homeView");
 });
 
 summarizeBtn?.addEventListener("click", () => summarizeActivePage());
 
 settingsBtn?.addEventListener("click", () => {
-  homeView.classList.add("hidden");
-  settingsView.classList.remove("hidden");
+  showOnlyView("settingsView");
+  saveViewState(activeTabId, { view: "settingsView" });
 });
 
 settingsBtn2?.addEventListener("click", () => {
-  summaryView.classList.add("hidden");
-  settingsView.classList.remove("hidden");
+  showOnlyView("settingsView");
+  saveViewState(activeTabId, { view: "settingsView" });
 });
 
 closeBtn?.addEventListener("click", () => window.close());
@@ -734,11 +994,17 @@ closeBtn2?.addEventListener("click", () => window.close());
 closeBtn3?.addEventListener("click", () => window.close());
 closeBtn4?.addEventListener("click", () => window.close());
 
-document.getElementById("askBtn")?.addEventListener("click", () => {
-  homeView.classList.add("hidden");
-  summaryView.classList.remove("hidden");
+document.getElementById("askBtn")?.addEventListener("click", async () => {
+  showOnlyView("summaryView");
   showAskContext();
   questionInput.focus();
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  await saveViewState(tab.id, {
+    view: "summaryView",
+    subview: "ask",
+    url: tab.url,
+    streamId: null,
+  });
 });
 
 sendBtn?.addEventListener("click", () => submitQuestion(questionInput.value));
@@ -749,11 +1015,14 @@ questionInput?.addEventListener("keydown", (e) => {
   }
 });
 
+// Provider/format/model/backend changes no longer wipe the cache: provider
+// switches already land on a distinct model id (webllmModel vs localModel
+// namespaces don't collide), and format/model are baked into the cache key
+// itself — see getSummaryCacheKey.
 providerRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
     const settings = await saveSettings({ provider: radio.value });
     await applySettingsToUI(settings);
-    await clearStoredSummaries();
     updateConnectionUI(await checkConnection());
   });
 });
@@ -761,7 +1030,6 @@ providerRadios.forEach((radio) => {
 formatRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
     await saveSettings({ responseFormat: radio.value });
-    await clearStoredSummaries();
   });
 });
 
@@ -775,7 +1043,6 @@ themeRadios.forEach((radio) => {
 localModelRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
     await saveSettings({ localModel: radio.value });
-    await clearStoredSummaries();
   });
 });
 
@@ -785,7 +1052,6 @@ backendUrlInput?.addEventListener("change", async () => {
     .replace(/\/+$/, "");
   const settings = await saveSettings({ localApiBase: val });
   await applySettingsToUI(settings);
-  await clearStoredSummaries();
   updateConnectionUI(await checkConnection());
 });
 
@@ -800,8 +1066,8 @@ togglePromptsBtn?.addEventListener("click", () => {
 });
 
 getInTouchBtn?.addEventListener("click", () => {
-  settingsView.classList.add("hidden");
-  contactView.classList.remove("hidden");
+  showOnlyView("contactView");
+  saveViewState(activeTabId, { view: "contactView" });
 });
 
 document.getElementById("contributeBtn")?.addEventListener("click", () => {
@@ -815,14 +1081,13 @@ document.getElementById("featureBtn")?.addEventListener("click", () => {
 });
 
 settingsBackBtn?.addEventListener("click", () => {
-  settingsView.classList.add("hidden");
-  contactView.classList.add("hidden");
-  homeView.classList.remove("hidden");
+  showOnlyView("homeView");
+  saveViewState(activeTabId, { view: "homeView" });
 });
 
 contactBackBtn?.addEventListener("click", () => {
-  contactView.classList.add("hidden");
-  settingsView.classList.remove("hidden");
+  showOnlyView("settingsView");
+  saveViewState(activeTabId, { view: "settingsView" });
 });
 
 document

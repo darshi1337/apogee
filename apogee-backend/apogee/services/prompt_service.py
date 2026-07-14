@@ -6,7 +6,7 @@ SUMMARY_STYLES = {
     "bullets": (
         "Return only the final answer.\n\n"
         "Rules:\n"
-        "- Output 5-13 concise bullet points.\n"
+        "- Output 8-14 concise bullet points.\n"
         "- Each bullet must be on its own line.\n"
         "- Do not write any introduction.\n"
         "- Do not write any heading.\n"
@@ -37,7 +37,7 @@ SUMMARY_STYLES = {
     "paragraphs": (
         "Return only the final answer.\n\n"
         "Rules:\n"
-        "- Output one concise paragraph containing 7-10 sentences.\n"
+        "- Output one concise paragraph containing 10-15 sentences.\n"
         "- Do not use bullets.\n"
         "- Do not use numbering.\n"
         "- Do not add a heading.\n"

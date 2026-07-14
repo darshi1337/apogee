@@ -27,19 +27,13 @@ function sendToServiceWorker(message) {
   });
 }
 
-async function* webllmStreamTokens(action, payload) {
-  // Send the initial request, get a stream ID back
-  const { streamId } = await sendToServiceWorker({
-    target: "service-worker",
-    action,
-    payload,
-  });
-
-  if (!streamId) {
-    throw new Error("No streamId returned from service worker");
-  }
-
-  // Poll for streamed chunks via a port-based connection.
+// Attaches to a job (WebLLM generation or local-backend fetch) that the
+// service worker is already running for the given streamId, and yields any
+// buffered text plus further live chunks. Because the job runs independently
+// of any popup connection (see service-worker.js), this can be called fresh
+// right after starting a job, or later to resume watching one that's still
+// in flight (e.g. after the popup was closed and reopened).
+export async function* attachToStream(streamId) {
   // We use the `popup-stream-` prefix specifically so that the offscreen document does not receive this port connection directly (preventing duplicate listeners/errors).
   const port = chrome.runtime.connect({ name: `popup-stream-${streamId}` });
   const queue = [];
@@ -89,16 +83,44 @@ async function* webllmStreamTokens(action, payload) {
   }
 }
 
+// Starts a job on the service worker and immediately attaches to it.
+// Returns { streamId, stream } — the streamId lets a caller persist it and
+// later call attachToStream(streamId) again (e.g. from a freshly reopened
+// popup) to resume watching a job that kept running in the background.
+async function startWebllmStream(action, payload) {
+  const { streamId } = await sendToServiceWorker({
+    target: "service-worker",
+    action,
+    payload,
+  });
+  if (!streamId) {
+    throw new Error("No streamId returned from service worker");
+  }
+  return { streamId, stream: attachToStream(streamId) };
+}
+
+async function startBackendStream(apiBase, endpoint, body) {
+  const { streamId } = await sendToServiceWorker({
+    target: "service-worker",
+    action: "backend-stream",
+    payload: { apiBase, endpoint, body },
+  });
+  if (!streamId) {
+    throw new Error("No streamId returned from service worker");
+  }
+  return { streamId, stream: attachToStream(streamId) };
+}
+
 class WebLLMProvider {
   constructor(model) {
     this.model = model;
   }
 
   /**
-   * @returns {AsyncGenerator<string>} token stream
+   * @returns {Promise<{streamId: string, stream: AsyncGenerator<string>}>}
    */
-  async *summarize({ title, url, content, mode }) {
-    yield* webllmStreamTokens("summarize", {
+  summarize({ title, url, content, mode }) {
+    return startWebllmStream("summarize", {
       title,
       url,
       content,
@@ -107,8 +129,8 @@ class WebLLMProvider {
     });
   }
 
-  async *ask({ title, url, content, question }) {
-    yield* webllmStreamTokens("ask", {
+  ask({ title, url, content, question }) {
+    return startWebllmStream("ask", {
       title,
       url,
       content,
@@ -126,7 +148,7 @@ class WebLLMProvider {
     return response?.questions || [];
   }
 
-  async *summarizePdf({ url, mode }) {
+  summarizePdf({ url, mode }) {
     throw new Error(
       "PDF summarization via WebLLM should use client-side extraction. " +
         "Call summarize() with the extracted text instead.",
@@ -148,40 +170,24 @@ class LocalProvider {
     this.apiBase = (apiBase || DEFAULT_LOCAL_API_BASE).replace(/\/+$/, "");
   }
 
-  async *summarize({ title, url, content, mode }) {
-    const response = await fetch(`${this.apiBase}/summarize`, {
-      method: "POST",
-      headers: LOCAL_BACKEND_HEADERS,
-      body: JSON.stringify({ title, url, content, mode, model: this.model }),
+  summarize({ title, url, content, mode }) {
+    return startBackendStream(this.apiBase, "/summarize", {
+      title,
+      url,
+      content,
+      mode,
+      model: this.model,
     });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(errText || `Request failed: ${response.status}`);
-    }
-
-    yield* this._readStream(response);
   }
 
-  async *ask({ title, url, content, question }) {
-    const response = await fetch(`${this.apiBase}/ask`, {
-      method: "POST",
-      headers: LOCAL_BACKEND_HEADERS,
-      body: JSON.stringify({
-        title,
-        url,
-        content,
-        question,
-        model: this.model,
-      }),
+  ask({ title, url, content, question }) {
+    return startBackendStream(this.apiBase, "/ask", {
+      title,
+      url,
+      content,
+      question,
+      model: this.model,
     });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(errText || `Ask request failed: ${response.status}`);
-    }
-
-    yield* this._readStream(response);
   }
 
   async suggestQuestions({ title, url, summary }) {
@@ -200,19 +206,12 @@ class LocalProvider {
     return Array.isArray(data.questions) ? data.questions.slice(0, 2) : [];
   }
 
-  async *summarizePdf({ url, mode }) {
-    const response = await fetch(`${this.apiBase}/pdf/url`, {
-      method: "POST",
-      headers: LOCAL_BACKEND_HEADERS,
-      body: JSON.stringify({ url, mode, model: this.model }),
+  summarizePdf({ url, mode }) {
+    return startBackendStream(this.apiBase, "/pdf/url", {
+      url,
+      mode,
+      model: this.model,
     });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(errText || `PDF request failed: ${response.status}`);
-    }
-
-    yield* this._readStream(response);
   }
 
   async checkReady() {
@@ -224,21 +223,6 @@ class LocalProvider {
     } catch {
       return { ready: false };
     }
-  }
-
-  async *_readStream(response) {
-    if (!response.body) {
-      yield await response.text();
-      return;
-    }
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      yield decoder.decode(value, { stream: true });
-    }
-    yield decoder.decode();
   }
 }
 
