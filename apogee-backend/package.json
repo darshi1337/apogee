@@ -1,0 +1,24 @@
+{
+  "name": "apogee-browser",
+  "version": "0.1.4",
+  "description": "Local-first browser assistant powered by Ollama",
+  "type": "module",
+  "bin": {
+    "apogee": "./bin/cli.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "prestart": "fuser -k 8000/tcp || true",
+    "start": "node bin/cli.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "ollama": "^0.6.3",
+    "pdfjs-dist": "^6.1.200",
+    "zod": "^4.4.3"
+  }
+}
