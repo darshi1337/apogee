@@ -21,6 +21,9 @@ function copyStaticPlugin(targetBrowser) {
         if (manifest.background) {
           delete manifest.background.service_worker;
         }
+        // Chrome-only key (Firefox has no offscreen API, so no floor to
+        // declare); browser_specific_settings.gecko already covers Firefox.
+        delete manifest.minimum_chrome_version;
       } else {
         // Chrome MV3 doesn't support background.scripts
         if (manifest.background) {
@@ -66,7 +69,7 @@ export default defineConfig(() => {
     },
     build: {
       outDir: `dist/${targetBrowser}`,
-      emptyDirFirst: true,
+      emptyOutDir: true,
       minify: false,
       // Default esbuild target (~Chrome 87/Firefox 78) predates top-level
       // await. The extension already requires MV3 offscreen (Chrome 109+)
@@ -79,8 +82,11 @@ export default defineConfig(() => {
           entryFileNames: "[name].js",
           chunkFileNames: "chunks/[name]-[hash].js",
           assetFileNames: (assetInfo) => {
+            // assetInfo.name is deprecated in Rollup 4 in favor of the
+            // (possibly multi-entry) .names array.
+            const name = assetInfo.names?.[0] ?? assetInfo.name;
             // Keep CSS alongside its entry
-            if (assetInfo.name?.endsWith(".css")) {
+            if (name?.endsWith(".css")) {
               return "[name][extname]";
             }
             return "assets/[name]-[hash][extname]";

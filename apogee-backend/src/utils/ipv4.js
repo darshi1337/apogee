@@ -21,11 +21,11 @@ const PRIVATE_NETWORKS = [
 
 // Specific addresses carved back out of the private ranges above (e.g.
 // 192.0.0.9/32 and 192.0.0.10/32 sit inside 192.0.0.0/24 but are globally
-// routable IANA/AMT anycast addresses) — same exceptions cpython applies.
+// routable IANA/AMT anycast addresses, same exceptions cpython applies.
 const PRIVATE_NETWORK_EXCEPTIONS = ["192.0.0.9/32", "192.0.0.10/32"];
 
 // Carrier-grade NAT (RFC 6598): cpython treats this range as neither
-// private nor global — `is_global` is False here even though it's not in
+// private nor global, `is_global` is False here even though it's not in
 // PRIVATE_NETWORKS above, so it needs its own exclusion.
 const SHARED_ADDRESS_SPACE = "100.64.0.0/10";
 

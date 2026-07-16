@@ -1,11 +1,11 @@
-// Provider abstraction — routes inference requests to either WebLLM (in-browser via offscreen document) or Local Ollama backend.
+// Provider abstraction, routes inference requests to either WebLLM (in-browser via offscreen document) or Local Ollama backend.
 
 import { PROVIDERS, DEFAULT_LOCAL_API_BASE } from "./constants.js";
 
 // The backend rejects POSTs without this header (see apogee.app on the
 // server). A custom header forces a CORS preflight, which a plain <form>
 // post or a non-preflighted "simple" fetch from an arbitrary webpage can't
-// trigger — closing off blind CSRF-style requests to the local backend.
+// trigger, closing off blind CSRF-style requests to the local backend.
 const LOCAL_BACKEND_HEADERS = {
   "Content-Type": "application/json",
   "X-Apogee-Client": "1",
@@ -54,7 +54,17 @@ export async function* attachToStream(streamId) {
   });
 
   port.onDisconnect.addListener(() => {
-    done = true;
+    // A disconnect that arrives *after* a "done"/"error" message is the
+    // normal end of a stream (the sender closes the port once finished).
+    // A disconnect that arrives before either, e.g. the service worker
+    // was evicted mid-stream (MV3 kills it after ~30s of inactivity) or
+    // the underlying job crashed without reporting, must NOT be treated
+    // as success, or whatever partial text arrived so far gets silently
+    // persisted and cached as the "complete" summary/answer.
+    if (!done) {
+      error = "Connection to the model was lost before the response finished.";
+      done = true;
+    }
     if (resolvePromise) {
       resolvePromise();
       resolvePromise = null;

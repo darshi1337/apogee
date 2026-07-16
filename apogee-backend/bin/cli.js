@@ -76,16 +76,18 @@ function doctor() {
 }
 
 function parsePort(raw) {
-  if (raw.trim() === "") return null;
-  const n = Number(raw);
-  return Number.isInteger(n) ? n : null;
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const n = Number(trimmed);
+  if (!Number.isInteger(n) || n < 1 || n > 65535) return null;
+  return n;
 }
 
 async function runServer() {
   const host = process.env.APOGEE_HOST ?? "127.0.0.1";
   let port = parsePort(process.env.APOGEE_PORT ?? "8000");
   if (port === null) {
-    console.log("Invalid APOGEE_PORT; falling back to 8000.");
+    console.log("Invalid APOGEE_PORT (must be an integer 1-65535); falling back to 8000.");
     port = 8000;
   }
 
@@ -95,7 +97,19 @@ async function runServer() {
   }
 
   const { default: app } = await import("../src/app.js");
-  app.listen(port, host);
+  const server = app.listen(port, host);
+  server.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(
+        `\nPort ${port} is already in use (another Apogee instance, or a different app).\n` +
+          `Free it, or start on another port:  APOGEE_PORT=8001 apogee\n` +
+          `If you use a different port, update the extension's backend URL to match.`,
+      );
+    } else {
+      console.error(`\nFailed to start Apogee: ${err.message}`);
+    }
+    process.exit(1);
+  });
 }
 
 async function main() {
@@ -111,4 +125,7 @@ async function main() {
   await runServer();
 }
 
-main();
+main().catch((err) => {
+  console.error(`\nApogee failed to start: ${err.message}`);
+  process.exit(1);
+});

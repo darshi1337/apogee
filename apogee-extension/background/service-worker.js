@@ -1,4 +1,4 @@
-// Service Worker — central message router for the Apogee extension.
+// Service Worker, central message router for the Apogee extension.
 // Routes requests from the popup to either the offscreen document (WebLLM) or lets the popup handle local backend calls directly.
 // Firefox does not support chrome.offscreen or chrome.runtime.getContexts.
 // WebLLM (which requires an offscreen document for WebGPU) is only available on Chrome/Edge. Firefox users must use the Local Ollama provider.
@@ -17,7 +17,43 @@ let offscreenScriptReadyPromise = new Promise((resolve) => {
   _offscreenScriptReadyResolve = resolve;
 });
 
-async function ensureOffscreenDocument() {
+// Memoizes the in-flight creation so concurrent callers (e.g. the popup's
+// "check-webgpu" probe on load racing a "summarize" click) await the same
+// promise instead of each calling chrome.offscreen.createDocument(), a
+// second concurrent call throws "Only a single offscreen document may be
+// created" since Chrome only allows one at a time.
+let ensureOffscreenPromise = null;
+
+function ensureOffscreenDocument() {
+  if (!ensureOffscreenPromise) {
+    ensureOffscreenPromise = ensureOffscreenDocumentOnce().finally(() => {
+      ensureOffscreenPromise = null;
+    });
+  }
+  return ensureOffscreenPromise;
+}
+
+// Whether the offscreen document currently exists, checked directly via
+// chrome.runtime.getContexts rather than trusted from the in-memory
+// offscreenReady flag alone: that flag resets to false on every restart of
+// this worker even though the offscreen document, which has its own
+// lifecycle independent of this worker, see OFFSCREEN_IDLE_ALARM above,
+// may well still be alive.
+async function offscreenDocumentExists() {
+  if (!hasOffscreenAPI) return false;
+  if (typeof chrome.runtime.getContexts === "function") {
+    const existingContexts = await chrome.runtime.getContexts({
+      contextTypes: ["OFFSCREEN_DOCUMENT"],
+      documentUrls: [chrome.runtime.getURL("offscreen/offscreen.html")],
+    });
+    return existingContexts.length > 0;
+  }
+  // No getContexts (Chrome 109-115), fall back to the in-memory flag, the
+  // best information available without it.
+  return offscreenReady;
+}
+
+async function ensureOffscreenDocumentOnce() {
   if (!hasOffscreenAPI) {
     throw new Error(
       "In-browser AI (WebLLM) is not supported in Firefox. " +
@@ -25,19 +61,9 @@ async function ensureOffscreenDocument() {
     );
   }
 
-  // Check if the offscreen document already exists (Chrome-only API)
-  if (typeof chrome.runtime.getContexts === "function") {
-    const existingContexts = await chrome.runtime.getContexts({
-      contextTypes: ["OFFSCREEN_DOCUMENT"],
-      documentUrls: [chrome.runtime.getURL("offscreen/offscreen.html")],
-    });
-
-    if (existingContexts.length > 0) {
-      offscreenReady = true;
-      offscreenScriptReady = true;
-      return;
-    }
-  } else if (offscreenReady) {
+  if (await offscreenDocumentExists()) {
+    offscreenReady = true;
+    offscreenScriptReady = true;
     return;
   }
 
@@ -48,7 +74,7 @@ async function ensureOffscreenDocument() {
   });
 
   // The offscreen doc (and the loaded WebLLM engine) gets torn down after
-  // OFFSCREEN_IDLE_MS of inactivity — see scheduleOffscreenIdleClose. If the
+  // OFFSCREEN_IDLE_MS of inactivity, see scheduleOffscreenIdleClose. If the
   // popup is reopened after that, the model has to reload from scratch,
   // which can take anywhere from a few seconds to over a minute. Without
   // this, the popup just shows a generic "Summarizing"/"Thinking" spinner
@@ -80,19 +106,37 @@ async function ensureOffscreenDocument() {
 
 // Unique stream IDs. A plain counter resets whenever the MV3 service worker is
 // evicted, so IDs could collide across worker restarts; use a UUID instead.
-function nextStreamId() {
-  return crypto.randomUUID();
+// Prefixed by kind so a popup-stream connection can be routed without
+// needing any in-memory bookkeeping to survive a worker restart.
+function nextStreamId(kind) {
+  return `${kind}-${crypto.randomUUID()}`;
 }
 
-// Streaming jobs, keyed by streamId, tracked independently of any popup
-// connection: the popup closes constantly (on focus loss), but the job keeps
-// running and buffering so a reopened popup can replay the text and keep
-// receiving chunks.
+// Streaming jobs for the Local Ollama backend, keyed by streamId, tracked
+// independently of any popup connection: the popup closes constantly (on
+// focus loss), but the job keeps running and buffering so a reopened popup
+// can replay the text and keep receiving chunks.
+//
+// WebLLM jobs are NOT tracked here, that buffer lives in the offscreen
+// document instead (see offscreen.js), because this service worker gets
+// evicted after ~30s of inactivity (e.g. during a long model download with
+// sparse progress ticks), which would silently wipe an in-memory Map here.
+// The offscreen document has no such automatic eviction. Streams handled
+// here are relayed live to/from the offscreen document instead of buffered.
 const activeStreams = new Map();
 
-const STREAM_CLEANUP_MS = 2 * 60 * 1000;
+// chrome.alarms, not setTimeout, timers don't survive this worker's own
+// eviction (~30s of inactivity kills it, silently dropping any pending
+// setTimeout). Alarms are persisted by the browser itself and wake the
+// worker back up specifically to fire, so cleanup still happens even after
+// a mid-stream eviction/restart. See OFFSCREEN_IDLE_ALARM below for the
+// same fix applied to the offscreen-document idle-close timer.
+const STREAM_CLEANUP_PREFIX = "stream-cleanup:";
+const STREAM_CLEANUP_MINUTES = 2;
 function scheduleStreamCleanup(streamId) {
-  setTimeout(() => activeStreams.delete(streamId), STREAM_CLEANUP_MS);
+  chrome.alarms.create(`${STREAM_CLEANUP_PREFIX}${streamId}`, {
+    delayInMinutes: STREAM_CLEANUP_MINUTES,
+  });
 }
 
 function broadcastToStream(stream, msg) {
@@ -103,43 +147,48 @@ function broadcastToStream(stream, msg) {
   }
 }
 
-// Starts a WebLLM generation job against the offscreen document, decoupled
-// from any popup port so it runs to completion even if nothing is listening.
-function startOffscreenStream(streamId) {
-  const stream = { text: "", done: false, error: null, subscribers: new Set() };
-  activeStreams.set(streamId, stream);
-
+// Relays a popup's stream port to the offscreen document's buffered job of
+// the same streamId. This never starts or restarts generation, it only
+// subscribes, replaying buffered text plus any live chunks. Used both for a
+// freshly started job and for reattaching after the popup (or this worker)
+// was torn down and recreated mid-stream.
+function relayToOffscreenStream(popupPort, streamId) {
   const offscreenPort = chrome.runtime.connect({
     name: `offscreen-stream-${streamId}`,
   });
 
+  let terminal = false;
+
   offscreenPort.onMessage.addListener((msg) => {
-    if (msg.type === "chunk") {
-      stream.text += msg.text || "";
-    } else if (msg.type === "done") {
-      stream.done = true;
-    } else if (msg.type === "error") {
-      stream.error = msg.error || "Unknown error during streaming";
-      stream.done = true;
-    }
-    broadcastToStream(stream, msg);
-    if (msg.type === "done" || msg.type === "error") {
-      scheduleStreamCleanup(streamId);
-    }
+    if (msg.type === "done" || msg.type === "error") terminal = true;
+    try {
+      popupPort.postMessage(msg);
+    } catch {}
   });
 
   offscreenPort.onDisconnect.addListener(() => {
-    if (!stream.done) {
-      stream.error = "Connection to local model was lost";
-      stream.done = true;
-      broadcastToStream(stream, { type: "error", error: stream.error });
+    if (!terminal) {
+      try {
+        popupPort.postMessage({
+          type: "error",
+          error: "Connection to local model was lost",
+        });
+      } catch {}
     }
-    scheduleStreamCleanup(streamId);
+    try {
+      popupPort.disconnect();
+    } catch {}
+  });
+
+  popupPort.onDisconnect.addListener(() => {
+    try {
+      offscreenPort.disconnect();
+    } catch {}
   });
 }
 
 // The service worker isn't bound by the extension CSP `connect-src`, so
-// constrain the relay to loopback hosts and the providers' fixed endpoints —
+// constrain the relay to loopback hosts and the providers' fixed endpoints,
 // otherwise a bad apiBase/endpoint could turn it into an SSRF fetch proxy.
 const ALLOWED_BACKEND_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const ALLOWED_BACKEND_ENDPOINTS = new Set([
@@ -169,7 +218,8 @@ function resolveBackendUrl(apiBase, endpoint) {
 }
 
 // Runs a streaming fetch against the local Ollama backend, buffering chunks
-// the same way as startOffscreenStream so it survives popup close/reopen.
+// so it survives popup close/reopen (mirrors the WebLLM buffering, which now
+// lives in the offscreen document, see the activeStreams comment above).
 async function startBackendStream(streamId, { apiBase, endpoint, body }) {
   const stream = { text: "", done: false, error: null, subscribers: new Set() };
   activeStreams.set(streamId, stream);
@@ -288,7 +338,7 @@ async function runSuggestQuestionsJob(payload) {
   }
 
   // Persist only when allowed (write even [] so the popup can distinguish
-  // "generated, none" from "still pending" — a missing key). When history is
+  // "generated, none" from "still pending", a missing key). When history is
   // off or the host is sensitive, keep it ephemeral and rely on the message
   // below for delivery.
   if (persist) {
@@ -296,7 +346,11 @@ async function runSuggestQuestionsJob(payload) {
   }
   // Direct delivery to any open popup (the only path when not persisted).
   chrome.runtime
-    .sendMessage({ type: "suggested-prompts-ready", promptsCacheKey, questions })
+    .sendMessage({
+      type: "suggested-prompts-ready",
+      promptsCacheKey,
+      questions,
+    })
     .catch(() => {});
   pendingSuggestKeys.delete(promptsCacheKey);
 }
@@ -306,43 +360,74 @@ async function runSuggestQuestionsJob(payload) {
 // WebGPU device) on every close forces a full model reload on the next use.
 // Instead we keep it alive and only close after a period of inactivity, so
 // consecutive interactions reuse the already-loaded model.
-const OFFSCREEN_IDLE_MS = 5 * 60 * 1000;
-let offscreenIdleTimer = null;
+//
+// This uses chrome.alarms rather than setTimeout: a plain setTimeout here
+// used to just vanish whenever this worker got evicted for inactivity
+// (which can happen well before the 5-minute idle window elapses, e.g.
+// during a long model download with sparse progress ticks), the offscreen
+// document, and the GBs of GPU/RAM its loaded model can hold, would then
+// never get closed until the browser itself restarted. An alarm is
+// persisted by the browser and wakes this worker back up specifically to
+// fire it, so the close still happens on schedule even across an eviction.
+const OFFSCREEN_IDLE_ALARM = "offscreen-idle-close";
+const OFFSCREEN_IDLE_MINUTES = 5;
 
 function cancelOffscreenIdleClose() {
-  if (offscreenIdleTimer !== null) {
-    clearTimeout(offscreenIdleTimer);
-    offscreenIdleTimer = null;
-  }
+  chrome.alarms.clear(OFFSCREEN_IDLE_ALARM);
 }
 
 function scheduleOffscreenIdleClose() {
-  cancelOffscreenIdleClose();
-  offscreenIdleTimer = setTimeout(async () => {
-    offscreenIdleTimer = null;
-    // Don't close while a stream or suggested-question job is still running.
-    const hasActiveJob =
-      [...activeStreams.values()].some((s) => !s.done) ||
-      pendingSuggestKeys.size > 0;
-    if (hasActiveJob) {
-      scheduleOffscreenIdleClose();
-      return;
-    }
-    try {
-      if (typeof chrome !== "undefined" && chrome.offscreen) {
-        await chrome.offscreen.closeDocument();
-      }
-    } catch (err) {
-      // ignore if already closed
-    }
-    offscreenReady = false;
-    offscreenScriptReady = false;
-  }, OFFSCREEN_IDLE_MS);
+  chrome.alarms.create(OFFSCREEN_IDLE_ALARM, {
+    delayInMinutes: OFFSCREEN_IDLE_MINUTES,
+  });
 }
+
+// The actual close, run from the alarms listener below. Split out from
+// scheduling so a still-busy offscreen doc can just reschedule the alarm
+// instead of recursing through a setTimeout callback.
+async function closeOffscreenIfIdle() {
+  // Don't close while a suggested-question job or a WebLLM stream (tracked
+  // in the offscreen document itself, not here) is still running.
+  let hasActiveJob = pendingSuggestKeys.size > 0;
+  if (!hasActiveJob && offscreenReady) {
+    try {
+      const resp = await chrome.runtime.sendMessage({
+        target: "offscreen",
+        action: "has-active-streams",
+      });
+      hasActiveJob = !!resp?.active;
+    } catch {
+      // Offscreen document unreachable; nothing there to keep alive for.
+    }
+  }
+  if (hasActiveJob) {
+    scheduleOffscreenIdleClose();
+    return;
+  }
+  try {
+    if (typeof chrome !== "undefined" && chrome.offscreen) {
+      await chrome.offscreen.closeDocument();
+    }
+  } catch (err) {
+    // ignore if already closed
+  }
+  offscreenReady = false;
+  offscreenScriptReady = false;
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === OFFSCREEN_IDLE_ALARM) {
+    closeOffscreenIfIdle();
+    return;
+  }
+  if (alarm.name.startsWith(STREAM_CLEANUP_PREFIX)) {
+    activeStreams.delete(alarm.name.slice(STREAM_CLEANUP_PREFIX.length));
+  }
+});
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name === "popup-lifecycle") {
-    // A popup is open — keep the model warm.
+    // A popup is open, keep the model warm.
     cancelOffscreenIdleClose();
     port.onDisconnect.addListener(() => {
       // Defer teardown; a new popup may reopen almost immediately.
@@ -355,11 +440,20 @@ chrome.runtime.onConnect.addListener((port) => {
   const popupPort = port;
 
   const streamId = popupPort.name.replace("popup-stream-", "");
+
+  if (streamId.startsWith("webllm-")) {
+    relayToOffscreenStream(popupPort, streamId);
+    return;
+  }
+
   const stream = activeStreams.get(streamId);
 
   if (!stream) {
     try {
-      popupPort.postMessage({ type: "error", error: "Unknown or expired stream" });
+      popupPort.postMessage({
+        type: "error",
+        error: "Unknown or expired stream",
+      });
     } catch {}
     try {
       popupPort.disconnect();
@@ -369,7 +463,7 @@ chrome.runtime.onConnect.addListener((port) => {
 
   // Attaching just subscribes this popup to the already-running job: replay
   // the buffered text, then stream live chunks. Disconnecting only
-  // unsubscribes — it doesn't stop the job.
+  // unsubscribes, it doesn't stop the job.
   stream.subscribers.add(popupPort);
   if (stream.text) {
     try {
@@ -418,7 +512,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === "offscreen-log") {
     const timestamp = new Date().toLocaleTimeString();
-    offscreenLogs.push(`[${timestamp}] [${message.level.toUpperCase()}] ${message.message}`);
+    offscreenLogs.push(
+      `[${timestamp}] [${message.level.toUpperCase()}] ${message.message}`,
+    );
     if (offscreenLogs.length > 50) {
       offscreenLogs.shift();
     }
@@ -438,31 +534,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case "ask": {
           await ensureOffscreenDocument();
 
-          const streamId = nextStreamId();
+          const streamId = nextStreamId("webllm");
 
-          await chrome.runtime.sendMessage({
+          // The offscreen document creates the buffered job and starts it
+          // immediately, independent of any popup or relay port, and
+          // responds once it's registered.
+          const resp = await chrome.runtime.sendMessage({
             target: "offscreen",
             action: message.action,
             streamId,
             payload: message.payload,
           });
-
-          // Start the job now, independent of any popup port.
-          startOffscreenStream(streamId);
+          if (resp?.error) throw new Error(resp.error);
 
           sendResponse({ streamId });
           break;
         }
 
         case "backend-stream": {
-          const streamId = nextStreamId();
+          const streamId = nextStreamId("backend");
           startBackendStream(streamId, message.payload);
           sendResponse({ streamId });
           break;
         }
 
         case "suggest-questions-bg": {
-          // Fire and forget — the job persists its result to storage itself.
+          // Fire and forget, the job persists its result to storage itself.
           runSuggestQuestionsJob(message.payload);
           sendResponse({ started: true });
           break;
@@ -543,7 +640,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "unload-model": {
-          if (!offscreenReady) {
+          // Checked directly rather than trusting offscreenReady, that
+          // in-memory flag resets on every restart of this worker even
+          // when the offscreen document (and whatever model it has
+          // loaded) is still alive, which used to make unload silently
+          // no-op right after a worker restart.
+          if (!(await offscreenDocumentExists())) {
             sendResponse({ ready: false });
             break;
           }

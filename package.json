@@ -1,5 +1,18 @@
 {
+  "name": "apogee",
+  "version": "0.1.5",
+  "private": true,
+  "license": "MIT",
   "devDependencies": {
     "web-ext": "^10.4.0"
+  },
+  "scripts": {
+    "extension:install": "npm install --prefix apogee-extension",
+    "extension:build": "npm run build --prefix apogee-extension",
+    "extension:test": "npm test --prefix apogee-extension",
+    "backend:install": "npm install --prefix apogee-backend",
+    "backend:start": "npm start --prefix apogee-backend",
+    "backend:test": "npm test --prefix apogee-backend",
+    "dev:backend": "npm run extension:install && npm run extension:build && npm run backend:install && npm run backend:start"
   }
 }

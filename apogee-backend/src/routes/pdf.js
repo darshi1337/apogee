@@ -21,9 +21,21 @@ const router = Router();
 const MAX_CONTENT_LENGTH = 500_000;
 
 // Maximum number of HTTP redirects to follow when downloading a remote PDF.
-// Each hop is re-validated against the SSRF allow-list — a redirect to a
+// Each hop is re-validated against the SSRF allow-list, a redirect to a
 // private/loopback address must not be followed blindly.
 const MAX_REDIRECTS = 5;
+
+// Hard ceiling on a downloaded PDF's raw byte size. The 500KB
+// MAX_CONTENT_LENGTH above only bounds *extracted text*, checked well after
+// the whole file has already been downloaded and parsed, an unbounded
+// response body (e.g. a multi-GB URL) would otherwise let a remote server
+// OOM this process before that check ever runs.
+const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
+
+// Wall-clock ceiling per hop, independent of the socket idle timeout below.
+// A server that trickles a few bytes every few seconds never trips an idle
+// timeout but can still tie up the connection (and this request) forever.
+const FETCH_DEADLINE_MS = 30_000;
 
 // realpath() so symlinked roots (e.g. macOS /tmp -> /private/tmp) match.
 // Deliberately narrow: the whole home directory used to be in-scope, which
@@ -32,7 +44,7 @@ const MAX_REDIRECTS = 5;
 // default; extend via APOGEE_PDF_ALLOWED_DIRS (colon-separated) if needed.
 function safeRealpathSync(p) {
   // fs.realpathSync throws on a nonexistent path; os.path.realpath in
-  // Python doesn't. Falling back to a plain normalize keeps that behavior —
+  // Python doesn't. Falling back to a plain normalize keeps that behavior,
   // callers that need the path to exist check separately (see
   // validateLocalPath's isFile check below).
   try {
@@ -80,13 +92,16 @@ export async function isSafeRemoteUrl(url) {
   } catch {
     return { safe: false, ip: "" };
   }
-  if (!["http:", "https:"].includes(parsed.protocol)) return { safe: false, ip: "" };
+  if (!["http:", "https:"].includes(parsed.protocol))
+    return { safe: false, ip: "" };
   if (!parsed.hostname) return { safe: false, ip: "" };
 
   try {
     // family: 4 to match Python's socket.gethostbyname, which only
     // resolves A records.
-    const { address } = await dns.promises.lookup(parsed.hostname, { family: 4 });
+    const { address } = await dns.promises.lookup(parsed.hostname, {
+      family: 4,
+    });
     return { safe: isGlobalIPv4(address), ip: address };
   } catch {
     return { safe: false, ip: "" };
@@ -116,27 +131,74 @@ export function pinnedLookup(pinnedHost, pinnedIp) {
   };
 }
 
-function fetchOnce(url, { lookup, timeoutMs }) {
+function fetchOnce(
+  url,
+  {
+    lookup,
+    idleTimeoutMs,
+    deadlineMs = FETCH_DEADLINE_MS,
+    maxBytes = MAX_DOWNLOAD_BYTES,
+  },
+) {
   return new Promise((resolve, reject) => {
+    let settled = false;
     const client = url.startsWith("https:") ? https : http;
     const req = client.request(
       url,
-      { method: "GET", lookup, timeout: timeoutMs },
+      { method: "GET", lookup, timeout: idleTimeoutMs },
       (res) => {
+        const declaredLength = Number(res.headers["content-length"]);
+        if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+          req.destroy(
+            new Error(
+              `response too large (${declaredLength} bytes, max ${maxBytes})`,
+            ),
+          );
+          return;
+        }
+
         const chunks = [];
-        res.on("data", (chunk) => chunks.push(chunk));
-        res.on("end", () =>
+        let received = 0;
+        res.on("data", (chunk) => {
+          received += chunk.length;
+          // A malicious/misconfigured server can omit or lie about
+          // Content-Length, so the running total is checked too, not just
+          // the declared header above.
+          if (received > maxBytes) {
+            req.destroy(new Error(`response exceeded ${maxBytes} bytes`));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        res.on("end", () => {
+          settled = true;
           resolve({
             statusCode: res.statusCode,
             headers: res.headers,
             body: Buffer.concat(chunks),
-          }),
-        );
-        res.on("error", reject);
+          });
+        });
+        res.on("error", (err) => {
+          if (!settled) {
+            settled = true;
+            reject(err);
+          }
+        });
       },
     );
+
+    const deadline = setTimeout(() => {
+      req.destroy(new Error("request exceeded overall time limit"));
+    }, deadlineMs);
+    req.on("close", () => clearTimeout(deadline));
+
     req.on("timeout", () => req.destroy(new Error("request timed out")));
-    req.on("error", reject);
+    req.on("error", (err) => {
+      if (!settled) {
+        settled = true;
+        reject(err);
+      }
+    });
     req.end();
   });
 }
@@ -149,10 +211,13 @@ function fetchOnce(url, { lookup, timeoutMs }) {
  * loopback address and reach internal services. Each hop is validated and
  * DNS-pinned independently instead.
  *
- * `fetchOnceFn` is an injectable seam for tests — production callers never
+ * `fetchOnceFn` is an injectable seam for tests, production callers never
  * need to pass it.
  */
-export async function fetchPdfWithValidatedRedirects(url, { fetchOnceFn = fetchOnce } = {}) {
+export async function fetchPdfWithValidatedRedirects(
+  url,
+  { fetchOnceFn = fetchOnce } = {},
+) {
   let currentUrl = url;
 
   for (let attempt = 0; attempt <= MAX_REDIRECTS; attempt++) {
@@ -169,7 +234,7 @@ export async function fetchPdfWithValidatedRedirects(url, { fetchOnceFn = fetchO
     try {
       response = await fetchOnceFn(currentUrl, {
         lookup: pinnedLookup(parsed.hostname, ip),
-        timeoutMs: 30_000,
+        idleTimeoutMs: 30_000,
       });
     } catch (err) {
       throw new HttpError(502, `Failed to download PDF: ${err.message}`);
@@ -207,7 +272,10 @@ export function validateLocalPath(rawPath) {
     throw new HttpError(400, "Only .pdf files are allowed for local access.");
   }
   if (!isWithinAllowedRoots(resolved)) {
-    throw new HttpError(403, "Access denied: path is outside allowed directories.");
+    throw new HttpError(
+      403,
+      "Access denied: path is outside allowed directories.",
+    );
   }
   if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
     throw new HttpError(404, "File not found.");
@@ -222,11 +290,18 @@ router.post("/pdf/url", validateBody(PdfUrlRequestSchema), async (req, res) => {
   let pdfPath;
   if (isLocal) {
     if (!allowLocalPdfAccess()) {
-      throw new HttpError(403, "Local PDF access is disabled on this Apogee server.");
+      throw new HttpError(
+        403,
+        "Local PDF access is disabled on this Apogee server.",
+      );
     }
     let rawPath;
     try {
-      rawPath = decodeURIComponent(url.slice("file://".length));
+      // Parse as a URL (not a raw slice) so a query string or fragment,
+      // e.g. file:///doc.pdf#page=2, which is what a link to a specific PDF
+      // page looks like, doesn't get appended onto the path and trip the
+      // .pdf extension check below.
+      rawPath = decodeURIComponent(new URL(url).pathname);
     } catch {
       throw new HttpError(400, "Malformed file URL.");
     }
@@ -260,17 +335,25 @@ router.post("/pdf/url", validateBody(PdfUrlRequestSchema), async (req, res) => {
     );
   }
 
+  const controller = new AbortController();
+  res.on("close", () => controller.abort());
+
   res.type("text/plain");
-  for await (const token of summarizeText({
-    text,
-    title: "PDF Document",
-    url,
-    mode,
-    model,
-  })) {
-    res.write(token);
+  try {
+    for await (const token of summarizeText({
+      text,
+      title: "PDF Document",
+      url,
+      mode,
+      model,
+      signal: controller.signal,
+    })) {
+      if (controller.signal.aborted) break;
+      res.write(token);
+    }
+  } finally {
+    if (!res.writableEnded) res.end();
   }
-  res.end();
 });
 
 export default router;

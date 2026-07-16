@@ -33,7 +33,7 @@ Apogee was inspired by Mozilla's discontinued **Orbit** project (read the [Revie
 Apogee fixes Orbit's architectural and privacy flaws by being fully local-first:
 
 - **Zero Server Overhead**: Instead of routing queries through remote cloud APIs, Apogee performs tokenization and inference completely on-device via WebGPU.
-- **No Data Leaks**: Apogee does not send page content or generated summaries to any external endpoint—your data never leaves your machine.
+- **No Data Leaks**: Apogee does not send page content or generated summaries to any external endpoint, your data never leaves your machine.
 - **Corporate Independence**: Because Apogee has no server dependencies or cloud infrastructure to pay for, it can never be shut down or sunset.
 
 ## How It Works
@@ -59,7 +59,7 @@ Apogee offers two modes of operation to balance ease-of-use and raw capabilities
 | WebLLM (In-Browser AI)                                          | Ollama (Local Backend)                                           |
 | --------------------------------------------------------------- | ---------------------------------------------------------------- |
 | **Model Size**: Small, fast models (~700 MB – 2.2 GB)           | **Model Size**: Larger, more capable models (4B–8B+)             |
-| **Setup**: Zero setup required; automatic download on first run | **Setup**: Requires installing Ollama & Apogee Python backend    |
+| **Setup**: Zero setup required; automatic download on first run | **Setup**: Requires installing Ollama & the Apogee backend       |
 | **Execution**: Runs directly in the browser via WebGPU          | **Execution**: Runs locally on your machine via localhost server |
 | **Offline**: Fully offline after model weights are cached       | **Offline**: Fully offline, communicating over `127.0.0.1`       |
 
@@ -127,21 +127,25 @@ ollama pull gemma3:4b   # and qwen3:8b, mistral:latest, llama3.1:8b
 
 ### 2. Install and Start Apogee Backend
 
-To use the Local Ollama mode, install the Apogee backend package. Download the latest release package distribution file (`apogee_browser-0.1.4-py3-none-any.whl` or `apogee_browser-0.1.4.tar.gz`) from releases, or clone this repository and install it locally:
-
-```bash
-pip install apogee_browser-0.1.4-py3-none-any.whl
-apogee setup
-apogee doctor
-apogee
-```
-
-Or install from source:
+To use the Local Ollama mode, install the Apogee backend. Clone this repository
+and run:
 
 ```bash
 cd apogee-backend
-pip install .
+npm install
+node bin/cli.js setup
+node bin/cli.js doctor
+npm start
+```
+
+Or install it globally so the `apogee` command is available directly:
+
+```bash
+cd apogee-backend
+npm install
+npm install -g .
 apogee setup
+apogee doctor
 apogee
 ```
 
@@ -149,7 +153,7 @@ apogee
 
 The backend CLI provides commands to set up, verify, and run the service:
 
-- **`apogee`**: Starts the local FastAPI backend server on `127.0.0.1:8000` (configurable via `APOGEE_PORT`).
+- **`apogee`**: Starts the local backend server on `127.0.0.1:8000` (configurable via `APOGEE_PORT`).
 - **`apogee setup`**: Checks if Ollama is installed and automatically pulls the recommended models (`gemma3:4b`, `qwen3:8b`, `mistral:latest`, `llama3.1:8b`).
 - **`apogee doctor`**: Runs local diagnostics to verify the Ollama installation, check connection status, and list installed models.
 
@@ -188,8 +192,9 @@ Privacy is the core pillar of Apogee. The key guarantee is simple: **your page c
   - **Local Ollama mode**: Page content travels exclusively over local loopback (`127.0.0.1`) to your own Ollama service, never to the cloud.
 - **The only outbound network requests Apogee makes**:
   - **Model weights** are downloaded once from **Hugging Face** (in-browser mode) or pulled by **Ollama** (local mode), then cached and reused offline. This transfers no page content, only the model files themselves.
+  - **WebLLM runtime files**: in-browser mode also fetches the WebLLM library's own config/wasm assets from `raw.githubusercontent.com`, the same as the model weights above, no page content, just the runtime itself.
   - **YouTube transcripts**: on a YouTube page, the extractor fetches that video's caption track from YouTube/Google (the site you're already on) to feed the transcript to the model. It is restricted to genuine `youtube.com`/`googlevideo.com` hosts.
-  - That's it — there are no other external calls.
+  - That's it, there are no other external calls. (See the extension's `content_security_policy.connect-src` in `manifest.json` for the exact allow-list this is enforced against.)
 - **No Telemetry, Tracking, or Analytics**: Apogee includes no Google Analytics, Mixpanel, crash-reporting SDKs, or telemetry of any kind. No usage data is collected.
 - **What's stored on your device (and how to control it)**:
   - To make reopening the popup instant, Apogee caches **summaries, suggested prompts, extracted page text (for articles), and your recent questions/answers** in local extension storage (`chrome.storage.local`), never transmitted, capped in size, and keyed by a hash of the URL (so URLs with tokens aren't stored in plaintext keys).
@@ -198,6 +203,9 @@ Privacy is the core pillar of Apogee. The key guarantee is simple: **your page c
 - **Browser Permission Sandboxing**:
   - **`activeTab` + `scripting`**: Apogee cannot read your browsing history or inspect other open tabs. It reads the _currently active tab_ only when you click "Summarize" or "Ask".
   - **`storage`**: Holds your preferences plus the local cache described above.
+  - **`unlimitedStorage`**: Lifts the default quota on `chrome.storage.local` so the cached summaries/page text above aren't evicted under normal storage pressure, it does not grant access to anything beyond that cache.
+  - **`offscreen`** (Chrome/Edge only): Runs the in-browser WebLLM engine in a hidden document, since a service worker can't access WebGPU directly. Not used, and not requested, in the Firefox build.
+  - **`alarms`**: Schedules the housekeeping timers that close the idle in-browser model and clean up finished request buffers, these need to survive the extension's background worker being suspended between uses. No user data is involved.
 - **Model weights** are stored in standard browser cache structures locally and never transmitted.
 
 ## Development
@@ -205,7 +213,11 @@ Privacy is the core pillar of Apogee. The key guarantee is simple: **your page c
 ```bash
 cd apogee-extension
 npm install
-npm run dev    # watch mode — rebuilds on changes
+npm run dev    # watch mode, rebuilds on changes
 ```
 
 Load the `dist/chrome` folder (or `dist/firefox`) as an unpacked extension in your browser.
+
+## License
+
+[MIT](LICENSE)

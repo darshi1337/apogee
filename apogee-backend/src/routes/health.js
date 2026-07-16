@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { Ollama } from "ollama";
 
-import { getOllamaHealthTimeout } from "../config.js";
+import { getOllamaHealthTimeout, getOllamaHost } from "../config.js";
 
 const router = Router();
 
@@ -9,8 +9,9 @@ router.get("/health", async (req, res) => {
   try {
     const timeoutMs = getOllamaHealthTimeout() * 1000;
     const client = new Ollama({
+      host: getOllamaHost(),
       // ollama's Client has no built-in timeout option (unlike the Python
-      // client) — wrap fetch with AbortSignal.timeout instead.
+      // client), wrap fetch with AbortSignal.timeout instead.
       fetch: (url, options) =>
         fetch(url, { ...options, signal: AbortSignal.timeout(timeoutMs) }),
     });

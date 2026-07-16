@@ -9,32 +9,16 @@ import pdfRouter from "./routes/pdf.js";
 
 const app = express();
 
-// 2mb headroom over the 500KB MAX_CONTENT_LENGTH enforced in route
-// handlers — this only needs to be large enough that JSON-escaping
-// overhead and the title/url fields never trip the parser first.
-app.use(express.json({ limit: "2mb" }));
-
-const corsOriginPattern = new RegExp(getCorsOriginRegex());
-
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // No Origin header (e.g. curl, same-origin) — allow, matching
-      // Starlette's CORSMiddleware default behavior for non-CORS requests.
-      callback(null, !origin || corsOriginPattern.test(origin));
-    },
-    credentials: false,
-    methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type", "x-apogee-client"],
-  }),
-);
-
-// Custom header required on state-changing requests. This isn't a secret —
-// the extension is open source — but a plain <form> POST or a "simple"
+// Custom header required on state-changing requests. This isn't a secret,
+// the extension is open source, but a plain <form> POST or a "simple"
 // (non-preflighted) cross-origin fetch can't set custom headers, so this
 // forces even same-shaped-origin requests through a CORS preflight that the
 // origin regex must approve first. It's defense-in-depth alongside the CORS
 // check, not a replacement for it.
+//
+// Runs before body parsing below so a POST missing the header is rejected
+// without spending the time/memory to parse a (potentially near-2mb) body
+// that's just going to be discarded.
 const REQUIRED_CLIENT_HEADER = "x-apogee-client";
 
 app.use((req, res, next) => {
@@ -44,6 +28,26 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// 2mb headroom over the 500KB MAX_CONTENT_LENGTH enforced in route
+// handlers, this only needs to be large enough that JSON-escaping
+// overhead and the title/url fields never trip the parser first.
+app.use(express.json({ limit: "2mb" }));
+
+const corsOriginPattern = new RegExp(getCorsOriginRegex());
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // No Origin header (e.g. curl, same-origin), allow, matching
+      // Starlette's CORSMiddleware default behavior for non-CORS requests.
+      callback(null, !origin || corsOriginPattern.test(origin));
+    },
+    credentials: false,
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "x-apogee-client"],
+  }),
+);
 
 app.get("/", (req, res) => res.redirect("/health"));
 

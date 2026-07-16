@@ -1,8 +1,8 @@
 // Only load the dev-only chrome.* shim when running outside a real
 // extension context (e.g. popup.html opened directly in a browser tab for
 // UI iteration). In the shipped extension chrome.runtime.sendMessage is
-// always defined, so this branch — and the network fetch for mock.js it
-// would trigger — never runs for real users.
+// always defined, so this branch, and the network fetch for mock.js it
+// would trigger, never runs for real users.
 if (
   typeof chrome === "undefined" ||
   !chrome.runtime ||
@@ -16,6 +16,7 @@ import {
   PROVIDERS,
   DEFAULT_SETTINGS,
   WEBLLM_MODELS,
+  LOCAL_MODELS,
   DEFAULT_LOCAL_API_BASE,
 } from "../lib/constants.js";
 
@@ -40,7 +41,6 @@ const sendBtn = document.getElementById("sendBtn");
 const answerBox = document.getElementById("answerBox");
 const formatRadios = document.querySelectorAll('input[name="format"]');
 const providerRadios = document.querySelectorAll('input[name="provider"]');
-const localModelRadios = document.querySelectorAll('input[name="localModel"]');
 const themeRadios = document.querySelectorAll('input[name="theme"]');
 const backendUrlInput = document.getElementById("backendUrlInput");
 const promptsCloseBtn = document.querySelector(".prompts-toggle");
@@ -53,6 +53,7 @@ const webllmModelsCard = document.getElementById("webllmModelsCard");
 const localSettingsCard = document.getElementById("localSettingsCard");
 const localModelsCard = document.getElementById("localModelsCard");
 const webllmModelList = document.getElementById("webllmModelList");
+const localModelList = document.getElementById("localModelList");
 const webgpuWarning = document.getElementById("webgpuWarning");
 const modelProgress = document.getElementById("modelProgress");
 const modelProgressText = document.getElementById("modelProgressText");
@@ -66,12 +67,19 @@ const clearDebugLogsBtn = document.getElementById("clearDebugLogsBtn");
 const saveHistoryRadios = document.querySelectorAll('input[name="saveHistory"]');
 const clearDataBtn = document.getElementById("clearDataBtn");
 const clearDataStatus = document.getElementById("clearDataStatus");
+const versionText = document.getElementById("versionText");
+
+// Read from the manifest instead of hardcoding a version string here, which
+// drifted out of sync with the real package/manifest version in the past.
+if (versionText) {
+  versionText.textContent = `v${chrome.runtime.getManifest().version}`;
+}
 
 let currentPageData = null;
 let currentSummaryText = "";
 
 // The tab the popup is currently associated with. Set once on
-// DOMContentLoaded and reused by view-state persistence below — the popup
+// DOMContentLoaded and reused by view-state persistence below, the popup
 // doesn't follow tab switches while it's open.
 let activeTabId = null;
 
@@ -116,7 +124,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   setSuggestedQuestions(questions);
 });
 
-// Direct delivery from the background job — the only path when prompts aren't
+// Direct delivery from the background job, the only path when prompts aren't
 // persisted (history off / sensitive host), and a fast path when they are.
 chrome.runtime.onMessage.addListener((message) => {
   if (
@@ -131,7 +139,7 @@ chrome.runtime.onMessage.addListener((message) => {
 
 // Persists which "page" of the popup the user was last on (plus enough
 // state to resume an in-flight summarize/ask stream) so reopening the
-// popup — which fully destroys and recreates this script every time —
+// popup, which fully destroys and recreates this script every time,
 // lands back where the user left off instead of always resetting to home.
 function viewStateKey(tabId) {
   return `popupViewState:${tabId}`;
@@ -208,7 +216,7 @@ async function persistSummary(cacheKey, promptsCacheKey, text) {
 
 // Extracted content is cached separately (keyed only by URL, see
 // getContentCacheKey) so it outlives format/model switches and popup
-// close/reopen — re-asking a question or regenerating in a new format
+// close/reopen, re-asking a question or regenerating in a new format
 // shouldn't require re-scraping the page.
 async function persistContent(url, pageData) {
   const contentKey = getContentCacheKey(url);
@@ -267,7 +275,7 @@ async function checkWebGPUSupport() {
   } catch {
     // If we can't reach the service worker, optimistically assume support so
     // the user isn't blocked, and let the offscreen doc surface the real error
-    // at inference time. Do NOT cache this — a transient messaging failure
+    // at inference time. Do NOT cache this, a transient messaging failure
     // should not suppress the warning for the rest of the session.
     return true;
   }
@@ -292,10 +300,37 @@ function buildWebllmModelUI(selectedId) {
 
   webllmModelList.querySelectorAll('input[name="webllmModel"]').forEach((r) => {
     r.addEventListener("change", async () => {
-      // No cache wipe needed — summary/prompt cache keys are namespaced by
+      // No cache wipe needed, summary/prompt cache keys are namespaced by
       // model, so switching models just starts reading/writing a different
       // slot instead of losing everything.
       await saveSettings({ webllmModel: r.value });
+    });
+  });
+}
+
+// Mirrors buildWebllmModelUI: generated from LOCAL_MODELS instead of a
+// second hardcoded copy of the model list in popup.html, which had already
+// drifted out of sync with lib/constants.js once before.
+function buildLocalModelUI(selectedId) {
+  localModelList.innerHTML = "";
+  for (const model of LOCAL_MODELS) {
+    const label = document.createElement("label");
+    label.className = "radio-option";
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "localModel";
+    input.value = model.id;
+    if (model.id === selectedId) input.checked = true;
+    const span = document.createElement("span");
+    span.textContent = model.label;
+    label.appendChild(input);
+    label.appendChild(span);
+    localModelList.appendChild(label);
+  }
+
+  localModelList.querySelectorAll('input[name="localModel"]').forEach((r) => {
+    r.addEventListener("change", async () => {
+      await saveSettings({ localModel: r.value });
     });
   });
 }
@@ -343,10 +378,7 @@ async function applySettingsToUI(settings) {
   buildWebllmModelUI(settings.webllmModel);
 
   if (backendUrlInput) backendUrlInput.value = settings.localApiBase;
-  const localRadio = document.querySelector(
-    `input[name="localModel"][value="${settings.localModel}"]`,
-  );
-  if (localRadio) localRadio.checked = true;
+  buildLocalModelUI(settings.localModel);
 
   const fmtRadio = document.querySelector(
     `input[name="format"][value="${settings.responseFormat}"]`,
@@ -374,7 +406,7 @@ async function extractFromActiveTab(tab) {
   const tabId = tab.id;
 
   // Inject the extractors once per page, re-injecting when the injected copy
-  // is from an older extension version — otherwise a tab left open across an
+  // is from an older extension version, otherwise a tab left open across an
   // update keeps running the stale extractor until manually refreshed.
   const expectedVersion = chrome.runtime.getManifest().version;
   let injectedVersion = null;
@@ -418,7 +450,7 @@ async function extractFromActiveTab(tab) {
     func: async () => {
       try {
         // extractPageContent() is async (YouTube's extractor fetches the
-        // transcript) — await it here so a rejection is caught below
+        // transcript), await it here so a rejection is caught below
         // instead of leaking an unhandled promise rejection past executeScript.
         return await window.extractPageContent();
       } catch (e) {
@@ -434,7 +466,7 @@ async function extractFromActiveTab(tab) {
 
 // Only the generic Readability-parsed extraction is expensive enough to be
 // worth caching/reusing. Gmail and YouTube extractors are cheap DOM reads,
-// and — unlike a fresh page load — those sites navigate between threads/
+// and, unlike a fresh page load, those sites navigate between threads/
 // videos via the History API, so a cached/reused result can go stale
 // without `tab.url` necessarily changing in a way we'd catch. Always
 // re-extract live for those instead of trusting any cache.
@@ -605,8 +637,8 @@ function setSuggestedQuestionsLoading() {
   container.appendChild(btn);
 }
 
-// Hash the URL (cyrb53) so raw URLs — which can carry session tokens or reset
-// links in their query strings — aren't left sitting in plaintext storage
+// Hash the URL (cyrb53) so raw URLs, which can carry session tokens or reset
+// links in their query strings, aren't left sitting in plaintext storage
 // keys. Non-cryptographic, but wide enough to avoid collisions in the small
 // bounded cache.
 function hashUrl(url) {
@@ -629,7 +661,7 @@ function getPromptsCacheKey(url, fmt, model) {
   return `suggested-prompts:${fmt}:${model}:${hashUrl(url)}`;
 }
 // Extracted page content is independent of format/model, so it's cached
-// separately and survives model switches and popup close/reopen — avoids
+// separately and survives model switches and popup close/reopen, avoids
 // re-scraping (a full Readability parse on generic pages) just to ask a
 // follow-up question or regenerate a summary in a different format.
 function getContentCacheKey(url) {
@@ -638,7 +670,7 @@ function getContentCacheKey(url) {
 
 // Hosts whose pages routinely contain private content (email, etc.). Their
 // summaries and Q&A are never persisted to disk, regardless of the
-// saveHistory setting — see shouldPersist.
+// saveHistory setting, see shouldPersist.
 const SENSITIVE_HOST_PATTERNS = [
   /(^|\.)mail\.google\.com$/,
   /(^|\.)outlook\.(live|office|office365)\.com$/,
@@ -795,7 +827,7 @@ async function summarizeActivePage() {
     const settings = await getSettings();
     const provider = getProvider(settings);
     const model = getModelForSettings(settings);
-    // Explicit "Summarize" click always re-reads the live page — unlike
+    // Explicit "Summarize" click always re-reads the live page, unlike
     // getPageData()'s reuse path (used by follow-up questions), we don't
     // want a stale cached extraction here.
     const pageData = await extractFromActiveTab(tab);
@@ -805,7 +837,7 @@ async function summarizeActivePage() {
       return;
     }
     // Gmail returns empty content when no thread is open rather than
-    // dumping the inbox chrome — surface that instead of sending blank
+    // dumping the inbox chrome, surface that instead of sending blank
     // content to the model.
     if (!pageData.isPdf && !pageData.content) {
       summaryText.textContent =
@@ -931,7 +963,7 @@ async function submitQuestion(question) {
       question: trimmed,
       answerText: "",
     });
-    // Reuse cached page data (in-memory or persisted) when it's safe to —
+    // Reuse cached page data (in-memory or persisted) when it's safe to,
     // see getPageData()/CACHEABLE_PAGE_TYPES for why Gmail/YouTube are
     // always re-extracted live instead.
     let pageData = await getPageData(tab);
@@ -1044,6 +1076,11 @@ document.addEventListener("DOMContentLoaded", async () => {
           p.textContent = error.message;
           summaryText.textContent = "";
           summaryText.appendChild(p);
+          // Clear the dead stream pointer so reopening the popup doesn't
+          // retry the same failed reattach forever, the underlying job is
+          // gone either way (evicted service worker, crashed offscreen
+          // engine, etc.), so there's nothing left to reattach to.
+          await saveViewState(tab.id, { streamId: null });
         }
         return;
       }
@@ -1059,12 +1096,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         } catch (error) {
           console.error(error);
           answerBox.textContent = error.message;
+          // Same reasoning as the summarize reattach above, don't leave a
+          // dead streamId behind for the next popup open to retry.
+          await saveViewState(tab.id, { streamId: null });
         }
         return;
       }
     }
 
-    // No in-flight job — restore whichever static page the user was last on.
+    // No in-flight job, restore whichever static page the user was last on.
     if (state && state.url === tab.url) {
       if (state.view === "settingsView") {
         showOnlyView("settingsView");
@@ -1106,7 +1146,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       summaryText.innerHTML = renderMarkdown(cached[cacheKey]);
       showOnlyView("summaryView");
       // A present key (even []) means prompts finished; a missing key means
-      // they were still generating when the popup closed — show loading and
+      // they were still generating when the popup closed, show loading and
       // re-kick the job so the storage listener can fill them in.
       if (cached[promptsCacheKey] !== undefined) {
         showSummaryContext(cached[promptsCacheKey]);
@@ -1169,7 +1209,7 @@ questionInput?.addEventListener("keydown", (e) => {
 // Provider/format/model/backend changes no longer wipe the cache: provider
 // switches already land on a distinct model id (webllmModel vs localModel
 // namespaces don't collide), and format/model are baked into the cache key
-// itself — see getSummaryCacheKey.
+// itself, see getSummaryCacheKey.
 providerRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
     const settings = await saveSettings({ provider: radio.value });
@@ -1191,12 +1231,6 @@ themeRadios.forEach((radio) => {
   });
 });
 
-localModelRadios.forEach((radio) => {
-  radio.addEventListener("change", async () => {
-    await saveSettings({ localModel: radio.value });
-  });
-});
-
 saveHistoryRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
     await saveSettings({ saveHistory: radio.value === "on" });
@@ -1204,7 +1238,7 @@ saveHistoryRadios.forEach((radio) => {
 });
 
 // Removes every persisted summary, suggested-prompt set, extracted page body,
-// and per-tab view state (plus their FIFO indexes) — the "clear cached data"
+// and per-tab view state (plus their FIFO indexes), the "clear cached data"
 // control. Preferences (the `settings` key) are intentionally left intact.
 async function clearCachedData() {
   const all = await chrome.storage.local.get(null);

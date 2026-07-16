@@ -39,3 +39,10 @@ async function extractPageContent() {
 }
 
 window.extractPageContent = extractPageContent;
+
+// When injected via scripting.executeScript({ files }), Firefox structured-
+// clones the value of this file's last evaluated expression. The assignment
+// above evaluates to a Function, which isn't clonable, so Firefox throws
+// "result is non-structured-clonable data" (Chrome is lenient and doesn't).
+// End on a clonable value so the file injection resolves cleanly.
+true;

@@ -1,7 +1,8 @@
 {
   "name": "apogee-browser",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Local-first browser assistant powered by Ollama",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "apogee": "./bin/cli.js"
@@ -10,11 +11,11 @@
     "node": ">=20"
   },
   "scripts": {
-    "prestart": "fuser -k 8000/tcp || true",
     "start": "node bin/cli.js",
     "test": "node --test"
   },
   "dependencies": {
+    "apogee-browser": "file:apogee-browser-0.1.5.tgz",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "ollama": "^0.6.3",

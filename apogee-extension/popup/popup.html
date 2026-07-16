@@ -238,25 +238,7 @@
               <span>Local LLM</span>
             </div>
 
-            <label class="radio-option">
-              <input type="radio" name="localModel" value="qwen3:8b" checked />
-              <span>Qwen 3 8B</span>
-            </label>
-
-            <label class="radio-option">
-              <input type="radio" name="localModel" value="mistral:latest" />
-              <span>Mistral Latest</span>
-            </label>
-
-            <label class="radio-option">
-              <input type="radio" name="localModel" value="llama3.1:8b" />
-              <span>Llama 3.1 8B</span>
-            </label>
-
-            <label class="radio-option">
-              <input type="radio" name="localModel" value="gemma3:4b" />
-              <span>Gemma 3</span>
-            </label>
+            <div id="localModelList"></div>
           </div>
 
           <div class="settings-card">
@@ -403,7 +385,7 @@
           </div>
 
           <div class="contact-footer">
-            <div class="version">v0.1.1</div>
+            <div class="version" id="versionText"></div>
 
             <div class="made-with">Made with ❤️ by darshi1337</div>
           </div>

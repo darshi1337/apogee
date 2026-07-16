@@ -1,5 +1,5 @@
 // Returns the `{...}` substring starting at openIndex, brace-matched while
-// respecting string literals/escapes. A `/\{.*?\}/` regex can't do this — it
+// respecting string literals/escapes. A `/\{.*?\}/` regex can't do this, it
 // stops at the first `}` inside the nested object.
 function extractBalancedObject(text, openIndex) {
   let depth = 0;
@@ -32,7 +32,7 @@ function extractBalancedObject(text, openIndex) {
 // Pulls the inline `ytInitialPlayerResponse = {...}` blob YouTube embeds in
 // a <script> tag on page load. Content scripts run in an isolated JS world,
 // so the page's own `window.ytInitialPlayerResponse` global isn't reachable
-// directly — but the raw script text is, since the DOM is shared.
+// directly, but the raw script text is, since the DOM is shared.
 function getPlayerResponse() {
   for (const script of document.querySelectorAll("script")) {
     const text = script.textContent;
@@ -46,7 +46,7 @@ function getPlayerResponse() {
     try {
       return JSON.parse(json);
     } catch {
-      // Malformed/unexpected script content — keep looking.
+      // Malformed/unexpected script content, keep looking.
     }
   }
   return null;
@@ -64,7 +64,7 @@ function decodeHtmlEntities(text) {
 
 // Caption tracks are served from youtube.com / *.youtube.com and
 // *.googlevideo.com. Accept only those hosts (over https) via exact suffix
-// matching — not a substring test, which "youtube.com.attacker.com" passes.
+// matching, not a substring test, which "youtube.com.attacker.com" passes.
 function isAllowedCaptionUrl(rawUrl) {
   let url;
   try {
@@ -159,7 +159,7 @@ function parseTranscript(raw) {
 
 // Strips marketing boilerplate (sponsor reads, CTAs, social/affiliate links,
 // chapter dumps, hashtags) from a description so it doesn't leak into
-// summaries — most damaging on videos with no transcript.
+// summaries, most damaging on videos with no transcript.
 function cleanDescription(description) {
   if (!description) return "";
 
@@ -181,15 +181,27 @@ function cleanDescription(description) {
     /\bjoin (this|our|my) (channel|membership|discord)\b/i,
     /\b(instagram|twitter|tiktok|facebook|discord|threads)\b/i,
     /\bfollow us on\b/i,
-    /\btry (it|out|now|)\b.*\b(free|at)\b/i,
+    // The trailing "|" here used to leave the "it/out/now" group able to
+    // match on nothing, so "try" appearing anywhere on a line combined with
+    // any later occurrence of the extremely common word "at" matched almost
+    // every line in a typical description. Requiring one of the three
+    // alternatives keeps this targeted at actual "try it/out/now ... free"
+    // pitches.
+    /\btry (it|out|now)\b.*\b(free|at)\b/i,
     /\bfor free at\b/i,
     /\bget your (first|free)\b/i,
     /\bsign up\b/i,
     /\bavailable in (multiple|other|several|\w+ languages?|spanish|french|german|portuguese|italian|hindi|arabic|japanese|korean|russian|chinese)\b/i,
     /\blinks? (below|in the description)\b/i,
     /^(chapters?|timestamps?|links?|social(s)?)\s*:?\s*$/i,
-    /#\w+/,
   ];
+
+  // A dedicated, anchored check for hashtag-dump lines ("#AI #ML #Tech"),
+  // rather than folding `#\w+` into promoPatterns above, that unanchored
+  // form matched (and dropped) any line merely *containing* one hashtag
+  // anywhere, including a substantive sentence that happens to mention one
+  // mid-paragraph (e.g. "Check out my post about #AI in healthcare").
+  const hashtagOnlyLine = /^(#\w+[\s,]*)+$/;
 
   const timestampLine = /^\s*\(?\d{1,2}:\d{2}(:\d{2})?\)?\b/;
   const urlOnlyLine = /^\s*(https?:\/\/|www\.)\S+\s*$/i;
@@ -201,6 +213,7 @@ function cleanDescription(description) {
       if (!line) return false;
       if (timestampLine.test(line)) return false;
       if (urlOnlyLine.test(line)) return false;
+      if (hashtagOnlyLine.test(line)) return false;
       if (promoPatterns.some((re) => re.test(line))) return false;
       return true;
     });

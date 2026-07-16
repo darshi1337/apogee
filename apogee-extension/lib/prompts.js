@@ -1,4 +1,4 @@
-// Client-side prompt templates — ported from apogee-backend/apogee/prompts/*.txt and apogee-backend/apogee/services/prompt_service.py.
+// Client-side prompt templates, ported from apogee-backend/src/prompts/*.txt and apogee-backend/src/services/promptService.js.
 // Used by the WebLLM offscreen engine so it can generate prompts without a backend server.
 
 export const SUMMARY_STYLES = {

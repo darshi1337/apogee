@@ -12,7 +12,7 @@ export class PdfExtractionError extends Error {}
 export async function extractPdfText(pdfPath) {
   const data = new Uint8Array(await readFile(pdfPath));
 
-  // getDocument() returns a loading task, not the document itself — the
+  // getDocument() returns a loading task, not the document itself, the
   // task (not the resolved PDFDocumentProxy) is what exposes destroy().
   const loadingTask = getDocument({
     data,
@@ -39,7 +39,7 @@ export async function extractPdfText(pdfPath) {
     for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
       const page = await doc.getPage(pageNum);
       const content = await page.getTextContent();
-      // Text items are runs, not lines — join runs with a space and honor
+      // Text items are runs, not lines, join runs with a space and honor
       // each item's hasEOL flag so line breaks match the PDF's layout
       // (closest match to PyMuPDF's default line-preserving text output).
       for (const item of content.items) {

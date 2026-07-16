@@ -1,13 +1,15 @@
 {
   "name": "apogee-extension",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite build --watch",
     "build:chrome": "TARGET_BROWSER=chrome vite build",
     "build:firefox": "TARGET_BROWSER=firefox vite build",
     "build": "npm run build:chrome && npm run build:firefox",
+    "test": "node --test",
     "package": "npm run build && node -e 'const fs = require(\"fs\"); const v = JSON.parse(fs.readFileSync(\"manifest.json\")).version; const exec = require(\"child_process\").execSync; exec(\"npx web-ext build --source-dir dist/chrome --artifacts-dir ../ --overwrite-dest --filename apogee-\" + v + \"-chrome.zip\", {stdio: \"inherit\"}); exec(\"npx web-ext build --source-dir dist/firefox --artifacts-dir ../ --overwrite-dest --filename apogee-\" + v + \"-mozilla.xpi\", {stdio: \"inherit\"});'"
   },
   "dependencies": {

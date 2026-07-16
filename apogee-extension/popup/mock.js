@@ -25,6 +25,7 @@ if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.sendMess
         disconnect: () => {},
       }),
       lastError: null,
+      getManifest: () => ({ version: "dev" }),
     },
     storage: {
       local: {

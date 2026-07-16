@@ -1,4 +1,4 @@
-// WebLLM model catalog — smaller quantized models suited for browser inference.
+// WebLLM model catalog, smaller quantized models suited for browser inference.
 // The IDs must match entries in @mlc-ai/web-llm's prebuiltAppConfig.
 
 export const WEBLLM_MODELS = [

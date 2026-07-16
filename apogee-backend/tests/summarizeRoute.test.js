@@ -42,3 +42,14 @@ test("parseSuggestedQuestions skips non-question lines", () => {
     "How is this validated?",
   ]);
 });
+
+test("parseSuggestedQuestions handles numbering past 2 and compound markers", () => {
+  const text = [
+    "3. What is the main thesis?",
+    "- 4. How is this validated?",
+  ].join("\n");
+  assert.deepStrictEqual(parseSuggestedQuestions(text), [
+    "What is the main thesis?",
+    "How is this validated?",
+  ]);
+});

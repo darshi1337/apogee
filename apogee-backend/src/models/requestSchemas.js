@@ -1,9 +1,14 @@
 import { z } from "zod";
 
-const ALLOWED_MODELS = ["qwen3:8b", "mistral:latest", "llama3.1:8b", "gemma3:4b"];
+const ALLOWED_MODELS = [
+  "qwen3:8b",
+  "mistral:latest",
+  "llama3.1:8b",
+  "gemma3:4b",
+];
 const ALLOWED_MODES = ["bullets", "sentences", "paragraphs"];
 
-// title/url are display metadata dropped into prompts, not primary content —
+// title/url are display metadata dropped into prompts, not primary content,
 // they don't need the same 500KB budget as `content`, and were previously
 // unbounded (only `content`/`summary` were checked in the route handlers).
 const TITLE_MAX_LENGTH = 500;

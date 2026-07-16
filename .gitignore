@@ -14,3 +14,4 @@ web-ext-artifacts/
 node_modules/
 *.zip
 *.xpi
+*.tgz
