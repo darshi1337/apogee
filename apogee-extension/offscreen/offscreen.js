@@ -14,20 +14,28 @@ const originalConsole = {
 };
 
 function sendLogToServiceWorker(level, args) {
-  const message = args.map(arg => {
-    if (arg instanceof Error) return arg.stack || arg.message;
-    if (typeof arg === "object") {
-      try { return JSON.stringify(arg); } catch { return String(arg); }
-    }
-    return String(arg);
-  }).join(" ");
+  const message = args
+    .map((arg) => {
+      if (arg instanceof Error) return arg.stack || arg.message;
+      if (typeof arg === "object") {
+        try {
+          return JSON.stringify(arg);
+        } catch {
+          return String(arg);
+        }
+      }
+      return String(arg);
+    })
+    .join(" ");
 
-  chrome.runtime.sendMessage({
-    target: "service-worker",
-    type: "offscreen-log",
-    level,
-    message,
-  }).catch(() => {});
+  chrome.runtime
+    .sendMessage({
+      target: "service-worker",
+      type: "offscreen-log",
+      level,
+      message,
+    })
+    .catch(() => {});
 }
 
 console.log = (...args) => {
@@ -48,11 +56,21 @@ console.info = (...args) => {
 };
 
 window.addEventListener("error", (event) => {
-  console.error("Global error in offscreen document:", event.message, "at", event.filename, ":", event.lineno);
+  console.error(
+    "Global error in offscreen document:",
+    event.message,
+    "at",
+    event.filename,
+    ":",
+    event.lineno,
+  );
 });
 
 window.addEventListener("unhandledrejection", (event) => {
-  console.error("Unhandled promise rejection in offscreen document:", event.reason?.stack || event.reason?.message || event.reason);
+  console.error(
+    "Unhandled promise rejection in offscreen document:",
+    event.reason?.stack || event.reason?.message || event.reason,
+  );
 });
 
 let engine = null;
@@ -122,8 +140,8 @@ async function ensureEngine(modelId) {
     },
     appConfig: {
       ...prebuiltAppConfig,
-      cacheBackend: "cache"
-    }
+      cacheBackend: "cache",
+    },
   });
 
   currentModelId = modelId;
@@ -365,12 +383,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case "summarize":
         case "ask": {
           const streamId = message.streamId;
-          const stream = { text: "", done: false, error: null, subscribers: new Set() };
+          const stream = {
+            text: "",
+            done: false,
+            error: null,
+            subscribers: new Set(),
+          };
           streams.set(streamId, stream);
           sendResponse({ streamId });
           // Not awaited: the job runs independently of this message/response
           // and of any port ever attaching to it.
-          runStream(streamId, { action: message.action, ...message.payload }, stream);
+          runStream(
+            streamId,
+            { action: message.action, ...message.payload },
+            stream,
+          );
           break;
         }
 

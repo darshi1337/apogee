@@ -1,6 +1,7 @@
 function extractGmail() {
   // Find the email subject
-  const subjectEl = document.querySelector("h1.hP") || document.querySelector(".hP");
+  const subjectEl =
+    document.querySelector("h1.hP") || document.querySelector(".hP");
   const subject = subjectEl ? subjectEl.innerText : document.title;
 
   // Find all email message bodies in the active thread (handling conversation threads)
@@ -33,7 +34,8 @@ function extractGmail() {
       senderEl?.getAttribute("email") || senderEl?.innerText.trim() || "";
 
     const dateEl = messageContainer?.querySelector(".g3");
-    const date = dateEl?.getAttribute("title") || dateEl?.innerText.trim() || "";
+    const date =
+      dateEl?.getAttribute("title") || dateEl?.innerText.trim() || "";
 
     const attachmentEls =
       messageContainer?.querySelectorAll(".aQH .aV3, .aZo .aV3") || [];

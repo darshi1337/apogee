@@ -3,18 +3,21 @@
 <picture>
   <source
     media="(prefers-color-scheme: dark)"
-    srcset="assets/dark_main_logo.png">
+    srcset=".github/assets/dark_main_logo.png">
   <source
     media="(prefers-color-scheme: light)"
-    srcset="assets/light_main_logo.png">
+    srcset=".github/assets/light_main_logo.png">
   <img
     alt="Apogee Demo"
-    src="assets/light_main_logo.png">
+    src=".github/assets/light_main_logo.png">
 </picture>
 
 <div align="center">
 
 Private, in-browser AI summarizer powered by WebGPU and Ollama.
+
+[![CI](https://github.com/darshi1337/apogee/actions/workflows/ci.yml/badge.svg)](https://github.com/darshi1337/apogee/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
 
@@ -22,7 +25,7 @@ Private, in-browser AI summarizer powered by WebGPU and Ollama.
 It runs **entirely in your browser** via WebGPU, no backend, no API keys,
 no cloud. Just install the extension and go.
 
-For power users, Apogee also supports a local Ollama backend with larger models.
+For power users, Apogee also connects directly to a local Ollama instance to run larger models.
 
 **TL;DR**: Apogee is an offline-first, private AI assistant that runs entirely in your browser using WebGPU, requiring zero cloud dependencies or API keys. It allows users to summarize pages, chat with articles, and process text with complete privacy. For power users, it also features a fallback to local Ollama instances to run larger models. It is designed as a fully local, privacy-respecting alternative to cloud-dependent solutions.
 
@@ -56,11 +59,11 @@ That's it. No backend installation, no terminal commands.
 
 Apogee offers two modes of operation to balance ease-of-use and raw capabilities:
 
-| WebLLM (In-Browser AI)                                          | Ollama (Local Backend)                                           |
+| WebLLM (In-Browser AI)                                          | Local Ollama                                                     |
 | --------------------------------------------------------------- | ---------------------------------------------------------------- |
 | **Model Size**: Small, fast models (~700 MB – 2.2 GB)           | **Model Size**: Larger, more capable models (4B–8B+)             |
-| **Setup**: Zero setup required; automatic download on first run | **Setup**: Requires installing Ollama & the Apogee backend       |
-| **Execution**: Runs directly in the browser via WebGPU          | **Execution**: Runs locally on your machine via localhost server |
+| **Setup**: Zero setup required; automatic download on first run | **Setup**: Requires installing Ollama (no separate backend to run) |
+| **Execution**: Runs directly in the browser via WebGPU          | **Execution**: Extension talks directly to Ollama's HTTP API     |
 | **Offline**: Fully offline after model weights are cached       | **Offline**: Fully offline, communicating over `127.0.0.1`       |
 
 ## Supported In-Browser Models
@@ -112,57 +115,57 @@ You can install Apogee directly from [Mozilla Add-ons](https://addons.mozilla.or
 
 _Note: WebGPU is not yet stable in Firefox, so switch to **Local Ollama** mode in settings after installation._
 
-## Advanced: Local Ollama Backend
+## Advanced: Local Ollama Mode
 
-If you prefer running larger models (8B+) locally through Ollama, Apogee still
-supports that as a fallback.
+If you prefer running larger models (8B+) locally through Ollama, Apogee talks
+to it **directly over HTTP** — there's no separate backend server to install
+or keep running.
 
 ### 1. Install Ollama
 
-Install from https://ollama.com, then:
+Install from https://ollama.com, then pull the models you want:
 
 ```bash
 ollama pull gemma3:4b   # and qwen3:8b, mistral:latest, llama3.1:8b
 ```
 
-### 2. Install and Start Apogee Backend
+### 2. Allow the extension to reach Ollama (CORS)
 
-To use the Local Ollama mode, install the Apogee backend. Clone this repository
-and run:
-
-```bash
-cd apogee-backend
-npm install
-node bin/cli.js setup
-node bin/cli.js doctor
-npm start
-```
-
-Or install it globally so the `apogee` command is available directly:
+Ollama only accepts browser-originated requests from an allow-listed set of
+origins, and `chrome-extension://` isn't in that default list. Set
+`OLLAMA_ORIGINS` before starting Ollama:
 
 ```bash
-cd apogee-backend
-npm install
-npm install -g .
-apogee setup
-apogee doctor
-apogee
+OLLAMA_ORIGINS="chrome-extension://<your-extension-id>" ollama serve
 ```
 
-### CLI Commands Reference
+Find `<your-extension-id>` on `chrome://extensions` (with Developer mode on).
 
-The backend CLI provides commands to set up, verify, and run the service:
+If Ollama runs as a system service instead (e.g. installed via a package
+manager on Linux), set it as a persistent override rather than passing it on
+the command line:
 
-- **`apogee`**: Starts the local backend server on `127.0.0.1:8000` (configurable via `APOGEE_PORT`).
-- **`apogee setup`**: Checks if Ollama is installed and automatically pulls the recommended models (`gemma3:4b`, `qwen3:8b`, `mistral:latest`, `llama3.1:8b`).
-- **`apogee doctor`**: Runs local diagnostics to verify the Ollama installation, check connection status, and list installed models.
+```bash
+sudo mkdir -p /etc/systemd/system/ollama.service.d
+printf '[Service]\nEnvironment="OLLAMA_ORIGINS=chrome-extension://<your-extension-id>"\n' \
+  | sudo tee /etc/systemd/system/ollama.service.d/override.conf
+sudo systemctl daemon-reload
+sudo systemctl restart ollama
+```
 
-### 3. Switch the Extension
+> **Security note**: `OLLAMA_ORIGINS=chrome-extension://*` (allowing *every*
+> extension) is convenient while developing, but it means any other extension
+> installed in your browser could also reach your local Ollama instance's
+> API. Scope it to your specific extension ID for anything beyond quick
+> local testing.
 
-Open the extension → Settings → select **Local Ollama** → set the URL
-(defaults to `http://127.0.0.1:8000`).
+### 3. Point the extension at Ollama
 
-Update the extension backend URL to match.
+Open the extension → Settings → select **Local Ollama**. The host field
+defaults to `http://127.0.0.1:11434` (Ollama's own default port) — only
+change it if you've configured Ollama to listen elsewhere.
+
+That's it — no `apogee-backend`, no separate server process to manage.
 
 ## Performance Benchmarks
 
@@ -172,7 +175,7 @@ Update the extension backend URL to match.
 - **Model Cold-load**: ~1–3 seconds (once cached in browser storage)
 - **First-run Cache Download**: ~1–3 minutes depending on network bandwidth (to download the ~700 MB – 2.2 GB model weights)
 
-### Local Ollama Backend
+### Local Ollama
 
 Measured locally on an Apple M2 (`gemma3:4b`, GPU via Metal):
 
@@ -189,12 +192,14 @@ Privacy is the core pillar of Apogee. The key guarantee is simple: **your page c
 
 - **Where inference happens**:
   - **In-Browser mode**: Tokenization and inference run entirely on your local device's GPU via WebGPU. Your page content and summaries are never transmitted anywhere.
-  - **Local Ollama mode**: Page content travels exclusively over local loopback (`127.0.0.1`) to your own Ollama service, never to the cloud.
+  - **Local Ollama mode**: Page content travels exclusively over local loopback (`127.0.0.1`) directly to your own Ollama instance's HTTP API, never to the cloud. There is no intermediate backend process in the path, the extension is Ollama's only client-side hop.
 - **The only outbound network requests Apogee makes**:
   - **Model weights** are downloaded once from **Hugging Face** (in-browser mode) or pulled by **Ollama** (local mode), then cached and reused offline. This transfers no page content, only the model files themselves.
   - **WebLLM runtime files**: in-browser mode also fetches the WebLLM library's own config/wasm assets from `raw.githubusercontent.com`, the same as the model weights above, no page content, just the runtime itself.
   - **YouTube transcripts**: on a YouTube page, the extractor fetches that video's caption track from YouTube/Google (the site you're already on) to feed the transcript to the model. It is restricted to genuine `youtube.com`/`googlevideo.com` hosts.
-  - That's it, there are no other external calls. (See the extension's `content_security_policy.connect-src` in `manifest.json` for the exact allow-list this is enforced against.)
+  - That's it, there are no other external calls. (See the extension's `content_security_policy.connect-src` in `manifest.json` for the exact allow-list this is enforced against, and `ALLOWED_OLLAMA_HOSTS` in `background/service-worker.js`, which rejects any Local Ollama host setting that isn't `127.0.0.1`/`localhost`/`[::1]`.)
+- **PDFs**: PDF text extraction runs fully client-side using `pdf.js` bundled into the extension, the PDF is downloaded straight into the browser tab (using that tab's own network context) and parsed there. Only the extracted text is ever handed to the model; the file itself never passes through any other process.
+- **Local Ollama's CORS setting (`OLLAMA_ORIGINS`)**: for the extension to reach Ollama at all, Ollama must be told to accept requests from the extension's origin, see [Advanced: Local Ollama Mode](#advanced-local-ollama-mode). This is a browser-enforced allow-list, not a data-transmission path, but be aware that setting it to a wildcard (`chrome-extension://*`) rather than your specific extension ID lets *any* installed extension talk to your local Ollama API, not just Apogee. Ollama itself still only binds to `127.0.0.1` by default regardless of this setting, so it's never reachable from your network either way, this only affects which browser extensions can call it.
 - **No Telemetry, Tracking, or Analytics**: Apogee includes no Google Analytics, Mixpanel, crash-reporting SDKs, or telemetry of any kind. No usage data is collected.
 - **What's stored on your device (and how to control it)**:
   - To make reopening the popup instant, Apogee caches **summaries, suggested prompts, extracted page text (for articles), and your recent questions/answers** in local extension storage (`chrome.storage.local`), never transmitted, capped in size, and keyed by a hash of the URL (so URLs with tokens aren't stored in plaintext keys).
@@ -217,6 +222,12 @@ npm run dev    # watch mode, rebuilds on changes
 ```
 
 Load the `dist/chrome` folder (or `dist/firefox`) as an unpacked extension in your browser.
+
+Before opening a PR, see [CONTRIBUTING.md](CONTRIBUTING.md) for the lint/format/test/build checks CI runs.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## License
 

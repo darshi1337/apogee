@@ -47,13 +47,15 @@ export const PROVIDERS = isFirefox
 
 export const DEFAULT_PROVIDER = isFirefox ? PROVIDERS.LOCAL : PROVIDERS.WEBLLM;
 
-export const DEFAULT_LOCAL_API_BASE = "http://127.0.0.1:8000";
+// Ollama's own default HTTP port. The extension talks to Ollama directly,
+// no intermediate backend server.
+export const DEFAULT_OLLAMA_HOST = "http://127.0.0.1:11434";
 
 export const DEFAULT_SETTINGS = {
   provider: DEFAULT_PROVIDER,
   webllmModel: DEFAULT_WEBLLM_MODEL,
   localModel: DEFAULT_LOCAL_MODEL,
-  localApiBase: DEFAULT_LOCAL_API_BASE,
+  ollamaHost: DEFAULT_OLLAMA_HOST,
   responseFormat: "bullets",
   theme: "dark",
   // When false, summaries/page content/Q&A are never written to disk (kept

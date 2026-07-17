@@ -1,21 +1,37 @@
-import { readFile } from "node:fs/promises";
-import {
-  getDocument,
-  InvalidPDFException,
-  PasswordException,
-  VerbosityLevel,
-} from "pdfjs-dist/legacy/build/pdf.mjs";
+// PDF text extraction, runs inside the service worker (see
+// background/service-worker.js's "extract-pdf" action). Ported from
+// apogee-backend/src/services/pdfService.js, but uses pdfjs-dist's browser
+// build (pdf.mjs) instead of the legacy Node build, since there's no Node
+// process here.
+//
+// Dynamic-imported, mirrors offscreen.js's getWebLLM(): a heavy module load
+// shouldn't block message-handler registration.
 
 export class PdfExtractionError extends Error {}
 
-/** Extract all text from a PDF file. */
-export async function extractPdfText(pdfPath) {
-  const data = new Uint8Array(await readFile(pdfPath));
+let _pdfjs = null;
 
-  // getDocument() returns a loading task, not the document itself, the
-  // task (not the resolved PDFDocumentProxy) is what exposes destroy().
+async function getPdfjs() {
+  if (!_pdfjs) {
+    const pdfjs = await import("pdfjs-dist/build/pdf.mjs");
+    pdfjs.GlobalWorkerOptions.workerSrc =
+      chrome.runtime.getURL("pdf.worker.js");
+    _pdfjs = pdfjs;
+  }
+  return _pdfjs;
+}
+
+/** Extract all text from a PDF given as an ArrayBuffer. */
+export async function extractPdfText(arrayBuffer) {
+  const {
+    getDocument,
+    InvalidPDFException,
+    PasswordException,
+    VerbosityLevel,
+  } = await getPdfjs();
+
   const loadingTask = getDocument({
-    data,
+    data: new Uint8Array(arrayBuffer),
     isEvalSupported: false,
     useSystemFonts: true,
     verbosity: VerbosityLevel.ERRORS,
@@ -40,8 +56,7 @@ export async function extractPdfText(pdfPath) {
       const page = await doc.getPage(pageNum);
       const content = await page.getTextContent();
       // Text items are runs, not lines, join runs with a space and honor
-      // each item's hasEOL flag so line breaks match the PDF's layout
-      // (closest match to PyMuPDF's default line-preserving text output).
+      // each item's hasEOL flag so line breaks match the PDF's layout.
       for (const item of content.items) {
         if (typeof item.str !== "string") continue;
         text += item.str + (item.hasEOL ? "\n" : " ");

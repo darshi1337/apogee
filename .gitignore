@@ -1,17 +1,30 @@
-__pycache__/
-*.pyc
-*.pyo
-*.egg-info/
-.venv/
-.env
+# Dependencies
+node_modules/
+
+# Build output
 build/
 dist/
 web-ext-artifacts/
-*.pem
-.env
-.env.*
-/etc/apogee/
-node_modules/
 *.zip
 *.xpi
 *.tgz
+
+# Secrets / env
+.env
+.env.*
+*.pem
+
+# Logs
+*.log
+npm-debug.log*
+
+# Lint/test caches
+.eslintcache
+coverage/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

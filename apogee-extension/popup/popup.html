@@ -80,12 +80,28 @@
           <div class="model-progress-top">
             <span class="model-progress-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
-                <path d="M12 3v11m0 0 4-4m-4 4-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                <path d="M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                <path
+                  d="M12 3v11m0 0 4-4m-4 4-4-4"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M5 19h14"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
               </svg>
             </span>
-            <span id="modelProgressText" class="model-progress-title">Downloading model...</span>
-            <span id="modelProgressPercent" class="model-progress-percent"></span>
+            <span id="modelProgressText" class="model-progress-title"
+              >Downloading model...</span
+            >
+            <span
+              id="modelProgressPercent"
+              class="model-progress-percent"
+            ></span>
           </div>
           <div class="model-progress-bar">
             <div id="modelProgressFill" class="model-progress-fill"></div>
@@ -93,19 +109,80 @@
           <div class="model-progress-footer">
             <span id="toggleDebugLogsBtn" class="logs-toggle">
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M5 6h14M5 12h14M5 18h9" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                <path
+                  d="M5 6h14M5 12h14M5 18h9"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
               </svg>
               <span class="logs-toggle-label">Show logs</span>
             </span>
           </div>
         </div>
 
-        <div id="debugLogsCard" class="hidden" style="margin: 0 16px 10px; padding: 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10.5px; max-height: 140px; overflow-y: auto; border: 1px solid var(--btn-border); line-height: 1.4;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; border-bottom: 1px solid var(--btn-border); padding-bottom: 4px;">
-            <span style="font-weight: bold; color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px;">Offscreen Logs</span>
-            <button id="clearDebugLogsBtn" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 9.5px; padding: 0 4px; font-weight: bold;">Clear</button>
+        <div
+          id="debugLogsCard"
+          class="hidden"
+          style="
+            margin: 0 16px 10px;
+            padding: 10px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            font-family:
+              ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 10.5px;
+            max-height: 140px;
+            overflow-y: auto;
+            border: 1px solid var(--btn-border);
+            line-height: 1.4;
+          "
+        >
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 6px;
+              border-bottom: 1px solid var(--btn-border);
+              padding-bottom: 4px;
+            "
+          >
+            <span
+              style="
+                font-weight: bold;
+                color: var(--text-muted);
+                font-size: 10px;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+              "
+              >Offscreen Logs</span
+            >
+            <button
+              id="clearDebugLogsBtn"
+              style="
+                background: none;
+                border: none;
+                color: #ef4444;
+                cursor: pointer;
+                font-size: 9.5px;
+                padding: 0 4px;
+                font-weight: bold;
+              "
+            >
+              Clear
+            </button>
           </div>
-          <div id="debugLogsContent" style="white-space: pre-wrap; word-break: break-all; color: var(--text-muted);">No logs recorded. Try starting summary or chat.</div>
+          <div
+            id="debugLogsContent"
+            style="
+              white-space: pre-wrap;
+              word-break: break-all;
+              color: var(--text-muted);
+            "
+          >
+            No logs recorded. Try starting summary or chat.
+          </div>
         </div>
 
         <section id="summaryCard" class="summary-card">
@@ -161,7 +238,11 @@
       <div id="settingsView" class="hidden">
         <header class="header">
           <div class="header-left">
-            <button id="settingsBackBtn" class="icon-btn back-btn" aria-label="Back">
+            <button
+              id="settingsBackBtn"
+              class="icon-btn back-btn"
+              aria-label="Back"
+            >
               <img src="../assets/arrow-right.svg" alt="Back" />
             </button>
             <h1 class="header-title">Settings</h1>
@@ -184,7 +265,10 @@
             <div class="status-row">
               <span id="settingsStatusText"> Checking... </span>
 
-              <span id="settingsStatusDot" class="status-dot disconnected"></span>
+              <span
+                id="settingsStatusDot"
+                class="status-dot disconnected"
+              ></span>
             </div>
           </div>
 
@@ -197,7 +281,8 @@
             <label class="radio-option">
               <input type="radio" name="provider" value="webllm" checked />
               <span
-                >In-Browser AI <small class="provider-badge">WebGPU</small></span
+                >In-Browser AI
+                <small class="provider-badge">WebGPU</small></span
               >
             </label>
 
@@ -332,7 +417,11 @@
       <div id="contactView" class="hidden">
         <header class="header">
           <div class="header-left">
-            <button id="contactBackBtn" class="icon-btn back-btn" aria-label="Back">
+            <button
+              id="contactBackBtn"
+              class="icon-btn back-btn"
+              aria-label="Back"
+            >
               <img src="../assets/arrow-right.svg" alt="Back" />
             </button>
             <h1 class="header-title">Get in touch</h1>
@@ -353,7 +442,11 @@
                 <span>Contribute</span>
               </div>
 
-              <img src="../assets/arrow-right.svg" class="contact-arrow" alt="" />
+              <img
+                src="../assets/arrow-right.svg"
+                class="contact-arrow"
+                alt=""
+              />
             </button>
 
             <button id="bugBtn" class="contact-card">
@@ -362,7 +455,11 @@
                 <span>Report a bug</span>
               </div>
 
-              <img src="../assets/arrow-right.svg" class="contact-arrow" alt="" />
+              <img
+                src="../assets/arrow-right.svg"
+                class="contact-arrow"
+                alt=""
+              />
             </button>
 
             <button id="featureBtn" class="contact-card">
@@ -371,7 +468,11 @@
                 <span>Request a feature</span>
               </div>
 
-              <img src="../assets/arrow-right.svg" class="contact-arrow" alt="" />
+              <img
+                src="../assets/arrow-right.svg"
+                class="contact-arrow"
+                alt=""
+              />
             </button>
           </div>
 

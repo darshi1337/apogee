@@ -13,7 +13,9 @@ function copyStaticPlugin(targetBrowser) {
 
       if (targetBrowser === "firefox") {
         // Remove offscreen permission and simplify CSP for Firefox
-        manifest.permissions = manifest.permissions.filter((p) => p !== "offscreen");
+        manifest.permissions = manifest.permissions.filter(
+          (p) => p !== "offscreen",
+        );
         manifest.content_security_policy = {
           extension_pages:
             "script-src 'self'; default-src 'self'; connect-src http://127.0.0.1:* http://localhost:*; img-src 'self' data:; font-src 'self'; style-src 'self'",
@@ -57,10 +59,20 @@ export default defineConfig(() => {
       __dirname,
       "background/service-worker.js",
     ),
+    // pdf.js's worker, loaded at runtime via chrome.runtime.getURL("pdf.worker.js")
+    // from lib/pdfExtract.js. Built as its own entry (not bundled into
+    // service-worker.js) since it must run as a real Worker script.
+    "pdf.worker": resolve(
+      __dirname,
+      "node_modules/pdfjs-dist/build/pdf.worker.mjs",
+    ),
   };
 
   if (!isFirefox) {
-    input["offscreen/offscreen"] = resolve(__dirname, "offscreen/offscreen.html");
+    input["offscreen/offscreen"] = resolve(
+      __dirname,
+      "offscreen/offscreen.html",
+    );
   }
 
   return {

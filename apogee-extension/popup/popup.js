@@ -17,7 +17,7 @@ import {
   DEFAULT_SETTINGS,
   WEBLLM_MODELS,
   LOCAL_MODELS,
-  DEFAULT_LOCAL_API_BASE,
+  DEFAULT_OLLAMA_HOST,
 } from "../lib/constants.js";
 
 const summarizeBtn = document.getElementById("summarizeBtn");
@@ -64,7 +64,9 @@ const toggleDebugLogsBtn = document.getElementById("toggleDebugLogsBtn");
 const debugLogsCard = document.getElementById("debugLogsCard");
 const debugLogsContent = document.getElementById("debugLogsContent");
 const clearDebugLogsBtn = document.getElementById("clearDebugLogsBtn");
-const saveHistoryRadios = document.querySelectorAll('input[name="saveHistory"]');
+const saveHistoryRadios = document.querySelectorAll(
+  'input[name="saveHistory"]',
+);
 const clearDataBtn = document.getElementById("clearDataBtn");
 const clearDataStatus = document.getElementById("clearDataStatus");
 const versionText = document.getElementById("versionText");
@@ -91,7 +93,12 @@ let currentPromptsCacheKey = null;
 // is true the result is cached (and delivered via storage.onChanged, so a
 // reopened popup still gets it); when false it's kept ephemeral and delivered
 // only via the runtime message below to a still-open popup.
-function startSuggestedQuestionsBg(promptsCacheKey, { title, url, summary }, settings, persist = true) {
+function startSuggestedQuestionsBg(
+  promptsCacheKey,
+  { title, url, summary },
+  settings,
+  persist = true,
+) {
   currentPromptsCacheKey = promptsCacheKey;
   const isFirefox = process.env.TARGET_BROWSER === "firefox";
   const providerType =
@@ -104,7 +111,7 @@ function startSuggestedQuestionsBg(promptsCacheKey, { title, url, summary }, set
         promptsCacheKey,
         persist,
         providerType,
-        apiBase: settings.localApiBase,
+        host: settings.ollamaHost,
         title,
         url,
         summary,
@@ -246,7 +253,9 @@ async function getCachedContent(url) {
 function getModelForSettings(settings) {
   const isFirefox = process.env.TARGET_BROWSER === "firefox";
   const provider = isFirefox ? "local" : settings.provider;
-  return provider === PROVIDERS.LOCAL ? settings.localModel : settings.webllmModel;
+  return provider === PROVIDERS.LOCAL
+    ? settings.localModel
+    : settings.webllmModel;
 }
 
 // NOTE: The popup runs in a chrome-extension:// context where navigator.gpu is always undefined. The actual WebGPU context lives in the offscreen document.
@@ -377,7 +386,7 @@ async function applySettingsToUI(settings) {
 
   buildWebllmModelUI(settings.webllmModel);
 
-  if (backendUrlInput) backendUrlInput.value = settings.localApiBase;
+  if (backendUrlInput) backendUrlInput.value = settings.ollamaHost;
   buildLocalModelUI(settings.localModel);
 
   const fmtRadio = document.querySelector(
@@ -464,6 +473,32 @@ async function extractFromActiveTab(tab) {
   return pageData || null;
 }
 
+// Downloads the PDF and extracts its text, both client-side: the fetch runs
+// inside the tab (via activeTab) since the extension's own CSP/host_permissions
+// only allow localhost, then the bytes are handed to the service worker's
+// "extract-pdf" handler (lib/pdfExtract.js), which needs a real page context
+// for pdf.js's worker. Used for both providers now that summarization no
+// longer routes through a backend that could fetch the PDF itself.
+async function extractPdfContent(tab) {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: async () => {
+      const res = await fetch(window.location.href);
+      if (!res.ok) throw new Error(`Failed to download PDF: ${res.status}`);
+      return await res.arrayBuffer();
+    },
+  });
+  const arrayBuffer = results?.[0]?.result;
+  if (!arrayBuffer) throw new Error("Could not download PDF.");
+
+  const response = await chrome.runtime.sendMessage({
+    target: "service-worker",
+    action: "extract-pdf",
+    payload: { arrayBuffer },
+  });
+  return response?.text || "";
+}
+
 // Only the generic Readability-parsed extraction is expensive enough to be
 // worth caching/reusing. Gmail and YouTube extractors are cheap DOM reads,
 // and, unlike a fresh page load, those sites navigate between threads/
@@ -490,7 +525,10 @@ async function getPageData(tab) {
   const pageData = await extractFromActiveTab(tab);
   if (pageData) {
     currentPageData = pageData;
-    if (CACHEABLE_PAGE_TYPES.has(pageData.type) && (await shouldPersist(tab.url))) {
+    if (
+      CACHEABLE_PAGE_TYPES.has(pageData.type) &&
+      (await shouldPersist(tab.url))
+    ) {
       await persistContent(tab.url, pageData);
     }
   }
@@ -513,12 +551,22 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 
   if (message.type === "live-offscreen-log" && message.log) {
-    if (debugLogsContent && debugLogsCard && !debugLogsCard.classList.contains("hidden")) {
-      const isScrollAtBottom = debugLogsCard.scrollHeight - debugLogsCard.clientHeight <= debugLogsCard.scrollTop + 10;
-      if (debugLogsContent.textContent === "No logs recorded. Try starting summary or chat.") {
+    if (
+      debugLogsContent &&
+      debugLogsCard &&
+      !debugLogsCard.classList.contains("hidden")
+    ) {
+      const isScrollAtBottom =
+        debugLogsCard.scrollHeight - debugLogsCard.clientHeight <=
+        debugLogsCard.scrollTop + 10;
+      if (
+        debugLogsContent.textContent ===
+        "No logs recorded. Try starting summary or chat."
+      ) {
         debugLogsContent.textContent = "";
       }
-      debugLogsContent.textContent += (debugLogsContent.textContent ? "\n" : "") + message.log;
+      debugLogsContent.textContent +=
+        (debugLogsContent.textContent ? "\n" : "") + message.log;
       if (isScrollAtBottom) {
         debugLogsCard.scrollTop = debugLogsCard.scrollHeight;
       }
@@ -649,8 +697,12 @@ function hashUrl(url) {
     h1 = Math.imul(h1 ^ ch, 2654435761);
     h2 = Math.imul(h2 ^ ch, 1597334677);
   }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  h1 =
+    Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^
+    Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 =
+    Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^
+    Math.imul(h1 ^ (h1 >>> 13), 3266489909);
   return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
 }
 
@@ -777,7 +829,10 @@ async function streamGeneratorIntoElement(generator, element) {
 // the summary view, and fetching suggested questions). Shared between a
 // freshly started summarize job and one being resumed after the popup was
 // reopened mid-stream.
-async function consumeSummaryStream(stream, { tab, cacheKey, promptsCacheKey, pageData }) {
+async function consumeSummaryStream(
+  stream,
+  { tab, cacheKey, promptsCacheKey, pageData },
+) {
   const text = await streamGeneratorIntoElement(stream, summaryText);
 
   const persist = await shouldPersist(tab.url);
@@ -845,11 +900,18 @@ async function summarizeActivePage() {
       return;
     }
     currentPageData = pageData;
-    if (CACHEABLE_PAGE_TYPES.has(pageData.type) && (await shouldPersist(tab.url))) {
+    if (
+      CACHEABLE_PAGE_TYPES.has(pageData.type) &&
+      (await shouldPersist(tab.url))
+    ) {
       await persistContent(tab.url, pageData);
     }
 
-    const cacheKey = getSummaryCacheKey(tab.url, settings.responseFormat, model);
+    const cacheKey = getSummaryCacheKey(
+      tab.url,
+      settings.responseFormat,
+      model,
+    );
     const promptsCacheKey = getPromptsCacheKey(
       tab.url,
       settings.responseFormat,
@@ -859,29 +921,20 @@ async function summarizeActivePage() {
     let streamId, stream;
 
     if (pageData.isPdf) {
-      setLoadingIndicator(summaryText, "Summarizing PDF");
-      if (settings.provider === PROVIDERS.LOCAL) {
-        ({ streamId, stream } = await provider.summarizePdf({
-          url: pageData.url,
-          mode: settings.responseFormat,
-        }));
-      } else {
-        if (!pageData.content) {
-          const p = document.createElement("p");
-          p.style.color = "#d93025";
-          p.style.fontSize = "13px";
-          p.textContent = "PDF summarization requires Local Ollama mode. Switch to Local Ollama in Settings to summarize PDFs.";
-          summaryText.textContent = "";
-          summaryText.appendChild(p);
-          return;
-        }
-        ({ streamId, stream } = await provider.summarize({
-          title: pageData.title,
-          url: pageData.url,
-          content: pageData.content,
-          mode: settings.responseFormat,
-        }));
+      setLoadingIndicator(summaryText, "Extracting PDF");
+      const pdfContent = await extractPdfContent(tab);
+      if (!pdfContent) {
+        summaryText.textContent = "Could not extract any text from this PDF.";
+        return;
       }
+      pageData.content = pdfContent;
+      setLoadingIndicator(summaryText, "Summarizing PDF");
+      ({ streamId, stream } = await provider.summarize({
+        title: pageData.title,
+        url: pageData.url,
+        content: pdfContent,
+        mode: settings.responseFormat,
+      }));
     } else {
       ({ streamId, stream } = await provider.summarize({
         title: pageData.title,
@@ -900,7 +953,12 @@ async function summarizeActivePage() {
       promptsCacheKey,
     });
 
-    await consumeSummaryStream(stream, { tab, cacheKey, promptsCacheKey, pageData });
+    await consumeSummaryStream(stream, {
+      tab,
+      cacheKey,
+      promptsCacheKey,
+      pageData,
+    });
   } catch (error) {
     console.error(error);
     const p = document.createElement("p");
@@ -1133,7 +1191,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     const model = getModelForSettings(settings);
-    const cacheKey = getSummaryCacheKey(tab.url, settings.responseFormat, model);
+    const cacheKey = getSummaryCacheKey(
+      tab.url,
+      settings.responseFormat,
+      model,
+    );
     const promptsCacheKey = getPromptsCacheKey(
       tab.url,
       settings.responseFormat,
@@ -1270,10 +1332,10 @@ clearDataBtn?.addEventListener("click", async () => {
 });
 
 backendUrlInput?.addEventListener("change", async () => {
-  const val = (backendUrlInput.value || DEFAULT_LOCAL_API_BASE)
+  const val = (backendUrlInput.value || DEFAULT_OLLAMA_HOST)
     .trim()
     .replace(/\/+$/, "");
-  const settings = await saveSettings({ localApiBase: val });
+  const settings = await saveSettings({ ollamaHost: val });
   await applySettingsToUI(settings);
   updateConnectionUI(await checkConnection());
 });
@@ -1329,10 +1391,12 @@ async function updateDebugLogsUI() {
   try {
     const res = await chrome.runtime.sendMessage({
       target: "service-worker",
-      action: "get-offscreen-logs"
+      action: "get-offscreen-logs",
     });
     if (res && Array.isArray(res.logs)) {
-      debugLogsContent.textContent = res.logs.join("\n") || "No logs recorded. Try starting summary or chat.";
+      debugLogsContent.textContent =
+        res.logs.join("\n") ||
+        "No logs recorded. Try starting summary or chat.";
       debugLogsCard.scrollTop = debugLogsCard.scrollHeight;
     }
   } catch (err) {
@@ -1344,7 +1408,8 @@ toggleDebugLogsBtn?.addEventListener("click", async () => {
   // Update only the label span so the leading icon isn't clobbered; fall back
   // to the element itself if the markup ever changes.
   const label =
-    toggleDebugLogsBtn.querySelector(".logs-toggle-label") || toggleDebugLogsBtn;
+    toggleDebugLogsBtn.querySelector(".logs-toggle-label") ||
+    toggleDebugLogsBtn;
   const isHidden = debugLogsCard.classList.contains("hidden");
   if (isHidden) {
     debugLogsCard.classList.remove("hidden");
@@ -1360,9 +1425,10 @@ clearDebugLogsBtn?.addEventListener("click", async () => {
   try {
     await chrome.runtime.sendMessage({
       target: "service-worker",
-      action: "clear-offscreen-logs"
+      action: "clear-offscreen-logs",
     });
-    debugLogsContent.textContent = "No logs recorded. Try starting summary or chat.";
+    debugLogsContent.textContent =
+      "No logs recorded. Try starting summary or chat.";
   } catch (err) {
     debugLogsContent.textContent = `Error clearing logs: ${err.message}`;
   }

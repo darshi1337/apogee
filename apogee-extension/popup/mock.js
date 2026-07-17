@@ -1,4 +1,8 @@
-if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.sendMessage) {
+if (
+  typeof chrome === "undefined" ||
+  !chrome.runtime ||
+  !chrome.runtime.sendMessage
+) {
   window.chrome = {
     runtime: {
       onMessage: {
@@ -45,7 +49,7 @@ if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.sendMess
           Object.assign(settings, obj.settings || obj);
           localStorage.setItem("settings", JSON.stringify(settings));
         },
-        remove: async (keys) => {},
+        remove: async (_keys) => {},
       },
     },
     tabs: {
@@ -58,7 +62,8 @@ if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.sendMess
         {
           result: {
             title: "Example Page",
-            content: "This is mock content of the active page to demonstrate Apogee.",
+            content:
+              "This is mock content of the active page to demonstrate Apogee.",
             url: "https://example.com",
           },
         },

@@ -1,15 +1,6 @@
-// Provider abstraction, routes inference requests to either WebLLM (in-browser via offscreen document) or Local Ollama backend.
+// Provider abstraction, routes inference requests to either WebLLM (in-browser via offscreen document) or a local Ollama instance (talked to directly over HTTP).
 
-import { PROVIDERS, DEFAULT_LOCAL_API_BASE } from "./constants.js";
-
-// The backend rejects POSTs without this header (see apogee.app on the
-// server). A custom header forces a CORS preflight, which a plain <form>
-// post or a non-preflighted "simple" fetch from an arbitrary webpage can't
-// trigger, closing off blind CSRF-style requests to the local backend.
-const LOCAL_BACKEND_HEADERS = {
-  "Content-Type": "application/json",
-  "X-Apogee-Client": "1",
-};
+import { PROVIDERS, DEFAULT_OLLAMA_HOST } from "./constants.js";
 
 // Sends requests to the service worker, which forwards to the offscreen doc.
 
@@ -104,11 +95,11 @@ async function startWebllmStream(action, payload) {
   return { streamId, stream: attachToStream(streamId) };
 }
 
-async function startBackendStream(apiBase, endpoint, body) {
+async function startOllamaStream(action, payload) {
   const { streamId } = await sendToServiceWorker({
     target: "service-worker",
-    action: "backend-stream",
-    payload: { apiBase, endpoint, body },
+    action: "ollama-stream",
+    payload: { action, ...payload },
   });
   if (!streamId) {
     throw new Error("No streamId returned from service worker");
@@ -153,13 +144,6 @@ class WebLLMProvider {
     return response?.questions || [];
   }
 
-  summarizePdf({ url, mode }) {
-    throw new Error(
-      "PDF summarization via WebLLM should use client-side extraction. " +
-        "Call summarize() with the extracted text instead.",
-    );
-  }
-
   async checkReady() {
     const response = await sendToServiceWorker({
       target: "service-worker",
@@ -169,72 +153,65 @@ class WebLLMProvider {
   }
 }
 
-class LocalProvider {
-  constructor(model, apiBase) {
+// Talks to a local Ollama instance directly over HTTP (via the service
+// worker, see background/service-worker.js's "ollama-stream" handler), no
+// intermediate backend server. PDF text is extracted client-side (see
+// popup.js's PDF branch + lib/pdfExtract.js) and fed in through summarize()
+// like any other page, so there's no separate summarizePdf() here.
+class DirectOllamaProvider {
+  constructor(model, host) {
     this.model = model;
-    this.apiBase = (apiBase || DEFAULT_LOCAL_API_BASE).replace(/\/+$/, "");
+    this.host = (host || DEFAULT_OLLAMA_HOST).replace(/\/+$/, "");
   }
 
   summarize({ title, url, content, mode }) {
-    return startBackendStream(this.apiBase, "/summarize", {
+    return startOllamaStream("summarize", {
       title,
       url,
       content,
       mode,
       model: this.model,
+      host: this.host,
     });
   }
 
   ask({ title, url, content, question }) {
-    return startBackendStream(this.apiBase, "/ask", {
+    return startOllamaStream("ask", {
       title,
       url,
       content,
       question,
       model: this.model,
+      host: this.host,
     });
   }
 
   async suggestQuestions({ title, url, summary }) {
-    const response = await fetch(`${this.apiBase}/suggest-questions`, {
-      method: "POST",
-      headers: LOCAL_BACKEND_HEADERS,
-      body: JSON.stringify({ title, url, summary, model: this.model }),
+    const response = await sendToServiceWorker({
+      target: "service-worker",
+      action: "ollama-suggest-questions",
+      payload: { title, url, summary, model: this.model, host: this.host },
     });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(errText || `Prompt request failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return Array.isArray(data.questions) ? data.questions.slice(0, 2) : [];
-  }
-
-  summarizePdf({ url, mode }) {
-    return startBackendStream(this.apiBase, "/pdf/url", {
-      url,
-      mode,
-      model: this.model,
-    });
+    return response?.questions || [];
   }
 
   async checkReady() {
-    try {
-      const response = await fetch(`${this.apiBase}/health`);
-      if (!response.ok) return { ready: false };
-      const data = await response.json();
-      return { ready: data.connected === true, models: data.models || [] };
-    } catch {
-      return { ready: false };
-    }
+    const response = await sendToServiceWorker({
+      target: "service-worker",
+      action: "ollama-status",
+      payload: { host: this.host },
+    });
+    return {
+      ready: response?.connected === true,
+      models: response?.models || [],
+    };
   }
 }
 
 export function getProvider(settings) {
   const isFirefox = process.env.TARGET_BROWSER === "firefox";
   if (isFirefox || settings.provider === PROVIDERS.LOCAL) {
-    return new LocalProvider(settings.localModel, settings.localApiBase);
+    return new DirectOllamaProvider(settings.localModel, settings.ollamaHost);
   }
   return new WebLLMProvider(settings.webllmModel);
 }

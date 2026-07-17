@@ -12,7 +12,8 @@ test("parseQuestions parses numbered lists", () => {
 });
 
 test("parseQuestions ignores conversational wrappers without question marks", () => {
-  const output = "Here are two questions:\n- What is the main idea?\n- How does it work?\nHope this helps!";
+  const output =
+    "Here are two questions:\n- What is the main idea?\n- How does it work?\nHope this helps!";
   assert.deepEqual(parseQuestions(output), [
     "What is the main idea?",
     "How does it work?",
@@ -20,7 +21,8 @@ test("parseQuestions ignores conversational wrappers without question marks", ()
 });
 
 test("parseQuestions ignores empty lines and thinking blocks", () => {
-  const output = "<think>\nThinking process...\n</think>\n- What is the main idea?\n\n- How does it work?";
+  const output =
+    "<think>\nThinking process...\n</think>\n- What is the main idea?\n\n- How does it work?";
   assert.deepEqual(parseQuestions(output), [
     "What is the main idea?",
     "How does it work?",

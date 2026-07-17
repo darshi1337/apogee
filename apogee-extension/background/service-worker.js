@@ -1,7 +1,18 @@
 // Service Worker, central message router for the Apogee extension.
-// Routes requests from the popup to either the offscreen document (WebLLM) or lets the popup handle local backend calls directly.
+// Routes requests from the popup to either the offscreen document (WebLLM) or a local Ollama instance, talked to directly over HTTP from here.
 // Firefox does not support chrome.offscreen or chrome.runtime.getContexts.
 // WebLLM (which requires an offscreen document for WebGPU) is only available on Chrome/Edge. Firefox users must use the Local Ollama provider.
+
+import { summarizeText } from "../lib/ollamaSummarize.js";
+import { chatStream, chatOnce, checkHealth } from "../lib/ollamaClient.js";
+import {
+  buildAnswerPrompt,
+  buildSuggestQuestionsPrompt,
+} from "../lib/prompts.js";
+import { truncateForPrompt } from "../lib/chunk.js";
+import { parseSuggestedQuestions } from "../lib/questions.js";
+import { extractPdfText } from "../lib/pdfExtract.js";
+
 const hasOffscreenAPI =
   typeof chrome !== "undefined" &&
   typeof chrome.offscreen !== "undefined" &&
@@ -188,39 +199,33 @@ function relayToOffscreenStream(popupPort, streamId) {
 }
 
 // The service worker isn't bound by the extension CSP `connect-src`, so
-// constrain the relay to loopback hosts and the providers' fixed endpoints,
-// otherwise a bad apiBase/endpoint could turn it into an SSRF fetch proxy.
-const ALLOWED_BACKEND_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
-const ALLOWED_BACKEND_ENDPOINTS = new Set([
-  "/summarize",
-  "/ask",
-  "/pdf/url",
-  "/suggest-questions",
-]);
+// constrain requests to loopback hosts, otherwise a bad `host` setting could
+// turn it into an SSRF fetch proxy.
+const ALLOWED_OLLAMA_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
-function resolveBackendUrl(apiBase, endpoint) {
-  if (!ALLOWED_BACKEND_ENDPOINTS.has(endpoint)) {
-    throw new Error(`Disallowed backend endpoint: ${endpoint}`);
-  }
+function validateOllamaHost(host) {
   let url;
   try {
-    url = new URL(`${apiBase}${endpoint}`);
+    url = new URL(host);
   } catch {
-    throw new Error("Invalid backend URL");
+    throw new Error("Invalid Ollama host");
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error(`Disallowed backend protocol: ${url.protocol}`);
+    throw new Error(`Disallowed Ollama protocol: ${url.protocol}`);
   }
-  if (!ALLOWED_BACKEND_HOSTS.has(url.hostname)) {
-    throw new Error(`Disallowed backend host: ${url.hostname}`);
+  if (!ALLOWED_OLLAMA_HOSTS.has(url.hostname)) {
+    throw new Error(`Disallowed Ollama host: ${url.hostname}`);
   }
-  return url.toString();
+  return url.toString().replace(/\/+$/, "");
 }
 
-// Runs a streaming fetch against the local Ollama backend, buffering chunks
-// so it survives popup close/reopen (mirrors the WebLLM buffering, which now
-// lives in the offscreen document, see the activeStreams comment above).
-async function startBackendStream(streamId, { apiBase, endpoint, body }) {
+// Runs a summarize/ask job directly against Ollama, buffering chunks so it
+// survives popup close/reopen (mirrors the WebLLM buffering, which lives in
+// the offscreen document, see the activeStreams comment above).
+async function startOllamaStream(
+  streamId,
+  { action, host, model, title, url, content, mode, question },
+) {
   const stream = { text: "", done: false, error: null, subscribers: new Set() };
   activeStreams.set(streamId, stream);
 
@@ -240,51 +245,53 @@ async function startBackendStream(streamId, { apiBase, endpoint, body }) {
     broadcastToStream(stream, { type: "chunk", text });
   };
 
-  let requestUrl;
+  let validHost;
   try {
-    requestUrl = resolveBackendUrl(apiBase, endpoint);
+    validHost = validateOllamaHost(host);
   } catch (err) {
     finish({ type: "error", error: err.message });
     return;
   }
 
   try {
-    const response = await fetch(requestUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Apogee-Client": "1",
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      finish({
-        type: "error",
-        error: errText || `Request failed: ${response.status}`,
+    let generator;
+    if (action === "summarize") {
+      generator = summarizeText({
+        text: content,
+        title,
+        url,
+        mode,
+        model,
+        host: validHost,
       });
-      return;
+    } else if (action === "ask") {
+      const prompt = buildAnswerPrompt(
+        title,
+        url,
+        truncateForPrompt(content),
+        question,
+      );
+      generator = chatStream(validHost, model, prompt);
+    } else {
+      throw new Error(`Unknown ollama-stream action: ${action}`);
     }
 
-    if (!response.body) {
-      emitChunk(await response.text());
-      finish({ type: "done" });
-      return;
+    for await (const token of generator) {
+      emitChunk(token);
     }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      emitChunk(decoder.decode(value, { stream: true }));
-    }
-    emitChunk(decoder.decode());
     finish({ type: "done" });
   } catch (err) {
     finish({ type: "error", error: err.message });
   }
+}
+
+// Shared by the "ollama-suggest-questions" message (a direct, foreground
+// request) and runSuggestQuestionsJob's backgrounded job below.
+async function generateOllamaSuggestions(host, model, { title, url, summary }) {
+  const validHost = validateOllamaHost(host);
+  const prompt = buildSuggestQuestionsPrompt(title, url, summary);
+  const text = await chatOnce(validHost, model, prompt);
+  return parseSuggestedQuestions(text);
 }
 
 // Suggested-question generation runs here (not the popup) so it survives the
@@ -297,7 +304,7 @@ async function runSuggestQuestionsJob(payload) {
     promptsCacheKey,
     persist = true,
     providerType,
-    apiBase,
+    host,
     title,
     url,
     summary,
@@ -309,21 +316,11 @@ async function runSuggestQuestionsJob(payload) {
   let questions = [];
   try {
     if (providerType === "local") {
-      const requestUrl = resolveBackendUrl(apiBase, "/suggest-questions");
-      const res = await fetch(requestUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Apogee-Client": "1",
-        },
-        body: JSON.stringify({ title, url, summary, model }),
+      questions = await generateOllamaSuggestions(host, model, {
+        title,
+        url,
+        summary,
       });
-      if (res.ok) {
-        const data = await res.json();
-        questions = Array.isArray(data.questions)
-          ? data.questions.slice(0, 2)
-          : [];
-      }
     } else {
       await ensureOffscreenDocument();
       const resp = await chrome.runtime.sendMessage({
@@ -408,7 +405,7 @@ async function closeOffscreenIfIdle() {
     if (typeof chrome !== "undefined" && chrome.offscreen) {
       await chrome.offscreen.closeDocument();
     }
-  } catch (err) {
+  } catch {
     // ignore if already closed
   }
   offscreenReady = false;
@@ -551,10 +548,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
-        case "backend-stream": {
-          const streamId = nextStreamId("backend");
-          startBackendStream(streamId, message.payload);
+        case "ollama-stream": {
+          const streamId = nextStreamId("ollama");
+          startOllamaStream(streamId, message.payload);
           sendResponse({ streamId });
+          break;
+        }
+
+        case "ollama-status": {
+          const response = await checkHealth(message.payload.host);
+          sendResponse(response);
+          break;
+        }
+
+        case "ollama-suggest-questions": {
+          const { host, model, title, url, summary } = message.payload;
+          const questions = await generateOllamaSuggestions(host, model, {
+            title,
+            url,
+            summary,
+          });
+          sendResponse({ questions });
+          break;
+        }
+
+        case "extract-pdf": {
+          const text = await extractPdfText(message.payload.arrayBuffer);
+          sendResponse({ text });
           break;
         }
 

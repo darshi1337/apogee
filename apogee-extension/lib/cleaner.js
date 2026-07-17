@@ -1,3 +1,6 @@
+// Client-side port of apogee-backend/src/utils/cleaner.js, used by
+// ollamaSummarize.js so its output matches the backend's normalization.
+
 export function cleanText(text) {
   // Collapse runs of blank lines into a single newline
   let cleaned = text.replace(/\n{3,}/g, "\n\n");

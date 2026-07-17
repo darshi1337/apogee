@@ -1,6 +1,6 @@
 {
   "name": "apogee-extension",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -10,12 +10,20 @@
     "build:firefox": "TARGET_BROWSER=firefox vite build",
     "build": "npm run build:chrome && npm run build:firefox",
     "test": "node --test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "package": "npm run build && node -e 'const fs = require(\"fs\"); const v = JSON.parse(fs.readFileSync(\"manifest.json\")).version; const exec = require(\"child_process\").execSync; exec(\"npx web-ext build --source-dir dist/chrome --artifacts-dir ../ --overwrite-dest --filename apogee-\" + v + \"-chrome.zip\", {stdio: \"inherit\"}); exec(\"npx web-ext build --source-dir dist/firefox --artifacts-dir ../ --overwrite-dest --filename apogee-\" + v + \"-mozilla.xpi\", {stdio: \"inherit\"});'"
   },
   "dependencies": {
-    "@mlc-ai/web-llm": "^0.2.78"
+    "@mlc-ai/web-llm": "^0.2.78",
+    "pdfjs-dist": "^6.1.200"
   },
   "devDependencies": {
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^9.1.2",
+    "globals": "^15.15.0",
+    "prettier": "^3.9.5",
     "vite": "^6.3.5"
   }
 }

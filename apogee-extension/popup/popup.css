@@ -1027,12 +1027,11 @@ body {
 .model-progress {
   margin: 0 16px 12px;
   padding: 13px 14px;
-  background:
-    linear-gradient(
-      135deg,
-      rgba(130, 127, 255, 0.14) 0%,
-      rgba(130, 127, 255, 0.05) 100%
-    );
+  background: linear-gradient(
+    135deg,
+    rgba(130, 127, 255, 0.14) 0%,
+    rgba(130, 127, 255, 0.05) 100%
+  );
   border: 1px solid var(--btn-hover-border);
   border-radius: 14px;
   box-shadow: 0 6px 20px -12px rgba(130, 127, 255, 0.6);
