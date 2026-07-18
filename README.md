@@ -100,19 +100,43 @@ models (e.g. `llama3.1`, `qwen2.5`, `gemma3`) get bigger chunks and fewer
 passes over long content, rather than the same fixed chunk size regardless
 of what the model can actually handle.
 
-## Browser Requirements
+## Browser Support
 
-- **Chrome 113+** or **Edge 113+** or **Dia** (WebGPU required)
-- A GPU with WebGPU support (most modern GPUs)
-- Firefox: WebGPU is not yet stable so use **Local Ollama** mode instead
+Apogee ships two builds: a Chromium build (`dist/chrome`, Manifest V3 with an
+offscreen document for WebGPU) and a Firefox build (`dist/firefox`, no
+offscreen document, Local Ollama only). Anything Chromium-based accepts the
+same build.
+
+| Browser              | WebLLM (In-Browser AI)          | Local Ollama | Notes                                                          |
+| --------------------- | -------------------------------- | ------------ | --------------------------------------------------------------- |
+| Chrome 113+           | Yes                               | Yes          | Primary target, most tested                                    |
+| Edge 113+             | Yes                               | Yes          | Chromium-based, same engine as Chrome                          |
+| Dia                   | Yes                               | Yes          | Chromium-based                                                  |
+| Brave                 | Should work                       | Yes          | Chromium-based; WebGPU may need enabling in `brave://flags`, not independently verified |
+| Opera / Opera GX      | Should work                       | Yes          | Chromium-based, not independently verified                      |
+| Vivaldi               | Should work                       | Yes          | Chromium-based, not independently verified                      |
+| Arc                   | Should work                       | Yes          | Chromium-based, not independently verified                      |
+| Firefox               | No                                | Yes          | Firefox's WebExtensions implementation has no `browser.offscreen` API, which WebLLM needs to run WebGPU outside a visible tab (a service worker can't access WebGPU directly). This is independent of Firefox's own WebGPU support, which is also still partial and platform-limited. Use **Local Ollama** mode. |
+| Safari                | No                                | No           | Apogee doesn't currently build or ship a Safari extension (a separate packaging toolchain from Chrome/Firefox); not evaluated regardless of Safari's own WebGPU support |
+
+See MDN's [WebGPU API browser compatibility table](https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API#browser_compatibility)
+for exact per-browser/per-OS WebGPU version support, it's a fast-moving target
+and a better source of truth than a number hardcoded here. A GPU with WebGPU
+support (most GPUs from the last several years) is required for the
+In-Browser (WebLLM) mode specifically. Local Ollama mode has no GPU
+requirement of its own beyond whatever Ollama itself needs.
 
 ## Install the Extension
 
-### Chrome / Dia
+### Chrome, Edge, Brave, Opera, Vivaldi, Arc, Dia
+
+These are all Chromium-based and use the same `dist/chrome` build and load
+steps; only the extensions-page URL differs slightly (`chrome://extensions`,
+`edge://extensions`, `brave://extensions`, `dia://extensions/`, etc.).
 
 1. Download the packaged extension `.zip` from [Releases](https://github.com/darshi1337/apogee/releases).
 2. Extract/unzip the downloaded `.zip` file on your machine.
-3. Open the browser and go to `chrome://extensions` or `dia://extensions/`.
+3. Open your browser's extensions page (`chrome://extensions` on Chrome/Brave/Opera/Vivaldi, `edge://extensions` on Edge, `dia://extensions/` on Dia).
 4. Enable **Developer mode** (toggle in the top-right).
 5. Click **Load unpacked** and select the extracted folder (containing `manifest.json`, not the ZIP file itself).
 
@@ -120,10 +144,10 @@ of what the model can actually handle.
 
 1. Clone this repository.
 2. `cd apogee-extension && npm install && npm run build`
-3. Go to `chrome://extensions` or `dia://extensions/` and enable **Developer mode**.
+3. Go to your browser's extensions page and enable **Developer mode**.
 4. Click **Load unpacked** and select the `apogee-extension/dist/chrome` folder.
 
-   > `npm run build` produces both `dist/chrome` and `dist/firefox`. Use `dist/chrome` for Chrome/Edge/Dia and `dist/firefox` for Firefox. You can also build a single target with `npm run build:chrome` or `npm run build:firefox`.
+   > `npm run build` produces both `dist/chrome` and `dist/firefox`. Use `dist/chrome` for any Chromium-based browser and `dist/firefox` for Firefox. You can also build a single target with `npm run build:chrome` or `npm run build:firefox`.
 
 ### Firefox
 
