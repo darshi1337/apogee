@@ -54,6 +54,7 @@ const localSettingsCard = document.getElementById("localSettingsCard");
 const localModelsCard = document.getElementById("localModelsCard");
 const webllmModelList = document.getElementById("webllmModelList");
 const localModelList = document.getElementById("localModelList");
+const localModelStatus = document.getElementById("localModelStatus");
 const webgpuWarning = document.getElementById("webgpuWarning");
 const modelProgress = document.getElementById("modelProgress");
 const modelProgressText = document.getElementById("modelProgressText");
@@ -317,12 +318,12 @@ function buildWebllmModelUI(selectedId) {
   });
 }
 
-// Mirrors buildWebllmModelUI: generated from LOCAL_MODELS instead of a
-// second hardcoded copy of the model list in popup.html, which had already
-// drifted out of sync with lib/constants.js once before.
-function buildLocalModelUI(selectedId) {
+// Mirrors buildWebllmModelUI. `models` defaults to the hardcoded
+// LOCAL_MODELS list, but updateLocalModelList (below) overrides it with
+// whatever Ollama actually reports having pulled, once that's known.
+function buildLocalModelUI(selectedId, models = LOCAL_MODELS) {
   localModelList.innerHTML = "";
-  for (const model of LOCAL_MODELS) {
+  for (const model of models) {
     const label = document.createElement("label");
     label.className = "radio-option";
     const input = document.createElement("input");
@@ -1060,11 +1061,52 @@ async function submitQuestion(question) {
   }
 }
 
+// Returns the provider's full checkReady() result (not just a boolean):
+// DirectOllamaProvider's includes `models`, the live list from Ollama's own
+// /api/tags (see ollamaClient.js's checkHealth), which updateLocalModelList
+// uses to replace the hardcoded LOCAL_MODELS list with whatever the user has
+// actually pulled.
 async function checkConnection() {
   const settings = await getSettings();
   const provider = getProvider(settings);
-  const status = await provider.checkReady();
-  return status?.ready === true;
+  return await provider.checkReady();
+}
+
+// Populates the Local Ollama model list from that live result, so users
+// aren't limited to the 4 models baked into LOCAL_MODELS. Falls back to that
+// hardcoded list when Ollama isn't reachable or reports no models, so the
+// settings page still shows something sensible before Ollama is running.
+function updateLocalModelList(settings, status) {
+  const isFirefox = process.env.TARGET_BROWSER === "firefox";
+  const provider = isFirefox ? "local" : settings.provider;
+  if (provider !== PROVIDERS.LOCAL) return;
+
+  const liveModels = Array.isArray(status?.models) ? status.models : [];
+  if (liveModels.length > 0) {
+    // Keep the currently selected model in the list even if this Ollama
+    // response doesn't include it (e.g. it was picked before Ollama was
+    // reachable), so switching providers/reopening never silently changes
+    // the user's choice out from under them.
+    const names = liveModels.includes(settings.localModel)
+      ? liveModels
+      : [settings.localModel, ...liveModels];
+    buildLocalModelUI(
+      settings.localModel,
+      names.map((name) => ({ id: name, label: name })),
+    );
+    if (localModelStatus) {
+      localModelStatus.textContent =
+        `${liveModels.length} model${liveModels.length === 1 ? "" : "s"} ` +
+        "found on this Ollama instance.";
+    }
+  } else {
+    buildLocalModelUI(settings.localModel, LOCAL_MODELS);
+    if (localModelStatus) {
+      localModelStatus.textContent = status?.ready
+        ? "No models found on this Ollama instance — pull one with `ollama pull <model>`."
+        : "Showing default models — connect to Ollama to see yours.";
+    }
+  }
 }
 
 function updateConnectionUI(connected) {
@@ -1100,8 +1142,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const settings = await getSettings();
     await applySettingsToUI(settings);
 
-    const connected = await checkConnection();
-    updateConnectionUI(connected);
+    const status = await checkConnection();
+    updateConnectionUI(status?.ready === true);
+    updateLocalModelList(settings, status);
 
     const [tab] = await chrome.tabs.query({
       active: true,
@@ -1276,7 +1319,9 @@ providerRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
     const settings = await saveSettings({ provider: radio.value });
     await applySettingsToUI(settings);
-    updateConnectionUI(await checkConnection());
+    const status = await checkConnection();
+    updateConnectionUI(status?.ready === true);
+    updateLocalModelList(settings, status);
   });
 });
 
@@ -1337,7 +1382,9 @@ backendUrlInput?.addEventListener("change", async () => {
     .replace(/\/+$/, "");
   const settings = await saveSettings({ ollamaHost: val });
   await applySettingsToUI(settings);
-  updateConnectionUI(await checkConnection());
+  const status = await checkConnection();
+  updateConnectionUI(status?.ready === true);
+  updateLocalModelList(settings, status);
 });
 
 promptsCloseBtn?.addEventListener("click", () => {

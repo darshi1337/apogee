@@ -7,6 +7,7 @@ import { chunkText } from "./chunk.js";
 import { buildSummaryPrompt } from "./prompts.js";
 import { cleanText } from "./cleaner.js";
 import { chatStream } from "./ollamaClient.js";
+import { getMaxChunkChars } from "./modelLimits.js";
 
 // Matches a bullet marker (•, -, *) or a numbered-list marker (1. / 1)) at
 // the start of a line. Mirrors summaryService.js's BULLET_LINE.
@@ -29,7 +30,7 @@ export async function* summarizeText(
   { chunkTextFn = chunkText, chatStreamFn = chatStream, onProgress } = {},
 ) {
   const cleanedContent = cleanText(text);
-  let chunks = chunkTextFn(cleanedContent);
+  let chunks = chunkTextFn(cleanedContent, getMaxChunkChars(model));
   if (chunks.length > MAX_CHUNKS) {
     let biggerSize = Math.ceil(cleanedContent.length / MAX_CHUNKS);
     chunks = chunkTextFn(cleanedContent, biggerSize);

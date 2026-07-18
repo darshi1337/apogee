@@ -57,7 +57,7 @@ transcript still works, not just what fit in the opening truncated slice.
 
 1. **Install the extension** (see below).
 2. Open any webpage.
-3. Click the Apogee icon → **Summarize this page**.
+3. Click the Apogee icon, then **Summarize this page**.
 4. On first use, the model downloads automatically. After that it's instant.
 
 That's it. No backend installation, no terminal commands.
@@ -84,12 +84,21 @@ Apogee offers two modes of operation to balance ease-of-use and raw capabilities
 
 ## Supported Ollama Models
 
+Any model you've pulled shows up automatically in the extension's settings
+(see [Advanced: Local Ollama Mode](#advanced-local-ollama-mode)). These are
+just a starting point if you haven't pulled anything yet:
+
 | Model          | Size | Command to pull              | Recommended For               |
 | -------------- | ---- | ---------------------------- | ----------------------------- |
 | Gemma 3        | ~4B  | `ollama pull gemma3:4b`      | Excellent lightweight tasks   |
 | Qwen 3 8B      | ~8B  | `ollama pull qwen3:8b`       | Multi-turn chat & reasoning   |
 | Mistral Latest | ~7B  | `ollama pull mistral:latest` | General language capabilities |
 | Llama 3.1 8B   | ~8B  | `ollama pull llama3.1:8b`    | General reasoning & coding    |
+
+Summarization also adapts its chunking to the model you pick: larger-context
+models (e.g. `llama3.1`, `qwen2.5`, `gemma3`) get bigger chunks and fewer
+passes over long content, rather than the same fixed chunk size regardless
+of what the model can actually handle.
 
 ## Browser Requirements
 
@@ -168,9 +177,15 @@ sudo systemctl restart ollama
 
 ### 3. Point the extension at Ollama
 
-Open the extension → Settings → select **Local Ollama**. The host field
-defaults to `http://127.0.0.1:11434` (Ollama's own default port) — only
-change it if you've configured Ollama to listen elsewhere.
+Open the extension, go to Settings, and select **Local Ollama**. The host
+field defaults to `http://127.0.0.1:11434` (Ollama's own default port) —
+only change it if you've configured Ollama to listen elsewhere.
+
+Once connected, the model list is populated live from whatever you've
+actually pulled (via Ollama's own `/api/tags`), not a fixed list, so any
+model you `ollama pull` shows up automatically. If Ollama isn't reachable
+yet, a small default list is shown instead so you can still pick a model
+before starting it.
 
 That's it — no `apogee-backend`, no separate server process to manage.
 
@@ -212,7 +227,7 @@ Privacy is the core pillar of Apogee. The key guarantee is simple: **your page c
 - **What's stored on your device (and how to control it)**:
   - To make reopening the popup instant, Apogee caches **summaries, suggested prompts, extracted page text (for articles), and your recent questions/answers** in local extension storage (`chrome.storage.local`), never transmitted, capped in size, and keyed by a hash of the URL (so URLs with tokens aren't stored in plaintext keys).
   - **Sensitive sites are never cached**, pages on known webmail/messaging hosts (Gmail, Outlook, Proton Mail, Yahoo Mail, Google Messages, WhatsApp Web) are always treated as ephemeral, regardless of your setting.
-  - **Settings → Privacy** lets you switch to **"Don't save (this session only)"** so nothing page-derived is written to disk, and **"Clear cached summaries & page data"** wipes all cached content on demand (your preferences are kept).
+  - Under **Settings, Privacy**, you can switch to **"Don't save (this session only)"** so nothing page-derived is written to disk, and **"Clear cached summaries & page data"** wipes all cached content on demand (your preferences are kept).
 - **Browser Permission Sandboxing**:
   - **`activeTab` + `scripting`**: Apogee cannot read your browsing history or inspect other open tabs. It reads the _currently active tab_ only when you click "Summarize" or "Ask".
   - **`storage`**: Holds your preferences plus the local cache described above.

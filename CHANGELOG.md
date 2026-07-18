@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   or video transcripts are answered correctly. Falls back to the previous
   truncation behavior if embedding is unavailable (and always on Firefox,
   which has no offscreen document to run it in).
+- **Live Ollama model list.** Local Ollama settings now show whatever models
+  you've actually pulled (via Ollama's own `/api/tags`), not just the 4
+  hardcoded ones. Falls back to that hardcoded list when Ollama isn't
+  reachable yet, and never silently drops your currently-selected model even
+  if it's missing from a live response.
+- **Per-model chunk sizing for summarization.** Chunk size for Local Ollama
+  models now scales with that model's context window (matched by family,
+  e.g. `llama3.1`, `qwen2.5`, `gemma3`) instead of one fixed size for every
+  model, so capable models need fewer passes over long content. WebLLM's
+  in-browser models are unaffected, they share the same small context window
+  regardless of which one is picked.
 
 ## [0.1.6] - 2026-07-17
 
