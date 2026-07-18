@@ -83,6 +83,15 @@ export default defineConfig(() => {
       outDir: `dist/${targetBrowser}`,
       emptyOutDir: true,
       minify: false,
+      // Vite's dynamic-import preload helper unconditionally touches
+      // `window` (to track/report chunk preload errors), which doesn't
+      // exist in background/service-worker.js's ServiceWorkerGlobalScope.
+      // lib/embeddings.js's `await import("@huggingface/transformers")`
+      // runs from there, so without this every embedding call threw
+      // "window is not defined" before ever reaching transformers.js.
+      // Not needed anyway: an extension loads all its own files from local
+      // disk, there's no network round-trip for modulepreload to save.
+      modulePreload: false,
       // Default esbuild target (~Chrome 87/Firefox 78) predates top-level
       // await. The extension already requires MV3 offscreen (Chrome 109+)
       // and WebGPU-capable browsers, so target the browsers this actually
@@ -108,6 +117,26 @@ export default defineConfig(() => {
     },
     plugins: [
       copyStaticPlugin(targetBrowser),
+
+      {
+        // onnxruntime-web's WASM runtime (bundled transitively via
+        // @huggingface/transformers, see lib/embeddings.js) is a ~23 MB
+        // "universal" binary that Rollup statically picks up from a
+        // `new URL(..., import.meta.url)` reference inside onnxruntime-web's
+        // own prebuilt code, regardless of the runtime branch that reference
+        // sits in. embeddings.js always overrides env.backends.onnx.wasm.wasmPaths
+        // to a jsDelivr URL before that code path can run, so the local copy
+        // is dead weight, drop it here instead of shipping it in the package.
+        name: "drop-onnx-wasm",
+        enforce: "post",
+        generateBundle(_options, bundle) {
+          for (const fileName of Object.keys(bundle)) {
+            if (/^assets\/ort-wasm.*\.wasm$/.test(fileName)) {
+              delete bundle[fileName];
+            }
+          }
+        },
+      },
 
       {
         name: "strip-crossorigin",

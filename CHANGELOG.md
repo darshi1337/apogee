@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Retrieval-augmented "Ask" answers.** Instead of truncating long pages to
+  the first ~8000 characters, Apogee now embeds the page locally (a small
+  on-device model) and answers using only the passages most relevant to the
+  question, so questions about content buried deep in long articles, PDFs,
+  or video transcripts are answered correctly. Falls back to the previous
+  truncation behavior if embedding is unavailable (and always on Firefox,
+  which has no offscreen document to run it in).
+
 ## [0.1.6] - 2026-07-17
 
 ### Changed

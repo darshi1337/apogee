@@ -2,9 +2,9 @@
 // Receives messages from the service worker, runs inference, and streams tokens back via chrome.runtime port connections.
 // IMPORTANT: We use dynamic imports for @mlc-ai/web-llm and prompt helpers so that message handlers (especially check-webgpu) register immediately without waiting for the heavy ~6 MB web-llm module to load. If the static import fails at the top level, the entire module dies and no handlers register,this was the root cause of the false "WebGPU not supported" bug.
 
-import { truncateForPrompt } from "../lib/chunk.js";
 import { parseSuggestedQuestions } from "../lib/questions.js";
 import { summarizeText } from "../lib/ollamaSummarize.js";
+import { retrieveRelevantContent } from "../lib/rag.js";
 
 // Forward all console logs to the service worker for remote debugging
 const originalConsole = {
@@ -309,24 +309,33 @@ async function runStream(streamId, pending, stream) {
   };
 
   try {
-    await withEngine(pending.model, async (eng) => {
+    // Computed outside withEngine: it's WASM/CPU work (see lib/embeddings.js),
+    // unrelated to the WebGPU engine the lock exists to serialize, so it
+    // shouldn't sit blocked behind (or block) another engine operation.
+    let askPrompt = null;
+    if (pending.action === "ask") {
+      const relevantContent = await retrieveRelevantContent({
+        content: pending.content,
+        question: pending.question,
+      });
       const prompts = await getPrompts();
+      askPrompt = prompts.buildAnswerPrompt(
+        pending.title,
+        pending.url,
+        relevantContent,
+        pending.question,
+      );
+    }
 
+    await withEngine(pending.model, async (eng) => {
       switch (pending.action) {
         case "summarize":
           await runSummarize(eng, pending, emit);
           break;
 
-        case "ask": {
-          const prompt = prompts.buildAnswerPrompt(
-            pending.title,
-            pending.url,
-            truncateForPrompt(pending.content),
-            pending.question,
-          );
-          await streamCompletion(eng, prompt, emit);
+        case "ask":
+          await streamCompletion(eng, askPrompt, emit);
           break;
-        }
 
         default:
           emit({ type: "error", error: `Unknown action: ${pending.action}` });
@@ -416,6 +425,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           sendResponse({
             active: [...streams.values()].some((s) => !s.done),
           });
+          break;
+        }
+
+        // Used by the Local Ollama "ask" path (background/service-worker.js's
+        // getRelevantAskContent): that path builds its own prompt and streams
+        // from Ollama directly rather than through this document's engine, it
+        // only needs the relevant-content selection itself, which requires
+        // the embedding model's dynamic import(), disallowed in the service
+        // worker's ServiceWorkerGlobalScope by spec (see lib/embeddings.js).
+        case "retrieve-context": {
+          const { content, question } = message.payload;
+          const relevantContent = await retrieveRelevantContent({
+            content,
+            question,
+          });
+          sendResponse({ content: relevantContent });
           break;
         }
 

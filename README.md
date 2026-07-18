@@ -46,6 +46,13 @@ language models directly in your browser using WebGPU. The first time you use
 it, the model weights (~700 MB – 2 GB depending on your choice) are downloaded
 and cached locally. After that, everything runs offline.
 
+**Ask** goes further than the summary itself: instead of blindly truncating
+long pages to the first few thousand characters, Apogee embeds the page
+locally (a small on-device model, same trust tier as the LLM weights above)
+and answers using only the passages most relevant to your question. This
+means asking about something buried deep in a long article, PDF, or video
+transcript still works, not just what fit in the opening truncated slice.
+
 ## Quick Start
 
 1. **Install the extension** (see below).
@@ -196,6 +203,7 @@ Privacy is the core pillar of Apogee. The key guarantee is simple: **your page c
 - **The only outbound network requests Apogee makes**:
   - **Model weights** are downloaded once from **Hugging Face** (in-browser mode) or pulled by **Ollama** (local mode), then cached and reused offline. This transfers no page content, only the model files themselves.
   - **WebLLM runtime files**: in-browser mode also fetches the WebLLM library's own config/wasm assets from `raw.githubusercontent.com`, the same as the model weights above, no page content, just the runtime itself.
+  - **Ask's retrieval runtime**: answering long pages loads a small local embedding model (weights from Hugging Face, same as above) plus its WASM runtime, fetched once from `cdn.jsdelivr.net`, again the runtime only, never page content.
   - **YouTube transcripts**: on a YouTube page, the extractor fetches that video's caption track from YouTube/Google (the site you're already on) to feed the transcript to the model. It is restricted to genuine `youtube.com`/`googlevideo.com` hosts.
   - That's it, there are no other external calls. (See the extension's `content_security_policy.connect-src` in `manifest.json` for the exact allow-list this is enforced against, and `ALLOWED_OLLAMA_HOSTS` in `background/service-worker.js`, which rejects any Local Ollama host setting that isn't `127.0.0.1`/`localhost`/`[::1]`.)
 - **PDFs**: PDF text extraction runs fully client-side using `pdf.js` bundled into the extension, the PDF is downloaded straight into the browser tab (using that tab's own network context) and parsed there. Only the extracted text is ever handed to the model; the file itself never passes through any other process.

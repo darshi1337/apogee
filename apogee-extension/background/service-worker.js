@@ -219,6 +219,34 @@ function validateOllamaHost(host) {
   return url.toString().replace(/\/+$/, "");
 }
 
+// Narrows page content down to the passages most relevant to `question`
+// (see lib/rag.js) before it goes into the Ollama answer prompt. The actual
+// embedding model can only load via dynamic import(), which is disallowed
+// in this file's ServiceWorkerGlobalScope by spec, so the work is relayed to
+// the offscreen document (a real Document context, Chrome/Edge only) the
+// same way WebLLM's ask already is. Firefox has no offscreen document at
+// all, so it keeps the older plain head-of-document truncation, same as
+// before RAG existed, not a regression, just an unavailable enhancement.
+async function getRelevantAskContent(content, question) {
+  if (!hasOffscreenAPI) return truncateForPrompt(content);
+  try {
+    await ensureOffscreenDocument();
+    const resp = await chrome.runtime.sendMessage({
+      target: "offscreen",
+      action: "retrieve-context",
+      payload: { content, question },
+    });
+    if (resp?.error) throw new Error(resp.error);
+    return resp.content;
+  } catch (err) {
+    console.error(
+      "Relevant-content retrieval via offscreen failed, falling back to truncation:",
+      err,
+    );
+    return truncateForPrompt(content);
+  }
+}
+
 // Runs a summarize/ask job directly against Ollama, buffering chunks so it
 // survives popup close/reopen (mirrors the WebLLM buffering, which lives in
 // the offscreen document, see the activeStreams comment above).
@@ -265,12 +293,8 @@ async function startOllamaStream(
         host: validHost,
       });
     } else if (action === "ask") {
-      const prompt = buildAnswerPrompt(
-        title,
-        url,
-        truncateForPrompt(content),
-        question,
-      );
+      const relevantContent = await getRelevantAskContent(content, question);
+      const prompt = buildAnswerPrompt(title, url, relevantContent, question);
       generator = chatStream(validHost, model, prompt);
     } else {
       throw new Error(`Unknown ollama-stream action: ${action}`);
@@ -591,7 +615,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
           // The offscreen document creates the buffered job and starts it
           // immediately, independent of any popup or relay port, and
-          // responds once it's registered.
+          // responds once it's registered. For "ask", it also narrows the
+          // content down to the passages most relevant to the question
+          // itself (see lib/rag.js), since that requires the same
+          // dynamic-import-capable document context WebLLM already runs in
+          // (ServiceWorkerGlobalScope, this file's context, disallows
+          // dynamic import() entirely per spec).
           const resp = await chrome.runtime.sendMessage({
             target: "offscreen",
             action: message.action,
