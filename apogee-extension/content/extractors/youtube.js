@@ -92,10 +92,12 @@ function captionUrlWithFormat(baseUrl, fmt) {
   }
 }
 
+// Returns timed transcript segments (`[{ start, text }]`), or `[]` if the
+// video has no usable captions.
 async function fetchTranscript(playerResponse) {
   const tracks =
     playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-  if (!tracks || tracks.length === 0) return "";
+  if (!tracks || tracks.length === 0) return [];
 
   // Prefer a human-written track in the viewer's language, then any
   // human-written track, then fall back to auto-generated (kind "asr").
@@ -106,7 +108,7 @@ async function fetchTranscript(playerResponse) {
     tracks.find((t) => t.languageCode === preferredLang) ||
     tracks[0];
 
-  if (!track.baseUrl) return "";
+  if (!track.baseUrl) return [];
 
   // The timedtext endpoint increasingly returns an empty 200 body for some
   // formats when fetched outside the player, so probe json3 then legacy XML.
@@ -120,41 +122,125 @@ async function fetchTranscript(playerResponse) {
       if (!res.ok) continue;
       const raw = await res.text();
       if (!raw.trim()) continue;
-      const text = parseTranscript(raw);
-      if (text) return text;
+      const segments = parseTranscript(raw);
+      if (segments.length) return segments;
     } catch {
       // Try the next format.
     }
   }
 
-  return "";
+  return [];
+}
+
+// True when timestamp `t` (seconds) falls inside any `[start, end]` range.
+function inAnyRange(t, ranges) {
+  return ranges.some(([start, end]) => t >= start && t <= end);
+}
+
+// High-precision sponsor-read openers, used only as a fallback when a video
+// has no SponsorBlock data. Kept deliberately narrow so we don't cut
+// substantive content; each match drops a ~45s window (a typical read length)
+// starting slightly before the trigger.
+const SPONSOR_TRIGGERS = [
+  /sponsored by/i,
+  /this (?:video|episode) is (?:sponsored|brought to you)/i,
+  /today'?s sponsor/i,
+  /thanks? to .{0,40}? for sponsoring/i,
+  /\buse (?:the )?(?:promo |discount )?code\b/i,
+  /\bpromo code\b/i,
+  /link in the (?:description|bio)/i,
+  /use my link/i,
+  /\bhead (?:over )?to \S{0,30}?\.com\b/i,
+];
+
+const SPONSOR_WINDOW_LEAD = 3; // seconds trimmed before a trigger
+const SPONSOR_WINDOW_LEN = 45; // seconds dropped from a trigger onward
+
+// Local, network-free fallback: drop segments within a window of any segment
+// whose text matches a sponsor-read opener.
+function heuristicStripSponsors(segments) {
+  const windows = [];
+  for (const seg of segments) {
+    if (SPONSOR_TRIGGERS.some((re) => re.test(seg.text))) {
+      windows.push([
+        seg.start - SPONSOR_WINDOW_LEAD,
+        seg.start + SPONSOR_WINDOW_LEN,
+      ]);
+    }
+  }
+  if (!windows.length) return segments;
+  return segments.filter((seg) => !inAnyRange(seg.start, windows));
+}
+
+// Removes sponsor / self-promo / subscribe-plug segments from the timed
+// transcript before it ever reaches the summarizer (far more reliable than
+// asking a small model to "ignore sponsors"). Prefers SponsorBlock's
+// crowdsourced timestamps, fetched via the service worker, which sends only a
+// privacy-preserving 4-char hash prefix of the video id; when a video has no
+// SponsorBlock data, falls back to the local phrase heuristic. Returns a plain
+// transcript string.
+async function buildCleanTranscript(segments, videoId) {
+  if (!segments.length) return "";
+
+  let ranges = [];
+  if (videoId) {
+    try {
+      const resp = await chrome.runtime.sendMessage({
+        target: "service-worker",
+        action: "sponsorblock-segments",
+        payload: { videoId },
+      });
+      ranges = Array.isArray(resp?.segments) ? resp.segments : [];
+    } catch {
+      // Service worker unreachable / context invalidated, fall back below.
+      ranges = [];
+    }
+  }
+
+  const kept = ranges.length
+    ? segments.filter((seg) => !inAnyRange(seg.start, ranges))
+    : heuristicStripSponsors(segments);
+
+  return kept
+    .map((seg) => seg.text)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 // Handles both caption formats: `json3` (an `events[].segs[].utf8` structure)
 // and the legacy XML (`<text>` nodes). Detects which by sniffing the payload.
+// Returns timed segments (`[{ start, text }]`, start in seconds) rather than a
+// flat string, so sponsor time-ranges from SponsorBlock can later be mapped
+// onto the transcript to drop the sponsored parts.
 function parseTranscript(raw) {
   const trimmed = raw.trim();
   if (trimmed.startsWith("{")) {
     try {
       const data = JSON.parse(trimmed);
-      const parts = (data.events || [])
-        .flatMap((e) => e.segs || [])
-        .map((s) => s.utf8 || "")
-        .join("");
-      return parts.replace(/\s+/g, " ").trim();
+      return (data.events || [])
+        .map((e) => ({
+          start: (e.tStartMs ?? 0) / 1000,
+          text: (e.segs || [])
+            .map((s) => s.utf8 || "")
+            .join("")
+            .replace(/\s+/g, " ")
+            .trim(),
+        }))
+        .filter((seg) => seg.text);
     } catch {
-      return "";
+      return [];
     }
   }
   const doc = new DOMParser().parseFromString(raw, "text/xml");
-  const lines = Array.from(doc.getElementsByTagName("text"))
-    .map((node) =>
-      decodeHtmlEntities(node.textContent || "")
+  return Array.from(doc.getElementsByTagName("text"))
+    .map((node) => ({
+      start: parseFloat(node.getAttribute("start") || "0") || 0,
+      text: decodeHtmlEntities(node.textContent || "")
         .replace(/\s+/g, " ")
         .trim(),
-    )
-    .filter(Boolean);
-  return lines.join(" ");
+    }))
+    .filter((seg) => seg.text);
 }
 
 // Strips marketing boilerplate (sponsor reads, CTAs, social/affiliate links,
@@ -266,7 +352,12 @@ async function extractYoutube() {
   const infoEl = document.querySelector("#info-strings");
   const info = infoEl ? infoEl.innerText.trim() : "";
 
-  const transcript = await fetchTranscript(playerResponse);
+  const videoId =
+    videoDetails?.videoId ||
+    new URLSearchParams(location.search).get("v") ||
+    "";
+  const transcriptSegments = await fetchTranscript(playerResponse);
+  const transcript = await buildCleanTranscript(transcriptSegments, videoId);
 
   // With a transcript the description is just context, so cap it short.
   let cleanedDescription = cleanDescription(description);

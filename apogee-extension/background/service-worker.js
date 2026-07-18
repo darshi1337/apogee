@@ -285,6 +285,62 @@ async function startOllamaStream(
   }
 }
 
+// SponsorBlock categories we strip from YouTube transcripts before
+// summarizing: paid sponsor reads, unpaid self-promotion (merch/Patreon
+// plugs), and subscribe/interaction reminders.
+const SPONSORBLOCK_CATEGORIES = ["sponsor", "selfpromo", "interaction"];
+
+// Fetches sponsor-segment time ranges for a YouTube video from SponsorBlock's
+// privacy-preserving hashed endpoint: only the first 4 hex chars of the
+// SHA-256 of the video id are sent, so the server returns a whole bucket of
+// videos and never learns which one is being summarized (we match ours
+// locally). Returns [[startSec, endSec], ...]; [] on any failure, which makes
+// the caller fall back to its local phrase heuristic.
+async function fetchSponsorBlockSegments(videoId) {
+  if (!/^[A-Za-z0-9_-]{11}$/.test(videoId || "")) return [];
+
+  const bytes = new TextEncoder().encode(videoId);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const hashHex = [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  const prefix = hashHex.slice(0, 4);
+
+  const categories = encodeURIComponent(
+    JSON.stringify(SPONSORBLOCK_CATEGORIES),
+  );
+  const url = `https://sponsor.ajay.app/api/skipSegments/${prefix}?categories=${categories}`;
+
+  let res;
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+  } catch {
+    return [];
+  }
+  if (!res.ok) return []; // 404 == no segments for this hash prefix
+
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    return [];
+  }
+
+  const entry = Array.isArray(data)
+    ? data.find((d) => d.videoID === videoId || d.hash === hashHex)
+    : null;
+  if (!entry || !Array.isArray(entry.segments)) return [];
+
+  return entry.segments
+    .filter(
+      (s) =>
+        SPONSORBLOCK_CATEGORIES.includes(s.category) &&
+        Array.isArray(s.segment) &&
+        s.segment.length === 2,
+    )
+    .map((s) => [s.segment[0], s.segment[1]]);
+}
+
 // Shared by the "ollama-suggest-questions" message (a direct, foreground
 // request) and runSuggestQuestionsJob's backgrounded job below.
 async function generateOllamaSuggestions(host, model, { title, url, summary }) {
@@ -575,6 +631,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case "extract-pdf": {
           const text = await extractPdfText(message.payload.arrayBuffer);
           sendResponse({ text });
+          break;
+        }
+
+        case "sponsorblock-segments": {
+          const segments = await fetchSponsorBlockSegments(
+            message.payload.videoId,
+          );
+          sendResponse({ segments });
           break;
         }
 

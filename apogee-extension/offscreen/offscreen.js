@@ -2,8 +2,9 @@
 // Receives messages from the service worker, runs inference, and streams tokens back via chrome.runtime port connections.
 // IMPORTANT: We use dynamic imports for @mlc-ai/web-llm and prompt helpers so that message handlers (especially check-webgpu) register immediately without waiting for the heavy ~6 MB web-llm module to load. If the static import fails at the top level, the entire module dies and no handlers register,this was the root cause of the false "WebGPU not supported" bug.
 
-import { chunkText, truncateForPrompt } from "../lib/chunk.js";
+import { truncateForPrompt } from "../lib/chunk.js";
 import { parseSuggestedQuestions } from "../lib/questions.js";
+import { summarizeText } from "../lib/ollamaSummarize.js";
 
 // Forward all console logs to the service worker for remote debugging
 const originalConsole = {
@@ -211,44 +212,54 @@ function reportProgress(text) {
     .catch(() => {});
 }
 
-// Chunk-aware summarization for the small in-browser models. Long pages are
-// split into context-sized chunks; each chunk is summarized independently and
-// the partial summaries are merged in a final streamed pass (map-reduce),
-// mirroring the backend's behavior. Short pages stream directly.
-async function runSummarize(eng, prompts, pending, emit) {
-  const chunks = chunkText(pending.content);
-
-  if (chunks.length <= 1) {
-    const prompt = prompts.buildSummaryPrompt(
-      pending.title,
-      pending.url,
-      chunks[0] || pending.content || "",
-      pending.mode,
-    );
-    await streamCompletion(eng, prompt, emit);
-    return;
+// Chunk-aware summarization for the small in-browser models, delegated to the
+// shared summarizeText core (lib/ollamaSummarize.js) so WebLLM and Ollama
+// produce identical output for the same page. summarizeText owns the
+// chunking + map-reduce/bullets logic; here we only adapt the WebLLM engine
+// to look like an Ollama-style token stream and forward its tokens.
+//
+// This deliberately replaces the old private map-reduce that re-summarized
+// every mode (including bullets) down to a single fixed-size pass: for a long
+// PDF that reduce step collapsed the whole document into ~8-14 bullets (often
+// far fewer). summarizeText instead streams each chunk's bullets through for
+// bullets mode, so the summary now scales with document length.
+async function runSummarize(eng, pending, emit) {
+  // Presents the WebLLM engine as summarizeText's chatStreamFn seam. The
+  // host/model args come baked into the prompt already, so they're ignored.
+  async function* webllmChatStream(_host, _model, prompt) {
+    const completion = await eng.chat.completions.create({
+      messages: [{ role: "user", content: prompt }],
+      stream: true,
+      temperature: 0.3,
+      max_tokens: 2048,
+    });
+    for await (const chunk of completion) {
+      const text = chunk.choices?.[0]?.delta?.content || "";
+      if (text) yield text;
+    }
   }
 
-  const partials = [];
-  for (let i = 0; i < chunks.length; i++) {
-    reportProgress(`Summarizing part ${i + 1} of ${chunks.length}...`);
-    const prompt = prompts.buildSummaryPrompt(
-      pending.title,
-      pending.url,
-      chunks[i],
-      pending.mode,
-    );
-    partials.push((await generateText(eng, prompt, 1536)).trim());
-  }
+  const onProgress = (p) => {
+    if (p.stage === "reduce") {
+      reportProgress("Merging summary...");
+    } else {
+      reportProgress(`Summarizing part ${p.index + 1} of ${p.total}...`);
+    }
+  };
 
-  reportProgress("Merging summary...");
-  const mergePrompt = prompts.buildSummaryPrompt(
-    pending.title,
-    pending.url,
-    partials.join("\n"),
-    pending.mode,
-  );
-  await streamCompletion(eng, mergePrompt, emit);
+  for await (const token of summarizeText(
+    {
+      text: pending.content,
+      title: pending.title,
+      url: pending.url,
+      mode: pending.mode,
+      model: pending.model,
+    },
+    { chatStreamFn: webllmChatStream, onProgress },
+  )) {
+    emit({ type: "chunk", text: token });
+  }
+  emit({ type: "done" });
 }
 
 // Stream jobs, keyed by streamId, buffered here rather than in the service
@@ -303,7 +314,7 @@ async function runStream(streamId, pending, stream) {
 
       switch (pending.action) {
         case "summarize":
-          await runSummarize(eng, prompts, pending, emit);
+          await runSummarize(eng, pending, emit);
           break;
 
         case "ask": {

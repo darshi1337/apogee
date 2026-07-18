@@ -18,11 +18,15 @@ export const MAX_CHUNKS = 12;
 
 /**
  * Async-generator yielding summary tokens for the given text via Ollama.
- * `chunkTextFn`/`chatStreamFn` are injectable seams for tests.
+ * `chunkTextFn`/`chatStreamFn` are injectable seams for tests; `onProgress`
+ * is an optional UI hook (used by the WebLLM offscreen path to surface
+ * "Summarizing part N of M..." during the otherwise-silent map phase).
+ * It receives `{ stage: "map", index, total }` per chunk and
+ * `{ stage: "reduce" }` before the final merge.
  */
 export async function* summarizeText(
   { text, title, url, mode, model, host, signal },
-  { chunkTextFn = chunkText, chatStreamFn = chatStream } = {},
+  { chunkTextFn = chunkText, chatStreamFn = chatStream, onProgress } = {},
 ) {
   const cleanedContent = cleanText(text);
   let chunks = chunkTextFn(cleanedContent);
@@ -76,8 +80,9 @@ export async function* summarizeText(
 
   // Sentences/paragraphs: summarize every chunk, then merge.
   const chunkSummaries = [];
-  for (const chunk of chunks) {
-    const prompt = buildSummaryPrompt(title, url, chunk, mode);
+  for (let i = 0; i < chunks.length; i++) {
+    onProgress?.({ stage: "map", index: i, total: chunks.length });
+    const prompt = buildSummaryPrompt(title, url, chunks[i], mode);
     let partial = "";
     for await (const token of chatStreamFn(host, model, prompt, { signal })) {
       partial += token;
@@ -85,6 +90,7 @@ export async function* summarizeText(
     chunkSummaries.push(partial.trim());
   }
 
+  onProgress?.({ stage: "reduce" });
   const combinedText = chunkSummaries.join("\n");
   const mergePrompt = buildSummaryPrompt(title, url, combinedText, mode);
   yield* chatStreamFn(host, model, mergePrompt, { signal });
