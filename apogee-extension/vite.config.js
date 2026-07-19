@@ -12,13 +12,27 @@ function copyStaticPlugin(targetBrowser) {
       const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
 
       if (targetBrowser === "firefox") {
-        // Remove offscreen permission and simplify CSP for Firefox
+        // Remove offscreen permission and simplify CSP for Firefox. Still
+        // needs 'wasm-unsafe-eval' (Transformers.js's WASM engine) and the
+        // Hugging Face + jsDelivr domains (model weights and
+        // onnxruntime-web's own WASM runtime, see lib/transformersEngine.js)
+        // that Chrome's CSP already carries for WebLLM's own model fetching.
+        // sponsor.ajay.app (SponsorBlock segment lookup, see
+        // fetchSponsorBlockSegments in background/service-worker.js) must be
+        // here too: on Firefox the background script is a real extension
+        // page, so its fetches ARE bound by this CSP, unlike Chrome's
+        // service worker, and without the entry the lookup silently fails
+        // into the local phrase heuristic.
+        // No worker-src change needed here (unlike the earlier, reverted
+        // wllama attempt): Transformers.js's WASM backend never spawns a
+        // Worker (onnxruntime-web's env.wasm.proxy is hardcoded false by the
+        // library), so it isn't subject to that restriction at all.
         manifest.permissions = manifest.permissions.filter(
           (p) => p !== "offscreen",
         );
         manifest.content_security_policy = {
           extension_pages:
-            "script-src 'self'; default-src 'self'; connect-src http://127.0.0.1:* http://localhost:*; img-src 'self' data:; font-src 'self'; style-src 'self'",
+            "script-src 'self' 'wasm-unsafe-eval'; default-src 'self'; connect-src http://127.0.0.1:* http://localhost:* https://huggingface.co https://*.huggingface.co https://*.hf.co https://sponsor.ajay.app https://cdn.jsdelivr.net; img-src 'self' data:; font-src 'self'; style-src 'self'",
         };
         if (manifest.background) {
           delete manifest.background.service_worker;

@@ -272,17 +272,25 @@
             </div>
           </div>
 
-          <div class="settings-card" id="providerSettingsCard">
+          <div class="settings-card">
             <div class="card-title">
               <img src="../assets/robot.svg" alt="" />
               <span>AI Provider</span>
             </div>
 
-            <label class="radio-option">
+            <label class="radio-option" id="webllmProviderOption">
               <input type="radio" name="provider" value="webllm" checked />
               <span
                 >In-Browser AI
                 <small class="provider-badge">WebGPU</small></span
+              >
+            </label>
+
+            <label class="radio-option" id="transformersProviderOption">
+              <input type="radio" name="provider" value="transformers" />
+              <span
+                >In-Browser AI
+                <small class="provider-badge">Transformers.js</small></span
               >
             </label>
 
@@ -299,6 +307,15 @@
             </div>
 
             <div id="webllmModelList"></div>
+          </div>
+
+          <div id="transformersModelsCard" class="settings-card hidden">
+            <div class="card-title">
+              <img src="../assets/sparkles.svg" alt="" />
+              <span>In-Browser Model</span>
+            </div>
+
+            <div id="transformersModelList"></div>
           </div>
 
           <div id="localSettingsCard" class="settings-card hidden">

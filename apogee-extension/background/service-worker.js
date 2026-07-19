@@ -1,7 +1,14 @@
 // Service Worker, central message router for the Apogee extension.
-// Routes requests from the popup to either the offscreen document (WebLLM) or a local Ollama instance, talked to directly over HTTP from here.
-// Firefox does not support chrome.offscreen or chrome.runtime.getContexts.
-// WebLLM (which requires an offscreen document for WebGPU) is only available on Chrome/Edge. Firefox users must use the Local Ollama provider.
+// Routes requests from the popup to the offscreen document (WebLLM, Chrome
+// only), a local Ollama instance (talked to directly over HTTP from here),
+// or, on Firefox, runs Transformers.js directly in this file.
+// Firefox does not support chrome.offscreen or chrome.runtime.getContexts, so
+// WebLLM (which requires an offscreen document for WebGPU) is only available
+// on Chrome/Edge. Firefox instead gets in-browser inference via
+// Transformers.js (ONNX/WASM, no WebGPU/offscreen/Worker needed) run
+// directly in this file, since Firefox's background script — unlike
+// Chrome's real service worker — runs as a background page with a
+// window/DOM context and can dynamic-import it.
 
 import { summarizeText } from "../lib/ollamaSummarize.js";
 import { chatStream, chatOnce, checkHealth } from "../lib/ollamaClient.js";
@@ -12,6 +19,12 @@ import {
 import { truncateForPrompt } from "../lib/chunk.js";
 import { parseSuggestedQuestions } from "../lib/questions.js";
 import { extractPdfText } from "../lib/pdfExtract.js";
+import {
+  withTransformersEngine,
+  getTransformersStatus,
+  transformersChatStream,
+  transformersGenerateText,
+} from "../lib/transformersEngine.js";
 
 const hasOffscreenAPI =
   typeof chrome !== "undefined" &&
@@ -19,7 +32,6 @@ const hasOffscreenAPI =
   typeof chrome.offscreen.createDocument === "function";
 
 let offscreenReady = false;
-let offscreenScriptReady = false;
 const offscreenLogs = [];
 
 // Resolve when the offscreen document's script signals it has loaded.
@@ -67,19 +79,18 @@ async function offscreenDocumentExists() {
 async function ensureOffscreenDocumentOnce() {
   if (!hasOffscreenAPI) {
     throw new Error(
-      "In-browser AI (WebLLM) is not supported in Firefox. " +
-        "Please switch to Local Ollama mode in Settings.",
+      "In-browser AI (WebLLM) needs Chrome's offscreen API, which this " +
+        "browser doesn't support. Use the In-Browser (Transformers.js) or " +
+        "Local Ollama provider in Settings instead.",
     );
   }
 
   if (await offscreenDocumentExists()) {
     offscreenReady = true;
-    offscreenScriptReady = true;
     return;
   }
 
   offscreenReady = false;
-  offscreenScriptReady = false;
   offscreenScriptReadyPromise = new Promise((resolve) => {
     _offscreenScriptReadyResolve = resolve;
   });
@@ -200,7 +211,9 @@ function relayToOffscreenStream(popupPort, streamId) {
 
 // The service worker isn't bound by the extension CSP `connect-src`, so
 // constrain requests to loopback hosts, otherwise a bad `host` setting could
-// turn it into an SSRF fetch proxy.
+// turn it into an SSRF fetch proxy. Note "[::1]" only actually works on
+// Chrome: Firefox's background page fetches ARE CSP-bound, and CSP host
+// sources can't express IPv6 literals, so it's unreachable there.
 const ALLOWED_OLLAMA_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 function validateOllamaHost(host) {
@@ -221,10 +234,11 @@ function validateOllamaHost(host) {
 
 // Narrows page content down to the passages most relevant to `question`
 // (see lib/rag.js) before it goes into the Ollama answer prompt. The actual
-// embedding model can only load via dynamic import(), which is disallowed
-// in this file's ServiceWorkerGlobalScope by spec, so the work is relayed to
-// the offscreen document (a real Document context, Chrome/Edge only) the
-// same way WebLLM's ask already is. Firefox has no offscreen document at
+// embedding model loads via dynamic import(), whose support inside a
+// ServiceWorkerGlobalScope has been unreliable in Chrome MV3 (see the note
+// in lib/embeddings.js), so the work is relayed to the offscreen document
+// (a real Document context, Chrome/Edge only) the same way WebLLM's ask
+// already is. Firefox has no offscreen document at
 // all, so it keeps the older plain head-of-document truncation, same as
 // before RAG existed, not a regression, just an unavailable enhancement.
 async function getRelevantAskContent(content, question) {
@@ -307,6 +321,90 @@ async function startOllamaStream(
   } catch (err) {
     finish({ type: "error", error: err.message });
   }
+}
+
+// Runs a summarize/ask job directly against Transformers.js on Firefox,
+// buffering chunks the same way startOllamaStream does above so it survives
+// popup close/reopen.
+async function startTransformersStream(
+  streamId,
+  { action, model, title, url, content, mode, question },
+) {
+  const stream = { text: "", done: false, error: null, subscribers: new Set() };
+  activeStreams.set(streamId, stream);
+
+  const finish = (msg) => {
+    if (msg.type === "done") stream.done = true;
+    if (msg.type === "error") {
+      stream.error = msg.error;
+      stream.done = true;
+    }
+    broadcastToStream(stream, msg);
+    scheduleStreamCleanup(streamId);
+  };
+
+  const emitChunk = (text) => {
+    if (!text) return;
+    stream.text += text;
+    broadcastToStream(stream, { type: "chunk", text });
+  };
+
+  const onProgress = (progress) => {
+    chrome.runtime
+      .sendMessage({ type: "model-progress", progress, modelId: model })
+      .catch(() => {});
+  };
+
+  try {
+    await withTransformersEngine(model, onProgress, async (eng) => {
+      if (action === "summarize") {
+        const generator = summarizeText(
+          { text: content, title, url, mode, model },
+          {
+            chatStreamFn: async function* (_host, _model, prompt) {
+              yield* transformersChatStream(eng, prompt);
+            },
+            onProgress: (p) => {
+              onProgress({
+                progress: 0,
+                text:
+                  p.stage === "reduce"
+                    ? "Merging summary..."
+                    : `Summarizing part ${p.index + 1} of ${p.total}...`,
+              });
+            },
+          },
+        );
+        for await (const token of generator) {
+          emitChunk(token);
+        }
+      } else if (action === "ask") {
+        // getRelevantAskContent already falls back to plain truncation when
+        // there's no offscreen document (Firefox), same as Ollama's ask.
+        const relevantContent = await getRelevantAskContent(content, question);
+        const prompt = buildAnswerPrompt(title, url, relevantContent, question);
+        for await (const token of transformersChatStream(eng, prompt)) {
+          emitChunk(token);
+        }
+      } else {
+        throw new Error(`Unknown transformers-stream action: ${action}`);
+      }
+    });
+    finish({ type: "done" });
+  } catch (err) {
+    // Not every rejection here is a plain Error, and a falsy `error` here
+    // renders as the unhelpful generic "Unknown error during streaming" in
+    // lib/providers.js's attachToStream.
+    finish({ type: "error", error: err?.message || String(err) });
+  }
+}
+
+async function generateTransformersSuggestions(model, { title, url, summary }) {
+  return withTransformersEngine(model, null, async (eng) => {
+    const prompt = buildSuggestQuestionsPrompt(title, url, summary);
+    const text = await transformersGenerateText(eng, prompt);
+    return parseSuggestedQuestions(text);
+  });
 }
 
 // SponsorBlock categories we strip from YouTube transcripts before
@@ -393,43 +491,58 @@ async function runSuggestQuestionsJob(payload) {
   if (!promptsCacheKey || pendingSuggestKeys.has(promptsCacheKey)) return;
   pendingSuggestKeys.add(promptsCacheKey);
 
-  let questions = [];
+  // The delete lives in a finally: if anything past generation throws (e.g.
+  // the storage write hitting quota), a key left behind in the Set would
+  // block regeneration for that page until this worker restarts.
   try {
-    if (providerType === "local") {
-      questions = await generateOllamaSuggestions(host, model, {
-        title,
-        url,
-        summary,
-      });
-    } else {
-      await ensureOffscreenDocument();
-      const resp = await chrome.runtime.sendMessage({
-        target: "offscreen",
-        action: "suggest-questions",
-        payload: { title, url, summary, model },
-      });
-      questions = resp?.questions || [];
+    let questions = [];
+    try {
+      if (providerType === "local") {
+        questions = await generateOllamaSuggestions(host, model, {
+          title,
+          url,
+          summary,
+        });
+      } else if (providerType === "transformers") {
+        // Transformers.js only ever runs on Firefox (see PROVIDERS in
+        // lib/constants.js), always in-process, never via the offscreen
+        // document.
+        questions = await generateTransformersSuggestions(model, {
+          title,
+          url,
+          summary,
+        });
+      } else {
+        await ensureOffscreenDocument();
+        const resp = await chrome.runtime.sendMessage({
+          target: "offscreen",
+          action: "suggest-questions",
+          payload: { title, url, summary, model },
+        });
+        questions = resp?.questions || [];
+      }
+    } catch {
+      questions = [];
     }
-  } catch {
-    questions = [];
-  }
 
-  // Persist only when allowed (write even [] so the popup can distinguish
-  // "generated, none" from "still pending", a missing key). When history is
-  // off or the host is sensitive, keep it ephemeral and rely on the message
-  // below for delivery.
-  if (persist) {
-    await chrome.storage.local.set({ [promptsCacheKey]: questions });
+    // Persist only when allowed (write even [] so the popup can distinguish
+    // "generated, none" from "still pending", a missing key). When history is
+    // off or the host is sensitive, keep it ephemeral and rely on the message
+    // below for delivery.
+    if (persist) {
+      await chrome.storage.local.set({ [promptsCacheKey]: questions });
+    }
+    // Direct delivery to any open popup (the only path when not persisted).
+    chrome.runtime
+      .sendMessage({
+        type: "suggested-prompts-ready",
+        promptsCacheKey,
+        questions,
+      })
+      .catch(() => {});
+  } finally {
+    pendingSuggestKeys.delete(promptsCacheKey);
   }
-  // Direct delivery to any open popup (the only path when not persisted).
-  chrome.runtime
-    .sendMessage({
-      type: "suggested-prompts-ready",
-      promptsCacheKey,
-      questions,
-    })
-    .catch(() => {});
-  pendingSuggestKeys.delete(promptsCacheKey);
 }
 
 // The Chrome action popup closes whenever it loses focus, which is constant.
@@ -489,7 +602,6 @@ async function closeOffscreenIfIdle() {
     // ignore if already closed
   }
   offscreenReady = false;
-  offscreenScriptReady = false;
 }
 
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -571,7 +683,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return false;
 
   if (message.type === "offscreen-ready") {
-    offscreenScriptReady = true;
     _offscreenScriptReadyResolve();
     return false;
   }
@@ -619,8 +730,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // content down to the passages most relevant to the question
           // itself (see lib/rag.js), since that requires the same
           // dynamic-import-capable document context WebLLM already runs in
-          // (ServiceWorkerGlobalScope, this file's context, disallows
-          // dynamic import() entirely per spec).
+          // (dynamic import() in this file's ServiceWorkerGlobalScope has
+          // been unreliable in Chrome MV3, see lib/embeddings.js).
           const resp = await chrome.runtime.sendMessage({
             target: "offscreen",
             action: message.action,
@@ -641,7 +752,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "ollama-status": {
-          const response = await checkHealth(message.payload.host);
+          // Same loopback-only rule as every other Ollama-touching handler
+          // (see validateOllamaHost above); this probe used to skip it,
+          // letting an arbitrary saved host be fetched on every popup open.
+          // An invalid host just reads as "disconnected" rather than an
+          // error, matching how the popup treats an unreachable Ollama.
+          let validHost;
+          try {
+            validHost = validateOllamaHost(message.payload.host);
+          } catch {
+            sendResponse({ connected: false, models: [] });
+            break;
+          }
+          const response = await checkHealth(validHost);
           sendResponse(response);
           break;
         }
@@ -649,6 +772,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case "ollama-suggest-questions": {
           const { host, model, title, url, summary } = message.payload;
           const questions = await generateOllamaSuggestions(host, model, {
+            title,
+            url,
+            summary,
+          });
+          sendResponse({ questions });
+          break;
+        }
+
+        // Transformers.js only ever runs on Firefox (see PROVIDERS in
+        // lib/constants.js), always in-process here, never via an offscreen
+        // document. message.payload.action ("summarize" or "ask") tells this
+        // which job to run, same wrapper convention as "ollama-stream" above.
+        case "transformers-stream": {
+          const streamId = nextStreamId("transformers");
+          startTransformersStream(streamId, message.payload);
+          sendResponse({ streamId });
+          break;
+        }
+
+        case "transformers-status": {
+          const { currentModelId, loadingModelId } = getTransformersStatus();
+          sendResponse({
+            // Mirrors WebLLM's "status" (offscreen.js): `ready` reflects
+            // the runtime capability (WASM here, WebGPU there), not whether
+            // a model is already downloaded/loaded.
+            ready: typeof WebAssembly !== "undefined",
+            currentModel: currentModelId,
+            loading: loadingModelId,
+          });
+          break;
+        }
+
+        case "transformers-suggest-questions": {
+          const { title, url, summary, model } = message.payload;
+          const questions = await generateTransformersSuggestions(model, {
             title,
             url,
             summary,

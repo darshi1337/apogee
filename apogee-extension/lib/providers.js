@@ -1,4 +1,4 @@
-// Provider abstraction, routes inference requests to either WebLLM (in-browser via offscreen document) or a local Ollama instance (talked to directly over HTTP).
+// Provider abstraction, routes inference requests to WebLLM (in-browser via offscreen document, Chrome only), Transformers.js (in-browser via WASM, Firefox only), or a local Ollama instance (talked to directly over HTTP).
 
 import { PROVIDERS, DEFAULT_OLLAMA_HOST } from "./constants.js";
 
@@ -107,6 +107,18 @@ async function startOllamaStream(action, payload) {
   return { streamId, stream: attachToStream(streamId) };
 }
 
+async function startTransformersStream(action, payload) {
+  const { streamId } = await sendToServiceWorker({
+    target: "service-worker",
+    action: "transformers-stream",
+    payload: { action, ...payload },
+  });
+  if (!streamId) {
+    throw new Error("No streamId returned from service worker");
+  }
+  return { streamId, stream: attachToStream(streamId) };
+}
+
 class WebLLMProvider {
   constructor(model) {
     this.model = model;
@@ -148,6 +160,53 @@ class WebLLMProvider {
     const response = await sendToServiceWorker({
       target: "service-worker",
       action: "status",
+    });
+    return response;
+  }
+}
+
+// In-browser inference via Transformers.js (ONNX/WASM, no WebGPU or Worker
+// required). Only available on Firefox (see PROVIDERS in lib/constants.js);
+// runs directly in the service worker's background page. See
+// background/service-worker.js's "transformers-stream" handler.
+class TransformersProvider {
+  constructor(model) {
+    this.model = model;
+  }
+
+  summarize({ title, url, content, mode }) {
+    return startTransformersStream("summarize", {
+      title,
+      url,
+      content,
+      mode,
+      model: this.model,
+    });
+  }
+
+  ask({ title, url, content, question }) {
+    return startTransformersStream("ask", {
+      title,
+      url,
+      content,
+      question,
+      model: this.model,
+    });
+  }
+
+  async suggestQuestions({ title, url, summary }) {
+    const response = await sendToServiceWorker({
+      target: "service-worker",
+      action: "transformers-suggest-questions",
+      payload: { title, url, summary, model: this.model },
+    });
+    return response?.questions || [];
+  }
+
+  async checkReady() {
+    const response = await sendToServiceWorker({
+      target: "service-worker",
+      action: "transformers-status",
     });
     return response;
   }
@@ -209,9 +268,17 @@ class DirectOllamaProvider {
 }
 
 export function getProvider(settings) {
-  const isFirefox = process.env.TARGET_BROWSER === "firefox";
-  if (isFirefox || settings.provider === PROVIDERS.LOCAL) {
+  if (settings.provider === PROVIDERS.LOCAL) {
     return new DirectOllamaProvider(settings.localModel, settings.ollamaHost);
+  }
+  // Exactly one in-browser provider exists per build (see PROVIDERS in
+  // lib/constants.js): Transformers.js on Firefox, WebLLM on Chrome. Any
+  // non-"local" value, including a stale provider id carried over from the
+  // other build's profile (e.g. "webllm" stored in a Firefox profile),
+  // lands on this build's in-browser provider rather than one that can't
+  // run here.
+  if (PROVIDERS.TRANSFORMERS) {
+    return new TransformersProvider(settings.transformersModel);
   }
   return new WebLLMProvider(settings.webllmModel);
 }

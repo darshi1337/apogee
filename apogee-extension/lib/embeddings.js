@@ -6,8 +6,11 @@
 //
 // Only ever loaded from offscreen.js (directly, or via the direct-Ollama
 // "ask" relay in background/service-worker.js, see getRelevantAskContent
-// there): dynamic import() of a package like this is disallowed by spec in
-// a ServiceWorkerGlobalScope, so it cannot run in the service worker itself.
+// there): dynamic import() support inside a ServiceWorkerGlobalScope has
+// been unreliable in Chrome MV3 (long rejected per spec, and Vite's preload
+// helper additionally assumed a `window`, see vite.config.js's modulePreload
+// note), so the offscreen document, a real Document context, is the
+// verified-working home for this pipeline.
 // The dynamic import here mirrors offscreen.js's getWebLLM(): keeps this
 // ~9 MB dependency out of the importing module's initial bundle/eviction
 // path (offscreen.js registers its message handlers before either loads).

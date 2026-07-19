@@ -16,6 +16,7 @@ import {
   PROVIDERS,
   DEFAULT_SETTINGS,
   WEBLLM_MODELS,
+  TRANSFORMERS_MODELS,
   LOCAL_MODELS,
   DEFAULT_OLLAMA_HOST,
 } from "../lib/constants.js";
@@ -49,10 +50,18 @@ const getInTouchBtn = document.getElementById("getInTouchBtn");
 const contactView = document.getElementById("contactView");
 const settingsBackBtn = document.getElementById("settingsBackBtn");
 const contactBackBtn = document.getElementById("contactBackBtn");
+const webllmProviderOption = document.getElementById("webllmProviderOption");
+const transformersProviderOption = document.getElementById(
+  "transformersProviderOption",
+);
 const webllmModelsCard = document.getElementById("webllmModelsCard");
+const transformersModelsCard = document.getElementById(
+  "transformersModelsCard",
+);
 const localSettingsCard = document.getElementById("localSettingsCard");
 const localModelsCard = document.getElementById("localModelsCard");
 const webllmModelList = document.getElementById("webllmModelList");
+const transformersModelList = document.getElementById("transformersModelList");
 const localModelList = document.getElementById("localModelList");
 const localModelStatus = document.getElementById("localModelStatus");
 const webgpuWarning = document.getElementById("webgpuWarning");
@@ -60,7 +69,6 @@ const modelProgress = document.getElementById("modelProgress");
 const modelProgressText = document.getElementById("modelProgressText");
 const modelProgressPercent = document.getElementById("modelProgressPercent");
 const modelProgressFill = document.getElementById("modelProgressFill");
-const providerSettingsCard = document.getElementById("providerSettingsCard");
 const toggleDebugLogsBtn = document.getElementById("toggleDebugLogsBtn");
 const debugLogsCard = document.getElementById("debugLogsCard");
 const debugLogsContent = document.getElementById("debugLogsContent");
@@ -101,9 +109,6 @@ function startSuggestedQuestionsBg(
   persist = true,
 ) {
   currentPromptsCacheKey = promptsCacheKey;
-  const isFirefox = process.env.TARGET_BROWSER === "firefox";
-  const providerType =
-    isFirefox || settings.provider === PROVIDERS.LOCAL ? "local" : "webllm";
   chrome.runtime
     .sendMessage({
       target: "service-worker",
@@ -111,7 +116,10 @@ function startSuggestedQuestionsBg(
       payload: {
         promptsCacheKey,
         persist,
-        providerType,
+        // PROVIDERS' values ("webllm"/"transformers"/"local") already match
+        // what runSuggestQuestionsJob (service-worker.js) checks for
+        // directly.
+        providerType: settings.provider,
         host: settings.ollamaHost,
         title,
         url,
@@ -162,8 +170,15 @@ async function saveViewState(tabId, partial) {
   // Page-specific states carry a `url` (summary/answer/ask resume state);
   // pure app-navigation states (settings/home/contact) don't. Skip persisting
   // the former when the page isn't persistable, so private summaries/Q&A and
-  // stream-resume pointers don't linger on disk.
-  if (partial.url && !(await shouldPersist(partial.url))) return null;
+  // stream-resume pointers don't linger on disk. What does persist is only a
+  // hash of the URL (same rationale as the hashed cache keys, see hashUrl):
+  // it's needed solely for an equality check against the active tab on
+  // restore, and the raw URL can carry session tokens in its query string.
+  // Setting `url: undefined` also scrubs the raw copy older versions stored.
+  if (partial.url) {
+    if (!(await shouldPersist(partial.url))) return null;
+    partial = { ...partial, url: undefined, urlHash: hashUrl(partial.url) };
+  }
   const key = viewStateKey(tabId);
   const { viewStateOrder = [], ...rest } = await chrome.storage.local.get([
     key,
@@ -238,8 +253,16 @@ async function persistContent(url, pageData) {
     removeKeys.push(order.shift());
   }
 
+  // Strip the raw URL from the persisted copy: the key already encodes it
+  // (hashed, see getContentCacheKey), getCachedContent() re-attaches it at
+  // read time, and the raw form can carry session tokens in its query
+  // string, hashing the key bought nothing while a plaintext copy sat in
+  // the value.
+  const persistable = { ...pageData };
+  delete persistable.url;
+
   await chrome.storage.local.set({
-    [contentKey]: pageData,
+    [contentKey]: persistable,
     contentCacheOrder: order,
   });
   if (removeKeys.length > 0) await chrome.storage.local.remove(removeKeys);
@@ -248,15 +271,18 @@ async function persistContent(url, pageData) {
 async function getCachedContent(url) {
   const contentKey = getContentCacheKey(url);
   const stored = await chrome.storage.local.get(contentKey);
-  return stored[contentKey] || null;
+  if (!stored[contentKey]) return null;
+  // Re-attach the URL persistContent stripped; the lookup key is derived
+  // from it, so this is the same URL the entry was stored under.
+  return { ...stored[contentKey], url };
 }
 
 function getModelForSettings(settings) {
-  const isFirefox = process.env.TARGET_BROWSER === "firefox";
-  const provider = isFirefox ? "local" : settings.provider;
-  return provider === PROVIDERS.LOCAL
-    ? settings.localModel
-    : settings.webllmModel;
+  if (settings.provider === PROVIDERS.LOCAL) return settings.localModel;
+  if (settings.provider === PROVIDERS.TRANSFORMERS) {
+    return settings.transformersModel;
+  }
+  return settings.webllmModel;
 }
 
 // NOTE: The popup runs in a chrome-extension:// context where navigator.gpu is always undefined. The actual WebGPU context lives in the offscreen document.
@@ -318,6 +344,33 @@ function buildWebllmModelUI(selectedId) {
   });
 }
 
+// Mirrors buildWebllmModelUI, driven by TRANSFORMERS_MODELS instead.
+function buildTransformersModelUI(selectedId) {
+  transformersModelList.innerHTML = "";
+  for (const model of TRANSFORMERS_MODELS) {
+    const label = document.createElement("label");
+    label.className = "radio-option";
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "transformersModel";
+    input.value = model.id;
+    if (model.id === selectedId) input.checked = true;
+    const span = document.createElement("span");
+    span.innerHTML = `${model.label} <small class="model-size">${model.size}</small>`;
+    label.appendChild(input);
+    label.appendChild(span);
+    transformersModelList.appendChild(label);
+  }
+
+  transformersModelList
+    .querySelectorAll('input[name="transformersModel"]')
+    .forEach((r) => {
+      r.addEventListener("change", async () => {
+        await saveSettings({ transformersModel: r.value });
+      });
+    });
+}
+
 // Mirrors buildWebllmModelUI. `models` defaults to the hardcoded
 // LOCAL_MODELS list, but updateLocalModelList (below) overrides it with
 // whatever Ollama actually reports having pulled, once that's known.
@@ -372,8 +425,7 @@ async function applySettingsToUI(settings) {
   );
   if (themeRadio) themeRadio.checked = true;
   applyTheme(settings.theme);
-  const isFirefox = process.env.TARGET_BROWSER === "firefox";
-  const provider = isFirefox ? "local" : settings.provider;
+  const provider = settings.provider;
 
   const provRadio = document.querySelector(
     `input[name="provider"][value="${provider}"]`,
@@ -381,11 +433,15 @@ async function applySettingsToUI(settings) {
   if (provRadio) provRadio.checked = true;
 
   const isWebllm = provider === PROVIDERS.WEBLLM;
+  const isTransformers = provider === PROVIDERS.TRANSFORMERS;
+  const isLocal = provider === PROVIDERS.LOCAL;
   webllmModelsCard.classList.toggle("hidden", !isWebllm);
-  localSettingsCard.classList.toggle("hidden", isWebllm);
-  localModelsCard.classList.toggle("hidden", isWebllm);
+  transformersModelsCard?.classList.toggle("hidden", !isTransformers);
+  localSettingsCard.classList.toggle("hidden", !isLocal);
+  localModelsCard.classList.toggle("hidden", !isLocal);
 
   buildWebllmModelUI(settings.webllmModel);
+  buildTransformersModelUI(settings.transformersModel);
 
   if (backendUrlInput) backendUrlInput.value = settings.ollamaHost;
   buildLocalModelUI(settings.localModel);
@@ -687,9 +743,10 @@ function setSuggestedQuestionsLoading() {
 }
 
 // Hash the URL (cyrb53) so raw URLs, which can carry session tokens or reset
-// links in their query strings, aren't left sitting in plaintext storage
-// keys. Non-cryptographic, but wide enough to avoid collisions in the small
-// bounded cache.
+// links in their query strings, aren't left sitting in plaintext in storage,
+// neither in keys (here) nor in stored values (see persistContent and
+// saveViewState, which strip/hash the URL before writing). Non-cryptographic,
+// but wide enough to avoid collisions in the small bounded cache.
 function hashUrl(url) {
   let h1 = 0xdeadbeef;
   let h2 = 0x41c6ce57;
@@ -1077,9 +1134,7 @@ async function checkConnection() {
 // hardcoded list when Ollama isn't reachable or reports no models, so the
 // settings page still shows something sensible before Ollama is running.
 function updateLocalModelList(settings, status) {
-  const isFirefox = process.env.TARGET_BROWSER === "firefox";
-  const provider = isFirefox ? "local" : settings.provider;
-  if (provider !== PROVIDERS.LOCAL) return;
+  if (settings.provider !== PROVIDERS.LOCAL) return;
 
   const liveModels = Array.isArray(status?.models) ? status.models : [];
   if (liveModels.length > 0) {
@@ -1134,10 +1189,18 @@ function showOnlyView(view) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const isFirefox = process.env.TARGET_BROWSER === "firefox";
-  if (isFirefox && providerSettingsCard) {
-    providerSettingsCard.classList.add("hidden");
+  // WebLLM (WebGPU via an offscreen document) only exists on Chrome; Firefox
+  // has no offscreen API at all. Transformers.js (ONNX/WASM) only exists on
+  // Firefox (see PROVIDERS in lib/constants.js). Hide whichever radio
+  // doesn't apply on this build, not just its model-list card, so users
+  // can't select a provider that getProvider() can't actually construct
+  // here.
+  if (process.env.TARGET_BROWSER === "firefox") {
+    webllmProviderOption?.classList.add("hidden");
+  } else {
+    transformersProviderOption?.classList.add("hidden");
   }
+
   try {
     const settings = await getSettings();
     await applySettingsToUI(settings);
@@ -1156,7 +1219,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Mid-summarize or mid-answer when the popup last closed: the job kept
     // running in the background, so reattach instead of restarting it.
-    if (state && state.url === tab.url && state.streamId) {
+    // States are matched by URL hash (see saveViewState); states written by
+    // older versions stored a raw `url` instead and simply read as stale.
+    if (state && state.urlHash === hashUrl(tab.url) && state.streamId) {
       if (state.subview === "summarizing") {
         showOnlyView("summaryView");
         showSummarizingContext();
@@ -1206,7 +1271,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // No in-flight job, restore whichever static page the user was last on.
-    if (state && state.url === tab.url) {
+    if (state && state.urlHash === hashUrl(tab.url)) {
       if (state.view === "settingsView") {
         showOnlyView("settingsView");
         return;

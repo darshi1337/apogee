@@ -394,8 +394,12 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.target !== "offscreen") return false;
+
+  // Same own-extension check as the service worker's listener: only this
+  // extension's contexts may drive inference here.
+  if (sender.id !== chrome.runtime.id) return false;
 
   const handler = async () => {
     try {

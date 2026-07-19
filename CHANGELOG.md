@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **In-browser AI on Firefox via Transformers.js.** Firefox has no
+  `browser.offscreen` API, so WebLLM (WebGPU) can never run there; Firefox
+  now gets its own in-browser provider instead, running ONNX models
+  on-device via WebAssembly (no offscreen document or dedicated Worker
+  required). Ships with three models (SmolLM2 360M, default; Qwen 2.5 0.5B;
+  Llama 3.2 1B), selectable from the same settings UI as WebLLM. Works well
+  on modern/fast CPUs; on older or low-power hardware, Local Ollama remains
+  the faster option.
 - **Retrieval-augmented "Ask" answers.** Instead of truncating long pages to
   the first ~8000 characters, Apogee now embeds the page locally (a small
   on-device model) and answers using only the passages most relevant to the
@@ -27,6 +35,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   model, so capable models need fewer passes over long content. WebLLM's
   in-browser models are unaffected, they share the same small context window
   regardless of which one is picked.
+
+### Fixed
+
+- SponsorBlock sponsor-segment lookups now work on the Firefox build: the
+  background page's fetches are bound by the extension CSP there (unlike
+  Chrome's service worker), and `sponsor.ajay.app` was missing from the
+  Firefox `connect-src`, so every lookup silently fell back to the local
+  phrase heuristic.
+- The Transformers.js engine now disposes a failed engine before reloading,
+  instead of leaking its WASM memory (hundreds of MB of model weights) for
+  the life of the background page.
+- A failed suggested-questions job (e.g. a storage write hitting quota) no
+  longer permanently blocks prompt regeneration for that page.
+- Cached view state and extracted page content no longer store the raw page
+  URL on disk; only a hash is kept. Cache keys were already hashed
+  (URLs can carry session tokens in their query strings), but a plaintext
+  copy lingered inside the stored values, undermining that.
+- A stale or unknown provider setting (e.g. carried over from the other
+  browser's build) now falls back to this build's in-browser provider
+  instead of routing to one that can't run here.
+- The README's privacy section now discloses the SponsorBlock lookup and
+  covers the Firefox WASM inference path; the in-browser "Connected" status
+  for Transformers.js now reflects actual WASM availability.
+
+### Security
+
+- The Ollama status/model-list probe now enforces the same loopback-only
+  host validation as every other Ollama request. Previously a non-loopback
+  URL saved in the host setting would be fetched (`/api/tags`) on every
+  popup open, the one gap in the extension's own SSRF rule.
 
 ## [0.1.6] - 2026-07-17
 

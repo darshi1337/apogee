@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert";
 
 import { getMaxChunkChars } from "../lib/modelLimits.js";
+import { TRANSFORMERS_MODELS } from "../lib/constants.js";
 
 test("getMaxChunkChars caps WebLLM's uniformly small context window", () => {
   // All four WebLLM model IDs are configured at context_window_size: 4096
@@ -37,4 +38,16 @@ test("getMaxChunkChars gives a smaller-context Ollama family less room than a la
 test("getMaxChunkChars falls back to a conservative default for an unrecognized model", () => {
   // Default 8192 tokens, same arithmetic as the mistral case above.
   assert.equal(getMaxChunkChars("some-custom-finetune:latest"), 24576);
+});
+
+test("getMaxChunkChars caps Transformers.js's WASM/CPU context window like WebLLM's, not Ollama's", () => {
+  // (4096 - 2048 reserved) * 4 chars/token = 8192, same budget as WebLLM.
+  // Regression guard: these are HF repo names (e.g.
+  // "HuggingFaceTB/SmolLM2-360M-Instruct"), no distinguishing suffix like
+  // WebLLM's "-MLC", so without the explicit TRANSFORMERS_MODELS membership
+  // check they'd otherwise silently fall through to Ollama's prefix
+  // matching / default budget instead.
+  for (const model of TRANSFORMERS_MODELS) {
+    assert.equal(getMaxChunkChars(model.id), 8192);
+  }
 });
