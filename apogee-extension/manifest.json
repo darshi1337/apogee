@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Apogee",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "AI browser assistant for articles, videos, emails and more. Runs in-browser via WebGPU and Ollama.",
   "minimum_chrome_version": "109",
   "permissions": [

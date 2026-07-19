@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-07-19
+
 ### Added
 
 - **In-browser AI on Firefox via Transformers.js.** Firefox has no
