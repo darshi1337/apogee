@@ -8,7 +8,7 @@ import { TRANSFORMERS_MODELS } from "./constants.js";
 // All four WebLLM models ship with the same MLC-configured context window
 // (verified directly in node_modules/@mlc-ai/web-llm's prebuiltAppConfig,
 // each of these exact model IDs has `overrides.context_window_size: 4096`,
-// regardless of what the underlying base model is otherwise rated for) —
+// regardless of what the underlying base model is otherwise rated for), so
 // there's no per-model variance to account for on this path. MLC's own
 // model IDs always end in "-MLC", used below to detect this path without
 // threading an extra provider flag through both callers.
@@ -16,7 +16,7 @@ const WEBLLM_CONTEXT_TOKENS = 4096;
 
 // Transformers.js models (Firefox's in-browser provider) run single-threaded
 // WASM (no SharedArrayBuffer/cross-origin isolation in an extension page), so
-// — same reasoning as WebLLM above — the usable budget is deliberately
+// (same reasoning as WebLLM above) the usable budget is deliberately
 // capped well below what these models are natively rated for, to keep
 // generation latency reasonable on CPU.
 const TRANSFORMERS_CONTEXT_TOKENS = 4096;

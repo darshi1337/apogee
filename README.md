@@ -14,20 +14,25 @@
 
 <div align="center">
 
-Private, in-browser AI summarizer powered by WebGPU and Ollama.
+Private, in-browser AI summarizer powered by WebGPU, WebAssembly, or your own local Ollama.
+
+[![Get it on Firefox Add-ons](https://img.shields.io/badge/Firefox_Add--ons-Install-FF7139?style=for-the-badge&logo=firefoxbrowser&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/apogeeext/)
+[![Download for Chrome / Edge](https://img.shields.io/badge/Chrome_%2F_Edge-Download_ZIP-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://github.com/darshi1337/apogee/releases/latest)
 
 [![CI](https://github.com/darshi1337/apogee/actions/workflows/ci.yml/badge.svg)](https://github.com/darshi1337/apogee/actions/workflows/ci.yml)
+[![Mozilla Add-on](https://img.shields.io/amo/v/apogeeext?label=AMO&color=orange)](https://addons.mozilla.org/en-US/firefox/addon/apogeeext/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
 
 **Apogee** is an AI browser assistant for articles, videos, emails, and more.
-It runs **entirely in your browser** via WebGPU, no backend, no API keys,
-no cloud. Just install the extension and go.
+It runs **entirely in your browser**: on your GPU via WebGPU (Chrome, Edge,
+and other Chromium browsers) or on your CPU via WebAssembly (Firefox). No
+backend, no API keys, no cloud. Just install the extension and go.
 
-For power users, Apogee also connects directly to a local Ollama instance to run larger models.
+For power users, Apogee also connects directly to a local Ollama instance over `127.0.0.1` to run larger models.
 
-**TL;DR**: Apogee is an offline-first, private AI assistant that runs entirely in your browser using WebGPU, requiring zero cloud dependencies or API keys. It allows users to summarize pages, chat with articles, and process text with complete privacy. For power users, it also features a fallback to local Ollama instances to run larger models. It is designed as a fully local, privacy-respecting alternative to cloud-dependent solutions.
+**TL;DR**: Apogee is an offline-first, private AI assistant that runs entirely in your browser, on WebGPU in Chromium browsers and on WebAssembly in Firefox, with zero cloud dependencies or API keys. It summarizes articles, YouTube videos, and PDFs, and answers questions about them using local retrieval, all with complete privacy. Power users can switch to Local Ollama mode to run larger models on their own machine, still with nothing leaving it. Apogee is designed as a fully local, privacy-respecting alternative to cloud-dependent tools like Mozilla's discontinued Orbit.
 
 ## Inspiration: Orbit (Killed by Mozilla)
 
@@ -41,10 +46,19 @@ Apogee fixes Orbit's architectural and privacy flaws by being fully local-first:
 
 ## How It Works
 
-Apogee uses [WebLLM](https://github.com/mlc-ai/web-llm) to run quantized
-language models directly in your browser using WebGPU. The first time you use
-it, the model weights (~700 MB – 2 GB depending on your choice) are downloaded
-and cached locally. After that, everything runs offline.
+Apogee runs quantized language models directly in your browser. On Chrome,
+Edge, and other Chromium browsers it uses
+[WebLLM](https://github.com/mlc-ai/web-llm), which executes models on your
+GPU via WebGPU. On Firefox it uses
+[Transformers.js](https://github.com/huggingface/transformers.js), which
+runs smaller ONNX models on your CPU via WebAssembly and performs well on a
+modern CPU. In both cases the first use downloads the model weights (roughly
+270 MB to 2.2 GB depending on the model) and caches them locally. After
+that, everything runs offline.
+
+Prefer larger models? Switch to Local Ollama mode and the extension talks
+directly to your own Ollama instance over `127.0.0.1`, with no separate
+backend to install or run.
 
 **Ask** goes further than the summary itself: instead of blindly truncating
 long pages to the first few thousand characters, Apogee embeds the page
@@ -52,6 +66,8 @@ locally (a small on-device model, same trust tier as the LLM weights above)
 and answers using only the passages most relevant to your question. This
 means asking about something buried deep in a long article, PDF, or video
 transcript still works, not just what fit in the opening truncated slice.
+(Retrieval currently runs on Chromium browsers; Firefox falls back to the
+plain truncated slice for now.)
 
 ## Quick Start
 
@@ -68,7 +84,7 @@ Apogee offers two modes of operation to balance ease-of-use and raw capabilities
 
 | In-Browser AI (WebLLM on Chrome/Edge, Transformers.js on Firefox) | Local Ollama                                                     |
 | --------------------------------------------------------------- | ---------------------------------------------------------------- |
-| **Model Size**: Small, fast models (~270 MB – 2.2 GB)           | **Model Size**: Larger, more capable models (4B–8B+)             |
+| **Model Size**: Small, fast models (~270 MB to 2.2 GB)          | **Model Size**: Larger, more capable models (4B to 8B+)          |
 | **Setup**: Zero setup required; automatic download on first run | **Setup**: Requires installing Ollama (no separate backend to run) |
 | **Execution**: Runs directly in the browser, via WebGPU (WebLLM) or WebAssembly (Transformers.js) | **Execution**: Extension talks directly to Ollama's HTTP API     |
 | **Offline**: Fully offline after model weights are cached       | **Offline**: Fully offline, communicating over `127.0.0.1`       |
@@ -179,7 +195,7 @@ _Note: WebGPU is not yet stable in Firefox, so switch to **Local Ollama** mode i
 ## Advanced: Local Ollama Mode
 
 If you prefer running larger models (8B+) locally through Ollama, Apogee talks
-to it **directly over HTTP** — there's no separate backend server to install
+to it **directly over HTTP**; there's no separate backend server to install
 or keep running.
 
 ### 1. Install Ollama
@@ -223,7 +239,7 @@ sudo systemctl restart ollama
 ### 3. Point the extension at Ollama
 
 Open the extension, go to Settings, and select **Local Ollama**. The host
-field defaults to `http://127.0.0.1:11434` (Ollama's own default port) —
+field defaults to `http://127.0.0.1:11434` (Ollama's own default port),
 only change it if you've configured Ollama to listen elsewhere.
 
 Once connected, the model list is populated live from whatever you've
@@ -232,15 +248,15 @@ model you `ollama pull` shows up automatically. If Ollama isn't reachable
 yet, a small default list is shown instead so you can still pick a model
 before starting it.
 
-That's it — no `apogee-backend`, no separate server process to manage.
+That's it: no `apogee-backend`, no separate server process to manage.
 
 ## Performance Benchmarks
 
 ### In-Browser AI (WebGPU)
 
-- **Generation Throughput**: ~30–50 tokens/s (GPU dependent)
-- **Model Cold-load**: ~1–3 seconds (once cached in browser storage)
-- **First-run Cache Download**: ~1–3 minutes depending on network bandwidth (to download the ~700 MB – 2.2 GB model weights)
+- **Generation Throughput**: ~30 to 50 tokens/s (GPU dependent)
+- **Model Cold-load**: ~1 to 3 seconds (once cached in browser storage)
+- **First-run Cache Download**: ~1 to 3 minutes depending on network bandwidth (to download the ~700 MB to 2.2 GB model weights)
 
 ### Local Ollama
 
@@ -250,7 +266,7 @@ Measured locally on an Apple M2 (`gemma3:4b`, GPU via Metal):
 | ----------------------------------- | ---------------------------------- |
 | Generation throughput               | ~73 tokens/s                       |
 | Model cold-load                     | ~0.25 s                            |
-| Short page / question               | ~1–1.5 s end to end                |
+| Short page / question               | ~1 to 1.5 s end to end             |
 | Long page (~40k chars, multi-chunk) | first bullets in ~2 s, ~12 s total |
 
 ## Privacy & Permissions
@@ -258,14 +274,14 @@ Measured locally on an Apple M2 (`gemma3:4b`, GPU via Metal):
 Privacy is the core pillar of Apogee. The key guarantee is simple: **your page content and the summaries/answers generated from it are never sent to any cloud service or third party.** Inference happens on your own device (WebGPU) or your own machine (`127.0.0.1` Ollama). The details below are precise about the few network requests that do occur and what is kept on disk.
 
 - **Where inference happens**:
-  - **In-Browser mode**: Tokenization and inference run entirely on your local device — on the GPU via WebGPU (WebLLM, Chrome/Edge) or on the CPU via WebAssembly (Transformers.js, Firefox). Your page content and summaries are never transmitted anywhere.
+  - **In-Browser mode**: Tokenization and inference run entirely on your local device, on the GPU via WebGPU (WebLLM, Chrome/Edge) or on the CPU via WebAssembly (Transformers.js, Firefox). Your page content and summaries are never transmitted anywhere.
   - **Local Ollama mode**: Page content travels exclusively over local loopback (`127.0.0.1`) directly to your own Ollama instance's HTTP API, never to the cloud. There is no intermediate backend process in the path, the extension is Ollama's only client-side hop.
 - **The only outbound network requests Apogee makes**:
   - **Model weights** are downloaded once from **Hugging Face** (in-browser mode) or pulled by **Ollama** (local mode), then cached and reused offline. This transfers no page content, only the model files themselves.
   - **WebLLM runtime files**: in-browser mode also fetches the WebLLM library's own config/wasm assets from `raw.githubusercontent.com`, the same as the model weights above, no page content, just the runtime itself.
   - **In-browser WASM runtime**: Ask's local embedding model, and Firefox's Transformers.js summarization engine, load their shared ONNX WASM runtime once from `cdn.jsdelivr.net` (model weights come from Hugging Face, same as above), again the runtime only, never page content.
   - **YouTube transcripts**: on a YouTube page, the extractor fetches that video's caption track from YouTube/Google (the site you're already on) to feed the transcript to the model. It is restricted to genuine `youtube.com`/`google.com`/`googlevideo.com` hosts.
-  - **YouTube sponsor-segment lookup (SponsorBlock)**: when summarizing a YouTube video, Apogee asks the crowdsourced [SponsorBlock](https://sponsor.ajay.app) API which parts of the video are sponsor reads/self-promo, so they can be stripped from the transcript. This uses SponsorBlock's privacy-preserving k-anonymity endpoint: only the first 4 hex characters of the SHA-256 hash of the video ID are sent — never the video ID, URL, or any page content — and the matching entry is picked out locally. If the lookup fails, a local phrase heuristic runs instead, with no network call at all.
+  - **YouTube sponsor-segment lookup (SponsorBlock)**: when summarizing a YouTube video, Apogee asks the crowdsourced [SponsorBlock](https://sponsor.ajay.app) API which parts of the video are sponsor reads/self-promo, so they can be stripped from the transcript. This uses SponsorBlock's privacy-preserving k-anonymity endpoint: only the first 4 hex characters of the SHA-256 hash of the video ID are sent (never the video ID, URL, or any page content), and the matching entry is picked out locally. If the lookup fails, a local phrase heuristic runs instead, with no network call at all.
   - That's it, there are no other external calls. (See the extension's `content_security_policy.connect-src` in `manifest.json` for the exact allow-list this is enforced against, and `ALLOWED_OLLAMA_HOSTS` in `background/service-worker.js`, which rejects any Local Ollama host setting that isn't `127.0.0.1`/`localhost`/`[::1]`.)
 - **PDFs**: PDF text extraction runs fully client-side using `pdf.js` bundled into the extension, the PDF is downloaded straight into the browser tab (using that tab's own network context) and parsed there. Only the extracted text is ever handed to the model; the file itself never passes through any other process.
 - **Local Ollama's CORS setting (`OLLAMA_ORIGINS`)**: for the extension to reach Ollama at all, Ollama must be told to accept requests from the extension's origin, see [Advanced: Local Ollama Mode](#advanced-local-ollama-mode). This is a browser-enforced allow-list, not a data-transmission path, but be aware that setting it to a wildcard (`chrome-extension://*`) rather than your specific extension ID lets *any* installed extension talk to your local Ollama API, not just Apogee. Ollama itself still only binds to `127.0.0.1` by default regardless of this setting, so it's never reachable from your network either way, this only affects which browser extensions can call it.

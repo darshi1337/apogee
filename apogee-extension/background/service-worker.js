@@ -6,8 +6,8 @@
 // WebLLM (which requires an offscreen document for WebGPU) is only available
 // on Chrome/Edge. Firefox instead gets in-browser inference via
 // Transformers.js (ONNX/WASM, no WebGPU/offscreen/Worker needed) run
-// directly in this file, since Firefox's background script — unlike
-// Chrome's real service worker — runs as a background page with a
+// directly in this file, since Firefox's background script, unlike
+// Chrome's real service worker, runs as a background page with a
 // window/DOM context and can dynamic-import it.
 
 import { summarizeText } from "../lib/ollamaSummarize.js";

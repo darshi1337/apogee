@@ -1,8 +1,8 @@
 // Shared Transformers.js (ONNX/WASM) text-generation engine plumbing, used
 // only on Firefox as its in-browser provider (see PROVIDERS in
-// lib/constants.js). Runs directly in background/service-worker.js —
-// Firefox's background page, which, unlike Chrome's real service worker, has
-// a window/DOM context and can dynamic-import it — because, unlike wllama,
+// lib/constants.js). Runs directly in background/service-worker.js
+// (Firefox's background page, which, unlike Chrome's real service worker, has
+// a window/DOM context and can dynamic-import it) because, unlike wllama,
 // @huggingface/transformers's WASM backend never spawns a dedicated Worker
 // (onnxruntime-web's own env.wasm.proxy is hardcoded false by the library),
 // so it isn't affected by the blob:-URL-worker CSP restriction that blocks
@@ -12,7 +12,7 @@ import { TRANSFORMERS_MODELS } from "./constants.js";
 
 // onnxruntime-web's own WASM runtime (not the LLM weights) is a ~23 MB
 // "universal" binary with no smaller non-threaded build available, so it's
-// fetched from jsDelivr at runtime rather than bundled locally — the same
+// fetched from jsDelivr at runtime rather than bundled locally, the same
 // tradeoff lib/embeddings.js already makes for its embedding pipeline. MUST
 // match the exact onnxruntime-web version @huggingface/transformers resolves
 // to (see embeddings.js's own copy of this constant/comment) or the JS glue
