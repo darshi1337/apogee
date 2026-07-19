@@ -190,7 +190,10 @@ steps; only the extensions-page URL differs slightly (`chrome://extensions`,
 
 You can install Apogee directly from [Mozilla Add-ons](https://addons.mozilla.org/en-US/firefox/addon/apogeeext/) or download the package from [Releases](https://github.com/darshi1337/apogee/releases).
 
-_Note: WebGPU is not yet stable in Firefox, so switch to **Local Ollama** mode in settings after installation._
+Firefox works out of the box: in-browser AI runs via Transformers.js on
+WebAssembly (SmolLM2 360M by default, no setup needed). On older or
+low-power CPUs, generation can be slow — switch to **Local Ollama** mode in
+settings for faster results with larger models.
 
 ## Advanced: Local Ollama Mode
 
