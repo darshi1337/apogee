@@ -176,7 +176,7 @@ async function withEngine(modelId, fn) {
   }
 }
 
-async function streamCompletion(eng, prompt, emit) {
+async function streamCompletion(eng, prompt, emit, signal) {
   const chunks = await eng.chat.completions.create({
     messages: [{ role: "user", content: prompt }],
     stream: true,
@@ -185,6 +185,11 @@ async function streamCompletion(eng, prompt, emit) {
   });
 
   for await (const chunk of chunks) {
+    // A cancel already broadcasts its own "cancelled" message and calls
+    // engine.interruptGenerate() directly (see the "cancel-stream" handler
+    // below); this just stops relaying further tokens once that's happened,
+    // it isn't itself responsible for emitting the terminal message.
+    if (signal?.aborted) return;
     const text = chunk.choices?.[0]?.delta?.content || "";
     if (text) emit({ type: "chunk", text });
   }
@@ -223,7 +228,7 @@ function reportProgress(text) {
 // PDF that reduce step collapsed the whole document into ~8-14 bullets (often
 // far fewer). summarizeText instead streams each chunk's bullets through for
 // bullets mode, so the summary now scales with document length.
-async function runSummarize(eng, pending, emit) {
+async function runSummarize(eng, pending, emit, signal) {
   // Presents the WebLLM engine as summarizeText's chatStreamFn seam. The
   // host/model args come baked into the prompt already, so they're ignored.
   async function* webllmChatStream(_host, _model, prompt) {
@@ -234,6 +239,7 @@ async function runSummarize(eng, pending, emit) {
       max_tokens: 2048,
     });
     for await (const chunk of completion) {
+      if (signal?.aborted) return;
       const text = chunk.choices?.[0]?.delta?.content || "";
       if (text) yield text;
     }
@@ -254,6 +260,7 @@ async function runSummarize(eng, pending, emit) {
       url: pending.url,
       mode: pending.mode,
       model: pending.model,
+      signal,
     },
     { chatStreamFn: webllmChatStream, onProgress },
   )) {
@@ -298,7 +305,20 @@ function broadcastToStream(stream, msg) {
 // service worker to attach a relay port, so a popup closing (or the SW
 // restarting) mid-generation no longer aborts the job.
 async function runStream(streamId, pending, stream) {
+  // A separate signal from the engine lock/WebGPU device itself: cancel
+  // needs both this (so summarizeText and the chat-stream wrappers above
+  // stop asking for more tokens) and engine.interruptGenerate() (so the
+  // *current* in-flight generation actually stops producing them), see the
+  // "cancel-stream" handler below.
+  const controller = new AbortController();
+  stream.controller = controller;
+
   const emit = (msg) => {
+    // Once cancelled, the "cancelled" handler already broadcast the terminal
+    // message itself; ignore anything the job emits afterward (e.g. a late
+    // "done" from a chunk that was mid-flight when interruptGenerate() was
+    // called) so it can't clobber the cancelled state.
+    if (stream.cancelled) return;
     if (msg.type === "chunk") stream.text += msg.text || "";
     if (msg.type === "done") stream.done = true;
     if (msg.type === "error") {
@@ -330,11 +350,11 @@ async function runStream(streamId, pending, stream) {
     await withEngine(pending.model, async (eng) => {
       switch (pending.action) {
         case "summarize":
-          await runSummarize(eng, pending, emit);
+          await runSummarize(eng, pending, emit, controller.signal);
           break;
 
         case "ask":
-          await streamCompletion(eng, askPrompt, emit);
+          await streamCompletion(eng, askPrompt, emit, controller.signal);
           break;
 
         default:
@@ -342,6 +362,7 @@ async function runStream(streamId, pending, stream) {
       }
     });
   } catch (err) {
+    if (stream.cancelled) return;
     emit({ type: "error", error: err.message });
     chrome.runtime
       .sendMessage({
@@ -379,7 +400,11 @@ chrome.runtime.onConnect.addListener((port) => {
       port.postMessage({ type: "chunk", text: stream.text });
     } catch {}
   }
-  if (stream.error) {
+  if (stream.cancelled) {
+    try {
+      port.postMessage({ type: "cancelled" });
+    } catch {}
+  } else if (stream.error) {
     try {
       port.postMessage({ type: "error", error: stream.error });
     } catch {}
@@ -411,6 +436,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             text: "",
             done: false,
             error: null,
+            cancelled: false,
             subscribers: new Set(),
           };
           streams.set(streamId, stream);
@@ -422,6 +448,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             { action: message.action, ...message.payload },
             stream,
           );
+          break;
+        }
+
+        case "cancel-stream": {
+          const stream = streams.get(message.payload.streamId);
+          if (stream && !stream.done) {
+            stream.cancelled = true;
+            stream.done = true;
+            broadcastToStream(stream, { type: "cancelled" });
+            // Stops summarizeText/streamCompletion from asking for more
+            // chunks; interruptGenerate() stops the *current* one, the one
+            // already in flight when cancel was clicked, immediately.
+            try {
+              stream.controller?.abort();
+            } catch {}
+            try {
+              engine?.interruptGenerate?.();
+            } catch {}
+          }
+          sendResponse({ ok: true });
           break;
         }
 

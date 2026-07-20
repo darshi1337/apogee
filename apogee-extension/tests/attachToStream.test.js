@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
 
-import { attachToStream } from "../lib/providers.js";
+import { attachToStream, StreamCancelledError } from "../lib/providers.js";
 
 function createFakePort() {
   const listeners = { message: [], disconnect: [] };
@@ -45,6 +45,25 @@ test("attachToStream surfaces the sender's error message instead of swallowing i
   port._emitMessage({ type: "error", error: "Ollama returned an error" });
 
   await assert.rejects(run, /Ollama returned an error/);
+});
+
+test("attachToStream yields buffered chunks before throwing StreamCancelledError on cancel", async () => {
+  const port = createFakePort();
+  globalThis.chrome = { runtime: { connect: () => port } };
+
+  const gen = attachToStream("stream-4");
+  const received = [];
+  const run = (async () => {
+    for await (const chunk of gen) received.push(chunk);
+  })();
+  await new Promise((r) => setTimeout(r, 0));
+
+  port._emitMessage({ type: "chunk", text: "partial " });
+  port._emitMessage({ type: "chunk", text: "text" });
+  port._emitMessage({ type: "cancelled" });
+
+  await assert.rejects(run, StreamCancelledError);
+  assert.deepStrictEqual(received, ["partial ", "text"]);
 });
 
 test("attachToStream errors (instead of silently truncating) when the port disconnects before done/error", async () => {

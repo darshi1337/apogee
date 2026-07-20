@@ -31,25 +31,38 @@
           </div>
         </header>
 
-        <div class="home-buttons">
-          <button id="summarizeBtn" class="action-btn">
-            <img src="../assets/sparkles.svg" alt="" />
-            <span>Summarize this page</span>
-          </button>
+        <div class="view-body">
+          <div class="home-buttons">
+            <button id="summarizeBtn" class="action-btn">
+              <img src="../assets/sparkles.svg" alt="" />
+              <span>Summarize this page</span>
+            </button>
 
-          <button id="askBtn" class="action-btn">
-            <img src="../assets/ask.svg" alt="" />
-            <span>Ask Apogee a question</span>
-          </button>
-        </div>
+            <button id="askBtn" class="action-btn">
+              <img src="../assets/ask.svg" alt="" />
+              <span>Ask Apogee a question</span>
+            </button>
+          </div>
 
-        <div id="webgpuWarning" class="webgpu-warning hidden">
-          <span class="warning-icon">⚠️</span>
-          <span
-            >WebGPU is not supported in this browser. Use
-            <strong>Local Ollama</strong> mode in Settings, or switch to
-            Chrome/Edge.</span
-          >
+          <div id="webgpuWarning" class="webgpu-warning hidden">
+            <span class="warning-icon">⚠️</span>
+            <span
+              >WebGPU is not supported in this browser. Use
+              <strong>Local Ollama</strong> mode in Settings, or switch to
+              Chrome/Edge.</span
+            >
+          </div>
+
+          <section id="pastSummariesSection" class="past-summaries hidden">
+            <div class="section-header">
+              <div class="section-title-group">
+                <img src="../assets/history.svg" alt="" />
+                <h3 class="section-title">Past Summaries</h3>
+              </div>
+            </div>
+
+            <div id="pastSummariesList"></div>
+          </section>
         </div>
       </div>
 
@@ -76,163 +89,193 @@
           </div>
         </header>
 
-        <div id="modelProgress" class="model-progress hidden">
-          <div class="model-progress-top">
-            <span class="model-progress-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M12 3v11m0 0 4-4m-4 4-4-4"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-                <path
-                  d="M5 19h14"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                />
-              </svg>
-            </span>
-            <span id="modelProgressText" class="model-progress-title"
-              >Downloading model...</span
-            >
-            <span
-              id="modelProgressPercent"
-              class="model-progress-percent"
-            ></span>
+        <div class="view-body">
+          <div id="modelProgress" class="model-progress hidden">
+            <div class="model-progress-top">
+              <span class="model-progress-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M12 3v11m0 0 4-4m-4 4-4-4"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M5 19h14"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </span>
+              <span id="modelProgressText" class="model-progress-title"
+                >Downloading model...</span
+              >
+              <span
+                id="modelProgressPercent"
+                class="model-progress-percent"
+              ></span>
+            </div>
+            <div class="model-progress-bar">
+              <div id="modelProgressFill" class="model-progress-fill"></div>
+            </div>
+            <div class="model-progress-footer">
+              <span id="toggleDebugLogsBtn" class="logs-toggle">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M5 6h14M5 12h14M5 18h9"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+                <span class="logs-toggle-label">Show logs</span>
+              </span>
+            </div>
           </div>
-          <div class="model-progress-bar">
-            <div id="modelProgressFill" class="model-progress-fill"></div>
-          </div>
-          <div class="model-progress-footer">
-            <span id="toggleDebugLogsBtn" class="logs-toggle">
-              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path
-                  d="M5 6h14M5 12h14M5 18h9"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                />
-              </svg>
-              <span class="logs-toggle-label">Show logs</span>
-            </span>
-          </div>
-        </div>
 
-        <div
-          id="debugLogsCard"
-          class="hidden"
-          style="
-            margin: 0 16px 10px;
-            padding: 10px;
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.03);
-            font-family:
-              ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-size: 10.5px;
-            max-height: 140px;
-            overflow-y: auto;
-            border: 1px solid var(--btn-border);
-            line-height: 1.4;
-          "
-        >
           <div
+            id="debugLogsCard"
+            class="hidden"
             style="
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              margin-bottom: 6px;
-              border-bottom: 1px solid var(--btn-border);
-              padding-bottom: 4px;
+              margin: 0 16px 10px;
+              padding: 10px;
+              border-radius: 10px;
+              background: rgba(255, 255, 255, 0.03);
+              font-family:
+                ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+              font-size: 10.5px;
+              max-height: 140px;
+              overflow-y: auto;
+              border: 1px solid var(--btn-border);
+              line-height: 1.4;
             "
           >
-            <span
+            <div
               style="
-                font-weight: bold;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 6px;
+                border-bottom: 1px solid var(--btn-border);
+                padding-bottom: 4px;
+              "
+            >
+              <span
+                style="
+                  font-weight: bold;
+                  color: var(--text-muted);
+                  font-size: 10px;
+                  text-transform: uppercase;
+                  letter-spacing: 0.3px;
+                "
+                >Offscreen Logs</span
+              >
+              <button
+                id="clearDebugLogsBtn"
+                style="
+                  background: none;
+                  border: none;
+                  color: #ef4444;
+                  cursor: pointer;
+                  font-size: 9.5px;
+                  padding: 0 4px;
+                  font-weight: bold;
+                "
+              >
+                Clear
+              </button>
+            </div>
+            <div
+              id="debugLogsContent"
+              style="
+                white-space: pre-wrap;
+                word-break: break-all;
                 color: var(--text-muted);
-                font-size: 10px;
-                text-transform: uppercase;
-                letter-spacing: 0.3px;
-              "
-              >Offscreen Logs</span
-            >
-            <button
-              id="clearDebugLogsBtn"
-              style="
-                background: none;
-                border: none;
-                color: #ef4444;
-                cursor: pointer;
-                font-size: 9.5px;
-                padding: 0 4px;
-                font-weight: bold;
               "
             >
-              Clear
+              No logs recorded. Try starting summary or chat.
+            </div>
+          </div>
+
+          <section id="summaryCard" class="summary-card">
+            <div class="card-header-row">
+              <h2>Summarize the page</h2>
+
+              <button
+                id="copySummaryBtn"
+                class="copy-btn hidden"
+                aria-label="Copy summary"
+              >
+                <img src="../assets/copy.svg" alt="" />
+              </button>
+            </div>
+
+            <div id="summaryText">Summary will appear here.</div>
+
+            <button id="cancelSummarizeBtn" class="cancel-btn hidden">
+              Cancel
             </button>
-          </div>
-          <div
-            id="debugLogsContent"
-            style="
-              white-space: pre-wrap;
-              word-break: break-all;
-              color: var(--text-muted);
-            "
-          >
-            No logs recorded. Try starting summary or chat.
-          </div>
+          </section>
+
+          <section id="promptsSection" class="prompts">
+            <div class="section-header">
+              <h3 id="questionHeading" class="section-title">
+                Suggested Prompts
+              </h3>
+
+              <button
+                id="promptsCloseBtn"
+                class="prompts-toggle"
+                aria-label="Hide prompts"
+              >
+                <img src="../assets/cross_2.svg" alt="Hide" />
+              </button>
+            </div>
+
+            <div id="questionContainer"></div>
+          </section>
+
+          <section class="chat-section">
+            <div class="chat-header">
+              <h3 id="answerHeading">Ask Apogee</h3>
+
+              <div class="chat-header-actions">
+                <button
+                  id="copyAnswerBtn"
+                  class="copy-btn hidden"
+                  aria-label="Copy answer"
+                >
+                  <img src="../assets/copy.svg" alt="" />
+                </button>
+
+                <button class="suggested-tag" id="togglePromptsBtn">
+                  Question
+
+                  <img src="../assets/up.svg" alt="Toggle" />
+                </button>
+              </div>
+            </div>
+
+            <div class="chat-box">
+              <textarea
+                id="questionInput"
+                placeholder="Type here to ask · Enter to send"
+              ></textarea>
+
+              <button id="sendBtn" class="send-btn">
+                <img src="../assets/send.svg" alt="Send" />
+              </button>
+
+              <div id="answerBox" class="answer-box hidden"></div>
+
+              <button id="cancelAskBtn" class="cancel-btn hidden">
+                Cancel
+              </button>
+            </div>
+          </section>
         </div>
-
-        <section id="summaryCard" class="summary-card">
-          <h2>Summarize the page</h2>
-
-          <div id="summaryText">Summary will appear here.</div>
-        </section>
-
-        <section id="promptsSection" class="prompts">
-          <div class="section-header">
-            <h3 id="questionHeading" class="section-title">
-              Suggested Prompts
-            </h3>
-
-            <button
-              id="promptsCloseBtn"
-              class="prompts-toggle"
-              aria-label="Hide prompts"
-            >
-              <img src="../assets/cross_2.svg" alt="Hide" />
-            </button>
-          </div>
-
-          <div id="questionContainer"></div>
-        </section>
-
-        <section class="chat-section">
-          <div class="chat-header">
-            <h3 id="answerHeading">Ask Apogee</h3>
-
-            <button class="suggested-tag" id="togglePromptsBtn">
-              Question
-
-              <img src="../assets/up.svg" alt="Toggle" />
-            </button>
-          </div>
-
-          <div class="chat-box">
-            <textarea
-              id="questionInput"
-              placeholder="Type here to ask"
-            ></textarea>
-
-            <button id="sendBtn" class="send-btn">
-              <img src="../assets/send.svg" alt="Send" />
-            </button>
-
-            <div id="answerBox" class="answer-box hidden"></div>
-          </div>
-        </section>
       </div>
 
       <div id="settingsView" class="hidden">
@@ -258,7 +301,7 @@
         <div class="settings-content">
           <div class="settings-card status-card">
             <div class="card-title">
-              <img src="../assets/status.svg" alt="" />
+              <img src="../assets/activity.svg" alt="" />
               <span>Status</span>
             </div>
 
@@ -302,7 +345,7 @@
 
           <div id="webllmModelsCard" class="settings-card">
             <div class="card-title">
-              <img src="../assets/sparkles.svg" alt="" />
+              <img src="../assets/cpu.svg" alt="" />
               <span>In-Browser Model</span>
             </div>
 
@@ -311,7 +354,7 @@
 
           <div id="transformersModelsCard" class="settings-card hidden">
             <div class="card-title">
-              <img src="../assets/sparkles.svg" alt="" />
+              <img src="../assets/cpu.svg" alt="" />
               <span>In-Browser Model</span>
             </div>
 
@@ -320,7 +363,7 @@
 
           <div id="localSettingsCard" class="settings-card hidden">
             <div class="card-title">
-              <img src="../assets/settings.svg" alt="" />
+              <img src="../assets/server.svg" alt="" />
               <span>Backend</span>
             </div>
 
@@ -368,7 +411,7 @@
 
           <div class="settings-card">
             <div class="card-title">
-              <img src="../assets/sparkles.svg" alt="" />
+              <img src="../assets/sun-moon.svg" alt="" />
               <span>Appearance Theme</span>
             </div>
 
@@ -390,7 +433,7 @@
 
           <div class="settings-card">
             <div class="card-title">
-              <img src="../assets/status.svg" alt="" />
+              <img src="../assets/shield.svg" alt="" />
               <span>Privacy</span>
             </div>
 
@@ -499,7 +542,9 @@
 
             <p>
               AI browser assistant for articles, videos, emails and more. Runs
-              in-browser via WebGPU and Ollama.
+              in-browser via WebGPU(chrome), transformers.js(firefox) and
+              Ollama. Inspired by Mozilla's Orbit, a discontinued AI reading
+              assistant, reimagined here as fully local and privacy-first.
             </p>
           </div>
 

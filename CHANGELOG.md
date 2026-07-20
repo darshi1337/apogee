@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Cancel button for Summarize and Ask.** Cancelling now actually interrupts
+  generation server-side instead of just hiding the UI while the job kept
+  running in the background: `engine.interruptGenerate()` for WebLLM, an
+  `AbortController`-driven `fetch` abort for Local Ollama, and a checked
+  signal between chunks for Transformers.js. Cancelling a summary returns to
+  Home; cancelling a question returns to the empty question box rather than
+  discarding the page context.
+- **Copy-to-clipboard** buttons on the generated summary, the Ask answer, and
+  each entry in the new Past Summaries list below.
+- **Past Summaries list on Home**, populated from the same local cache that
+  already backed instant reopens. Shows the first line of each summary as a
+  one-line preview (markdown markers stripped), click to expand in place.
+  Capped at the 8 most recent; hidden entirely with nothing cached yet
+  (fresh install) or after clearing data.
+- The logo/brand mark in the header is now clickable and returns to Home
+  from the Summary view.
+- Rotating playful loading text while summarizing (`TL;DRing`, `Distilling`,
+  `Orbiting`, `Reaching apogee`, and 30+ more), picked at random each time
+  instead of always showing the same "Summarizing" label.
+- A one-line credit to Mozilla's discontinued Orbit as this project's
+  inspiration, on the "Get in touch" page (see also
+  [README.md#inspiration-orbit-killed-by-mozilla](README.md#inspiration-orbit-killed-by-mozilla)).
+
+### Changed
+
+- Replaced the entire icon set. The originals were raster images (17-36 KB
+  each) wrapped in an SVG `<pattern>` purely so a CSS filter hack could tint
+  them, which is why they looked soft and needed the imprecise filter in the
+  first place. Now real vector icons from [Lucide](https://lucide.dev) (ISC)
+  and the GitHub mark from [Simple Icons](https://simpleicons.org) (CC0),
+  320-820 bytes each. Also fixed five places that were reusing one icon for
+  two or three unrelated settings (Status/Privacy, the two in-browser model
+  cards, Backend), each now has its own.
+- Light theme's icon color only had 2.56:1 contrast against white (measured,
+  not eyeballed), under the 3:1 WCAG minimum for graphical UI elements, which
+  is why it read as washed-out; retuned to 5.52:1 while leaving dark theme
+  (already 8.2:1) untouched.
+- The Settings back button now returns to whichever page it was opened from
+  (Home or Summary) instead of always landing on Home, which previously
+  discarded a just-generated summary still sitting in the DOM.
+- "Ask Apogee a question" no longer shows an empty "Suggested Prompts"
+  heading before a question has been asked.
+- Summary and answer text are now justified instead of ragged-right.
+- Every page's header now has rounded top corners. (Rounding all four
+  corners was also tried, via `overflow: hidden` on the outer container, but
+  that broke the sticky header — confirmed by a real scroll test showing it
+  no longer stayed pinned — so it's top corners only for now.)
+- Various spacing fixes: redundant stacked bottom padding on the Settings
+  and Get in touch pages (56px down to a normal 36px), the gap below
+  "Summarize the page" before the loading indicator, the `model-progress`
+  card sitting flush against the header (missing top margin), and the
+  gaps directly above/below the new Past Summaries list.
+
+### Fixed
+
+- `manifest.json` was missing the `clipboardWrite` permission. Without it,
+  `navigator.clipboard.writeText()` from a popup can trigger an interactive
+  permission prompt, which, combined with the popup's auto-close-on-blur
+  behavior, could silently close the popup mid-copy, i.e. the copy button
+  appearing to "disappear" and never actually copying anything.
+- The dev-only `popup/mock.js` shim was missing `chrome.storage.onChanged`,
+  which `popup.js` calls unconditionally at load, silently breaking the
+  entire "open popup.html directly for UI iteration" workflow described in
+  its own code comment (no click handlers ever attached).
+
 ## [0.1.7] - 2026-07-19
 
 ### Added

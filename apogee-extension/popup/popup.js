@@ -11,7 +11,12 @@ if (
   await import("./mock.js");
 }
 
-import { getProvider, attachToStream } from "../lib/providers.js";
+import {
+  getProvider,
+  attachToStream,
+  cancelStream,
+  StreamCancelledError,
+} from "../lib/providers.js";
 import {
   PROVIDERS,
   DEFAULT_SETTINGS,
@@ -23,6 +28,12 @@ import {
 
 const summarizeBtn = document.getElementById("summarizeBtn");
 const summaryText = document.getElementById("summaryText");
+const cancelSummarizeBtn = document.getElementById("cancelSummarizeBtn");
+const copySummaryBtn = document.getElementById("copySummaryBtn");
+const copyAnswerBtn = document.getElementById("copyAnswerBtn");
+const cancelAskBtn = document.getElementById("cancelAskBtn");
+const pastSummariesSection = document.getElementById("pastSummariesSection");
+const pastSummariesList = document.getElementById("pastSummariesList");
 const settingsBtn = document.getElementById("settingsBtn");
 const settingsBtn2 = document.getElementById("settingsBtn2");
 const closeBtn = document.getElementById("closeBtn");
@@ -88,6 +99,16 @@ if (versionText) {
 
 let currentPageData = null;
 let currentSummaryText = "";
+let currentAnswerText = "";
+// streamId of the summarize job currently in flight, if any; drives the
+// Cancel button, cleared on any terminal outcome (done/cancelled/error).
+let activeSummarizeStreamId = null;
+// Same idea as activeSummarizeStreamId, for the "Ask a question" flow.
+let activeAskStreamId = null;
+// Which view Settings was opened from (homeView or summaryView), so its
+// back button returns there instead of always landing on Home, that used
+// to drop a just-generated summary still sitting in summaryView's DOM.
+let settingsEntryView = "homeView";
 
 // The tab the popup is currently associated with. Set once on
 // DOMContentLoaded and reused by view-state persistence below, the popup
@@ -631,6 +652,54 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 });
 
+// Playful stand-ins for "Summarizing", picked at random each time so the
+// spinner isn't always the same word (same idea as Claude Code's rotating
+// spinner verbs).
+const SUMMARIZE_VERBS = [
+  "Summarizing",
+  "TL;DRing",
+  "Distilling",
+  "Digesting",
+  "Condensing",
+  "Skimming",
+  "Boiling down",
+  "Synthesizing",
+  "Cliffnoting",
+  "Compressing",
+  "Untangling",
+  "Cutting the fluff",
+  "Getting to the point",
+  "Extracting the gist",
+  "Orbiting",
+  "Zooming out",
+  "Paraphrasing",
+  "Recapping",
+  "Abridging",
+  "Unpacking",
+  "Parsing",
+  "Sifting through it",
+  "Making sense of it",
+  "Connecting the dots",
+  "Wrapping it up",
+  "Simplifying",
+  "Whittling down",
+  "Pruning",
+  "Refining",
+  "Crunching the text",
+  "Chewing it over",
+  "Sketching an outline",
+  "Launching",
+  "Stargazing",
+  "Charting a course",
+  "Reaching apogee",
+  "Plotting a trajectory",
+  "Navigating",
+];
+
+function randomSummarizeVerb() {
+  return SUMMARIZE_VERBS[Math.floor(Math.random() * SUMMARIZE_VERBS.length)];
+}
+
 function setLoadingIndicator(element, label) {
   const wrapper = document.createElement("span");
   wrapper.className = "apogee-loading";
@@ -778,6 +847,91 @@ function getContentCacheKey(url) {
   return `content:${hashUrl(url)}`;
 }
 
+// How many past summaries to show on Home; cacheOrder can hold up to
+// MAX_CACHED_PAGES (50), far more than makes sense to list at a glance.
+const PAST_SUMMARIES_SHOWN = 8;
+
+// Strips the leading markdown marker (heading/bullet/number) off the first
+// non-empty line so the preview reads as plain text instead of literally
+// showing "# " or "- ".
+function firstLineOf(text) {
+  const line = (text || "").split(/\r?\n/).find((l) => l.trim() !== "") || "";
+  return line
+    .trim()
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/^[-*•]\s+/, "")
+    .replace(/^\d+[.)]\s+/, "");
+}
+
+// Populates Home's "Past Summaries" list from the same cache persistSummary
+// writes to (see MAX_CACHED_PAGES above), most recent first. Hidden
+// entirely when there's nothing cached yet (fresh install) or after
+// "Clear cached summaries & page data".
+async function loadPastSummaries() {
+  const { cacheOrder = [] } = await chrome.storage.local.get("cacheOrder");
+  if (cacheOrder.length === 0) {
+    pastSummariesSection.classList.add("hidden");
+    pastSummariesList.innerHTML = "";
+    return;
+  }
+
+  const recent = cacheOrder.slice(-PAST_SUMMARIES_SHOWN).reverse();
+  const stored = await chrome.storage.local.get(recent.map((e) => e.s));
+
+  pastSummariesList.innerHTML = "";
+  for (const entry of recent) {
+    const text = stored[entry.s];
+    if (!text) continue; // evicted/cleared since cacheOrder was written
+
+    // A <div> (not <button>), because it needs to contain the copy button
+    // below, and <button> can't nest inside <button> (the browser silently
+    // breaks the inner one). role="button" + the keydown handler keep it
+    // keyboard-operable in place of the native semantics that loses.
+    const card = document.createElement("div");
+    card.className = "past-summary-card";
+    card.setAttribute("role", "button");
+    card.setAttribute("tabindex", "0");
+
+    const preview = document.createElement("div");
+    preview.className = "past-summary-preview";
+    preview.textContent = firstLineOf(text);
+    card.appendChild(preview);
+
+    const toggleExpanded = () => {
+      const expanded = card.classList.toggle("expanded");
+      if (expanded) preview.innerHTML = renderMarkdown(text);
+      else preview.textContent = firstLineOf(text);
+    };
+    card.addEventListener("click", toggleExpanded);
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        toggleExpanded();
+      }
+    });
+
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "copy-btn";
+    copyBtn.setAttribute("aria-label", "Copy this summary");
+    copyBtn.innerHTML = '<img src="../assets/copy.svg" alt="" />';
+    copyBtn.addEventListener("click", (e) => {
+      // Otherwise this bubbles up to the card's own click handler and
+      // toggles expand/collapse at the same time as copying.
+      e.stopPropagation();
+      copyToClipboard(text, copyBtn);
+    });
+    card.appendChild(copyBtn);
+
+    pastSummariesList.appendChild(card);
+  }
+
+  pastSummariesSection.classList.toggle(
+    "hidden",
+    pastSummariesList.children.length === 0,
+  );
+}
+
 // Hosts whose pages routinely contain private content (email, etc.). Their
 // summaries and Q&A are never persisted to disk, regardless of the
 // saveHistory setting, see shouldPersist.
@@ -815,6 +969,73 @@ function showSummarizingContext() {
   answerBox.textContent = "";
   answerBox.classList.add("hidden");
   togglePromptsBtn.style.display = "none";
+  copySummaryBtn.classList.add("hidden");
+}
+
+// Copies plain text (not the rendered HTML) to the clipboard and briefly
+// swaps the button's icon to a checkmark so the click has visible feedback,
+// same pattern for both the summary and answer copy buttons.
+async function copyToClipboard(text, btn) {
+  if (!text || !btn) return;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (err) {
+    // Clipboard permission denied or unavailable; nothing sensible to do
+    // beyond not showing the "copied" confirmation below. Logged (not
+    // silently swallowed) since a failed copy with no feedback at all is
+    // otherwise indistinguishable from "worked, but the checkmark simply
+    // wasn't noticed".
+    console.error("Copy to clipboard failed:", err);
+    return;
+  }
+  const original = btn.innerHTML;
+  btn.innerHTML = '<img src="../assets/check.svg" alt="" />';
+  clearTimeout(btn._copyResetTimer);
+  btn._copyResetTimer = setTimeout(() => {
+    btn.innerHTML = original;
+  }, 1500);
+}
+
+copySummaryBtn?.addEventListener("click", () =>
+  copyToClipboard(currentSummaryText, copySummaryBtn),
+);
+copyAnswerBtn?.addEventListener("click", () =>
+  copyToClipboard(currentAnswerText, copyAnswerBtn),
+);
+
+function showCancelSummarizeButton(streamId) {
+  activeSummarizeStreamId = streamId;
+  cancelSummarizeBtn.textContent = "Cancel";
+  cancelSummarizeBtn.disabled = false;
+  cancelSummarizeBtn.classList.remove("hidden");
+}
+
+function hideCancelSummarizeButton() {
+  activeSummarizeStreamId = null;
+  cancelSummarizeBtn.classList.add("hidden");
+}
+
+// Shared by a freshly started summarize job and one resumed after the popup
+// was reopened mid-stream. Cancellation itself is handled by the caller
+// (navigates back to the home view instead), this only renders a real
+// failure.
+function renderSummaryError(error) {
+  console.error(error);
+  const p = document.createElement("p");
+  p.style.color = "#d93025";
+  p.style.fontSize = "13px";
+  p.textContent = error.message;
+  summaryText.textContent = "";
+  summaryText.appendChild(p);
+}
+
+// On cancel there's no partial summary worth keeping the user parked on, so
+// send them back to Home rather than showing a "cancelled" state in place.
+// Clears the persisted streamId too, otherwise reopening the popup would
+// try to reattach to the now-dead job (see the resume logic below).
+function returnHomeAfterCancel(tabId) {
+  showOnlyView("homeView");
+  saveViewState(tabId, { view: "homeView", streamId: null });
 }
 
 function showSummaryContext(questions = []) {
@@ -831,22 +1052,26 @@ function showSummaryContext(questions = []) {
   questionInput.value = "";
   answerBox.textContent = "";
   togglePromptsBtn.style.display = "none";
+  copyAnswerBtn.classList.add("hidden");
 }
 
 function showAskContext() {
   summaryCard.classList.add("hidden");
-  promptsSection.classList.remove("hidden");
-  questionHeading.textContent = "Suggested Prompts";
+  // Unlike showAnswerContext (which reuses promptsSection to show the
+  // submitted question), there's nothing to show here yet: no page has been
+  // summarized, so there are no real suggestions, just an empty "Suggested
+  // Prompts" heading with nothing under it.
+  promptsSection.classList.add("hidden");
   answerHeading.textContent = "Ask Apogee";
   resetQuestionCards();
   chatSection.classList.remove("hidden");
-  promptsCloseBtn.classList.add("hidden");
   questionInput.classList.remove("hidden");
   sendBtn.classList.remove("hidden");
   answerBox.classList.add("hidden");
   questionInput.value = "";
   answerBox.textContent = "";
   togglePromptsBtn.style.display = "none";
+  copyAnswerBtn.classList.add("hidden");
 }
 
 function showAnswerContext(question) {
@@ -866,8 +1091,36 @@ function showAnswerContext(question) {
   questionInput.classList.add("hidden");
   sendBtn.classList.add("hidden");
   answerBox.classList.remove("hidden");
+  copyAnswerBtn.classList.add("hidden");
   setLoadingIndicator(answerBox, "Thinking");
 }
+
+function showCancelAskButton(streamId) {
+  activeAskStreamId = streamId;
+  cancelAskBtn.textContent = "Cancel";
+  cancelAskBtn.disabled = false;
+  cancelAskBtn.classList.remove("hidden");
+}
+
+function hideCancelAskButton() {
+  activeAskStreamId = null;
+  cancelAskBtn.classList.add("hidden");
+}
+
+// Mirrors returnHomeAfterCancel, but for a cancelled "ask": there's still a
+// summary/page context worth staying on, so this returns to the question
+// input instead of leaving summaryView entirely.
+function returnToAskAfterCancel(tabId) {
+  showAskContext();
+  saveViewState(tabId, { view: "summaryView", subview: "ask", streamId: null });
+}
+
+cancelAskBtn?.addEventListener("click", () => {
+  if (!activeAskStreamId) return;
+  cancelAskBtn.disabled = true;
+  cancelAskBtn.textContent = "Cancelling...";
+  cancelStream(activeAskStreamId);
+});
 
 async function streamGeneratorIntoElement(generator, element) {
   let fullText = "";
@@ -897,6 +1150,7 @@ async function consumeSummaryStream(
   if (persist) await persistSummary(cacheKey, promptsCacheKey, text);
   currentSummaryText = text;
   showSummaryContext();
+  copySummaryBtn.classList.toggle("hidden", !text.trim());
   await saveViewState(tab.id, {
     view: "summaryView",
     subview: "summary",
@@ -924,7 +1178,7 @@ async function summarizeActivePage() {
   homeView.classList.add("hidden");
   summaryView.classList.remove("hidden");
   showSummarizingContext();
-  setLoadingIndicator(summaryText, "Summarizing");
+  setLoadingIndicator(summaryText, randomSummarizeVerb());
 
   try {
     const [tab] = await chrome.tabs.query({
@@ -946,7 +1200,8 @@ async function summarizeActivePage() {
     const pageData = await extractFromActiveTab(tab);
 
     if (!pageData) {
-      summaryText.textContent = "Could not extract page.";
+      summaryText.textContent =
+        "Couldn't read this page — try reloading it, or pick a different tab.";
       return;
     }
     // Gmail returns empty content when no thread is open rather than
@@ -954,7 +1209,7 @@ async function summarizeActivePage() {
     // content to the model.
     if (!pageData.isPdf && !pageData.content) {
       summaryText.textContent =
-        "Could not find anything to summarize on this page.";
+        "Nothing to summarize here yet — open a page, email, or video first.";
       return;
     }
     currentPageData = pageData;
@@ -982,11 +1237,12 @@ async function summarizeActivePage() {
       setLoadingIndicator(summaryText, "Extracting PDF");
       const pdfContent = await extractPdfContent(tab);
       if (!pdfContent) {
-        summaryText.textContent = "Could not extract any text from this PDF.";
+        summaryText.textContent =
+          "Couldn't pull any text out of this PDF — it might be a scanned image.";
         return;
       }
       pageData.content = pdfContent;
-      setLoadingIndicator(summaryText, "Summarizing PDF");
+      setLoadingIndicator(summaryText, randomSummarizeVerb());
       ({ streamId, stream } = await provider.summarize({
         title: pageData.title,
         url: pageData.url,
@@ -1010,6 +1266,7 @@ async function summarizeActivePage() {
       cacheKey,
       promptsCacheKey,
     });
+    showCancelSummarizeButton(streamId);
 
     await consumeSummaryStream(stream, {
       tab,
@@ -1018,15 +1275,22 @@ async function summarizeActivePage() {
       pageData,
     });
   } catch (error) {
-    console.error(error);
-    const p = document.createElement("p");
-    p.style.color = "#d93025";
-    p.style.fontSize = "13px";
-    p.textContent = error.message;
-    summaryText.textContent = "";
-    summaryText.appendChild(p);
+    if (error instanceof StreamCancelledError) {
+      returnHomeAfterCancel(activeTabId);
+    } else {
+      renderSummaryError(error);
+    }
+  } finally {
+    hideCancelSummarizeButton();
   }
 }
+
+cancelSummarizeBtn?.addEventListener("click", () => {
+  if (!activeSummarizeStreamId) return;
+  cancelSummarizeBtn.disabled = true;
+  cancelSummarizeBtn.textContent = "Cancelling...";
+  cancelStream(activeSummarizeStreamId);
+});
 
 // Consumes an "ask" stream to completion, rendering into answerBox and
 // persisting the final answer text so a reopened popup can show it without
@@ -1046,6 +1310,9 @@ async function consumeAnswerStream(stream, { tab, question }) {
   }
   if (started) answerBox.innerHTML = renderMarkdown(answerBox.textContent);
   else answerBox.textContent = "";
+
+  currentAnswerText = fullText;
+  copyAnswerBtn.classList.toggle("hidden", !started);
 
   await saveViewState(tab.id, {
     view: "summaryView",
@@ -1084,7 +1351,8 @@ async function submitQuestion(question) {
     // always re-extracted live instead.
     let pageData = await getPageData(tab);
     if (!pageData) {
-      answerBox.textContent = "Could not extract page.";
+      answerBox.textContent =
+        "Couldn't read this page — try reloading it, or pick a different tab.";
       return;
     }
     currentPageData = pageData;
@@ -1110,11 +1378,18 @@ async function submitQuestion(question) {
       streamId,
       question: trimmed,
     });
+    showCancelAskButton(streamId);
 
     await consumeAnswerStream(stream, { tab, question: trimmed });
   } catch (error) {
-    console.error(error);
-    answerBox.textContent = error.message;
+    if (error instanceof StreamCancelledError) {
+      returnToAskAfterCancel(activeTabId);
+    } else {
+      console.error(error);
+      answerBox.textContent = error.message;
+    }
+  } finally {
+    hideCancelAskButton();
   }
 }
 
@@ -1202,6 +1477,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   try {
+    // Independent of settings/connection-check/tab below, and those can be
+    // slow (or hang, if the provider never responds), so this isn't awaited
+    // here, it just populates Home in the background on its own schedule.
+    loadPastSummaries().catch((err) => console.error(err));
+
     const settings = await getSettings();
     await applySettingsToUI(settings);
 
@@ -1225,7 +1505,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (state.subview === "summarizing") {
         showOnlyView("summaryView");
         showSummarizingContext();
-        setLoadingIndicator(summaryText, "Summarizing");
+        setLoadingIndicator(summaryText, randomSummarizeVerb());
+        showCancelSummarizeButton(state.streamId);
         try {
           const pageData = await getPageData(tab);
           await consumeSummaryStream(attachToStream(state.streamId), {
@@ -1235,18 +1516,18 @@ document.addEventListener("DOMContentLoaded", async () => {
             pageData,
           });
         } catch (error) {
-          console.error(error);
-          const p = document.createElement("p");
-          p.style.color = "#d93025";
-          p.style.fontSize = "13px";
-          p.textContent = error.message;
-          summaryText.textContent = "";
-          summaryText.appendChild(p);
-          // Clear the dead stream pointer so reopening the popup doesn't
-          // retry the same failed reattach forever, the underlying job is
-          // gone either way (evicted service worker, crashed offscreen
-          // engine, etc.), so there's nothing left to reattach to.
-          await saveViewState(tab.id, { streamId: null });
+          if (error instanceof StreamCancelledError) {
+            returnHomeAfterCancel(tab.id);
+          } else {
+            renderSummaryError(error);
+            // Clear the dead stream pointer so reopening the popup doesn't
+            // retry the same failed reattach forever, the underlying job is
+            // gone either way (evicted service worker, crashed offscreen
+            // engine, etc.), so there's nothing left to reattach to.
+            await saveViewState(tab.id, { streamId: null });
+          }
+        } finally {
+          hideCancelSummarizeButton();
         }
         return;
       }
@@ -1254,17 +1535,24 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (state.subview === "answer") {
         showOnlyView("summaryView");
         showAnswerContext(state.question || "");
+        showCancelAskButton(state.streamId);
         try {
           await consumeAnswerStream(attachToStream(state.streamId), {
             tab,
             question: state.question || "",
           });
         } catch (error) {
-          console.error(error);
-          answerBox.textContent = error.message;
-          // Same reasoning as the summarize reattach above, don't leave a
-          // dead streamId behind for the next popup open to retry.
-          await saveViewState(tab.id, { streamId: null });
+          if (error instanceof StreamCancelledError) {
+            returnToAskAfterCancel(tab.id);
+          } else {
+            console.error(error);
+            answerBox.textContent = error.message;
+            // Same reasoning as the summarize reattach above, don't leave a
+            // dead streamId behind for the next popup open to retry.
+            await saveViewState(tab.id, { streamId: null });
+          }
+        } finally {
+          hideCancelAskButton();
         }
         return;
       }
@@ -1341,11 +1629,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 summarizeBtn?.addEventListener("click", () => summarizeActivePage());
 
 settingsBtn?.addEventListener("click", () => {
+  settingsEntryView = "homeView";
   showOnlyView("settingsView");
   saveViewState(activeTabId, { view: "settingsView" });
 });
 
 settingsBtn2?.addEventListener("click", () => {
+  settingsEntryView = "summaryView";
   showOnlyView("settingsView");
   saveViewState(activeTabId, { view: "settingsView" });
 });
@@ -1433,6 +1723,7 @@ clearDataBtn?.addEventListener("click", async () => {
   try {
     await clearCachedData();
     currentSummaryText = "";
+    await loadPastSummaries();
     if (clearDataStatus) clearDataStatus.textContent = "Cached data cleared.";
   } catch (err) {
     if (clearDataStatus) clearDataStatus.textContent = `Error: ${err.message}`;
@@ -1467,6 +1758,18 @@ getInTouchBtn?.addEventListener("click", () => {
   saveViewState(activeTabId, { view: "contactView" });
 });
 
+// Only Home and Summary show the logo (Settings/Contact use a back-arrow
+// header instead), clicking it acts as a "go home" shortcut from Summary.
+document.querySelectorAll(".brand").forEach((brand) => {
+  brand.addEventListener("click", () => {
+    showOnlyView("homeView");
+    saveViewState(activeTabId, { view: "homeView" });
+    // Refresh in case a summary was generated (or cleared) earlier in this
+    // same popup session; Home otherwise only reloads this on reopen.
+    loadPastSummaries();
+  });
+});
+
 document.getElementById("contributeBtn")?.addEventListener("click", () => {
   chrome.tabs.create({ url: "https://github.com/darshi1337/apogee" });
 });
@@ -1478,8 +1781,12 @@ document.getElementById("featureBtn")?.addEventListener("click", () => {
 });
 
 settingsBackBtn?.addEventListener("click", () => {
-  showOnlyView("homeView");
-  saveViewState(activeTabId, { view: "homeView" });
+  showOnlyView(settingsEntryView);
+  // summaryView's own subview/cacheKey fields (set when the summary
+  // finished, see consumeSummaryStream) are untouched by this merge, so
+  // navigating back there doesn't disturb what's actually being resumed on
+  // a later popup reopen, just which page is currently on screen.
+  saveViewState(activeTabId, { view: settingsEntryView });
 });
 
 contactBackBtn?.addEventListener("click", () => {

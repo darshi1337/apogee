@@ -121,13 +121,13 @@
   --scrollbar-thumb: rgba(0, 0, 0, 0.15);
   --scrollbar-thumb-hover: rgba(0, 0, 0, 0.3);
 
-  --icon-filter: invert(56%) sepia(87%) saturate(1088%) hue-rotate(207deg)
-    brightness(101%) contrast(101%);
+  --icon-filter: invert(30%) sepia(90%) saturate(1800%) hue-rotate(230deg)
+    brightness(90%) contrast(105%);
   --warning-bg: rgba(245, 158, 11, 0.08);
   --warning-border: rgba(245, 158, 11, 0.3);
   --warning-text: #d97706;
-  --radio-border: rgba(0, 0, 0, 0.25);
-  --radio-checked-color: #000000;
+  --radio-border: rgba(0, 0, 0, 0.2);
+  --radio-checked-color: #5855ff;
   --progress-track: rgba(0, 0, 0, 0.06);
 
   --send-btn-bg: linear-gradient(135deg, #827fff 0%, #5855ff 100%);
@@ -140,6 +140,16 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+button {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
 }
 
 .hidden {
@@ -175,10 +185,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-.container {
-  padding-bottom: 20px;
-}
-
 .header {
   height: 60px;
   padding: 0 16px;
@@ -189,6 +195,8 @@ body {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-color);
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -198,6 +206,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  cursor: pointer;
 }
 
 .logo {
@@ -258,7 +267,8 @@ body {
 .contact-arrow,
 .arrow-icon,
 .prompts-toggle img,
-.send-btn img {
+.send-btn img,
+.section-title-group img {
   filter: var(--icon-filter);
   width: 16px;
   height: 16px;
@@ -324,14 +334,18 @@ body {
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
 }
 
+.card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
 .summary-card h2 {
   font-family: "Metropolis";
   font-weight: 700;
-  font-size: 14px;
-  color: var(--card-title-color);
-  margin-bottom: 12px;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
+  font-size: 14.5px;
+  color: var(--text-main);
 }
 
 #summaryText {
@@ -340,6 +354,32 @@ body {
   line-height: 1.5;
   color: var(--text-muted);
   white-space: pre-wrap;
+  text-align: justify;
+}
+
+.cancel-btn {
+  margin-top: 12px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--btn-border);
+  background: var(--btn-bg);
+  color: var(--text-secondary);
+  font-family: "Metropolis";
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cancel-btn:hover {
+  background: var(--btn-hover-bg);
+  border-color: var(--btn-hover-border);
+  color: var(--text-main);
+}
+
+.cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 #summaryText p,
@@ -412,11 +452,9 @@ body {
 .section-title {
   font-family: "Metropolis";
   font-weight: 700;
-  font-size: 14px;
-  color: var(--card-title-color);
+  font-size: 14.5px;
+  color: var(--text-main);
   margin: 0;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
 }
 
 .prompts-toggle {
@@ -477,8 +515,61 @@ body {
   transform: none !important;
 }
 
+.past-summaries {
+  margin: 4px 16px 20px;
+}
+
+.section-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.past-summary-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 12px 14px;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: 10px;
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.past-summary-card:hover {
+  background: var(--btn-hover-bg);
+  border-color: var(--btn-hover-border);
+}
+
+.past-summary-preview {
+  flex: 1;
+  min-width: 0;
+  font-family: "Metropolis";
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.past-summary-card.expanded .past-summary-preview {
+  white-space: normal;
+  overflow: visible;
+  text-align: justify;
+}
+
+.past-summary-card .copy-btn {
+  flex-shrink: 0;
+}
+
 .chat-section {
-  margin: 20px 16px 0;
+  margin: 20px 16px;
 }
 
 .chat-header {
@@ -491,10 +582,39 @@ body {
 .chat-header h3 {
   font-family: "Metropolis";
   font-weight: 700;
-  font-size: 14px;
-  color: var(--card-title-color);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+  font-size: 14.5px;
+  color: var(--text-main);
+}
+
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.copy-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid var(--btn-border);
+  background: var(--btn-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.copy-btn:hover {
+  background: var(--btn-hover-bg);
+  border-color: var(--btn-hover-border);
+}
+
+.copy-btn img {
+  filter: var(--icon-filter);
+  width: 13px;
+  height: 13px;
 }
 
 .suggested-tag {
@@ -571,6 +691,7 @@ body {
   line-height: 1.5;
   color: var(--text-muted);
   white-space: pre-wrap;
+  text-align: justify;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
   margin-top: 10px;
 }
@@ -625,15 +746,19 @@ body {
   white-space: nowrap;
 }
 
+.view-body,
+.settings-content,
+.contact-content {
+  overflow: hidden;
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 14px;
+}
+
 .settings-content,
 .contact-content {
   padding: 16px 0;
   display: flex;
   flex-direction: column;
-}
-
-#settingsView {
-  padding-bottom: 20px;
 }
 
 .settings-card {
@@ -791,10 +916,6 @@ body {
   font-size: 14px;
   font-weight: 700;
   color: var(--text-muted);
-}
-
-#contactView {
-  padding-bottom: 20px;
 }
 
 .contact-links {
@@ -1025,7 +1146,7 @@ body {
 }
 
 .model-progress {
-  margin: 0 16px 12px;
+  margin: 16px 16px 12px;
   padding: 13px 14px;
   background: linear-gradient(
     135deg,

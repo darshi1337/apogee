@@ -18,6 +18,11 @@ function sendToServiceWorker(message) {
   });
 }
 
+// Thrown by attachToStream when the job ended because the user cancelled it
+// (as opposed to a real failure), so callers can render a neutral "cancelled"
+// state instead of an error message and skip persisting the partial result.
+export class StreamCancelledError extends Error {}
+
 // Subscribes to the service-worker job for streamId, yielding buffered text
 // plus live chunks. Works both right after starting a job and when resuming
 // one still in flight (e.g. after the popup was closed and reopened).
@@ -27,12 +32,16 @@ export async function* attachToStream(streamId) {
   const queue = [];
   let resolvePromise = null;
   let error = null;
+  let cancelled = false;
   let done = false;
 
   port.onMessage.addListener((msg) => {
     if (msg.type === "chunk") {
       queue.push(msg.text);
     } else if (msg.type === "done") {
+      done = true;
+    } else if (msg.type === "cancelled") {
+      cancelled = true;
       done = true;
     } else if (msg.type === "error") {
       error = msg.error || "Unknown error during streaming";
@@ -64,8 +73,12 @@ export async function* attachToStream(streamId) {
 
   try {
     while (true) {
+      // Buffered chunks always drain first, even after cancellation/error,
+      // so text that arrived before the terminal message isn't dropped.
       if (queue.length > 0) {
         yield queue.shift();
+      } else if (cancelled) {
+        throw new StreamCancelledError("Cancelled.");
       } else if (error) {
         throw new Error(error);
       } else if (done) {
@@ -79,6 +92,17 @@ export async function* attachToStream(streamId) {
   } finally {
     port.disconnect();
   }
+}
+
+// Fire-and-forget request to stop an in-flight summarize/ask job. The actual
+// UI settling happens when the resulting "cancelled" message comes back
+// through the attachToStream port above, not from this call's response.
+export function cancelStream(streamId) {
+  if (!streamId) return;
+  chrome.runtime.sendMessage(
+    { target: "service-worker", action: "cancel-stream", payload: { streamId } },
+    () => void chrome.runtime.lastError,
+  );
 }
 
 // Starts a job on the service worker and attaches to it. The returned

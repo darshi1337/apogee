@@ -51,6 +51,9 @@ if (
         },
         remove: async (_keys) => {},
       },
+      onChanged: {
+        addListener: () => {},
+      },
     },
     tabs: {
       query: async () => [

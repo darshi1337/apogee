@@ -10,7 +10,8 @@
     "storage",
     "offscreen",
     "unlimitedStorage",
-    "alarms"
+    "alarms",
+    "clipboardWrite"
   ],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
   "content_security_policy": {

@@ -55,6 +55,11 @@ export async function* summarizeText(
   // flowing immediately instead of after every chunk.
   if (mode === "bullets") {
     for (const chunk of chunks) {
+      // Checked between chunks, not just forwarded to chatStreamFn, so a
+      // multi-chunk summary (e.g. a long PDF) stops issuing new model calls
+      // right away on cancel instead of grinding through every remaining
+      // chunk before the abort takes effect.
+      if (signal?.aborted) return;
       const prompt = buildSummaryPrompt(title, url, chunk, mode);
       let lineBuffer = "";
       for await (const token of chatStreamFn(host, model, prompt, { signal })) {
@@ -82,6 +87,7 @@ export async function* summarizeText(
   // Sentences/paragraphs: summarize every chunk, then merge.
   const chunkSummaries = [];
   for (let i = 0; i < chunks.length; i++) {
+    if (signal?.aborted) return;
     onProgress?.({ stage: "map", index: i, total: chunks.length });
     const prompt = buildSummaryPrompt(title, url, chunks[i], mode);
     let partial = "";
@@ -91,6 +97,7 @@ export async function* summarizeText(
     chunkSummaries.push(partial.trim());
   }
 
+  if (signal?.aborted) return;
   onProgress?.({ stage: "reduce" });
   const combinedText = chunkSummaries.join("\n");
   const mergePrompt = buildSummaryPrompt(title, url, combinedText, mode);

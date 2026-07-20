@@ -268,10 +268,22 @@ async function startOllamaStream(
   streamId,
   { action, host, model, title, url, content, mode, question },
 ) {
-  const stream = { text: "", done: false, error: null, subscribers: new Set() };
+  const stream = {
+    text: "",
+    done: false,
+    error: null,
+    cancelled: false,
+    subscribers: new Set(),
+    controller: new AbortController(),
+  };
   activeStreams.set(streamId, stream);
 
   const finish = (msg) => {
+    // The "cancel-stream" handler below already broadcast "cancelled" and
+    // aborted the fetch; ignore whatever this job's own catch block does
+    // with the resulting AbortError so it can't overwrite that with a
+    // generic "error" after the fact.
+    if (stream.cancelled) return;
     if (msg.type === "done") stream.done = true;
     if (msg.type === "error") {
       stream.error = msg.error;
@@ -282,7 +294,7 @@ async function startOllamaStream(
   };
 
   const emitChunk = (text) => {
-    if (!text) return;
+    if (!text || stream.cancelled) return;
     stream.text += text;
     broadcastToStream(stream, { type: "chunk", text });
   };
@@ -305,11 +317,14 @@ async function startOllamaStream(
         mode,
         model,
         host: validHost,
+        signal: stream.controller.signal,
       });
     } else if (action === "ask") {
       const relevantContent = await getRelevantAskContent(content, question);
       const prompt = buildAnswerPrompt(title, url, relevantContent, question);
-      generator = chatStream(validHost, model, prompt);
+      generator = chatStream(validHost, model, prompt, {
+        signal: stream.controller.signal,
+      });
     } else {
       throw new Error(`Unknown ollama-stream action: ${action}`);
     }
@@ -330,10 +345,18 @@ async function startTransformersStream(
   streamId,
   { action, model, title, url, content, mode, question },
 ) {
-  const stream = { text: "", done: false, error: null, subscribers: new Set() };
+  const stream = {
+    text: "",
+    done: false,
+    error: null,
+    cancelled: false,
+    subscribers: new Set(),
+    controller: new AbortController(),
+  };
   activeStreams.set(streamId, stream);
 
   const finish = (msg) => {
+    if (stream.cancelled) return;
     if (msg.type === "done") stream.done = true;
     if (msg.type === "error") {
       stream.error = msg.error;
@@ -344,7 +367,7 @@ async function startTransformersStream(
   };
 
   const emitChunk = (text) => {
-    if (!text) return;
+    if (!text || stream.cancelled) return;
     stream.text += text;
     broadcastToStream(stream, { type: "chunk", text });
   };
@@ -359,10 +382,17 @@ async function startTransformersStream(
     await withTransformersEngine(model, onProgress, async (eng) => {
       if (action === "summarize") {
         const generator = summarizeText(
-          { text: content, title, url, mode, model },
+          { text: content, title, url, mode, model, signal: stream.controller.signal },
           {
+            // transformers.js/ONNX has no native abort mechanism (unlike
+            // WebLLM's interruptGenerate() or Ollama's fetch signal), so a
+            // cancel takes effect between tokens within a chunk, and
+            // summarizeText's own signal checks stop it between chunks.
             chatStreamFn: async function* (_host, _model, prompt) {
-              yield* transformersChatStream(eng, prompt);
+              for await (const token of transformersChatStream(eng, prompt)) {
+                if (stream.cancelled) return;
+                yield token;
+              }
             },
             onProgress: (p) => {
               onProgress({
@@ -384,6 +414,7 @@ async function startTransformersStream(
         const relevantContent = await getRelevantAskContent(content, question);
         const prompt = buildAnswerPrompt(title, url, relevantContent, question);
         for await (const token of transformersChatStream(eng, prompt)) {
+          if (stream.cancelled) break;
           emitChunk(token);
         }
       } else {
@@ -659,7 +690,11 @@ chrome.runtime.onConnect.addListener((port) => {
       popupPort.postMessage({ type: "chunk", text: stream.text });
     } catch {}
   }
-  if (stream.error) {
+  if (stream.cancelled) {
+    try {
+      popupPort.postMessage({ type: "cancelled" });
+    } catch {}
+  } else if (stream.error) {
     try {
       popupPort.postMessage({ type: "error", error: stream.error });
     } catch {}
@@ -748,6 +783,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const streamId = nextStreamId("ollama");
           startOllamaStream(streamId, message.payload);
           sendResponse({ streamId });
+          break;
+        }
+
+        case "cancel-stream": {
+          const { streamId } = message.payload;
+          if (streamId.startsWith("webllm-")) {
+            // The job and its buffer live in the offscreen document, not
+            // here (see the activeStreams comment above), so cancellation
+            // has to be relayed there too.
+            chrome.runtime
+              .sendMessage({
+                target: "offscreen",
+                action: "cancel-stream",
+                payload: { streamId },
+              })
+              .catch(() => {});
+          } else {
+            const stream = activeStreams.get(streamId);
+            if (stream && !stream.done) {
+              stream.cancelled = true;
+              stream.done = true;
+              broadcastToStream(stream, { type: "cancelled" });
+              scheduleStreamCleanup(streamId);
+              try {
+                stream.controller?.abort();
+              } catch {}
+            }
+          }
+          sendResponse({ ok: true });
           break;
         }
 
