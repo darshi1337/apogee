@@ -31,7 +31,11 @@ test("summarizeText (paragraphs) stops issuing new model calls once the signal i
   );
 
   assert.deepStrictEqual(result, []);
-  assert.strictEqual(calls, 1, "should not call the model for chunk two/three or the reduce merge after abort");
+  assert.strictEqual(
+    calls,
+    1,
+    "should not call the model for chunk two/three or the reduce merge after abort",
+  );
 });
 
 test("summarizeText (bullets) stops issuing new model calls once the signal is aborted between chunks", async () => {
@@ -56,7 +60,11 @@ test("summarizeText (bullets) stops issuing new model calls once the signal is a
   );
 
   assert.deepStrictEqual(result, ["- first bullet\n"]);
-  assert.strictEqual(calls, 1, "should not call the model for chunk two after abort");
+  assert.strictEqual(
+    calls,
+    1,
+    "should not call the model for chunk two after abort",
+  );
 });
 
 test("summarizeText (paragraphs) runs every chunk plus the reduce merge when never aborted", async () => {

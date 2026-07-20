@@ -382,7 +382,14 @@ async function startTransformersStream(
     await withTransformersEngine(model, onProgress, async (eng) => {
       if (action === "summarize") {
         const generator = summarizeText(
-          { text: content, title, url, mode, model, signal: stream.controller.signal },
+          {
+            text: content,
+            title,
+            url,
+            mode,
+            model,
+            signal: stream.controller.signal,
+          },
           {
             // transformers.js/ONNX has no native abort mechanism (unlike
             // WebLLM's interruptGenerate() or Ollama's fetch signal), so a

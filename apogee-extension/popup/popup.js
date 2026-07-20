@@ -1201,7 +1201,7 @@ async function summarizeActivePage() {
 
     if (!pageData) {
       summaryText.textContent =
-        "Couldn't read this page — try reloading it, or pick a different tab.";
+        "Couldn't read this page, try reloading it, or pick a different tab.";
       return;
     }
     // Gmail returns empty content when no thread is open rather than
@@ -1209,7 +1209,7 @@ async function summarizeActivePage() {
     // content to the model.
     if (!pageData.isPdf && !pageData.content) {
       summaryText.textContent =
-        "Nothing to summarize here yet — open a page, email, or video first.";
+        "Nothing to summarize here yet, open a page, email, or video first.";
       return;
     }
     currentPageData = pageData;
@@ -1238,7 +1238,7 @@ async function summarizeActivePage() {
       const pdfContent = await extractPdfContent(tab);
       if (!pdfContent) {
         summaryText.textContent =
-          "Couldn't pull any text out of this PDF — it might be a scanned image.";
+          "Couldn't pull any text out of this PDF, it might be a scanned image.";
         return;
       }
       pageData.content = pdfContent;
@@ -1352,7 +1352,7 @@ async function submitQuestion(question) {
     let pageData = await getPageData(tab);
     if (!pageData) {
       answerBox.textContent =
-        "Couldn't read this page — try reloading it, or pick a different tab.";
+        "Couldn't read this page, try reloading it, or pick a different tab.";
       return;
     }
     currentPageData = pageData;
@@ -1433,8 +1433,8 @@ function updateLocalModelList(settings, status) {
     buildLocalModelUI(settings.localModel, LOCAL_MODELS);
     if (localModelStatus) {
       localModelStatus.textContent = status?.ready
-        ? "No models found on this Ollama instance — pull one with `ollama pull <model>`."
-        : "Showing default models — connect to Ollama to see yours.";
+        ? "No models found on this Ollama instance, pull one with `ollama pull <model>`."
+        : "Showing default models, connect to Ollama to see yours.";
     }
   }
 }

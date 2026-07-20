@@ -192,7 +192,7 @@ You can install Apogee directly from [Mozilla Add-ons](https://addons.mozilla.or
 
 Firefox works out of the box: in-browser AI runs via Transformers.js on
 WebAssembly (SmolLM2 360M by default, no setup needed). On older or
-low-power CPUs, generation can be slow — switch to **Local Ollama** mode in
+low-power CPUs, generation can be slow, switch to **Local Ollama** mode in
 settings for faster results with larger models.
 
 ## Advanced: Local Ollama Mode

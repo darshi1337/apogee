@@ -54,8 +54,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Summary and answer text are now justified instead of ragged-right.
 - Every page's header now has rounded top corners. (Rounding all four
   corners was also tried, via `overflow: hidden` on the outer container, but
-  that broke the sticky header — confirmed by a real scroll test showing it
-  no longer stayed pinned — so it's top corners only for now.)
+  that broke the sticky header, confirmed by a real scroll test showing it
+  no longer stayed pinned, so it's top corners only for now.)
 - Various spacing fixes: redundant stacked bottom padding on the Settings
   and Get in touch pages (56px down to a normal 36px), the gap below
   "Summarize the page" before the loading indicator, the `model-progress`

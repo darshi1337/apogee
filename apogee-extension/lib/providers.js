@@ -100,7 +100,11 @@ export async function* attachToStream(streamId) {
 export function cancelStream(streamId) {
   if (!streamId) return;
   chrome.runtime.sendMessage(
-    { target: "service-worker", action: "cancel-stream", payload: { streamId } },
+    {
+      target: "service-worker",
+      action: "cancel-stream",
+      payload: { streamId },
+    },
     () => void chrome.runtime.lastError,
   );
 }
