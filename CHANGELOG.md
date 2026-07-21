@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-07-21
+
 ### Added
 
 - **Cancel button for Summarize and Ask.** Cancelling now actually interrupts
