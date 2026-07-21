@@ -209,12 +209,16 @@ function relayToOffscreenStream(popupPort, streamId) {
   });
 }
 
-// The service worker isn't bound by the extension CSP `connect-src`, so
-// constrain requests to loopback hosts, otherwise a bad `host` setting could
-// turn it into an SSRF fetch proxy. Note "[::1]" only actually works on
-// Chrome: Firefox's background page fetches ARE CSP-bound, and CSP host
-// sources can't express IPv6 literals, so it's unreachable there.
-const ALLOWED_OLLAMA_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+// The service worker isn't bound by the extension CSP `connect-src` on
+// Chrome (Firefox's background page fetches ARE CSP-bound), so constrain
+// requests to loopback hosts ourselves, otherwise a bad `host` setting could
+// turn it into an SSRF fetch proxy. Kept in exact lockstep with the
+// manifest's host_permissions/CSP (http only, 127.0.0.1/localhost only):
+// accepting "https:" or an IPv6 "[::1]" literal here (both used to be
+// allowed) would validate but the manifest can't express/allow either (CSP
+// host sources can't encode IPv6 literals), so they'd just fail at fetch
+// time on Firefox anyway, no reason to accept them here either.
+const ALLOWED_OLLAMA_HOSTS = new Set(["127.0.0.1", "localhost"]);
 
 function validateOllamaHost(host) {
   let url;
@@ -223,7 +227,7 @@ function validateOllamaHost(host) {
   } catch {
     throw new Error("Invalid Ollama host");
   }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
+  if (url.protocol !== "http:") {
     throw new Error(`Disallowed Ollama protocol: ${url.protocol}`);
   }
   if (!ALLOWED_OLLAMA_HOSTS.has(url.hostname)) {
@@ -501,8 +505,7 @@ async function fetchSponsorBlockSegments(videoId) {
     .map((s) => [s.segment[0], s.segment[1]]);
 }
 
-// Shared by the "ollama-suggest-questions" message (a direct, foreground
-// request) and runSuggestQuestionsJob's backgrounded job below.
+// Used by runSuggestQuestionsJob's backgrounded job below.
 async function generateOllamaSuggestions(host, model, { title, url, summary }) {
   const validHost = validateOllamaHost(host);
   const prompt = buildSuggestQuestionsPrompt(title, url, summary);
@@ -840,17 +843,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
-        case "ollama-suggest-questions": {
-          const { host, model, title, url, summary } = message.payload;
-          const questions = await generateOllamaSuggestions(host, model, {
-            title,
-            url,
-            summary,
-          });
-          sendResponse({ questions });
-          break;
-        }
-
         // Transformers.js only ever runs on Firefox (see PROVIDERS in
         // lib/constants.js), always in-process here, never via an offscreen
         // document. message.payload.action ("summarize" or "ask") tells this
@@ -875,17 +867,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
-        case "transformers-suggest-questions": {
-          const { title, url, summary, model } = message.payload;
-          const questions = await generateTransformersSuggestions(model, {
-            title,
-            url,
-            summary,
-          });
-          sendResponse({ questions });
-          break;
-        }
-
         case "extract-pdf": {
           const text = await extractPdfText(message.payload.arrayBuffer);
           sendResponse({ text });
@@ -904,19 +885,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // Fire and forget, the job persists its result to storage itself.
           runSuggestQuestionsJob(message.payload);
           sendResponse({ started: true });
-          break;
-        }
-
-        case "suggest-questions": {
-          await ensureOffscreenDocument();
-
-          const response = await chrome.runtime.sendMessage({
-            target: "offscreen",
-            action: "suggest-questions",
-            payload: message.payload,
-          });
-
-          sendResponse(response);
           break;
         }
 
@@ -965,39 +933,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               reason: "offscreen document did not respond",
             },
           );
-          break;
-        }
-
-        case "load-model": {
-          await ensureOffscreenDocument();
-
-          const response = await chrome.runtime.sendMessage({
-            target: "offscreen",
-            action: "load-model",
-            payload: message.payload,
-          });
-
-          sendResponse(response);
-          break;
-        }
-
-        case "unload-model": {
-          // Checked directly rather than trusting offscreenReady, that
-          // in-memory flag resets on every restart of this worker even
-          // when the offscreen document (and whatever model it has
-          // loaded) is still alive, which used to make unload silently
-          // no-op right after a worker restart.
-          if (!(await offscreenDocumentExists())) {
-            sendResponse({ ready: false });
-            break;
-          }
-
-          const response = await chrome.runtime.sendMessage({
-            target: "offscreen",
-            action: "unload-model",
-          });
-
-          sendResponse(response);
           break;
         }
 

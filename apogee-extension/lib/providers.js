@@ -175,15 +175,6 @@ class WebLLMProvider {
     });
   }
 
-  async suggestQuestions({ title, url, summary }) {
-    const response = await sendToServiceWorker({
-      target: "service-worker",
-      action: "suggest-questions",
-      payload: { title, url, summary, model: this.model },
-    });
-    return response?.questions || [];
-  }
-
   async checkReady() {
     const response = await sendToServiceWorker({
       target: "service-worker",
@@ -220,15 +211,6 @@ class TransformersProvider {
       question,
       model: this.model,
     });
-  }
-
-  async suggestQuestions({ title, url, summary }) {
-    const response = await sendToServiceWorker({
-      target: "service-worker",
-      action: "transformers-suggest-questions",
-      payload: { title, url, summary, model: this.model },
-    });
-    return response?.questions || [];
   }
 
   async checkReady() {
@@ -273,15 +255,6 @@ class DirectOllamaProvider {
     });
   }
 
-  async suggestQuestions({ title, url, summary }) {
-    const response = await sendToServiceWorker({
-      target: "service-worker",
-      action: "ollama-suggest-questions",
-      payload: { title, url, summary, model: this.model, host: this.host },
-    });
-    return response?.questions || [];
-  }
-
   async checkReady() {
     const response = await sendToServiceWorker({
       target: "service-worker",
@@ -291,21 +264,32 @@ class DirectOllamaProvider {
     return {
       ready: response?.connected === true,
       models: response?.models || [],
+      error: response?.error,
     };
   }
 }
 
+// Normalizes settings.provider the same way getProvider() below resolves it:
+// exactly one in-browser provider exists per build (see PROVIDERS in
+// lib/constants.js), Transformers.js on Firefox, WebLLM on Chrome, so any
+// non-"local" value, including a stale provider id carried over from the
+// other build's profile (e.g. "webllm" stored in a Firefox profile), lands
+// on this build's in-browser provider rather than passing through
+// unrecognized. Exported so callers that need the provider *type* without a
+// constructed provider instance (e.g. background/service-worker.js's
+// suggested-questions job) stay in sync with getProvider() instead of
+// reading settings.provider raw.
+export function getProviderType(settings) {
+  if (settings.provider === PROVIDERS.LOCAL) return PROVIDERS.LOCAL;
+  return PROVIDERS.TRANSFORMERS || PROVIDERS.WEBLLM;
+}
+
 export function getProvider(settings) {
-  if (settings.provider === PROVIDERS.LOCAL) {
+  const type = getProviderType(settings);
+  if (type === PROVIDERS.LOCAL) {
     return new DirectOllamaProvider(settings.localModel, settings.ollamaHost);
   }
-  // Exactly one in-browser provider exists per build (see PROVIDERS in
-  // lib/constants.js): Transformers.js on Firefox, WebLLM on Chrome. Any
-  // non-"local" value, including a stale provider id carried over from the
-  // other build's profile (e.g. "webllm" stored in a Firefox profile),
-  // lands on this build's in-browser provider rather than one that can't
-  // run here.
-  if (PROVIDERS.TRANSFORMERS) {
+  if (type === PROVIDERS.TRANSFORMERS) {
     return new TransformersProvider(settings.transformersModel);
   }
   return new WebLLMProvider(settings.webllmModel);

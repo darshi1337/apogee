@@ -132,12 +132,14 @@ async function ensureEngine(modelId) {
 
   engine = await CreateMLCEngine(modelId, {
     initProgressCallback: (report) => {
-      chrome.runtime.sendMessage({
-        target: "service-worker",
-        type: "model-progress",
-        progress: report,
-        modelId,
-      });
+      chrome.runtime
+        .sendMessage({
+          target: "service-worker",
+          type: "model-progress",
+          progress: report,
+          modelId,
+        })
+        .catch(() => {});
     },
     appConfig: {
       ...prebuiltAppConfig,
@@ -546,31 +548,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             });
           } catch (err) {
             sendResponse({ supported: false, reason: err.message });
-          }
-          break;
-        }
-
-        case "load-model": {
-          await withEngine(message.payload.model, async () => {});
-          sendResponse({ ready: true, currentModel: currentModelId });
-          break;
-        }
-
-        case "unload-model": {
-          const release = await acquireLock();
-          try {
-            if (engine) {
-              try {
-                await engine.unload();
-              } catch (err) {
-                console.error("Error unloading engine:", err);
-              }
-              engine = null;
-              currentModelId = null;
-            }
-            sendResponse({ ready: false });
-          } finally {
-            release();
           }
           break;
         }

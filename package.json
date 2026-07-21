@@ -3,9 +3,6 @@
   "version": "0.1.7",
   "private": true,
   "license": "MIT",
-  "devDependencies": {
-    "web-ext": "^10.4.0"
-  },
   "scripts": {
     "install:extension": "npm install --prefix apogee-extension",
     "build": "npm run build --prefix apogee-extension",

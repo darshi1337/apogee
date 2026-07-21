@@ -18,8 +18,10 @@ const DEFAULT_TOP_K = 8;
 // questions about the same page only embeds the document once. Keyed by a
 // hash of the content text itself (not the URL), since the same URL can
 // legitimately carry different content across calls. A plain in-memory Map
-// is fine: the service worker that owns it evicts every ~30s of inactivity
-// anyway, so this is a perf cache, not a correctness dependency.
+// is fine: this module only ever runs inside the offscreen document (see
+// callers in offscreen.js), which stays alive for OFFSCREEN_IDLE_MINUTES of
+// inactivity rather than getting evicted like the service worker, so this is
+// a perf cache bounded by MAX_CACHE_ENTRIES, not a correctness dependency.
 const MAX_CACHE_ENTRIES = 5;
 const indexCache = new Map();
 

@@ -74,7 +74,10 @@ function isAllowedCaptionUrl(rawUrl) {
   }
   if (url.protocol !== "https:") return false;
   const host = url.hostname.toLowerCase();
-  const allowedSuffixes = [".youtube.com", ".googlevideo.com", ".google.com"];
+  // Caption tracks are only ever served from these two, a broader
+  // "*.google.com" suffix would also accept e.g. an authenticated
+  // mail.google.com URL smuggled in through a crafted ytInitialPlayerResponse.
+  const allowedSuffixes = [".youtube.com", ".googlevideo.com"];
   return (
     host === "youtube.com" ||
     allowedSuffixes.some((suffix) => host.endsWith(suffix))

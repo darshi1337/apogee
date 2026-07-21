@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - A one-line credit to Mozilla's discontinued Orbit as this project's
   inspiration, on the "Get in touch" page (see also
   [README.md#inspiration-orbit-killed-by-mozilla](README.md#inspiration-orbit-killed-by-mozilla)).
+- **Page titles in the Past Summaries list.** Entries previously showed only
+  a one-line text preview, URLs are deliberately never stored (even cache
+  keys only carry a hash), so there was no way to tell entries apart at a
+  glance; each card now also shows the page's title above the preview.
+  Entries persisted before this existed just show the preview alone.
 
 ### Changed
 
@@ -51,7 +56,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   discarded a just-generated summary still sitting in the DOM.
 - "Ask Apogee a question" no longer shows an empty "Suggested Prompts"
   heading before a question has been asked.
-- Summary and answer text are now justified instead of ragged-right.
 - Every page's header now has rounded top corners. (Rounding all four
   corners was also tried, via `overflow: hidden` on the outer container, but
   that broke the sticky header, confirmed by a real scroll test showing it
@@ -61,6 +65,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   "Summarize the page" before the loading indicator, the `model-progress`
   card sitting flush against the header (missing top margin), and the
   gaps directly above/below the new Past Summaries list.
+- Settings' "Backend" card is now labeled "Ollama", and its URL field's
+  placeholder shows Ollama's actual default port (`:11434`, was showing
+  `:8000`, left over from the old backend-server era). The field also now
+  auto-prefixes `http://` onto a bare `host:port` value (e.g.
+  `127.0.0.1:11434`), and surfaces the specific reason a host was rejected
+  (wrong scheme, non-loopback host) instead of the same generic "connect to
+  Ollama to see yours" shown when Ollama simply isn't running yet.
+- The debug-logs toggle is now a real `<button>` instead of a `<span>` with
+  a click handler, restoring keyboard focus/activation. The debug-logs panel
+  itself moved off hardcoded dark-only inline styles onto the same themed
+  CSS variables as the rest of the popup (it was nearly invisible in light
+  theme).
+- `prefers-reduced-motion` now also covers the connected-status pulse and
+  the hover translate/scale transforms throughout the popup, not just the
+  loading spinner and dots.
+- The popup's initial view (a resumed stream, a cached summary, Settings,
+  etc.) no longer waits on the WebGPU/Ollama connectivity probe before
+  rendering. That probe can take several seconds on a cold start (creating
+  the offscreen document) and has no bearing on which view should be shown.
+- Dependency hygiene: `web-ext` now lives in `apogee-extension/package.json`
+  (where it's actually used) instead of the repo root; `npm audit` is clean
+  (0 vulnerabilities, was 3 high via `adm-zip`/`onnxruntime-node`, both
+  Node-only dev tooling that never ships in the extension itself).
+
+### Removed
+
+- Dead code left over from earlier refactors: the unused provider-level
+  `suggestQuestions()` methods and their corresponding service-worker/
+  offscreen message handlers (`load-model`, `unload-model`, and three
+  `*-suggest-questions` variants with no remaining caller). The
+  actually-used suggested-questions path, the backgrounded job that
+  persists results to storage, is unaffected.
+- The unused `ClashDisplay` font: declared via `@font-face` but never
+  applied anywhere, shipped in every install for nothing.
 
 ### Fixed
 
@@ -73,6 +111,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   which `popup.js` calls unconditionally at load, silently breaking the
   entire "open popup.html directly for UI iteration" workflow described in
   its own code comment (no click handlers ever attached).
+- Asking a follow-up question about a PDF, after summarizing it, used to
+  silently discard the already-extracted PDF text and re-run extraction
+  from scratch, which returns no text for PDFs (that needs `pdf.js`, run
+  separately via the service worker); asking without summarizing first
+  failed outright with "Could not extract enough page content to answer."
+  Both paths now reuse or re-extract the real PDF text correctly.
+- The model-progress banner ("Summarizing part 2 of 3...", "Reconnecting to
+  local model...") no longer lingers indefinitely after the job finishes.
+  It previously only auto-hid on reaching 100% download progress, which
+  text-only status messages never report.
+- Copy buttons for the summary and the Ask answer now reappear correctly
+  after reopening the popup on a cached/resumed result, instead of staying
+  hidden (and, for the answer, copying nothing even if manually revealed).
+- Starting a new summarize or ask while a previous one was still generating
+  now cancels the previous job, instead of leaving it running in the
+  background for up to two minutes and racing the new one to update the DOM.
+- A stale cross-build provider setting (e.g. `"webllm"` left over in a
+  Firefox profile) no longer silently fails to generate suggested
+  questions; it's now normalized the same way the main provider selection
+  already was.
+- Summarizing or asking about a browser-internal page (`chrome://`,
+  `about:`, etc.) now shows a clear "Apogee can't read this page" message
+  instead of the raw low-level error `chrome.scripting.executeScript`
+  throws for those.
+
+### Security
+
+- Tightened the Ollama host allowlist to exactly match what's actually
+  reachable/declared: dropped `https:` and the IPv6 `[::1]` literal, which
+  used to pass validation but could never really be fetched (blocked by the
+  manifest's own CSP on Firefox, and not declared in `host_permissions`
+  either way).
+- Narrowed the YouTube caption-URL allowlist from `*.google.com` (far wider
+  than captions are ever actually served from) down to `*.youtube.com` /
+  `*.googlevideo.com`.
+- Added Telegram, Slack, Discord, and Microsoft Teams to the list of hosts
+  whose content is never persisted to disk regardless of the history
+  setting (previously covered Gmail, Outlook, Proton Mail, Yahoo Mail,
+  Google Messages, and WhatsApp Web).
 
 ## [0.1.7] - 2026-07-19
 

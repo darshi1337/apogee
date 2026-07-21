@@ -1,8 +1,14 @@
 // Only load the dev-only chrome.* shim when running outside a real
-// extension context (e.g. popup.html opened directly in a browser tab for
-// UI iteration). In the shipped extension chrome.runtime.sendMessage is
-// always defined, so this branch, and the network fetch for mock.js it
-// would trigger, never runs for real users.
+// extension context (e.g. a built dist/*/popup/popup.html opened directly
+// in a browser tab, not loaded unpacked, for UI iteration). In the shipped
+// extension chrome.runtime.sendMessage is always defined, so this branch,
+// and the dynamic import for mock.js it would trigger, never runs for real
+// users. (Gating this further on a Vite `import.meta.env.DEV`-style build
+// flag was tried and reverted: this project's own "dev" script is still a
+// full `vite build` under the hood, so that flag is always false in every
+// build this project produces, including the one real UI-iteration
+// workflow above; an `import.meta.env.DEV` gate would have permanently
+// disabled the shim rather than just trimming it from the packaged zip/xpi.)
 if (
   typeof chrome === "undefined" ||
   !chrome.runtime ||
@@ -13,6 +19,7 @@ if (
 
 import {
   getProvider,
+  getProviderType,
   attachToStream,
   cancelStream,
   StreamCancelledError,
@@ -137,10 +144,13 @@ function startSuggestedQuestionsBg(
       payload: {
         promptsCacheKey,
         persist,
-        // PROVIDERS' values ("webllm"/"transformers"/"local") already match
-        // what runSuggestQuestionsJob (service-worker.js) checks for
-        // directly.
-        providerType: settings.provider,
+        // Normalized the same way getProvider() resolves a real provider
+        // instance (see getProviderType), not the raw settings.provider: a
+        // stale value carried over from the other build's profile (e.g.
+        // "webllm" in a Firefox profile) used to fall through to the
+        // `else` branch in runSuggestQuestionsJob, which tries to talk to
+        // an offscreen document Firefox doesn't have.
+        providerType: getProviderType(settings),
         host: settings.ollamaHost,
         title,
         url,
@@ -242,10 +252,18 @@ async function saveSettings(partial) {
 // simple FIFO eviction index.
 const MAX_CACHED_PAGES = 50;
 
-async function persistSummary(cacheKey, promptsCacheKey, text) {
+async function persistSummary(cacheKey, promptsCacheKey, text, title) {
   const { cacheOrder = [] } = await chrome.storage.local.get("cacheOrder");
   const order = cacheOrder.filter((e) => e && e.s !== cacheKey);
-  order.push({ s: cacheKey, p: promptsCacheKey });
+  // `t` (title) rides along on the FIFO index entry itself rather than
+  // changing the cacheKey's own stored value from a plain string to an
+  // object: the URL is already deliberately not stored anywhere here (see
+  // getSummaryCacheKey's hashing), so a title is the only human-readable
+  // way to tell entries apart in the Past Summaries list below. Older
+  // entries written before this field existed just have `t: undefined`,
+  // read back as "no title" (see loadPastSummaries), not a breaking format
+  // change.
+  order.push({ s: cacheKey, p: promptsCacheKey, t: title || "" });
 
   const removeKeys = [];
   while (order.length > MAX_CACHED_PAGES) {
@@ -477,13 +495,23 @@ async function applySettingsToUI(settings) {
   );
   if (historyRadio) historyRadio.checked = true;
 
-  if (isWebllm) {
-    const supported = await checkWebGPUSupport();
-    if (!supported) {
-      webgpuWarning?.classList.remove("hidden");
-    } else {
-      webgpuWarning?.classList.add("hidden");
-    }
+  // Fire-and-forget: checkWebGPUSupport() can create the offscreen document
+  // on a cold start (a few seconds on Chrome), which used to make every
+  // caller of applySettingsToUI, including the popup's initial view
+  // restore on DOMContentLoaded, block on a warning banner that has
+  // nothing to do with which view should be shown. The banner just appears
+  // a moment later once this resolves instead.
+  updateWebgpuWarning(isWebllm).catch((err) => console.error(err));
+}
+
+async function updateWebgpuWarning(isWebllm) {
+  if (!isWebllm) {
+    webgpuWarning?.classList.add("hidden");
+    return;
+  }
+  const supported = await checkWebGPUSupport();
+  if (!supported) {
+    webgpuWarning?.classList.remove("hidden");
   } else {
     webgpuWarning?.classList.add("hidden");
   }
@@ -491,6 +519,17 @@ async function applySettingsToUI(settings) {
 
 async function extractFromActiveTab(tab) {
   const tabId = tab.id;
+
+  // chrome://, edge://, about:, chrome-extension://, and similar
+  // browser-internal pages are off-limits to extensions by design;
+  // chrome.scripting.executeScript throws its own low-level "Cannot access
+  // a chrome:// URL" style message for these, surface something a user can
+  // actually act on instead of that raw error bubbling up as-is.
+  if (!/^https?:|^file:/i.test(tab.url || "")) {
+    throw new Error(
+      "Apogee can't read this page. Browser-internal pages aren't accessible to extensions, try a regular webpage instead.",
+    );
+  }
 
   // Inject the extractors once per page, re-injecting when the injected copy
   // is from an older extension version, otherwise a tab left open across an
@@ -589,7 +628,17 @@ async function getPageData(tab) {
   if (
     currentPageData &&
     currentPageData.url === tab.url &&
-    CACHEABLE_PAGE_TYPES.has(currentPageData.type)
+    // PDFs aren't in CACHEABLE_PAGE_TYPES (content.js's extractor never sets
+    // `type` for them, and their text isn't persisted, see below), but a
+    // PDF already extracted earlier in this popup session (e.g. by a prior
+    // Summarize) is still worth reusing here: re-running
+    // extractFromActiveTab for a PDF only ever returns `content: null` (the
+    // real text comes from the separate extractPdfContent() pipeline
+    // below), so without this check, asking a follow-up question after
+    // summarizing a PDF used to silently clobber the already-extracted text
+    // with null.
+    (CACHEABLE_PAGE_TYPES.has(currentPageData.type) ||
+      (currentPageData.isPdf && currentPageData.content))
   ) {
     return currentPageData;
   }
@@ -601,6 +650,14 @@ async function getPageData(tab) {
   }
 
   const pageData = await extractFromActiveTab(tab);
+  if (pageData?.isPdf) {
+    // content.js's extractor can't pull PDF text itself (needs pdf.js,
+    // which runs in the service worker, see extractPdfContent), so fetch it
+    // here too, the same way summarizeActivePage does, otherwise asking a
+    // question about a PDF without summarizing it first always fails with
+    // "Could not extract enough page content to answer."
+    pageData.content = await extractPdfContent(tab);
+  }
   if (pageData) {
     currentPageData = pageData;
     if (
@@ -892,10 +949,26 @@ async function loadPastSummaries() {
     card.setAttribute("role", "button");
     card.setAttribute("tabindex", "0");
 
+    // Groups the (optional) title and preview into one flex item so the
+    // copy button below can sit alongside both instead of just the preview.
+    const textWrap = document.createElement("div");
+    textWrap.className = "past-summary-text";
+
+    // Entries persisted before persistSummary started threading a title
+    // through have no `t`, fall back to showing just the preview, same as
+    // before this field existed.
+    if (entry.t) {
+      const titleEl = document.createElement("div");
+      titleEl.className = "past-summary-title";
+      titleEl.textContent = entry.t;
+      textWrap.appendChild(titleEl);
+    }
+
     const preview = document.createElement("div");
     preview.className = "past-summary-preview";
     preview.textContent = firstLineOf(text);
-    card.appendChild(preview);
+    textWrap.appendChild(preview);
+    card.appendChild(textWrap);
 
     const toggleExpanded = () => {
       const expanded = card.classList.toggle("expanded");
@@ -942,6 +1015,11 @@ const SENSITIVE_HOST_PATTERNS = [
   /(^|\.)mail\.yahoo\.com$/,
   /(^|\.)messages\.google\.com$/,
   /(^|\.)web\.whatsapp\.com$/,
+  /(^|\.)web\.telegram\.org$/,
+  /(^|\.)app\.slack\.com$/,
+  /(^|\.)discord\.com$/,
+  /(^|\.)teams\.microsoft\.com$/,
+  /(^|\.)teams\.live\.com$/,
 ];
 
 function isSensitiveUrl(url) {
@@ -1013,6 +1091,12 @@ function showCancelSummarizeButton(streamId) {
 function hideCancelSummarizeButton() {
   activeSummarizeStreamId = null;
   cancelSummarizeBtn.classList.add("hidden");
+  // Runs on every terminal outcome of a summarize job (done/cancelled/
+  // error, see this function's callers), so a lingering "model-progress"
+  // banner (e.g. "Summarizing part 2 of 3..." at a permanent 0%, which
+  // never crosses the >=100% threshold that otherwise auto-hides it) can't
+  // outlive the job that was reporting it.
+  modelProgress?.classList.add("hidden");
 }
 
 // Shared by a freshly started summarize job and one resumed after the popup
@@ -1105,6 +1189,10 @@ function showCancelAskButton(streamId) {
 function hideCancelAskButton() {
   activeAskStreamId = null;
   cancelAskBtn.classList.add("hidden");
+  // See hideCancelSummarizeButton's comment: same lingering-banner issue,
+  // e.g. "Reconnecting to local model..." shown while re-creating the
+  // offscreen document for an ask's RAG lookup.
+  modelProgress?.classList.add("hidden");
 }
 
 // Mirrors returnHomeAfterCancel, but for a cancelled "ask": there's still a
@@ -1147,7 +1235,14 @@ async function consumeSummaryStream(
   const text = await streamGeneratorIntoElement(stream, summaryText);
 
   const persist = await shouldPersist(tab.url);
-  if (persist) await persistSummary(cacheKey, promptsCacheKey, text);
+  if (persist) {
+    await persistSummary(
+      cacheKey,
+      promptsCacheKey,
+      text,
+      pageData?.title || tab.title || "",
+    );
+  }
   currentSummaryText = text;
   showSummaryContext();
   copySummaryBtn.classList.toggle("hidden", !text.trim());
@@ -1175,6 +1270,15 @@ async function consumeSummaryStream(
 }
 
 async function summarizeActivePage() {
+  // A prior summarize job (e.g. Home -> Summarize -> logo back to Home ->
+  // Summarize again before the first one finished) otherwise keeps
+  // generating in the background for up to 2 minutes with nothing
+  // subscribed to it, wasted GPU/CPU for output no one will see. This also
+  // stops that job's still-running consumeSummaryStream loop, if any, from
+  // racing this one to write into the same DOM elements below.
+  if (activeSummarizeStreamId) {
+    cancelStream(activeSummarizeStreamId);
+  }
   homeView.classList.add("hidden");
   summaryView.classList.remove("hidden");
   showSummarizingContext();
@@ -1331,6 +1435,12 @@ async function submitQuestion(question) {
     questionInput.focus();
     return;
   }
+  // See the matching comment in summarizeActivePage: stop wasting
+  // generation on a still-running prior question nobody's waiting on
+  // anymore, and stop it from racing this one into answerBox.
+  if (activeAskStreamId) {
+    cancelStream(activeAskStreamId);
+  }
   showAnswerContext(trimmed);
 
   try {
@@ -1432,9 +1542,16 @@ function updateLocalModelList(settings, status) {
   } else {
     buildLocalModelUI(settings.localModel, LOCAL_MODELS);
     if (localModelStatus) {
-      localModelStatus.textContent = status?.ready
-        ? "No models found on this Ollama instance, pull one with `ollama pull <model>`."
-        : "Showing default models, connect to Ollama to see yours.";
+      // `status.error` (set by DirectOllamaProvider.checkReady when the
+      // service worker rejected the host itself, e.g. a scheme other than
+      // http:// or a non-loopback hostname) is a specific, actionable
+      // reason; without it, an invalid host just read as the same generic
+      // "connect to Ollama to see yours" as Ollama simply not running yet.
+      localModelStatus.textContent = status?.error
+        ? status.error
+        : status?.ready
+          ? "No models found on this Ollama instance, pull one with `ollama pull <model>`."
+          : "Showing default models, connect to Ollama to see yours.";
     }
   }
 }
@@ -1485,9 +1602,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     const settings = await getSettings();
     await applySettingsToUI(settings);
 
-    const status = await checkConnection();
-    updateConnectionUI(status?.ready === true);
-    updateLocalModelList(settings, status);
+    // Not awaited, same reasoning as loadPastSummaries above: probing
+    // connectivity can create the offscreen document (WebLLM) or hit an
+    // unreachable Ollama host, either of which can take seconds, and
+    // nothing below (which view to restore) depends on the result.
+    checkConnection()
+      .then((status) => {
+        updateConnectionUI(status?.ready === true);
+        updateLocalModelList(settings, status);
+      })
+      .catch((err) => console.error(err));
 
     const [tab] = await chrome.tabs.query({
       active: true,
@@ -1572,7 +1696,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (state.subview === "answer" && state.question) {
           showOnlyView("summaryView");
           showAnswerContext(state.question);
-          answerBox.innerHTML = renderMarkdown(state.answerText || "");
+          currentAnswerText = state.answerText || "";
+          answerBox.innerHTML = renderMarkdown(currentAnswerText);
+          copyAnswerBtn.classList.toggle("hidden", !currentAnswerText.trim());
           return;
         }
         if (state.subview === "ask") {
@@ -1602,6 +1728,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (cached[cacheKey]) {
       currentSummaryText = cached[cacheKey];
       summaryText.innerHTML = renderMarkdown(cached[cacheKey]);
+      copySummaryBtn.classList.toggle("hidden", !cached[cacheKey].trim());
       showOnlyView("summaryView");
       // A present key (even []) means prompts finished; a missing key means
       // they were still generating when the popup closed, show loading and
@@ -1733,9 +1860,16 @@ clearDataBtn?.addEventListener("click", async () => {
 });
 
 backendUrlInput?.addEventListener("change", async () => {
-  const val = (backendUrlInput.value || DEFAULT_OLLAMA_HOST)
-    .trim()
-    .replace(/\/+$/, "");
+  let val = (backendUrlInput.value || DEFAULT_OLLAMA_HOST).trim();
+  // A bare host:port (e.g. "127.0.0.1:11434", easy to type without
+  // thinking of it as a URL) otherwise fails validateOllamaHost's `new
+  // URL()` parse in the service worker and just reads as "Disconnected"
+  // with no indication why.
+  if (val && !/^https?:\/\//i.test(val)) {
+    val = `http://${val}`;
+  }
+  val = val.replace(/\/+$/, "");
+  backendUrlInput.value = val;
   const settings = await saveSettings({ ollamaHost: val });
   await applySettingsToUI(settings);
   const status = await checkConnection();

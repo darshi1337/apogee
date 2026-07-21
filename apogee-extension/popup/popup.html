@@ -121,7 +121,7 @@
               <div id="modelProgressFill" class="model-progress-fill"></div>
             </div>
             <div class="model-progress-footer">
-              <span id="toggleDebugLogsBtn" class="logs-toggle">
+              <button type="button" id="toggleDebugLogsBtn" class="logs-toggle">
                 <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path
                     d="M5 6h14M5 12h14M5 18h9"
@@ -131,70 +131,22 @@
                   />
                 </svg>
                 <span class="logs-toggle-label">Show logs</span>
-              </span>
+              </button>
             </div>
           </div>
 
-          <div
-            id="debugLogsCard"
-            class="hidden"
-            style="
-              margin: 0 16px 10px;
-              padding: 10px;
-              border-radius: 10px;
-              background: rgba(255, 255, 255, 0.03);
-              font-family:
-                ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-              font-size: 10.5px;
-              max-height: 140px;
-              overflow-y: auto;
-              border: 1px solid var(--btn-border);
-              line-height: 1.4;
-            "
-          >
-            <div
-              style="
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 6px;
-                border-bottom: 1px solid var(--btn-border);
-                padding-bottom: 4px;
-              "
-            >
-              <span
-                style="
-                  font-weight: bold;
-                  color: var(--text-muted);
-                  font-size: 10px;
-                  text-transform: uppercase;
-                  letter-spacing: 0.3px;
-                "
-                >Offscreen Logs</span
-              >
+          <div id="debugLogsCard" class="debug-logs-card hidden">
+            <div class="debug-logs-header">
+              <span class="debug-logs-title">Offscreen Logs</span>
               <button
+                type="button"
                 id="clearDebugLogsBtn"
-                style="
-                  background: none;
-                  border: none;
-                  color: #ef4444;
-                  cursor: pointer;
-                  font-size: 9.5px;
-                  padding: 0 4px;
-                  font-weight: bold;
-                "
+                class="debug-logs-clear"
               >
                 Clear
               </button>
             </div>
-            <div
-              id="debugLogsContent"
-              style="
-                white-space: pre-wrap;
-                word-break: break-all;
-                color: var(--text-muted);
-              "
-            >
+            <div id="debugLogsContent" class="debug-logs-content">
               No logs recorded. Try starting summary or chat.
             </div>
           </div>
@@ -262,6 +214,7 @@
               <textarea
                 id="questionInput"
                 placeholder="Type here to ask · Enter to send"
+                aria-label="Ask a question about this page"
               ></textarea>
 
               <button id="sendBtn" class="send-btn">
@@ -364,15 +317,15 @@
           <div id="localSettingsCard" class="settings-card hidden">
             <div class="card-title">
               <img src="../assets/server.svg" alt="" />
-              <span>Backend</span>
+              <span>Ollama</span>
             </div>
 
             <label class="settings-field">
-              <span>URL</span>
+              <span>Ollama URL</span>
               <input
                 id="backendUrlInput"
                 type="url"
-                placeholder="http://127.0.0.1:8000"
+                placeholder="http://127.0.0.1:11434"
               />
             </label>
           </div>
@@ -542,7 +495,7 @@
 
             <p>
               AI browser assistant for articles, videos, emails and more. Runs
-              in-browser via WebGPU(chrome), transformers.js(firefox) and
+              in-browser via WebGPU (Chrome), Transformers.js (Firefox), and
               Ollama. Inspired by Mozilla's Orbit, a discontinued AI reading
               assistant, reimagined here as fully local and privacy-first.
             </p>
