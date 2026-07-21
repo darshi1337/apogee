@@ -108,3 +108,49 @@ export async function retrieveRelevantContent(
     return clean.slice(0, maxContextChars) + "\n\n[...content truncated...]";
   }
 }
+
+/**
+ * Finds the single original-content chunk most similar to `query` (e.g. a
+ * clicked summary bullet), for "click a bullet, highlight the matching
+ * passage in the page" (see content/highlight.js and the "find-passage"
+ * action in offscreen.js). Unlike retrieveRelevantContent, which merges
+ * several chunks into one prompt-sized blob for an LLM, this returns exactly
+ * one chunk plus its similarity score: the caller needs a single contiguous
+ * span of *verbatim page text* to search for and highlight in the live DOM,
+ * and needs the score to decide whether the match is confident enough to
+ * act on at all (a top-1 match always returns something, even for a bullet
+ * that's a cross-page synthesis with no single matching passage).
+ *
+ * Shares the same content-hash-keyed index (and RETRIEVAL_CHUNK_CHARS
+ * granularity) as retrieveRelevantContent, so asking a question and then
+ * clicking bullets on the same page only embeds the document once.
+ *
+ * Returns null if `content`/`query` is empty or embedding fails for any
+ * reason; there's no truncation fallback the way retrieveRelevantContent
+ * has, a null result here just means "don't highlight anything."
+ */
+export async function findBestPassage(
+  { content, query },
+  { embedTextsFn = embedTextsDefault } = {},
+) {
+  const clean = (content || "").trim();
+  if (!clean || !query) return null;
+
+  try {
+    const index = await getOrBuildIndex(clean, embedTextsFn);
+    if (index.chunks.length === 0) return null;
+
+    const [queryEmbedding] = await embedTextsFn([query]);
+    let best = null;
+    for (let i = 0; i < index.chunks.length; i++) {
+      const score = dot(queryEmbedding, index.embeddings[i]);
+      if (!best || score > best.score) {
+        best = { chunk: index.chunks[i], score };
+      }
+    }
+    return best;
+  } catch (err) {
+    console.error("findBestPassage failed:", err);
+    return null;
+  }
+}

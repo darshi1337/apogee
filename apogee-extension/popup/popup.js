@@ -20,23 +20,41 @@ if (
 import {
   getProvider,
   getProviderType,
+  getModelForSettings,
   attachToStream,
   cancelStream,
   StreamCancelledError,
 } from "../lib/providers.js";
 import {
   PROVIDERS,
-  DEFAULT_SETTINGS,
   WEBLLM_MODELS,
   TRANSFORMERS_MODELS,
   LOCAL_MODELS,
   DEFAULT_OLLAMA_HOST,
 } from "../lib/constants.js";
+import { getSettings } from "../lib/settings.js";
+import { formatSummaryAsMarkdown } from "../lib/exportFormat.js";
+import { saveViewState, loadViewState } from "../lib/viewState.js";
+import {
+  hashUrl,
+  getSummaryCacheKey,
+  getPromptsCacheKey,
+  persistContent,
+  getCachedContent,
+  shouldPersist,
+  CACHEABLE_PAGE_TYPES,
+} from "../lib/pageCache.js";
+import {
+  extractFromActiveTab,
+  extractPdfContent,
+} from "../lib/pageExtraction.js";
 
 const summarizeBtn = document.getElementById("summarizeBtn");
+const summarizeShortcutHint = document.getElementById("summarizeShortcutHint");
 const summaryText = document.getElementById("summaryText");
 const cancelSummarizeBtn = document.getElementById("cancelSummarizeBtn");
 const copySummaryBtn = document.getElementById("copySummaryBtn");
+const copyMarkdownBtn = document.getElementById("copyMarkdownBtn");
 const copyAnswerBtn = document.getElementById("copyAnswerBtn");
 const cancelAskBtn = document.getElementById("cancelAskBtn");
 const pastSummariesSection = document.getElementById("pastSummariesSection");
@@ -184,144 +202,10 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 });
 
-// Persists which "page" of the popup the user was last on (plus enough
-// state to resume an in-flight summarize/ask stream) so reopening the
-// popup, which fully destroys and recreates this script every time,
-// lands back where the user left off instead of always resetting to home.
-function viewStateKey(tabId) {
-  return `popupViewState:${tabId}`;
-}
-
-// Cap retained per-tab view states (each is keyed by tabId and can hold
-// answer/summary text) with an oldest-first FIFO, like the other caches.
-const MAX_VIEW_STATES = 50;
-
-async function saveViewState(tabId, partial) {
-  if (tabId == null) return null;
-  // Page-specific states carry a `url` (summary/answer/ask resume state);
-  // pure app-navigation states (settings/home/contact) don't. Skip persisting
-  // the former when the page isn't persistable, so private summaries/Q&A and
-  // stream-resume pointers don't linger on disk. What does persist is only a
-  // hash of the URL (same rationale as the hashed cache keys, see hashUrl):
-  // it's needed solely for an equality check against the active tab on
-  // restore, and the raw URL can carry session tokens in its query string.
-  // Setting `url: undefined` also scrubs the raw copy older versions stored.
-  if (partial.url) {
-    if (!(await shouldPersist(partial.url))) return null;
-    partial = { ...partial, url: undefined, urlHash: hashUrl(partial.url) };
-  }
-  const key = viewStateKey(tabId);
-  const { viewStateOrder = [], ...rest } = await chrome.storage.local.get([
-    key,
-    "viewStateOrder",
-  ]);
-  const state = { ...(rest[key] || {}), ...partial };
-
-  const order = viewStateOrder.filter((k) => k !== key);
-  order.push(key);
-  const removeKeys = [];
-  while (order.length > MAX_VIEW_STATES) {
-    removeKeys.push(order.shift());
-  }
-
-  await chrome.storage.local.set({ [key]: state, viewStateOrder: order });
-  if (removeKeys.length > 0) await chrome.storage.local.remove(removeKeys);
-  return state;
-}
-
-async function loadViewState(tabId) {
-  if (tabId == null) return null;
-  const key = viewStateKey(tabId);
-  const stored = await chrome.storage.local.get(key);
-  return stored[key] || null;
-}
-
-async function getSettings() {
-  const stored = await chrome.storage.local.get("settings");
-  return { ...DEFAULT_SETTINGS, ...(stored.settings || {}) };
-}
-
 async function saveSettings(partial) {
   const settings = { ...(await getSettings()), ...partial };
   await chrome.storage.local.set({ settings });
   return settings;
-}
-
-// Cap how many pages we keep cached so storage doesn't grow without bound.
-// `cacheOrder` is an insertion-ordered list of { s, p } key pairs used as a
-// simple FIFO eviction index.
-const MAX_CACHED_PAGES = 50;
-
-async function persistSummary(cacheKey, promptsCacheKey, text, title) {
-  const { cacheOrder = [] } = await chrome.storage.local.get("cacheOrder");
-  const order = cacheOrder.filter((e) => e && e.s !== cacheKey);
-  // `t` (title) rides along on the FIFO index entry itself rather than
-  // changing the cacheKey's own stored value from a plain string to an
-  // object: the URL is already deliberately not stored anywhere here (see
-  // getSummaryCacheKey's hashing), so a title is the only human-readable
-  // way to tell entries apart in the Past Summaries list below. Older
-  // entries written before this field existed just have `t: undefined`,
-  // read back as "no title" (see loadPastSummaries), not a breaking format
-  // change.
-  order.push({ s: cacheKey, p: promptsCacheKey, t: title || "" });
-
-  const removeKeys = [];
-  while (order.length > MAX_CACHED_PAGES) {
-    const old = order.shift();
-    if (old?.s) removeKeys.push(old.s);
-    if (old?.p) removeKeys.push(old.p);
-  }
-
-  await chrome.storage.local.set({ [cacheKey]: text, cacheOrder: order });
-  if (removeKeys.length > 0) await chrome.storage.local.remove(removeKeys);
-}
-
-// Extracted content is cached separately (keyed only by URL, see
-// getContentCacheKey) so it outlives format/model switches and popup
-// close/reopen, re-asking a question or regenerating in a new format
-// shouldn't require re-scraping the page.
-async function persistContent(url, pageData) {
-  const contentKey = getContentCacheKey(url);
-  const { contentCacheOrder = [] } =
-    await chrome.storage.local.get("contentCacheOrder");
-  const order = contentCacheOrder.filter((k) => k !== contentKey);
-  order.push(contentKey);
-
-  const removeKeys = [];
-  while (order.length > MAX_CACHED_PAGES) {
-    removeKeys.push(order.shift());
-  }
-
-  // Strip the raw URL from the persisted copy: the key already encodes it
-  // (hashed, see getContentCacheKey), getCachedContent() re-attaches it at
-  // read time, and the raw form can carry session tokens in its query
-  // string, hashing the key bought nothing while a plaintext copy sat in
-  // the value.
-  const persistable = { ...pageData };
-  delete persistable.url;
-
-  await chrome.storage.local.set({
-    [contentKey]: persistable,
-    contentCacheOrder: order,
-  });
-  if (removeKeys.length > 0) await chrome.storage.local.remove(removeKeys);
-}
-
-async function getCachedContent(url) {
-  const contentKey = getContentCacheKey(url);
-  const stored = await chrome.storage.local.get(contentKey);
-  if (!stored[contentKey]) return null;
-  // Re-attach the URL persistContent stripped; the lookup key is derived
-  // from it, so this is the same URL the entry was stored under.
-  return { ...stored[contentKey], url };
-}
-
-function getModelForSettings(settings) {
-  if (settings.provider === PROVIDERS.LOCAL) return settings.localModel;
-  if (settings.provider === PROVIDERS.TRANSFORMERS) {
-    return settings.transformersModel;
-  }
-  return settings.webllmModel;
 }
 
 // NOTE: The popup runs in a chrome-extension:// context where navigator.gpu is always undefined. The actual WebGPU context lives in the offscreen document.
@@ -516,113 +400,6 @@ async function updateWebgpuWarning(isWebllm) {
     webgpuWarning?.classList.add("hidden");
   }
 }
-
-async function extractFromActiveTab(tab) {
-  const tabId = tab.id;
-
-  // chrome://, edge://, about:, chrome-extension://, and similar
-  // browser-internal pages are off-limits to extensions by design;
-  // chrome.scripting.executeScript throws its own low-level "Cannot access
-  // a chrome:// URL" style message for these, surface something a user can
-  // actually act on instead of that raw error bubbling up as-is.
-  if (!/^https?:|^file:/i.test(tab.url || "")) {
-    throw new Error(
-      "Apogee can't read this page. Browser-internal pages aren't accessible to extensions, try a regular webpage instead.",
-    );
-  }
-
-  // Inject the extractors once per page, re-injecting when the injected copy
-  // is from an older extension version, otherwise a tab left open across an
-  // update keeps running the stale extractor until manually refreshed.
-  const expectedVersion = chrome.runtime.getManifest().version;
-  let injectedVersion = null;
-  try {
-    const checkResult = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () =>
-        typeof window.extractPageContent === "function"
-          ? window.__apogeeExtractorVersion || "unknown"
-          : null,
-    });
-    injectedVersion = checkResult?.[0]?.result;
-  } catch {}
-
-  if (injectedVersion !== expectedVersion) {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: [
-        "/content/Readability.js",
-        "/content/extractors/generic.js",
-        "/content/extractors/youtube.js",
-        "/content/extractors/gmail.js",
-        "/content/content.js",
-      ],
-    });
-    // Stamp the version so the check above can detect staleness next time.
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: (v) => {
-        window.__apogeeExtractorVersion = v;
-      },
-      args: [expectedVersion],
-    });
-  }
-
-  // Return the extractor's result directly. executeScript structured-clones
-  // the return value, so there's no need to round-trip it through a DOM
-  // attribute + JSON.parse (which also mutated the host page).
-  const results = await chrome.scripting.executeScript({
-    target: { tabId },
-    func: async () => {
-      try {
-        // extractPageContent() is async (YouTube's extractor fetches the
-        // transcript), await it here so a rejection is caught below
-        // instead of leaking an unhandled promise rejection past executeScript.
-        return await window.extractPageContent();
-      } catch (e) {
-        return { error: e?.message || String(e) };
-      }
-    },
-  });
-
-  const pageData = results?.[0]?.result;
-  if (pageData?.error) throw new Error(pageData.error);
-  return pageData || null;
-}
-
-// Downloads the PDF and extracts its text, both client-side: the fetch runs
-// inside the tab (via activeTab) since the extension's own CSP/host_permissions
-// only allow localhost, then the bytes are handed to the service worker's
-// "extract-pdf" handler (lib/pdfExtract.js), which needs a real page context
-// for pdf.js's worker. Used for both providers now that summarization no
-// longer routes through a backend that could fetch the PDF itself.
-async function extractPdfContent(tab) {
-  const results = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: async () => {
-      const res = await fetch(window.location.href);
-      if (!res.ok) throw new Error(`Failed to download PDF: ${res.status}`);
-      return await res.arrayBuffer();
-    },
-  });
-  const arrayBuffer = results?.[0]?.result;
-  if (!arrayBuffer) throw new Error("Could not download PDF.");
-
-  const response = await chrome.runtime.sendMessage({
-    target: "service-worker",
-    action: "extract-pdf",
-    payload: { arrayBuffer },
-  });
-  return response?.text || "";
-}
-
-// Only the generic Readability-parsed extraction is expensive enough to be
-// worth caching/reusing. Gmail and YouTube extractors are cheap DOM reads,
-// and, unlike a fresh page load, those sites navigate between threads/
-// videos via the History API, so a cached/reused result can go stale
-// without `tab.url` necessarily changing in a way we'd catch. Always
-// re-extract live for those instead of trusting any cache.
-const CACHEABLE_PAGE_TYPES = new Set(["article", "generic"]);
 
 async function getPageData(tab) {
   if (
@@ -868,42 +645,6 @@ function setSuggestedQuestionsLoading() {
   container.appendChild(btn);
 }
 
-// Hash the URL (cyrb53) so raw URLs, which can carry session tokens or reset
-// links in their query strings, aren't left sitting in plaintext in storage,
-// neither in keys (here) nor in stored values (see persistContent and
-// saveViewState, which strip/hash the URL before writing). Non-cryptographic,
-// but wide enough to avoid collisions in the small bounded cache.
-function hashUrl(url) {
-  let h1 = 0xdeadbeef;
-  let h2 = 0x41c6ce57;
-  for (let i = 0; i < url.length; i++) {
-    const ch = url.charCodeAt(i);
-    h1 = Math.imul(h1 ^ ch, 2654435761);
-    h2 = Math.imul(h2 ^ ch, 1597334677);
-  }
-  h1 =
-    Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^
-    Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 =
-    Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^
-    Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
-}
-
-function getSummaryCacheKey(url, fmt, model) {
-  return `summary:${fmt}:${model}:${hashUrl(url)}`;
-}
-function getPromptsCacheKey(url, fmt, model) {
-  return `suggested-prompts:${fmt}:${model}:${hashUrl(url)}`;
-}
-// Extracted page content is independent of format/model, so it's cached
-// separately and survives model switches and popup close/reopen, avoids
-// re-scraping (a full Readability parse on generic pages) just to ask a
-// follow-up question or regenerate a summary in a different format.
-function getContentCacheKey(url) {
-  return `content:${hashUrl(url)}`;
-}
-
 // How many past summaries to show on Home; cacheOrder can hold up to
 // MAX_CACHED_PAGES (50), far more than makes sense to list at a glance.
 const PAST_SUMMARIES_SHOWN = 8;
@@ -1005,39 +746,6 @@ async function loadPastSummaries() {
   );
 }
 
-// Hosts whose pages routinely contain private content (email, etc.). Their
-// summaries and Q&A are never persisted to disk, regardless of the
-// saveHistory setting, see shouldPersist.
-const SENSITIVE_HOST_PATTERNS = [
-  /(^|\.)mail\.google\.com$/,
-  /(^|\.)outlook\.(live|office|office365)\.com$/,
-  /(^|\.)mail\.proton\.me$/,
-  /(^|\.)mail\.yahoo\.com$/,
-  /(^|\.)messages\.google\.com$/,
-  /(^|\.)web\.whatsapp\.com$/,
-  /(^|\.)web\.telegram\.org$/,
-  /(^|\.)app\.slack\.com$/,
-  /(^|\.)discord\.com$/,
-  /(^|\.)teams\.microsoft\.com$/,
-  /(^|\.)teams\.live\.com$/,
-];
-
-function isSensitiveUrl(url) {
-  try {
-    const host = new URL(url).hostname.toLowerCase();
-    return SENSITIVE_HOST_PATTERNS.some((re) => re.test(host));
-  } catch {
-    return false;
-  }
-}
-
-// Whether page-derived data for this URL may be written to disk.
-async function shouldPersist(url) {
-  if (isSensitiveUrl(url)) return false;
-  const settings = await getSettings();
-  return settings.saveHistory !== false;
-}
-
 function showSummarizingContext() {
   summaryCard.classList.remove("hidden");
   promptsSection.classList.add("hidden");
@@ -1047,7 +755,15 @@ function showSummarizingContext() {
   answerBox.textContent = "";
   answerBox.classList.add("hidden");
   togglePromptsBtn.style.display = "none";
-  copySummaryBtn.classList.add("hidden");
+  setSummaryCopyButtonsVisible(false);
+}
+
+// Shared by every place that shows/hides the summary card's two copy
+// buttons (plain text and Markdown) in lockstep, so a spot that toggles one
+// can't accidentally leave the other stale.
+function setSummaryCopyButtonsVisible(hasText) {
+  copySummaryBtn.classList.toggle("hidden", !hasText);
+  copyMarkdownBtn?.classList.toggle("hidden", !hasText);
 }
 
 // Copies plain text (not the rendered HTML) to the clipboard and briefly
@@ -1077,6 +793,23 @@ async function copyToClipboard(text, btn) {
 copySummaryBtn?.addEventListener("click", () =>
   copyToClipboard(currentSummaryText, copySummaryBtn),
 );
+copyMarkdownBtn?.addEventListener("click", async () => {
+  // currentPageData isn't always populated (e.g. right after reopening the
+  // popup on a cached summary, see getPageData's known gap), so fall back
+  // to the active tab's own title/url, always available regardless.
+  const [tab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+  const title = currentPageData?.title || tab?.title || "";
+  const url = currentPageData?.url || tab?.url || "";
+  const markdown = formatSummaryAsMarkdown({
+    title,
+    url,
+    summary: currentSummaryText,
+  });
+  copyToClipboard(markdown, copyMarkdownBtn);
+});
 copyAnswerBtn?.addEventListener("click", () =>
   copyToClipboard(currentAnswerText, copyAnswerBtn),
 );
@@ -1228,24 +961,12 @@ async function streamGeneratorIntoElement(generator, element) {
 // the summary view, and fetching suggested questions). Shared between a
 // freshly started summarize job and one being resumed after the popup was
 // reopened mid-stream.
-async function consumeSummaryStream(
-  stream,
-  { tab, cacheKey, promptsCacheKey, pageData },
-) {
+async function consumeSummaryStream(stream, { tab, promptsCacheKey }) {
   const text = await streamGeneratorIntoElement(stream, summaryText);
 
-  const persist = await shouldPersist(tab.url);
-  if (persist) {
-    await persistSummary(
-      cacheKey,
-      promptsCacheKey,
-      text,
-      pageData?.title || tab.title || "",
-    );
-  }
   currentSummaryText = text;
   showSummaryContext();
-  copySummaryBtn.classList.toggle("hidden", !text.trim());
+  setSummaryCopyButtonsVisible(!!text.trim());
   await saveViewState(tab.id, {
     view: "summaryView",
     subview: "summary",
@@ -1254,18 +975,24 @@ async function consumeSummaryStream(
   });
   setSuggestedQuestionsLoading();
 
-  // Generate prompts in the background so they persist if the popup closes.
-  const settings = await getSettings();
-  startSuggestedQuestionsBg(
-    promptsCacheKey,
-    {
-      title: pageData?.title || tab.title || "",
-      url: pageData?.url || tab.url,
-      summary: text,
-    },
-    settings,
-    persist,
-  );
+  // The service worker's finalizeSummaryJob (triggered by this same
+  // summarize job finishing, see background/service-worker.js) is what
+  // actually persists the summary and kicks off suggested-question
+  // generation now, not this function, that's what lets a finished summary
+  // survive even if the popup is closed before the job wraps up. This just
+  // needs to watch for the result: set currentPromptsCacheKey so the
+  // storage.onChanged/"suggested-prompts-ready" listeners above route to
+  // this popup, and also check storage directly here in case that
+  // background job already finished (e.g. reattaching after the popup was
+  // closed and reopened) before either listener had a chance to attach.
+  currentPromptsCacheKey = promptsCacheKey;
+  const { [promptsCacheKey]: existingQuestions } =
+    await chrome.storage.local.get(promptsCacheKey);
+  if (existingQuestions !== undefined) {
+    setSuggestedQuestions(
+      Array.isArray(existingQuestions) ? existingQuestions : [],
+    );
+  }
   return text;
 }
 
@@ -1334,6 +1061,20 @@ async function summarizeActivePage() {
       settings.responseFormat,
       model,
     );
+    // Read once here (rather than after the stream finishes) and threaded
+    // through as `finalize`: the service worker is what actually persists
+    // the summary and kicks off suggested questions once the job completes
+    // (see finalizeSummaryJob in background/service-worker.js), so it needs
+    // this up front, not just this popup instance if it happens to still be
+    // open by then.
+    const finalize = {
+      cacheKey,
+      promptsCacheKey,
+      persist: await shouldPersist(tab.url),
+      providerType: getProviderType(settings),
+      host: settings.ollamaHost,
+      notifyOnFinish: false,
+    };
 
     let streamId, stream;
 
@@ -1352,6 +1093,7 @@ async function summarizeActivePage() {
         url: pageData.url,
         content: pdfContent,
         mode: settings.responseFormat,
+        finalize,
       }));
     } else {
       ({ streamId, stream } = await provider.summarize({
@@ -1359,6 +1101,7 @@ async function summarizeActivePage() {
         url: pageData.url,
         content: pageData.content,
         mode: settings.responseFormat,
+        finalize,
       }));
     }
 
@@ -1367,17 +1110,11 @@ async function summarizeActivePage() {
       subview: "summarizing",
       url: tab.url,
       streamId,
-      cacheKey,
       promptsCacheKey,
     });
     showCancelSummarizeButton(streamId);
 
-    await consumeSummaryStream(stream, {
-      tab,
-      cacheKey,
-      promptsCacheKey,
-      pageData,
-    });
+    await consumeSummaryStream(stream, { tab, promptsCacheKey });
   } catch (error) {
     if (error instanceof StreamCancelledError) {
       returnHomeAfterCancel(activeTabId);
@@ -1580,6 +1317,28 @@ function showOnlyView(view) {
   contactView.classList.toggle("hidden", view !== "contactView");
 }
 
+// Shows the actual current "Summarize this page" keyboard shortcut on its
+// button, read live via chrome.commands.getAll() rather than hardcoding the
+// manifest's suggested_key: the user can remap it any time via
+// chrome://extensions/shortcuts (or unbind it entirely), and a hardcoded
+// hint would silently go stale the moment they did, same reasoning as
+// reading the version from the manifest instead of a literal string above.
+async function updateSummarizeShortcutHint() {
+  if (!summarizeShortcutHint || typeof chrome.commands?.getAll !== "function") {
+    return;
+  }
+  const commands = await chrome.commands.getAll();
+  const command = commands.find((c) => c.name === "summarize-page");
+  if (command?.shortcut) {
+    summarizeShortcutHint.textContent = command.shortcut;
+    summarizeShortcutHint.classList.remove("hidden");
+  } else {
+    // Unbound (user cleared it in chrome://extensions/shortcuts, or it
+    // never registered on this platform), nothing to show.
+    summarizeShortcutHint.classList.add("hidden");
+  }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   // WebLLM (WebGPU via an offscreen document) only exists on Chrome; Firefox
   // has no offscreen API at all. Transformers.js (ONNX/WASM) only exists on
@@ -1598,6 +1357,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // slow (or hang, if the provider never responds), so this isn't awaited
     // here, it just populates Home in the background on its own schedule.
     loadPastSummaries().catch((err) => console.error(err));
+    updateSummarizeShortcutHint().catch((err) => console.error(err));
 
     const settings = await getSettings();
     await applySettingsToUI(settings);
@@ -1632,12 +1392,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         setLoadingIndicator(summaryText, randomSummarizeVerb());
         showCancelSummarizeButton(state.streamId);
         try {
-          const pageData = await getPageData(tab);
+          // Not consumed directly below (consumeSummaryStream no longer
+          // needs pageData, the service worker's finalizeSummaryJob owns
+          // persistence now, see that function's own comment), but still
+          // worth populating currentPageData's in-memory reuse for any
+          // follow-up "Ask" click on this same page.
+          await getPageData(tab);
           await consumeSummaryStream(attachToStream(state.streamId), {
             tab,
-            cacheKey: state.cacheKey,
             promptsCacheKey: state.promptsCacheKey,
-            pageData,
           });
         } catch (error) {
           if (error instanceof StreamCancelledError) {
@@ -1728,7 +1491,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (cached[cacheKey]) {
       currentSummaryText = cached[cacheKey];
       summaryText.innerHTML = renderMarkdown(cached[cacheKey]);
-      copySummaryBtn.classList.toggle("hidden", !cached[cacheKey].trim());
+      setSummaryCopyButtonsVisible(!!cached[cacheKey].trim());
       showOnlyView("summaryView");
       // A present key (even []) means prompts finished; a missing key means
       // they were still generating when the popup closed, show loading and
@@ -1916,7 +1679,7 @@ document.getElementById("featureBtn")?.addEventListener("click", () => {
 
 settingsBackBtn?.addEventListener("click", () => {
   showOnlyView(settingsEntryView);
-  // summaryView's own subview/cacheKey fields (set when the summary
+  // summaryView's own subview/promptsCacheKey fields (set when the summary
   // finished, see consumeSummaryStream) are untouched by this merge, so
   // navigating back there doesn't disturb what's actually being resumed on
   // a later popup reopen, just which page is currently on screen.
@@ -1935,6 +1698,118 @@ document
     if (!card || card.disabled) return;
     submitQuestion(card.textContent);
   });
+
+// Highlight-in-page: click a summary bullet/line, scroll to and highlight
+// the matching passage in the live page, so the model's claims are visibly
+// grounded in the source text. Needs the on-device embedding pipeline,
+// which only runs in the offscreen document (see "find-passage" in
+// background/service-worker.js, same Chrome/Edge-only constraint Ask's own
+// retrieval already has), so this is a no-op on Firefox: no listener is
+// attached, and summaryText doesn't get the CSS class that gives bullets
+// their clickable affordance in the first place.
+const HIGHLIGHT_SUPPORTED = process.env.TARGET_BROWSER !== "firefox";
+
+// A dot-product similarity below this is treated as "not actually the same
+// claim", not just a loose match, since the top-scoring chunk is always
+// returned even when nothing on the page is a good fit (e.g. a bullet that
+// synthesizes several parts of the page at once). This threshold is a
+// starting point, not empirically tuned against real model output, expect
+// to revisit it based on how often real clicks land on false positives vs.
+// unnecessary "couldn't locate" misses.
+const HIGHLIGHT_MIN_SCORE = 0.35;
+
+function showLocateFailure(target) {
+  target.classList.add("apogee-locate-failed");
+  const note = document.createElement("span");
+  note.className = "apogee-locate-note";
+  note.textContent = " (couldn't locate this passage on the page)";
+  target.appendChild(note);
+  setTimeout(() => {
+    target.classList.remove("apogee-locate-failed");
+    note.remove();
+  }, 2500);
+}
+
+async function locateAndHighlight(target) {
+  if (target.classList.contains("apogee-locating")) return;
+  const query = target.textContent.trim();
+  if (!query) return;
+
+  const [tab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+  if (!tab) return;
+
+  target.classList.add("apogee-locating");
+  try {
+    // currentPageData isn't always populated at this point, e.g. right
+    // after reopening the popup on a cached summary (see getPageData's
+    // known gap), so populate it lazily here before the first lookup.
+    if (!currentPageData?.content) {
+      await getPageData(tab);
+    }
+    const content = currentPageData?.content;
+    if (!content) {
+      showLocateFailure(target);
+      return;
+    }
+
+    const response = await chrome.runtime.sendMessage({
+      target: "service-worker",
+      action: "find-passage",
+      payload: { content, query },
+    });
+    const passage = response?.passage;
+    if (!passage || passage.score < HIGHLIGHT_MIN_SCORE) {
+      showLocateFailure(target);
+      return;
+    }
+
+    await chrome.scripting.insertCSS({
+      target: { tabId: tab.id },
+      css: `::highlight(apogee-grounding) { background-color: rgba(255, 205, 0, 0.55); color: #1a1a1a; }`,
+    });
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ["/content/highlight.js"],
+    });
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (chunk) => window.__apogeeHighlight(chunk),
+      args: [passage.chunk],
+    });
+    const result = results?.[0]?.result;
+    if (!result?.found) {
+      showLocateFailure(target);
+      return;
+    }
+
+    // Bring the highlighted passage into view, then close the popup, it
+    // otherwise sits on top of exactly what the user just asked to see;
+    // Chrome popups close on losing focus anyway, this just makes that
+    // happen immediately instead of requiring a separate click to dismiss.
+    if (tab.windowId != null) {
+      await chrome.windows.update(tab.windowId, { focused: true });
+    }
+    await chrome.tabs.update(tab.id, { active: true });
+    window.close();
+  } catch (err) {
+    console.error("Highlight-in-page failed:", err);
+    showLocateFailure(target);
+  } finally {
+    target.classList.remove("apogee-locating");
+  }
+}
+
+if (HIGHLIGHT_SUPPORTED) {
+  summaryText?.classList.add("apogee-groundable");
+  summaryText?.addEventListener("click", (event) => {
+    const target = event.target.closest("li, p");
+    if (!target || !summaryText.contains(target)) return;
+    locateAndHighlight(target);
+  });
+}
 
 // Signal popup lifecycle to the service worker to handle offscreen document cleanup
 chrome.runtime.connect({ name: "popup-lifecycle" });

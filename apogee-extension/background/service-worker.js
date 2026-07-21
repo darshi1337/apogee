@@ -25,6 +25,22 @@ import {
   transformersChatStream,
   transformersGenerateText,
 } from "../lib/transformersEngine.js";
+import { getSettings } from "../lib/settings.js";
+import {
+  getSummaryCacheKey,
+  getPromptsCacheKey,
+  persistSummary,
+  persistContent,
+  shouldPersist,
+  CACHEABLE_PAGE_TYPES,
+} from "../lib/pageCache.js";
+import {
+  extractFromActiveTab,
+  extractPdfContent,
+} from "../lib/pageExtraction.js";
+import { getProviderType, getModelForSettings } from "../lib/providers.js";
+import { PROVIDERS } from "../lib/constants.js";
+import { saveViewState } from "../lib/viewState.js";
 
 const hasOffscreenAPI =
   typeof chrome !== "undefined" &&
@@ -270,7 +286,7 @@ async function getRelevantAskContent(content, question) {
 // the offscreen document, see the activeStreams comment above).
 async function startOllamaStream(
   streamId,
-  { action, host, model, title, url, content, mode, question },
+  { action, host, model, title, url, content, mode, question, finalize },
 ) {
   const stream = {
     text: "",
@@ -295,6 +311,14 @@ async function startOllamaStream(
     }
     broadcastToStream(stream, msg);
     scheduleStreamCleanup(streamId);
+    // Persisting/suggested-questions/notification are all owned here (the
+    // job producer), not by whichever popup happens to be attached when it
+    // finishes, see finalizeSummaryJob's own comment for why: a popup-only
+    // consumer used to silently lose the summary if closed before the job
+    // finished and not reopened within the stream-cleanup window.
+    if (msg.type === "done") {
+      finalizeSummaryJob({ finalize, model, title, url, text: stream.text });
+    }
   };
 
   const emitChunk = (text) => {
@@ -347,7 +371,7 @@ async function startOllamaStream(
 // popup close/reopen.
 async function startTransformersStream(
   streamId,
-  { action, model, title, url, content, mode, question },
+  { action, model, title, url, content, mode, question, finalize },
 ) {
   const stream = {
     text: "",
@@ -368,6 +392,9 @@ async function startTransformersStream(
     }
     broadcastToStream(stream, msg);
     scheduleStreamCleanup(streamId);
+    if (msg.type === "done") {
+      finalizeSummaryJob({ finalize, model, title, url, text: stream.text });
+    }
   };
 
   const emitChunk = (text) => {
@@ -448,6 +475,159 @@ async function generateTransformersSuggestions(model, { title, url, summary }) {
     return parseSuggestedQuestions(text);
   });
 }
+
+// Runs a full summarize job for `tab` with no popup involved at all: the
+// context-menu entry and the keyboard shortcut (see chrome.contextMenus/
+// chrome.commands listeners below) both call this. Mirrors popup.js's
+// summarizeActivePage() (always re-extracts live, same as that function
+// does, rather than reusing getPageData()'s in-memory-reuse path, which
+// only exists for follow-up questions), but starts generation in-process
+// here, direct calls/an internal message to the offscreen document, rather
+// than routing through this same worker's own onMessage handler the way a
+// popup-triggered job does. finalizeSummaryJob (wired into every
+// generation path's own completion) persists the result and generates
+// suggested questions once it's done, whether or not a popup ever opens.
+async function runBackgroundSummarize(tab, { notifyOnFinish }) {
+  const settings = await getSettings();
+  const providerType = getProviderType(settings);
+  const model = getModelForSettings(settings);
+
+  const pageData = await extractFromActiveTab(tab);
+  if (!pageData) return;
+  // Gmail returns empty content when no thread is open; nothing sensible
+  // to summarize there, same check summarizeActivePage makes.
+  if (!pageData.isPdf && !pageData.content) return;
+
+  if (
+    CACHEABLE_PAGE_TYPES.has(pageData.type) &&
+    (await shouldPersist(tab.url))
+  ) {
+    await persistContent(tab.url, pageData);
+  }
+
+  let content = pageData.content;
+  if (pageData.isPdf) {
+    content = await extractPdfContent(tab);
+    if (!content) return;
+  }
+
+  const finalize = {
+    cacheKey: getSummaryCacheKey(tab.url, settings.responseFormat, model),
+    promptsCacheKey: getPromptsCacheKey(
+      tab.url,
+      settings.responseFormat,
+      model,
+    ),
+    persist: await shouldPersist(tab.url),
+    providerType,
+    host: settings.ollamaHost,
+    notifyOnFinish,
+    tabId: tab.id,
+    windowId: tab.windowId,
+  };
+
+  const common = {
+    action: "summarize",
+    title: pageData.title,
+    url: pageData.url,
+    content,
+    mode: settings.responseFormat,
+    model,
+    finalize,
+  };
+
+  let streamId;
+  if (providerType === PROVIDERS.LOCAL) {
+    streamId = nextStreamId("ollama");
+    // Not awaited: startOllamaStream runs synchronously up to its own
+    // first `await` (standard JS async-function semantics), which is
+    // *after* it registers the stream in activeStreams, so by the time
+    // this line returns the registration below is safe to rely on.
+    startOllamaStream(streamId, { ...common, host: settings.ollamaHost });
+  } else if (providerType === PROVIDERS.TRANSFORMERS) {
+    streamId = nextStreamId("transformers");
+    startTransformersStream(streamId, common);
+  } else {
+    // WebLLM: generation runs in the offscreen document, not here. Awaited
+    // (unlike the two branches above) because the stream is only
+    // registered on the *other side* of this message, in offscreen.js's
+    // own `streams` map, synchronously before it responds, so awaiting
+    // the response is what guarantees that registration has happened by
+    // the time saveViewState below runs.
+    await ensureOffscreenDocument();
+    streamId = nextStreamId("webllm");
+    const resp = await chrome.runtime.sendMessage({
+      target: "offscreen",
+      action: "summarize",
+      streamId,
+      payload: common,
+    });
+    if (resp?.error) throw new Error(resp.error);
+  }
+
+  // Mark this tab as "summarizing" with the real streamId, now that the
+  // job is confirmed registered wherever it actually runs. This is what
+  // lets the popup, if opened at any point while this job is in flight,
+  // show the loading/summarizing view (rotating verb, spinner) and
+  // reattach to the live stream via attachToStream, exactly the same
+  // reattachment path an already-open popup already uses for a
+  // popup-triggered summarize, instead of the default home page with no
+  // indication anything is happening.
+  await saveViewState(tab.id, {
+    view: "summaryView",
+    subview: "summarizing",
+    url: tab.url,
+    streamId,
+    promptsCacheKey: finalize.promptsCacheKey,
+  });
+}
+
+// Best-effort failure notice for a background-triggered summarize: nothing
+// else observes runBackgroundSummarize's rejection (no popup necessarily
+// open), so without this a failed context-menu/shortcut summarize just
+// fails silently. Reuses notificationTargets/the shared onClicked listener
+// above so clicking it still focuses the right tab.
+function notifyJobFailed(err, tab) {
+  console.error("Background summarize failed:", err);
+  if (typeof chrome.notifications === "undefined") return;
+  const notificationId = `apogee-summary-error-${crypto.randomUUID()}`;
+  notificationTargets.set(notificationId, {
+    tabId: tab?.id,
+    windowId: tab?.windowId,
+  });
+  chrome.notifications.create(notificationId, {
+    type: "basic",
+    iconUrl: chrome.runtime.getURL("assets/icon-96.png"),
+    title: "Summarize failed",
+    message: err?.message || "Something went wrong summarizing this page.",
+  });
+}
+
+const SUMMARIZE_CONTEXT_MENU_ID = "apogee-summarize";
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.create({
+    id: SUMMARIZE_CONTEXT_MENU_ID,
+    title: "Summarize this page",
+    contexts: ["page"],
+  });
+});
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId !== SUMMARIZE_CONTEXT_MENU_ID || !tab) return;
+  runBackgroundSummarize(tab, { notifyOnFinish: true }).catch((err) =>
+    notifyJobFailed(err, tab),
+  );
+});
+
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command !== "summarize-page") return;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) return;
+  runBackgroundSummarize(tab, { notifyOnFinish: true }).catch((err) =>
+    notifyJobFailed(err, tab),
+  );
+});
 
 // SponsorBlock categories we strip from YouTube transcripts before
 // summarizing: paid sponsor reads, unpaid self-promotion (merch/Patreon
@@ -584,6 +764,117 @@ async function runSuggestQuestionsJob(payload) {
   } finally {
     pendingSuggestKeys.delete(promptsCacheKey);
   }
+}
+
+// Owns "a summarize job finished, now what" for every trigger source (popup
+// click, context menu, keyboard shortcut): persist the result and kick off
+// suggested questions, exactly once, regardless of whether any popup is (or
+// ever was) attached to watch it stream. This used to live in popup.js's
+// consumeSummaryStream instead, which meant a summary was only ever saved
+// if the popup stayed open long enough to drain the stream, closing it
+// early lost the finished result once the stream buffer's cleanup alarm
+// fired (a couple of minutes later, see scheduleStreamCleanup). Called from
+// startOllamaStream/startTransformersStream's own `finish()` directly
+// (same context, no round-trip needed), and via the "stream-finished"
+// message below for the WebLLM/offscreen path, which runs in a different
+// document and has to notify this one proactively.
+//
+// `finalize` is undefined for "ask" jobs (only summarize.summarize() passes
+// it, see lib/providers.js) and for a cancelled job (finish()/emit() both
+// return before reaching the "done" branch that calls this once cancelled,
+// see their own comments), so this never persists a partial/irrelevant
+// result.
+async function finalizeSummaryJob({ finalize, model, title, url, text }) {
+  if (!finalize) return;
+  const {
+    cacheKey,
+    promptsCacheKey,
+    persist,
+    providerType,
+    host,
+    notifyOnFinish,
+    tabId,
+    windowId,
+  } = finalize;
+
+  if (persist) {
+    await persistSummary(cacheKey, promptsCacheKey, text, title);
+  }
+  // Fire-and-forget: runSuggestQuestionsJob already handles its own
+  // persist-vs-not branching and popup notification.
+  runSuggestQuestionsJob({
+    promptsCacheKey,
+    persist,
+    providerType,
+    host,
+    title,
+    url,
+    summary: text,
+    model,
+  });
+  if (notifyOnFinish) {
+    notifyJobComplete({ title, tabId, windowId });
+  }
+}
+
+// tabId/windowId to focus per open notification, so notifications.onClicked
+// (which only gives back a notification id) can bring the right tab/window
+// forward. Only needs to survive until the notification is clicked or this
+// worker is evicted; a missed click just does nothing extra, not a crash.
+const notificationTargets = new Map();
+
+function notifyJobComplete({ title, tabId, windowId }) {
+  if (typeof chrome.notifications === "undefined") return;
+  const notificationId = `apogee-summary-${crypto.randomUUID()}`;
+  notificationTargets.set(notificationId, { tabId, windowId });
+  chrome.notifications.create(notificationId, {
+    type: "basic",
+    iconUrl: chrome.runtime.getURL("assets/icon-96.png"),
+    title: "Summary ready",
+    message: title ? `"${title}" is ready to view.` : "Click to view it.",
+  });
+}
+
+// "notifications" is always declared in manifest.json now, so this should
+// always exist, but the same typeof guard notifyJobComplete/notifyJobFailed
+// use is worth keeping here too, `chrome.notifications?.onClicked` alone
+// would still throw calling .addListener on undefined if it somehow didn't.
+if (typeof chrome.notifications !== "undefined") {
+  chrome.notifications.onClicked.addListener(async (notificationId) => {
+    const target = notificationTargets.get(notificationId);
+    notificationTargets.delete(notificationId);
+    chrome.notifications.clear(notificationId);
+    if (!target) return;
+
+    // Always bring the source tab/window forward, this alone is a
+    // reasonable outcome (the user can click the toolbar icon from there).
+    // openPopup() below is a best-effort enhancement on top, not a
+    // requirement.
+    try {
+      if (target.windowId != null) {
+        await chrome.windows.update(target.windowId, { focused: true });
+      }
+      if (target.tabId != null) {
+        await chrome.tabs.update(target.tabId, { active: true });
+      }
+    } catch {
+      // Tab/window may have been closed since the notification was created.
+    }
+
+    // chrome.action.openPopup() landed in Chrome 127; this manifest's
+    // minimum_chrome_version (109) explicitly supports older versions that
+    // don't have it at all, so this has to be a feature-detected
+    // enhancement, never a requirement the tab-focus fallback above
+    // depends on.
+    if (typeof chrome.action?.openPopup === "function") {
+      try {
+        await chrome.action.openPopup();
+      } catch {
+        // Can throw if the window isn't focused/is minimized/etc.; the
+        // tab-focus fallback above already ran, nothing more to do here.
+      }
+    }
+  });
 }
 
 // The Chrome action popup closes whenever it loses focus, which is constant.
@@ -760,6 +1051,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  // Proactive completion notice from the offscreen document's runStream
+  // (WebLLM/Chrome path only): that job runs in a different document, so it
+  // can't call finalizeSummaryJob directly the way startOllamaStream/
+  // startTransformersStream do in this same file, it has to tell this
+  // worker instead. Fire-and-forget, same shape as model-progress/
+  // offscreen-log above; only sent when the job actually carries a
+  // `finalize` (summarize jobs started with one, see runStream's emit()).
+  if (message.type === "stream-finished") {
+    if (message.error) return false;
+    finalizeSummaryJob({
+      finalize: message.finalize,
+      model: message.model,
+      title: message.title,
+      url: message.url,
+      text: message.text,
+    });
+    return false;
+  }
+
   const handler = async () => {
     try {
       switch (message.action) {
@@ -896,6 +1206,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             action: "status",
           });
 
+          sendResponse(response);
+          break;
+        }
+
+        // "Highlight in page": relays to the offscreen document's
+        // findBestPassage (see lib/rag.js), same embedding-model/
+        // offscreen-document dependency as the "ask" RAG path
+        // (getRelevantAskContent above), so Chromium only, same as that.
+        case "find-passage": {
+          if (!hasOffscreenAPI) {
+            sendResponse({
+              error:
+                "Highlight-in-page needs the offscreen document (Chrome/Edge only).",
+            });
+            break;
+          }
+          await ensureOffscreenDocument();
+          const response = await chrome.runtime.sendMessage({
+            target: "offscreen",
+            action: "find-passage",
+            payload: message.payload,
+          });
           sendResponse(response);
           break;
         }

@@ -11,9 +11,20 @@
     "offscreen",
     "unlimitedStorage",
     "alarms",
-    "clipboardWrite"
+    "clipboardWrite",
+    "contextMenus",
+    "notifications"
   ],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "commands": {
+    "summarize-page": {
+      "suggested_key": {
+        "default": "Alt+Shift+U",
+        "mac": "Alt+Shift+U"
+      },
+      "description": "Summarize the active page"
+    }
+  },
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; default-src 'self'; connect-src http://127.0.0.1:* http://localhost:* https://huggingface.co https://*.huggingface.co https://*.hf.co https://raw.githubusercontent.com https://sponsor.ajay.app https://cdn.jsdelivr.net; img-src 'self' data:; font-src 'self'; style-src 'self'"
   },

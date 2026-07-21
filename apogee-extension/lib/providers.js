@@ -155,13 +155,14 @@ class WebLLMProvider {
   /**
    * @returns {Promise<{streamId: string, stream: AsyncGenerator<string>}>}
    */
-  summarize({ title, url, content, mode }) {
+  summarize({ title, url, content, mode, finalize }) {
     return startWebllmStream("summarize", {
       title,
       url,
       content,
       mode,
       model: this.model,
+      finalize,
     });
   }
 
@@ -193,13 +194,14 @@ class TransformersProvider {
     this.model = model;
   }
 
-  summarize({ title, url, content, mode }) {
+  summarize({ title, url, content, mode, finalize }) {
     return startTransformersStream("summarize", {
       title,
       url,
       content,
       mode,
       model: this.model,
+      finalize,
     });
   }
 
@@ -233,7 +235,7 @@ class DirectOllamaProvider {
     this.host = (host || DEFAULT_OLLAMA_HOST).replace(/\/+$/, "");
   }
 
-  summarize({ title, url, content, mode }) {
+  summarize({ title, url, content, mode, finalize }) {
     return startOllamaStream("summarize", {
       title,
       url,
@@ -241,6 +243,7 @@ class DirectOllamaProvider {
       mode,
       model: this.model,
       host: this.host,
+      finalize,
     });
   }
 
@@ -282,6 +285,18 @@ class DirectOllamaProvider {
 export function getProviderType(settings) {
   if (settings.provider === PROVIDERS.LOCAL) return PROVIDERS.LOCAL;
   return PROVIDERS.TRANSFORMERS || PROVIDERS.WEBLLM;
+}
+
+// Resolves the model id for whichever provider `settings.provider` (raw,
+// not normalized through getProviderType) selects. Shared by popup.js (UI)
+// and background/service-worker.js (background-triggered summarize, see
+// runBackgroundSummarize) so both compute the same cache keys/model choice.
+export function getModelForSettings(settings) {
+  if (settings.provider === PROVIDERS.LOCAL) return settings.localModel;
+  if (settings.provider === PROVIDERS.TRANSFORMERS) {
+    return settings.transformersModel;
+  }
+  return settings.webllmModel;
 }
 
 export function getProvider(settings) {

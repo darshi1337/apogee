@@ -36,6 +36,10 @@
             <button id="summarizeBtn" class="action-btn">
               <img src="../assets/sparkles.svg" alt="" />
               <span>Summarize this page</span>
+              <span
+                id="summarizeShortcutHint"
+                class="shortcut-hint hidden"
+              ></span>
             </button>
 
             <button id="askBtn" class="action-btn">
@@ -155,13 +159,25 @@
             <div class="card-header-row">
               <h2>Summarize the page</h2>
 
-              <button
-                id="copySummaryBtn"
-                class="copy-btn hidden"
-                aria-label="Copy summary"
-              >
-                <img src="../assets/copy.svg" alt="" />
-              </button>
+              <div class="card-header-actions">
+                <button
+                  id="copyMarkdownBtn"
+                  class="copy-btn hidden"
+                  aria-label="Copy as Markdown"
+                  title="Copy as Markdown"
+                >
+                  <img src="../assets/file-text.svg" alt="" />
+                </button>
+
+                <button
+                  id="copySummaryBtn"
+                  class="copy-btn hidden"
+                  aria-label="Copy summary"
+                  title="Copy summary text"
+                >
+                  <img src="../assets/copy.svg" alt="" />
+                </button>
+              </div>
             </div>
 
             <div id="summaryText">Summary will appear here.</div>

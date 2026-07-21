@@ -36,6 +36,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   keys only carry a hash), so there was no way to tell entries apart at a
   glance; each card now also shows the page's title above the preview.
   Entries persisted before this existed just show the preview alone.
+- **Right-click "Summarize this page"** context-menu entry and a keyboard
+  shortcut (default `Alt+Shift+U`, remappable any time via
+  `chrome://extensions/shortcuts`) that summarize the active tab without
+  opening the popup at all. A hint badge on the "Summarize this page"
+  button shows whatever the shortcut is actually currently bound to (read
+  live via `chrome.commands.getAll()`, so it can't go stale if you remap or
+  clear it, unlike a hardcoded label). A system notification fires when a
+  shortcut/context-menu-triggered summary finishes (or fails); clicking it
+  focuses the tab and opens the popup. Opening the popup while a
+  background-triggered summary is still generating now shows the normal
+  loading view (spinner, rotating verb) and live-streams the result, the
+  same as a popup-triggered summary, instead of the default Home page with
+  no indication anything is happening.
+- **"Copy as Markdown"** button next to the existing plain-text copy button
+  on the summary card, formats a proper note (title, source URL, summary
+  body) for pasting into notes apps, distinct from the plain-text copy.
+- **Highlight-in-page.** Click a summary bullet (or sentence/paragraph line,
+  depending on your chosen format) to scroll to and highlight the passage
+  of the original page it's most likely grounded in, so you can visually
+  check the model isn't inventing things. Uses the same on-device embedding
+  retrieval Ask already relies on to find the best-matching original-content
+  chunk, then locates and highlights it in the live page via the CSS Custom
+  Highlight API (no DOM mutation, so it doesn't fight React/Vue-managed
+  pages that revert unexpected changes). Chromium-only for now, the same
+  constraint Ask's own retrieval already has (needs the offscreen document);
+  the affordance simply isn't shown on the Firefox build.
 
 ### Changed
 
@@ -88,6 +114,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (where it's actually used) instead of the repo root; `npm audit` is clean
   (0 vulnerabilities, was 3 high via `adm-zip`/`onnxruntime-node`, both
   Node-only dev tooling that never ships in the extension itself).
+- Summaries are now persisted (and suggested questions generated) by the
+  background job itself as soon as it finishes, not by whichever popup
+  happens to still be open long enough to consume the stream. This is what
+  makes the context-menu/keyboard-shortcut entry points above possible at
+  all (there's no popup to rely on), and as a side effect fixes a
+  pre-existing gap where an ordinary popup-triggered summary could be
+  silently lost if the popup was closed before the 2-minute stream-buffer
+  window expired.
+- `manifest.json` gained `contextMenus` and `notifications` permissions and
+  a `commands` entry, needed for the two new entry points above. No new
+  host permissions or outbound network calls came with any of this.
 
 ### Removed
 

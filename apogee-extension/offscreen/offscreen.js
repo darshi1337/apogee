@@ -4,7 +4,7 @@
 
 import { parseSuggestedQuestions } from "../lib/questions.js";
 import { summarizeText } from "../lib/ollamaSummarize.js";
-import { retrieveRelevantContent } from "../lib/rag.js";
+import { retrieveRelevantContent, findBestPassage } from "../lib/rag.js";
 
 // Forward all console logs to the service worker for remote debugging
 const originalConsole = {
@@ -328,6 +328,33 @@ async function runStream(streamId, pending, stream) {
       stream.done = true;
     }
     broadcastToStream(stream, msg);
+
+    // This job runs in this document, not the service worker, so unlike
+    // startOllamaStream/startTransformersStream (which finalize a finished
+    // summarize job directly, same file, see their own finish()), it has to
+    // proactively tell the service worker it's done rather than being able
+    // to call finalizeSummaryJob itself. Only for summarize jobs carrying a
+    // `finalize` (background-triggered jobs and popup-triggered ones alike,
+    // see lib/providers.js's WebLLMProvider.summarize), and only on success,
+    // a cancelled job never reaches here (guarded above) and an error
+    // shouldn't persist a partial/failed result.
+    if (
+      msg.type === "done" &&
+      pending.action === "summarize" &&
+      pending.finalize
+    ) {
+      chrome.runtime
+        .sendMessage({
+          target: "service-worker",
+          type: "stream-finished",
+          finalize: pending.finalize,
+          model: pending.model,
+          title: pending.title,
+          url: pending.url,
+          text: stream.text,
+        })
+        .catch(() => {});
+    }
   };
 
   try {
@@ -493,6 +520,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             question,
           });
           sendResponse({ content: relevantContent });
+          break;
+        }
+
+        // "Highlight in page": find which original-content chunk a clicked
+        // summary bullet is most likely grounded in, see lib/rag.js's
+        // findBestPassage and the popup.js click handler that calls this.
+        // Same embedding-model/offscreen-document constraint as
+        // "retrieve-context" above, Chrome/Chromium only.
+        case "find-passage": {
+          const { content, query } = message.payload;
+          const passage = await findBestPassage({ content, query });
+          sendResponse({ passage });
           break;
         }
 

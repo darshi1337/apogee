@@ -69,6 +69,13 @@ transcript still works, not just what fit in the opening truncated slice.
 (Retrieval currently runs on Chromium browsers; Firefox falls back to the
 plain truncated slice for now.)
 
+**Highlight-in-page** lets you check the summary against the source: click
+any bullet (or line, in Sentences/Paragraphs mode) and Apogee finds the
+passage of the original page it's most likely grounded in using the same
+on-device retrieval Ask uses, then scrolls to and highlights it in the live
+page. Useful for spot-checking a claim without re-reading the whole article.
+Chromium-only for now, same constraint as Ask's retrieval above.
+
 ## Quick Start
 
 1. **Install the extension** (see below).
@@ -77,6 +84,14 @@ plain truncated slice for now.)
 4. On first use, the model downloads automatically. After that it's instant.
 
 That's it. No backend installation, no terminal commands.
+
+**Faster ways to summarize**: right-click anywhere on a page and pick
+**Summarize this page**, or use the keyboard shortcut (default `Alt+Shift+U`,
+remappable at `chrome://extensions/shortcuts`). Either works without opening
+the popup at all. A system notification lets you know when it's ready; click
+it (or open the popup) to see the result. If you open the popup while it's
+still generating, it shows the normal loading view instead of the default
+Home page.
 
 ### Two Ways to Use Apogee
 
@@ -294,12 +309,14 @@ Privacy is the core pillar of Apogee. The key guarantee is simple: **your page c
   - **Sensitive sites are never cached**, pages on known webmail/messaging hosts (Gmail, Outlook, Proton Mail, Yahoo Mail, Google Messages, WhatsApp Web, Telegram Web, Slack, Discord, Microsoft Teams) are always treated as ephemeral, regardless of your setting.
   - Under **Settings, Privacy**, you can switch to **"Don't save (this session only)"** so nothing page-derived is written to disk, and **"Clear cached summaries & page data"** wipes all cached content on demand (your preferences are kept).
 - **Browser Permission Sandboxing**:
-  - **`activeTab` + `scripting`**: Apogee cannot read your browsing history or inspect other open tabs. It reads the _currently active tab_ only when you click "Summarize" or "Ask".
+  - **`activeTab` + `scripting`**: Apogee cannot read your browsing history or inspect other open tabs. It reads the _currently active tab_ only when you click "Summarize"/"Ask", right-click and choose "Summarize this page", or use the keyboard shortcut.
   - **`storage`**: Holds your preferences plus the local cache described above.
   - **`unlimitedStorage`**: Lifts the default quota on `chrome.storage.local` so the cached summaries/page text above aren't evicted under normal storage pressure, it does not grant access to anything beyond that cache.
   - **`offscreen`** (Chrome/Edge only): Runs the in-browser WebLLM engine in a hidden document, since a service worker can't access WebGPU directly. Not used, and not requested, in the Firefox build.
   - **`alarms`**: Schedules the housekeeping timers that close the idle in-browser model and clean up finished request buffers, these need to survive the extension's background worker being suspended between uses. No user data is involved.
   - **`clipboardWrite`**: Lets the popup's copy buttons (summary, answer, past summaries) write to your clipboard directly when you click them, instead of routing through an interactive browser permission prompt. Write-only, the extension can never read your clipboard's existing contents.
+  - **`contextMenus`**: Adds the "Summarize this page" right-click entry. Doesn't grant any visibility into your browsing beyond the page you right-clicked on, which `activeTab` already covers.
+  - **`notifications`**: Shows a local OS notification when a right-click/keyboard-shortcut-triggered summary finishes or fails, so you know it's ready without needing to keep the popup open. Purely local UI, no data leaves your device to show it.
 - **Model weights** are stored in standard browser cache structures locally and never transmitted.
 
 ## Development
