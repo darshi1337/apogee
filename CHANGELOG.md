@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Resummarize button** on the finished summary card, re-runs the summarize
+  flow (re-extracting the live page, not a stale cache) without going back to
+  Home first. Shares the same cancel-in-flight/re-run path as the Home
+  "Summarize this page" button.
+- **"~X min saved" badge** on the finished summary card, estimated locally
+  from original vs. summary word count against an average reading speed, no
+  server round-trip. Hidden when the gap is negligible (near-empty page, or a
+  summary that isn't meaningfully shorter) or when the summary came straight
+  from cache on popup reopen, since the original page text isn't held onto
+  in that case.
+
 ## [0.1.8] - 2026-07-21
 
 ### Added

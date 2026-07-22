@@ -157,7 +157,7 @@
 
           <section id="summaryCard" class="summary-card">
             <div class="card-header-row">
-              <h2>Summarize the page</h2>
+              <h2>Summarize this page</h2>
 
               <div class="card-header-actions">
                 <button
@@ -182,9 +182,25 @@
 
             <div id="summaryText">Summary will appear here.</div>
 
-            <button id="cancelSummarizeBtn" class="cancel-btn hidden">
-              Cancel
-            </button>
+            <div class="summary-footer">
+              <span id="timeSavedBadge" class="time-saved-badge hidden"></span>
+
+              <div class="summary-footer-actions">
+                <button
+                  id="resummarizeBtn"
+                  class="resummarize-btn hidden"
+                  aria-label="Resummarize this page"
+                  title="Resummarize this page"
+                >
+                  <img src="../assets/refresh-cw.svg" alt="" />
+                  <span>Resummarize</span>
+                </button>
+
+                <button id="cancelSummarizeBtn" class="cancel-btn hidden">
+                  Cancel
+                </button>
+              </div>
+            </div>
           </section>
 
           <section id="promptsSection" class="prompts">

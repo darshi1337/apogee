@@ -34,6 +34,7 @@ import {
 } from "../lib/constants.js";
 import { getSettings } from "../lib/settings.js";
 import { formatSummaryAsMarkdown } from "../lib/exportFormat.js";
+import { formatTimeSaved } from "../lib/readingTime.js";
 import { saveViewState, loadViewState } from "../lib/viewState.js";
 import {
   hashUrl,
@@ -53,6 +54,8 @@ const summarizeBtn = document.getElementById("summarizeBtn");
 const summarizeShortcutHint = document.getElementById("summarizeShortcutHint");
 const summaryText = document.getElementById("summaryText");
 const cancelSummarizeBtn = document.getElementById("cancelSummarizeBtn");
+const resummarizeBtn = document.getElementById("resummarizeBtn");
+const timeSavedBadge = document.getElementById("timeSavedBadge");
 const copySummaryBtn = document.getElementById("copySummaryBtn");
 const copyMarkdownBtn = document.getElementById("copyMarkdownBtn");
 const copyAnswerBtn = document.getElementById("copyAnswerBtn");
@@ -756,14 +759,28 @@ function showSummarizingContext() {
   answerBox.classList.add("hidden");
   togglePromptsBtn.style.display = "none";
   setSummaryCopyButtonsVisible(false);
+  updateTimeSavedBadge(null, null);
 }
 
-// Shared by every place that shows/hides the summary card's two copy
-// buttons (plain text and Markdown) in lockstep, so a spot that toggles one
-// can't accidentally leave the other stale.
+// Only meaningful once a fresh summarize job has finished, since it needs
+// the original page's text (currentPageData) alongside the summary text; a
+// summary loaded straight from cache on popup reopen has no original text
+// on hand, so the badge just stays hidden in that case rather than guessing.
+function updateTimeSavedBadge(originalText, summaryText) {
+  if (!timeSavedBadge) return;
+  const label = formatTimeSaved(originalText, summaryText);
+  timeSavedBadge.textContent = label || "";
+  timeSavedBadge.classList.toggle("hidden", !label);
+}
+
+// Shared by every place that shows/hides the summary card's copy buttons
+// (plain text and Markdown) and the Resummarize button in lockstep, so a
+// spot that toggles one can't accidentally leave the others stale. All three
+// only make sense once a finished summary is actually on screen.
 function setSummaryCopyButtonsVisible(hasText) {
   copySummaryBtn.classList.toggle("hidden", !hasText);
   copyMarkdownBtn?.classList.toggle("hidden", !hasText);
+  resummarizeBtn?.classList.toggle("hidden", !hasText);
 }
 
 // Copies plain text (not the rendered HTML) to the clipboard and briefly
@@ -813,6 +830,7 @@ copyMarkdownBtn?.addEventListener("click", async () => {
 copyAnswerBtn?.addEventListener("click", () =>
   copyToClipboard(currentAnswerText, copyAnswerBtn),
 );
+resummarizeBtn?.addEventListener("click", () => summarizeActivePage());
 
 function showCancelSummarizeButton(streamId) {
   activeSummarizeStreamId = streamId;
@@ -967,6 +985,7 @@ async function consumeSummaryStream(stream, { tab, promptsCacheKey }) {
   currentSummaryText = text;
   showSummaryContext();
   setSummaryCopyButtonsVisible(!!text.trim());
+  updateTimeSavedBadge(currentPageData?.content, text);
   await saveViewState(tab.id, {
     view: "summaryView",
     subview: "summary",
