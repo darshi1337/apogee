@@ -115,6 +115,11 @@ const clearDebugLogsBtn = document.getElementById("clearDebugLogsBtn");
 const saveHistoryRadios = document.querySelectorAll(
   'input[name="saveHistory"]',
 );
+const archiveFallbackRadios = document.querySelectorAll(
+  'input[name="archiveFallback"]',
+);
+const archiveLinkRow = document.getElementById("archiveLinkRow");
+const archiveLink = document.getElementById("archiveLink");
 const clearDataBtn = document.getElementById("clearDataBtn");
 const clearDataStatus = document.getElementById("clearDataStatus");
 const versionText = document.getElementById("versionText");
@@ -382,6 +387,11 @@ async function applySettingsToUI(settings) {
   );
   if (historyRadio) historyRadio.checked = true;
 
+  const archiveFallbackRadio = document.querySelector(
+    `input[name="archiveFallback"][value="${settings.archiveFallback ? "on" : "off"}"]`,
+  );
+  if (archiveFallbackRadio) archiveFallbackRadio.checked = true;
+
   // Fire-and-forget: checkWebGPUSupport() can create the offscreen document
   // on a cold start (a few seconds on Chrome), which used to make every
   // caller of applySettingsToUI, including the popup's initial view
@@ -426,6 +436,7 @@ async function getPageData(tab) {
   const cached = await getCachedContent(tab.url);
   if (cached && CACHEABLE_PAGE_TYPES.has(cached.type)) {
     currentPageData = cached;
+    updateArchiveLink(cached);
     return cached;
   }
 
@@ -440,6 +451,7 @@ async function getPageData(tab) {
   }
   if (pageData) {
     currentPageData = pageData;
+    updateArchiveLink(pageData);
     if (
       CACHEABLE_PAGE_TYPES.has(pageData.type) &&
       (await shouldPersist(tab.url))
@@ -760,6 +772,7 @@ function showSummarizingContext() {
   togglePromptsBtn.style.display = "none";
   setSummaryCopyButtonsVisible(false);
   updateTimeSavedBadge(null, null);
+  updateArchiveLink(null);
 }
 
 // Only meaningful once a fresh summarize job has finished, since it needs
@@ -771,6 +784,19 @@ function updateTimeSavedBadge(originalText, summaryText) {
   const label = formatTimeSaved(originalText, summaryText);
   timeSavedBadge.textContent = label || "";
   timeSavedBadge.classList.toggle("hidden", !label);
+}
+
+// Shows the "Read more here" link once a paywalled page's content came from
+// a Wayback Machine snapshot instead of the live page (see
+// tryWaybackFallback in lib/pageExtraction.js, which is the only place that
+// sets pageData.archiveUrl). Hidden otherwise, including for ordinary,
+// non-paywalled pages.
+function updateArchiveLink(pageData) {
+  if (!archiveLinkRow || !archiveLink) return;
+  const url = pageData?.archiveUrl;
+  archiveLink.href = url || "#";
+  archiveLink.textContent = url || "";
+  archiveLinkRow.classList.toggle("hidden", !url);
 }
 
 // Shared by every place that shows/hides the summary card's copy buttons
@@ -1063,6 +1089,7 @@ async function summarizeActivePage() {
       return;
     }
     currentPageData = pageData;
+    updateArchiveLink(pageData);
     if (
       CACHEABLE_PAGE_TYPES.has(pageData.type) &&
       (await shouldPersist(tab.url))
@@ -1605,6 +1632,45 @@ themeRadios.forEach((radio) => {
 saveHistoryRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
     await saveSettings({ saveHistory: radio.value === "on" });
+  });
+});
+
+// Matches manifest.json's optional_host_permissions: never held until the
+// user opts in here, and dropped again the moment they opt back out.
+const ARCHIVE_ORIGINS = ["https://archive.org/*", "https://web.archive.org/*"];
+
+archiveFallbackRadios.forEach((radio) => {
+  radio.addEventListener("change", async () => {
+    if (radio.value === "on") {
+      // chrome.permissions.request must run inside a user-gesture handler
+      // (this change event qualifies) or Chrome rejects it outright.
+      let granted = false;
+      try {
+        granted = await chrome.permissions.request({
+          origins: ARCHIVE_ORIGINS,
+        });
+      } catch (err) {
+        console.error("Failed to request archive.org permission:", err);
+      }
+      if (!granted) {
+        // User declined the browser's permission prompt, revert the radio
+        // rather than silently leaving the setting on with no permission to
+        // back it up (tryWaybackFallback would just fail every time).
+        const offRadio = document.querySelector(
+          'input[name="archiveFallback"][value="off"]',
+        );
+        if (offRadio) offRadio.checked = true;
+        return;
+      }
+      await saveSettings({ archiveFallback: true });
+    } else {
+      try {
+        await chrome.permissions.remove({ origins: ARCHIVE_ORIGINS });
+      } catch (err) {
+        console.error("Failed to release archive.org permission:", err);
+      }
+      await saveSettings({ archiveFallback: false });
+    }
   });
 });
 

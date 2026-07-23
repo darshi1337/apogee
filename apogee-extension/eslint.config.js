@@ -60,9 +60,21 @@ export default [
     },
   },
   {
-    // generic.js consumes Readability.js's global (loaded first, see
-    // popup.js's extractFromActiveTab injection order), but doesn't declare it.
+    // generic.js consumes Readability.js's and paywall.js's globals (both
+    // loaded first, see popup.js's extractFromActiveTab injection order),
+    // but doesn't declare them.
     files: ["content/extractors/generic.js"],
+    languageOptions: {
+      globals: { Readability: "readonly", detectPaywall: "readonly" },
+    },
+  },
+  {
+    // lib/pageExtraction.js's tryWaybackFallback passes a func to
+    // chrome.scripting.executeScript that runs inside the tab, where
+    // Readability.js has already been injected as a global (see
+    // extractFromActiveTab's own injection above it) - not in this file's
+    // own module scope, but ESLint can't tell the difference.
+    files: ["lib/pageExtraction.js"],
     languageOptions: {
       globals: { Readability: "readonly" },
     },

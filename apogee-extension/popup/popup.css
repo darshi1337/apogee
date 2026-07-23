@@ -367,6 +367,18 @@ body {
   white-space: nowrap;
 }
 
+.archive-link-row {
+  font-family: "Metropolis";
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.archive-link-row a {
+  color: var(--radio-checked-color);
+  word-break: break-all;
+}
+
 .summary-card h2 {
   font-family: "Metropolis";
   font-weight: 700;

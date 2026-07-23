@@ -6,6 +6,8 @@
 // popup.js's getPageData, which layers in-memory reuse via currentPageData
 // on top of extractFromActiveTab and stays in popup.js).
 
+import { getSettings } from "./settings.js";
+
 // Injects the site-specific/generic extractors into the active tab and
 // returns the extracted { title, url, content, type, isPdf } (or throws).
 export async function extractFromActiveTab(tab) {
@@ -43,6 +45,7 @@ export async function extractFromActiveTab(tab) {
       target: { tabId },
       files: [
         "/content/Readability.js",
+        "/content/extractors/paywall.js",
         "/content/extractors/generic.js",
         "/content/extractors/youtube.js",
         "/content/extractors/gmail.js",
@@ -78,7 +81,90 @@ export async function extractFromActiveTab(tab) {
 
   const pageData = results?.[0]?.result;
   if (pageData?.error) throw new Error(pageData.error);
-  return pageData || null;
+  if (!pageData) return null;
+
+  if (pageData.paywalled) {
+    const settings = await getSettings();
+    if (settings.archiveFallback) {
+      const archived = await tryWaybackFallback(tabId);
+      if (archived) {
+        pageData.content = archived.content;
+        if (archived.title) pageData.title = archived.title;
+        pageData.archiveUrl = archived.archiveUrl;
+      }
+    }
+  }
+
+  return pageData;
+}
+
+// Looks up a Wayback Machine snapshot of the active tab's URL and, if one
+// exists, extracts its article text the same way the live-page path does
+// (Readability, already injected into the tab above). Runs inside the tab
+// rather than here: the extension's own host_permissions/CSP only cover
+// localhost + a few CDN hosts (see extractPdfContent's comment below for the
+// same reasoning), archive.org is only ever granted as an optional
+// permission requested from the Settings toggle (see popup.js), and only to
+// the tab context, not extension pages. Returns null on any failure or if no
+// snapshot exists - the caller falls back to whatever was already extracted
+// from the live page, this never blocks summarization.
+async function tryWaybackFallback(tabId) {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: async () => {
+      // Logged (not silently swallowed) since these failures are otherwise
+      // invisible: this runs inside the tab, so check this page's own
+      // DevTools console (not the popup's), not the extension's.
+      try {
+        const apiUrl = `https://archive.org/wayback/available?url=${encodeURIComponent(location.href)}`;
+        const apiRes = await fetch(apiUrl);
+        if (!apiRes.ok) {
+          console.warn(
+            `Apogee: Wayback availability lookup failed (${apiRes.status})`,
+          );
+          return null;
+        }
+        const apiData = await apiRes.json();
+        const snapshot = apiData?.archived_snapshots?.closest;
+        if (!snapshot?.available || !snapshot.timestamp) {
+          console.warn("Apogee: no Wayback snapshot available for this page");
+          return null;
+        }
+
+        const original = apiData.url || location.href;
+        // The `id_` suffix returns the raw archived page without the
+        // Wayback Machine's own toolbar/banner spliced in, closer to what
+        // Readability would have seen on the original page.
+        const rawUrl = `https://web.archive.org/web/${snapshot.timestamp}id_/${original}`;
+        const htmlRes = await fetch(rawUrl);
+        if (!htmlRes.ok) {
+          console.warn(
+            `Apogee: failed to fetch Wayback snapshot (${htmlRes.status})`,
+          );
+          return null;
+        }
+        const html = await htmlRes.text();
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const article = new Readability(doc).parse();
+        if (!article?.textContent) {
+          console.warn(
+            "Apogee: Readability couldn't parse the Wayback snapshot",
+          );
+          return null;
+        }
+
+        return {
+          title: article.title,
+          content: article.textContent,
+          archiveUrl: `https://web.archive.org/web/${snapshot.timestamp}/${original}`,
+        };
+      } catch (e) {
+        console.error("Apogee: Wayback fallback failed:", e);
+        return null;
+      }
+    },
+  });
+  return results?.[0]?.result || null;
 }
 
 // Downloads the PDF and extracts its text, both client-side: the fetch runs

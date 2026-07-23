@@ -108,4 +108,11 @@ export const DEFAULT_SETTINGS = {
   // isSensitiveUrl in popup.js) are always treated as non-persistable
   // regardless of this setting.
   saveHistory: true,
+  // When true, a detected paywall triggers a lookup against the Wayback
+  // Machine (archive.org) for a readable snapshot, see
+  // lib/pageExtraction.js's tryWaybackFallback. Off by default and gated
+  // behind an optional_host_permissions grant (see manifest.json) since it
+  // means sending the page URL to a third party, opposite of Apogee's
+  // otherwise fully-local design.
+  archiveFallback: false,
 };

@@ -16,6 +16,10 @@
     "notifications"
   ],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "optional_host_permissions": [
+    "https://archive.org/*",
+    "https://web.archive.org/*"
+  ],
   "commands": {
     "summarize-page": {
       "suggested_key": {
