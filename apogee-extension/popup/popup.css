@@ -764,7 +764,10 @@ body {
 .past-summary-card {
   width: 100%;
   display: flex;
-  align-items: center;
+  /* Top, not centre: an expanded card is many lines tall, and centring left
+     the copy button stranded halfway down the summary as if it belonged to
+     whichever bullet it happened to land beside. */
+  align-items: flex-start;
   gap: 10px;
   text-align: left;
   padding: 12px 14px;
@@ -780,6 +783,22 @@ body {
   border-color: var(--btn-hover-border);
 }
 
+/* Recessed like the summary panel, and roomier, so an opened card reads as a
+   document rather than as a list row that grew. The card also has to sit above
+   its neighbours: the -1px margin above overlaps borders, and without a stacking
+   nudge the next card's border would cut across this one's bottom edge. */
+.past-summary-card.expanded {
+  position: relative;
+  z-index: 1;
+  background: var(--summary-bg);
+  border-color: var(--btn-hover-border);
+  padding: 14px 14px 16px;
+}
+
+.past-summary-card.expanded:hover {
+  background: var(--summary-bg);
+}
+
 .past-summary-text {
   flex: 1;
   min-width: 0;
@@ -793,7 +812,26 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
+}
+
+/* Promoted to a heading for the opened card: full title, no ellipsis, since
+   there is room to wrap now. The hairline under it belongs to the body below,
+   which is full-bleed, so the rule crosses the whole card instead of stopping
+   under the copy button. */
+.past-summary-card.expanded .past-summary-title {
+  /* Only the title has to step around the copy/chevron column (which floats
+     out of flow below); the summary body underneath keeps the card's full
+     width instead of wrapping in a 50px-narrower gutter. */
+  padding-right: 60px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text-main);
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: break-word;
+  padding-bottom: 10px;
+  margin-bottom: 0;
 }
 
 .past-summary-preview {
@@ -811,10 +849,128 @@ body {
   white-space: normal;
   overflow: visible;
   overflow-wrap: break-word;
+  line-height: 1.5;
+}
+
+/* Only when there is a title to divide it from: pre-title cache entries (no
+   `t`, see loadPastSummaries) render the body alone, and a rule along the top
+   of a card with nothing above it just looks like a stray border. */
+.past-summary-card.expanded .past-summary-title + .past-summary-preview {
+  border-top: 1px solid var(--card-border);
+  padding-top: 11px;
+}
+
+/* The global `* { margin: 0; padding: 0 }` reset strips every default, so the
+   markdown rendered into an expanded card has to restate its own rhythm; see
+   the matching #summaryText rules above, which this deliberately mirrors. */
+.past-summary-card.expanded .past-summary-preview > :last-child {
+  margin-bottom: 0;
+}
+
+.past-summary-card.expanded .past-summary-preview p {
+  margin: 0 0 10px;
+}
+
+.past-summary-card.expanded .past-summary-preview h1,
+.past-summary-card.expanded .past-summary-preview h2,
+.past-summary-card.expanded .past-summary-preview h3,
+.past-summary-card.expanded .past-summary-preview h4,
+.past-summary-card.expanded .past-summary-preview h5,
+.past-summary-card.expanded .past-summary-preview h6 {
+  font-family: "Mozilla Text";
+  font-weight: 700;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text-main);
+  margin: 14px 0 6px;
+}
+
+.past-summary-card.expanded .past-summary-preview ul,
+.past-summary-card.expanded .past-summary-preview ol {
+  margin: 0 0 10px;
+  /* Markers live inside the text column: `outside` would hang them into the
+     card's 14px padding and clip them against the border. */
+  padding-left: 18px;
+}
+
+.past-summary-card.expanded .past-summary-preview li {
+  margin-bottom: 7px;
+  padding-left: 2px;
+}
+
+.past-summary-card.expanded .past-summary-preview li:last-child {
+  margin-bottom: 0;
+}
+
+.past-summary-card.expanded .past-summary-preview li::marker {
+  color: var(--text-secondary);
+}
+
+.past-summary-card.expanded .past-summary-preview code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  background: var(--badge-bg);
+  color: var(--badge-text);
+  padding: 2px 6px;
+  border: 1px solid var(--card-border);
+}
+
+.past-summary-card.expanded .past-summary-preview strong {
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+/* Right-hand controls stay a fixed column so the text block below wraps to the
+   same width whether a card is open or closed. */
+.past-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Untitled entries have no heading to carry the gutter, so their opening block
+   steps around the buttons instead; everything after it runs full width. */
+.past-summary-card.expanded
+  .past-summary-text
+  > .past-summary-preview:first-child
+  > :first-child {
+  padding-right: 60px;
+}
+
+/* Pinned to the corner once open, so the body text below runs the full width
+   of the card rather than stopping short of an empty column. */
+.past-summary-card.expanded .past-summary-actions {
+  position: absolute;
+  top: 14px;
+  right: 14px;
 }
 
 .past-summary-card .copy-btn {
   flex-shrink: 0;
+}
+
+/* Chevron points down when collapsed and flips up on expand: the only visual
+   cue that these rows open at all. Decorative, the whole card is the control. */
+.past-summary-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 26px;
+  color: var(--text-secondary);
+  transform: rotate(180deg);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.past-summary-chevron svg {
+  width: 14px;
+  height: 14px;
+}
+
+.past-summary-card.expanded .past-summary-chevron {
+  transform: rotate(0deg);
+  color: var(--text-main);
 }
 
 .chat-section {

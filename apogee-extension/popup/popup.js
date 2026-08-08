@@ -1009,7 +1009,19 @@ async function loadPastSummaries() {
       e.stopPropagation();
       copyToClipboard(text, copyBtn);
     });
-    card.appendChild(copyBtn);
+
+    // Decorative: the card itself is the toggle (role="button" above), this
+    // just gives the collapsed row a visible hint that it opens. CSS flips it
+    // on .expanded.
+    const chevron = document.createElement("span");
+    chevron.className = "past-summary-chevron";
+    chevron.setAttribute("aria-hidden", "true");
+    chevron.innerHTML = icon("chevron");
+
+    const actions = document.createElement("div");
+    actions.className = "past-summary-actions";
+    actions.append(copyBtn, chevron);
+    card.appendChild(actions);
 
     pastSummariesList.appendChild(card);
   }

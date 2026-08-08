@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none"
+     role="img" aria-hidden="true">
+  <defs>
+    <pattern id="p0" width="4.0" height="4.0" patternUnits="userSpaceOnUse"><circle cx="2.0" cy="2.0" r="1.05" fill="#5855ff"/></pattern>
+    <linearGradient id="g0" gradientUnits="userSpaceOnUse" x1="72" y1="332" x2="332" y2="72"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset="0.55" stop-color="#fff" stop-opacity="0.8"/><stop offset="0.95" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <filter id="f0" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.4" numOctaves="2" seed="31" stitchTiles="stitch" result="n"/><feColorMatrix in="n" type="luminanceToAlpha" result="na"/><feComposite in="SourceGraphic" in2="na" operator="arithmetic" k2="1" k3="-1" k4="0.5" result="d"/><feComponentTransfer in="d" result="t"><feFuncA type="discrete" tableValues="0 1"/></feComponentTransfer><feFlood flood-color="#fff" result="w"/><feComposite in="w" in2="t" operator="in"/></filter>
+    <mask id="m0"><rect width="400" height="400" fill="url(#g0)" filter="url(#f0)"/></mask>
+    <pattern id="p1" width="4.0" height="4.0" patternUnits="userSpaceOnUse"><circle cx="2.0" cy="2.0" r="1.7" fill="#5855ff"/></pattern>
+    <linearGradient id="g1" gradientUnits="userSpaceOnUse" x1="72" y1="332" x2="332" y2="72"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset="0.32" stop-color="#fff" stop-opacity="0.56"/><stop offset="0.66" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <filter id="f1" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.4" numOctaves="2" seed="44" stitchTiles="stitch" result="n"/><feColorMatrix in="n" type="luminanceToAlpha" result="na"/><feComposite in="SourceGraphic" in2="na" operator="arithmetic" k2="1" k3="-1" k4="0.5" result="d"/><feComponentTransfer in="d" result="t"><feFuncA type="discrete" tableValues="0 1"/></feComponentTransfer><feFlood flood-color="#fff" result="w"/><feComposite in="w" in2="t" operator="in"/></filter>
+    <mask id="m1"><rect width="400" height="400" fill="url(#g1)" filter="url(#f1)"/></mask>
+    <pattern id="p2" width="4.0" height="4.0" patternUnits="userSpaceOnUse"><circle cx="2.0" cy="2.0" r="2.3" fill="#5855ff"/></pattern>
+    <linearGradient id="g2" gradientUnits="userSpaceOnUse" x1="72" y1="332" x2="332" y2="72"><stop offset="0" stop-color="#fff" stop-opacity="0.9"/><stop offset="0.17" stop-color="#fff" stop-opacity="0.4"/><stop offset="0.38" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <filter id="f2" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.4" numOctaves="2" seed="57" stitchTiles="stitch" result="n"/><feColorMatrix in="n" type="luminanceToAlpha" result="na"/><feComposite in="SourceGraphic" in2="na" operator="arithmetic" k2="1" k3="-1" k4="0.5" result="d"/><feComponentTransfer in="d" result="t"><feFuncA type="discrete" tableValues="0 1"/></feComponentTransfer><feFlood flood-color="#fff" result="w"/><feComposite in="w" in2="t" operator="in"/></filter>
+    <mask id="m2"><rect width="400" height="400" fill="url(#g2)" filter="url(#f2)"/></mask>
+    <g id="grain"><rect width="400" height="400" fill="url(#p0)" mask="url(#m0)"/><rect width="400" height="400" fill="url(#p1)" mask="url(#m1)"/><rect width="400" height="400" fill="url(#p2)" mask="url(#m2)"/></g>
+  </defs>
+  <g stroke="#141418" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
+    <clipPath id="cs"><path d="M200,86 L302,128 V212 C302,268 254,304 200,322 C146,304 98,268 98,212 V128 Z"/></clipPath>
+    <g transform="rotate(-4 200 200)">
+      <g transform="translate(-9 11)"><path d="M200,86 L302,128 V212 C302,268 254,304 200,322 C146,304 98,268 98,212 V128 Z" fill="#fff"/><path d="M200,86 L302,128 V212 C302,268 254,304 200,322 C146,304 98,268 98,212 V128 Z"/></g>
+      <g transform="translate(-18 22)"><path d="M200,86 L302,128 V212 C302,268 254,304 200,322 C146,304 98,268 98,212 V128 Z" fill="#fff"/><path d="M200,86 L302,128 V212 C302,268 254,304 200,322 C146,304 98,268 98,212 V128 Z"/></g>
+      <path d="M200,86 L302,128 V212 C302,268 254,304 200,322 C146,304 98,268 98,212 V128 Z" fill="#fff"/>
+      <g clip-path="url(#cs)"><use href="#grain"/></g>
+      <path d="M200,86 L302,128 V212 C302,268 254,304 200,322 C146,304 98,268 98,212 V128 Z"/>
+      <path d="M178,196 v-18 a22,22 0 0 1 44,0 v18" fill="#fff"/>
+      <rect x="163" y="196" width="74" height="60" rx="7" fill="#fff"/>
+      <rect x="163" y="196" width="74" height="60" rx="7"/>
+      <circle cx="200" cy="222" r="7.5"/>
+      <path d="M200,229 v13"/>
+    </g>
+  </g>
+</svg>
