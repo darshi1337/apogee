@@ -1,6 +1,6 @@
 <div align="center">
 
-<img alt="Apogee" src=".github/assets/apogee-banner.png" width="480">
+<img alt="" src=".github/assets/apogee-logo.png" width="200">
 
 A **Private, In-Browser AI Summarizer** for your articles, videos, and PDFs. Runs on WebGPU, WebAssembly, or your own local Ollama.
 
