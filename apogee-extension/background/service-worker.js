@@ -624,6 +624,7 @@ async function runBackgroundSummarize(
       model,
       settings.summaryLanguage,
       settings.customInstructions,
+      settings.translationEngine,
     ),
     promptsCacheKey: await getPromptsCacheKey(
       cacheUrl,
@@ -631,6 +632,7 @@ async function runBackgroundSummarize(
       model,
       settings.summaryLanguage,
       settings.customInstructions,
+      settings.translationEngine,
     ),
     persist,
     persistUrl: tab.url,
@@ -684,6 +686,8 @@ async function runBackgroundSummarize(
     url: tab.url,
     streamId,
     promptsCacheKey: finalize.promptsCacheKey,
+    summaryLanguage: settings.summaryLanguage,
+    translationEngine: settings.translationEngine,
   });
 }
 
@@ -870,13 +874,19 @@ async function fetchBilibiliSubtitles({ aid, bvid, cid, preferredLang }) {
 async function generateOllamaSuggestions(
   host,
   model,
-  { title, url, summary, language },
+  { title, url, summary, language, translationEngine },
 ) {
   const validHost = validateOllamaHost(host);
   const prompt = buildSuggestQuestionsPrompt(title, url, summary);
   const chat = (p, opts) => chatStream(validHost, model, p, opts);
   const qLanguage = await resolveEffectiveLanguage(summary, language);
-  const text = await generateInTargetLanguage(chat, prompt, qLanguage);
+  const translateFn =
+    translationEngine === TRANSLATION_ENGINES.OPUS
+      ? makeOpusTranslateFn(() => {})
+      : undefined;
+  const text = await generateInTargetLanguage(chat, prompt, qLanguage, {
+    translateFn,
+  });
   return parseSuggestedQuestions(text);
 }
 
@@ -909,6 +919,7 @@ async function runSuggestQuestionsJob(payload) {
           url,
           summary,
           language,
+          translationEngine,
         });
       } else if (providerType === PROVIDERS.TRANSFORMERS && !hasOffscreenAPI) {
         questions = await generateTransformersSuggestions(model, {
@@ -998,6 +1009,8 @@ async function finalizeSummaryJob({ finalize, model, title, url, text }) {
       streamId: null,
       summaryText: text,
       promptsCacheKey,
+      summaryLanguage: language,
+      translationEngine,
     });
   }
   runSuggestQuestionsJob({

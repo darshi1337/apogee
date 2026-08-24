@@ -1,4 +1,5 @@
 import { getSettings } from "./settings.js";
+import { TRANSLATION_ENGINES } from "../constants.js";
 import { sha256Hex } from "../util/hash.js";
 import { createLock } from "../util/mutex.js";
 import { embedTexts as defaultEmbedTexts } from "../engines/embeddings.js";
@@ -18,16 +19,22 @@ export async function hashUrl(url) {
 // Everything that changes the generated text has to be part of the key, or a
 // cached answer from the old settings comes back and the change looks ignored.
 // That means the url, the response format, the model, the output language, and
-// the custom instructions, which are folded into the prompt. Anything else that
-// starts feeding the prompt belongs here too.
+// the custom instructions, and the translation engine. Anything else that
+// starts shaping the output belongs here too.
 //
-// The instructions suffix is left off entirely when there are none, so keys for
-// the default settings keep the shape they had before custom instructions
-// existed and those cached summaries stay reachable.
+// Legacy keys do not identify their translation engine and cannot safely be
+// assigned to either one, so engine-aware lookups intentionally do not reuse
+// them. They remain available in history until normal eviction or a cache wipe.
 async function instructionsSuffix(customInstructions) {
   const extra = (customInstructions || "").trim();
   if (!extra) return "";
   return `:i${(await sha256Hex(extra)).slice(0, 12)}`;
+}
+
+function translationEngineKey(translationEngine = TRANSLATION_ENGINES.OPUS) {
+  return translationEngine === TRANSLATION_ENGINES.OPUS
+    ? TRANSLATION_ENGINES.OPUS
+    : TRANSLATION_ENGINES.LLM;
 }
 
 export async function getSummaryCacheKey(
@@ -36,8 +43,9 @@ export async function getSummaryCacheKey(
   model,
   lang = "auto",
   customInstructions = "",
+  translationEngine = TRANSLATION_ENGINES.OPUS,
 ) {
-  return `summary:${fmt}:${lang}:${model}:${await hashUrl(url)}${await instructionsSuffix(customInstructions)}`;
+  return `summary:${fmt}:${lang}:${model}:${translationEngineKey(translationEngine)}:${await hashUrl(url)}${await instructionsSuffix(customInstructions)}`;
 }
 export async function getPromptsCacheKey(
   url,
@@ -45,8 +53,9 @@ export async function getPromptsCacheKey(
   model,
   lang = "auto",
   customInstructions = "",
+  translationEngine = TRANSLATION_ENGINES.OPUS,
 ) {
-  return `suggested-prompts:${fmt}:${lang}:${model}:${await hashUrl(url)}${await instructionsSuffix(customInstructions)}`;
+  return `suggested-prompts:${fmt}:${lang}:${model}:${translationEngineKey(translationEngine)}:${await hashUrl(url)}${await instructionsSuffix(customInstructions)}`;
 }
 export async function getContentCacheKey(url) {
   return `content:${await hashUrl(url)}`;

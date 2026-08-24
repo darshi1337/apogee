@@ -68,21 +68,35 @@ test("cache key helpers embed the hashed url and are namespaced by kind", async 
   const hash = await hashUrl(url);
   assert.strictEqual(
     await getSummaryCacheKey(url, "bullets", "model-x"),
-    `summary:bullets:auto:model-x:${hash}`,
+    `summary:bullets:auto:model-x:opus:${hash}`,
   );
   assert.strictEqual(
     await getSummaryCacheKey(url, "bullets", "model-x", "es"),
-    `summary:bullets:es:model-x:${hash}`,
+    `summary:bullets:es:model-x:opus:${hash}`,
   );
   assert.strictEqual(
     await getPromptsCacheKey(url, "bullets", "model-x"),
-    `suggested-prompts:bullets:auto:model-x:${hash}`,
+    `suggested-prompts:bullets:auto:model-x:opus:${hash}`,
   );
   assert.strictEqual(
     await getPromptsCacheKey(url, "bullets", "model-x", "es"),
-    `suggested-prompts:bullets:es:model-x:${hash}`,
+    `suggested-prompts:bullets:es:model-x:opus:${hash}`,
   );
   assert.strictEqual(await getContentCacheKey(url), `content:${hash}`);
+});
+
+test("cache keys change with the translation engine that shaped the output", async () => {
+  const args = ["https://example.com/article", "bullets", "model-x", "bg", ""];
+
+  const llmSummary = await getSummaryCacheKey(...args, "llm");
+  const opusSummary = await getSummaryCacheKey(...args, "opus");
+  const llmPrompts = await getPromptsCacheKey(...args, "llm");
+  const opusPrompts = await getPromptsCacheKey(...args, "opus");
+
+  assert.notStrictEqual(llmSummary, opusSummary);
+  assert.notStrictEqual(llmPrompts, opusPrompts);
+  assert.match(llmSummary, /:llm:/);
+  assert.match(opusSummary, /:opus:/);
 });
 
 test("cache keys change with the custom instructions that shaped the prompt", async () => {
@@ -128,18 +142,18 @@ test("cache keys change with the custom instructions that shaped the prompt", as
   );
 });
 
-test("empty or whitespace-only instructions keep the pre-existing key shape", async () => {
+test("empty or whitespace-only instructions omit the instructions suffix", async () => {
   const url = "https://example.com/article";
   const hash = await hashUrl(url);
 
   for (const instructions of [undefined, "", "   \n  "]) {
     assert.strictEqual(
       await getSummaryCacheKey(url, "bullets", "model-x", "auto", instructions),
-      `summary:bullets:auto:model-x:${hash}`,
+      `summary:bullets:auto:model-x:opus:${hash}`,
     );
     assert.strictEqual(
       await getPromptsCacheKey(url, "bullets", "model-x", "auto", instructions),
-      `suggested-prompts:bullets:auto:model-x:${hash}`,
+      `suggested-prompts:bullets:auto:model-x:opus:${hash}`,
     );
   }
 });

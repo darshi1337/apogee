@@ -163,6 +163,7 @@ if (versionText) {
 let currentPageData = null;
 let currentSummaryText = "";
 let currentSummaryLanguage = null;
+let currentTranslationEngine = null;
 
 const LANGUAGE_LABELS = new Map(
   SUMMARY_LANGUAGES.map((l) => [l.code, l.label]),
@@ -172,18 +173,30 @@ async function updateResummarizeHint(settings) {
   if (!resummarizeHint) return;
   const s = settings || (await getSettings());
   const target = s.summaryLanguage;
-  const stale =
+  const languageStale =
     !!currentSummaryText.trim() &&
     currentSummaryLanguage != null &&
     currentSummaryLanguage !== target;
-  if (!stale) {
+  const engineStale =
+    !!currentSummaryText.trim() &&
+    currentTranslationEngine != null &&
+    currentTranslationEngine !== s.translationEngine;
+  if (!languageStale && !engineStale) {
     resummarizeHint.classList.add("hidden");
     return;
   }
-  resummarizeHintText.textContent =
-    target === "auto"
-      ? "This summary isn't in the page's original language. Re-summarize to apply."
-      : `This summary isn't in ${LANGUAGE_LABELS.get(target) || target}. Re-summarize to apply.`;
+  if (languageStale && engineStale) {
+    resummarizeHintText.textContent =
+      "The summary language and translation engine changed. Re-summarize to apply.";
+  } else if (engineStale) {
+    resummarizeHintText.textContent =
+      "This summary used a different translation engine. Re-summarize to apply.";
+  } else {
+    resummarizeHintText.textContent =
+      target === "auto"
+        ? "This summary isn't in the page's original language. Re-summarize to apply."
+        : `This summary isn't in ${LANGUAGE_LABELS.get(target) || target}. Re-summarize to apply.`;
+  }
   resummarizeHint.classList.remove("hidden");
 }
 
@@ -1218,6 +1231,8 @@ async function consumeSummaryStream(stream, { tab, promptsCacheKey }) {
       durationSeconds: currentPageData?.durationSeconds,
       content: currentPageData?.content,
     }),
+    summaryLanguage: currentSummaryLanguage,
+    translationEngine: currentTranslationEngine,
   });
   setSuggestedQuestionsLoading();
 
@@ -1256,6 +1271,7 @@ async function summarizeActivePage() {
     const provider = getProvider(settings);
     const model = getModelForSettings(settings);
     currentSummaryLanguage = settings.summaryLanguage;
+    currentTranslationEngine = settings.translationEngine;
     const pageData = await extractFromActiveTab(tab);
 
     if (!pageData) {
@@ -1286,6 +1302,7 @@ async function summarizeActivePage() {
       model,
       settings.summaryLanguage,
       settings.customInstructions,
+      settings.translationEngine,
     );
     const promptsCacheKey = await getPromptsCacheKey(
       tab.url,
@@ -1293,6 +1310,7 @@ async function summarizeActivePage() {
       model,
       settings.summaryLanguage,
       settings.customInstructions,
+      settings.translationEngine,
     );
     const finalize = {
       cacheKey,
@@ -1361,6 +1379,8 @@ async function summarizeActivePage() {
       url: tab.url,
       streamId,
       promptsCacheKey,
+      summaryLanguage: settings.summaryLanguage,
+      translationEngine: settings.translationEngine,
     });
     showCancelSummarizeButton(streamId);
 
@@ -1598,6 +1618,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     const state = await loadViewState(tab.id);
 
     if (state && state.urlHash === (await hashUrl(tab.url)) && state.streamId) {
+      currentSummaryLanguage =
+        state.summaryLanguage ?? settings.summaryLanguage;
+      currentTranslationEngine =
+        state.translationEngine ?? settings.translationEngine;
       if (state.subview === "summarizing") {
         showOnlyView("summaryView");
         showSummarizingContext();
@@ -1676,7 +1700,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         if (state.subview === "summary" && state.summaryText) {
           currentSummaryText = state.summaryText;
-          currentSummaryLanguage = settings.summaryLanguage;
+          currentSummaryLanguage =
+            state.summaryLanguage ?? settings.summaryLanguage;
+          currentTranslationEngine =
+            state.translationEngine ?? settings.translationEngine;
           summaryText.innerHTML = renderMarkdown(state.summaryText);
           makeSummaryPassagesFocusable();
           setSummaryCopyButtonsVisible(!!state.summaryText.trim());
@@ -1715,6 +1742,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       model,
       settings.summaryLanguage,
       settings.customInstructions,
+      settings.translationEngine,
     );
     const promptsCacheKey = await getPromptsCacheKey(
       tab.url,
@@ -1722,12 +1750,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       model,
       settings.summaryLanguage,
       settings.customInstructions,
+      settings.translationEngine,
     );
     const cached = await chrome.storage.local.get([cacheKey, promptsCacheKey]);
 
     if (cached[cacheKey]) {
       currentSummaryText = cached[cacheKey];
       currentSummaryLanguage = settings.summaryLanguage;
+      currentTranslationEngine = settings.translationEngine;
       summaryText.innerHTML = renderMarkdown(cached[cacheKey]);
       makeSummaryPassagesFocusable();
       setSummaryCopyButtonsVisible(!!cached[cacheKey].trim());
@@ -1898,7 +1928,8 @@ summaryLanguageSelect?.addEventListener("change", async () => {
 
 translationEngineRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
-    await saveSettings({ translationEngine: radio.value });
+    const settings = await saveSettings({ translationEngine: radio.value });
+    await updateResummarizeHint(settings);
   });
 });
 
@@ -2013,6 +2044,7 @@ async function clearCachedData() {
   const viewStates = await clearAllViewStates();
   currentSummaryText = "";
   currentSummaryLanguage = null;
+  currentTranslationEngine = null;
   updateResummarizeHint();
   await loadPastSummaries();
   return pages + viewStates;
