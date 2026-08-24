@@ -53,6 +53,11 @@ async function extractPageContent() {
     if (data) return { ...data, isPdf: false };
   }
 
+  if (isHost("arxiv.org")) {
+    const data = extractArxiv();
+    if (data) return { ...data, isPdf: false };
+  }
+
   const data = extractGeneric();
   return { ...data, isPdf: false };
 }

@@ -52,6 +52,7 @@ export default [
         extractLobsters: "readonly",
         extractGitHub: "readonly",
         extractWikipedia: "readonly",
+        extractArxiv: "readonly",
       },
     },
   },

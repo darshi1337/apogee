@@ -84,6 +84,7 @@ export async function extractFromActiveTab(tab) {
           "/content/extractors/lobsters.js",
           "/content/extractors/github.js",
           "/content/extractors/wikipedia.js",
+          "/content/extractors/arxiv.js",
           "/content/content.js",
         ],
       });
