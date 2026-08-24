@@ -55,7 +55,7 @@ Apogee extension codebase lives in `apogee-extension/`. Below is a breakdown of 
 
 ### 1. `content/` (Tab Context Extractor Scripts)
 
-- **What it Contains**: Scripts injected directly into active browser tabs when you trigger summarization or Q&A. Includes `content.js` (main injection script), `Readability.js` (bundled article parser from Mozilla themselves), and specialized site extractors in `content/extractors/` such as `youtube.js`, `bilibili.js`, `wikipedia.js`, `reddit.js`, `gmail.js`, `hackerNews.js`, `github.js`, `lobsters.js`, and `plainArticle.js`.
+- **What it Contains**: Scripts injected directly into active browser tabs when you trigger summarization or Q&A. Includes `content.js` (main injection script), `Readability.js` (bundled article parser from Mozilla themselves), and specialized site extractors in `content/extractors/` such as `youtube.js`, `bilibili.js`, `wikipedia.js`, `reddit.js`, `gmail.js`, `hackerNews.js`, `github.js`, `lobsters.js`, `arxiv.js`, and `plainArticle.js`.
 - **How to Contribute**: Create a new extractor file in `content/extractors/` that reads DOM nodes cleanly without mutating global window scope. Register your extractor in `lib/extract/pageExtraction.js`, create a static HTML test fixture in `tests/extractors/fixtures/`, and add unit test cases in `tests/extractors/`.
 
 ### 2. `lib/` (Core Application Libraries)

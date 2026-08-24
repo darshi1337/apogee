@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **arXiv abstract extractor.** Custom extractor for arXiv abstract pages (`/abs/*`) that parses paper titles, authors, subjects, arXiv ID, PDF link, and abstract into structured Markdown. (#93)
 - **On-device semantic search for past summaries.** Real-time vector search across saved summary titles and content bodies powered by `all-MiniLM-L6-v2` embeddings, automatically stored and capped alongside cached summaries in local storage. (#9)
 - **Unit test coverage for cleaner module.** Tests for `lib/summarize/cleaner.js` covering whitespace collapsing, line trimming, double-newline collapsing, and already-clean text. (#79)
 - **Unit test coverage for Bilibili extractor.** Extractor tests for `content/extractors/bilibili.js`. (#78)

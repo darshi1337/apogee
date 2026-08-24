@@ -14,6 +14,7 @@ Read the one closest to what you're building:
 
 | File                 | Shows                                                                   |
 | -------------------- | ----------------------------------------------------------------------- |
+| `arxiv.test.js`      | Clean extraction of title, authors, subjects, and abstract from arXiv   |
 | `bilibili.test.js`   | Subtitle fetch via `chrome` stub, multi-part page selection, null cases |
 | `gmail.test.js`      | The simplest shape: synchronous, DOM only                               |
 | `github.test.js`     | Landing page, issues, and fetching diffs for pull requests              |
