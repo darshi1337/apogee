@@ -82,6 +82,25 @@ test("extractArxiv returns null for non-abstract arXiv pages", () => {
   }
 });
 
+test("arXiv PDF pages use the existing PDF extraction path", async () => {
+  const context = loadExtractors({
+    files: ["extractors/arxiv.js", "content.js"],
+    url: "https://arxiv.org/pdf/2401.01234",
+    fixture: "arxiv-abstract.html",
+  });
+  Object.defineProperty(context.document, "contentType", {
+    value: "application/pdf",
+    configurable: true,
+  });
+
+  const result = await context.window.extractPageContent();
+
+  assert.strictEqual(result.title, "A Synthetic Study of Quiet Machines");
+  assert.strictEqual(result.url, "https://arxiv.org/pdf/2401.01234");
+  assert.strictEqual(result.content, null);
+  assert.strictEqual(result.isPdf, true);
+});
+
 test("extractArxiv returns null for malformed or missing abstracts", () => {
   assert.strictEqual(
     extract({ url: "https://arxiv.org/abs/not-an-identifier" }),
