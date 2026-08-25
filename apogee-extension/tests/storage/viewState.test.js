@@ -3,6 +3,7 @@ import assert from "node:assert";
 
 import {
   saveViewState,
+  saveViewStateIfJobMatches,
   loadViewState,
   clearAllViewStates,
 } from "../../lib/storage/viewState.js";
@@ -122,4 +123,99 @@ test("view state stores a hash of the url, never the url itself", async () => {
   assert.strictEqual(stored.url, undefined);
   assert.strictEqual(stored.urlHash, await hashUrl(url));
   assert.ok(!JSON.stringify(data).includes("hunter2"));
+});
+
+test("matching job finalization survives a completion before stream setup", async () => {
+  installFakeStorage({ settings: { saveHistory: true } });
+  const url = "https://example.com/article";
+
+  await saveViewState(7, {
+    view: "summaryView",
+    subview: "summarizing",
+    url,
+    jobId: "job-fast",
+    streamId: null,
+  });
+
+  const completed = await saveViewStateIfJobMatches(
+    7,
+    "job-fast",
+    {
+      view: "summaryView",
+      subview: "summary",
+      url,
+      streamId: null,
+      summaryText: "The completed result.",
+    },
+    "summarizing",
+  );
+  const lateStreamWrite = await saveViewStateIfJobMatches(
+    7,
+    "job-fast",
+    { subview: "summarizing", streamId: "stream-too-late" },
+    "summarizing",
+  );
+
+  assert.strictEqual(completed.subview, "summary");
+  assert.strictEqual(lateStreamWrite, null);
+  assert.deepStrictEqual(await loadViewState(7), completed);
+});
+
+test("an older job cannot replace a newer job with the same cache key", async () => {
+  installFakeStorage({ settings: { saveHistory: true } });
+  const url = "https://example.com/article";
+  const cacheKey = "summary:same-settings";
+
+  await saveViewState(7, {
+    view: "summaryView",
+    subview: "summarizing",
+    url,
+    jobId: "job-old",
+    streamId: "stream-old",
+    cacheKey,
+  });
+  await saveViewState(7, {
+    view: "summaryView",
+    subview: "summarizing",
+    url,
+    jobId: "job-new",
+    streamId: "stream-new",
+    summaryText: "",
+    cacheKey,
+  });
+
+  const staleCompletion = await saveViewStateIfJobMatches(
+    7,
+    "job-old",
+    {
+      subview: "summary",
+      streamId: null,
+      summaryText: "Stale result",
+    },
+    "summarizing",
+  );
+
+  assert.strictEqual(staleCompletion, null);
+  assert.deepStrictEqual(await loadViewState(7), {
+    view: "summaryView",
+    subview: "summarizing",
+    url: undefined,
+    urlHash: await hashUrl(url),
+    jobId: "job-new",
+    streamId: "stream-new",
+    summaryText: "",
+    cacheKey,
+  });
+
+  const currentCompletion = await saveViewStateIfJobMatches(
+    7,
+    "job-new",
+    {
+      subview: "summary",
+      streamId: null,
+      summaryText: "Current result",
+    },
+    "summarizing",
+  );
+  assert.strictEqual(currentCompletion.summaryText, "Current result");
 });

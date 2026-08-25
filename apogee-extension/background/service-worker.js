@@ -41,7 +41,11 @@ import {
   getModelForSettings,
 } from "../lib/engines/providers.js";
 import { PROVIDERS, TRANSLATION_ENGINES } from "../lib/constants.js";
-import { saveViewState, removeViewState } from "../lib/storage/viewState.js";
+import {
+  saveViewState,
+  saveViewStateIfJobMatches,
+  removeViewState,
+} from "../lib/storage/viewState.js";
 
 initDebugLogging();
 
@@ -128,6 +132,21 @@ async function ensureOffscreenDocumentOnce() {
 
 function nextStreamId(kind) {
   return `${kind}-${crypto.randomUUID()}`;
+}
+async function recordPopupSummaryStream(payload, streamId) {
+  const finalize = payload?.finalize;
+  if (!finalize?.jobId || finalize.tabId == null) return;
+  await saveViewStateIfJobMatches(
+    finalize.tabId,
+    finalize.jobId,
+    {
+      streamId,
+      promptsCacheKey: finalize.promptsCacheKey,
+      summaryLanguage: finalize.language,
+      translationEngine: finalize.translationEngine,
+    },
+    "summarizing",
+  );
 }
 
 function isOffscreenStream(streamId) {
@@ -617,6 +636,7 @@ async function runBackgroundSummarize(
     }
   }
 
+  const jobId = `summary-${crypto.randomUUID()}`;
   const finalize = {
     cacheKey: await getSummaryCacheKey(
       cacheUrl,
@@ -644,6 +664,7 @@ async function runBackgroundSummarize(
     translationEngine: settings.translationEngine,
     sensitive: await isPrivateUrl(tab.url, settings),
     tabId: tab.id,
+    jobId,
     windowId: tab.windowId,
   };
 
@@ -664,13 +685,31 @@ async function runBackgroundSummarize(
   let streamId;
   if (providerType === PROVIDERS.LOCAL) {
     streamId = nextStreamId("ollama");
-    startOllamaStream(streamId, { ...common, host: settings.ollamaHost });
   } else if (providerType === PROVIDERS.TRANSFORMERS) {
     streamId = nextStreamId("transformers");
-    startTransformersStream(streamId, common);
   } else {
     await ensureOffscreenDocument();
     streamId = nextStreamId("webllm");
+  }
+
+  await saveViewState(tab.id, {
+    view: "summaryView",
+    subview: "summarizing",
+    url: tab.url,
+    streamId,
+    jobId,
+    summaryText: "",
+    timeSaved: null,
+    promptsCacheKey: finalize.promptsCacheKey,
+    summaryLanguage: settings.summaryLanguage,
+    translationEngine: settings.translationEngine,
+  });
+
+  if (providerType === PROVIDERS.LOCAL) {
+    startOllamaStream(streamId, { ...common, host: settings.ollamaHost });
+  } else if (providerType === PROVIDERS.TRANSFORMERS) {
+    startTransformersStream(streamId, common);
+  } else {
     const resp = await chrome.runtime.sendMessage({
       target: "offscreen",
       action: "summarize",
@@ -679,16 +718,6 @@ async function runBackgroundSummarize(
     });
     if (resp?.error) throw new Error(resp.error);
   }
-
-  await saveViewState(tab.id, {
-    view: "summaryView",
-    subview: "summarizing",
-    url: tab.url,
-    streamId,
-    promptsCacheKey: finalize.promptsCacheKey,
-    summaryLanguage: settings.summaryLanguage,
-    translationEngine: settings.translationEngine,
-  });
 }
 
 function notifyJobFailed(err) {
@@ -983,6 +1012,7 @@ async function finalizeSummaryJob({ finalize, model, title, url, text }) {
     notifyOnFinish,
     sensitive,
     tabId,
+    jobId,
     windowId,
     language,
     translationEngine,
@@ -1001,17 +1031,22 @@ async function finalizeSummaryJob({ finalize, model, title, url, text }) {
       title,
     ));
 
-  if (!persisted && isSelection) {
-    await saveViewState(tabId, {
-      view: "summaryView",
-      subview: "summary",
-      url,
-      streamId: null,
-      summaryText: text,
-      promptsCacheKey,
-      summaryLanguage: language,
-      translationEngine,
-    });
+  if (persisted || isSelection) {
+    await saveViewStateIfJobMatches(
+      tabId,
+      jobId,
+      {
+        view: "summaryView",
+        subview: "summary",
+        url: persistUrl || url,
+        streamId: null,
+        summaryText: text,
+        promptsCacheKey,
+        summaryLanguage: language,
+        translationEngine,
+      },
+      "summarizing",
+    );
   }
   runSuggestQuestionsJob({
     promptsCacheKey,
@@ -1253,6 +1288,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           await ensureOffscreenDocument();
 
           const streamId = nextStreamId("webllm");
+          await recordPopupSummaryStream(message.payload, streamId);
 
           const { customInstructions } = await getSettings();
           const resp = await chrome.runtime.sendMessage({
@@ -1269,6 +1305,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case "ollama-stream": {
           const streamId = nextStreamId("ollama");
+          await recordPopupSummaryStream(message.payload, streamId);
           startOllamaStream(streamId, message.payload);
           sendResponse({ streamId });
           break;
@@ -1315,6 +1352,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case "transformers-stream": {
           const streamId = nextStreamId("transformers");
+          await recordPopupSummaryStream(message.payload, streamId);
           if (hasOffscreenAPI) {
             await ensureOffscreenDocument();
             const { action, ...jobPayload } = message.payload;

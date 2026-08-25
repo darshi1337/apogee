@@ -9,17 +9,23 @@ const MAX_VIEW_STATES = 50;
 
 const acquireViewStateLock = createLock();
 
-export async function saveViewState(tabId, partial) {
-  if (tabId == null) return null;
+async function preparePartial(partial) {
   let scrubContent = false;
   if (partial.url) {
-    scrubContent = !(await shouldPersist(partial.url));
+    const url = partial.url;
+    scrubContent = !(await shouldPersist(url));
     partial = {
       ...partial,
       url: undefined,
-      urlHash: await hashUrl(partial.url),
+      urlHash: await hashUrl(url),
     };
   }
+  return { partial, scrubContent };
+}
+
+async function writeViewState(tabId, partial, expectedJob = null) {
+  if (tabId == null) return null;
+  const prepared = await preparePartial(partial);
   const release = await acquireViewStateLock();
   try {
     const key = viewStateKey(tabId);
@@ -27,8 +33,16 @@ export async function saveViewState(tabId, partial) {
       key,
       "viewStateOrder",
     ]);
-    const state = { ...(rest[key] || {}), ...partial };
-    if (scrubContent) {
+    const current = rest[key] || {};
+    if (
+      expectedJob &&
+      (current.jobId !== expectedJob.jobId ||
+        (expectedJob.subview && current.subview !== expectedJob.subview))
+    ) {
+      return null;
+    }
+    const state = { ...current, ...prepared.partial };
+    if (prepared.scrubContent) {
       delete state.question;
       delete state.answerText;
       delete state.summaryText;
@@ -47,6 +61,20 @@ export async function saveViewState(tabId, partial) {
   } finally {
     release();
   }
+}
+
+export function saveViewState(tabId, partial) {
+  return writeViewState(tabId, partial);
+}
+
+export function saveViewStateIfJobMatches(
+  tabId,
+  jobId,
+  partial,
+  subview = null,
+) {
+  if (!jobId) return Promise.resolve(null);
+  return writeViewState(tabId, partial, { jobId, subview });
 }
 
 export async function loadViewState(tabId) {

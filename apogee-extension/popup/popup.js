@@ -41,6 +41,7 @@ import {
 } from "../lib/util/readingTime.js";
 import {
   saveViewState,
+  saveViewStateIfJobMatches,
   loadViewState,
   clearAllViewStates,
   isViewStateKey,
@@ -1115,9 +1116,22 @@ function renderSummaryError(error) {
   renderError(summaryText, toUserMessage(error));
 }
 
-function returnHomeAfterCancel(tabId) {
+async function returnHomeAfterCancel(tabId, jobId = null) {
+  const state = jobId
+    ? await saveViewStateIfJobMatches(
+        tabId,
+        jobId,
+        { view: "homeView", subview: null, streamId: null, jobId: null },
+        "summarizing",
+      )
+    : await saveViewState(tabId, {
+        view: "homeView",
+        subview: null,
+        streamId: null,
+        jobId: null,
+      });
+  if (!state) return;
   showOnlyView("homeView");
-  saveViewState(tabId, { view: "homeView", streamId: null });
 }
 
 function showSummaryContext(questions = []) {
@@ -1212,7 +1226,7 @@ async function streamGeneratorIntoElement(generator, element) {
   return fullText;
 }
 
-async function consumeSummaryStream(stream, { tab, promptsCacheKey }) {
+async function consumeSummaryStream(stream, { tab, promptsCacheKey, jobId }) {
   const text = await streamGeneratorIntoElement(stream, summaryText);
 
   currentSummaryText = text;
@@ -1221,11 +1235,12 @@ async function consumeSummaryStream(stream, { tab, promptsCacheKey }) {
   setSummaryCopyButtonsVisible(!!text.trim());
   updateResummarizeHint();
   updateTimeSavedBadge(currentPageData, text);
-  await saveViewState(tab.id, {
+  const completedState = {
     view: "summaryView",
     subview: "summary",
     url: tab.url,
     streamId: null,
+    summaryText: text,
     timeSaved: timeSavedInputsFor({
       type: currentPageData?.type,
       durationSeconds: currentPageData?.durationSeconds,
@@ -1233,7 +1248,17 @@ async function consumeSummaryStream(stream, { tab, promptsCacheKey }) {
     }),
     summaryLanguage: currentSummaryLanguage,
     translationEngine: currentTranslationEngine,
-  });
+  };
+  if (jobId) {
+    await saveViewStateIfJobMatches(
+      tab.id,
+      jobId,
+      completedState,
+      "summarizing",
+    );
+  } else {
+    await saveViewState(tab.id, completedState);
+  }
   setSuggestedQuestionsLoading();
 
   currentPromptsCacheKey = promptsCacheKey;
@@ -1256,6 +1281,7 @@ async function summarizeActivePage() {
   showSummarizingContext();
   setLoadingIndicator(summaryText, randomSummarizeVerb());
 
+  const jobId = `summary-${crypto.randomUUID()}`;
   try {
     const [tab] = await chrome.tabs.query({
       active: true,
@@ -1266,6 +1292,10 @@ async function summarizeActivePage() {
       subview: "summarizing",
       url: tab.url,
       streamId: null,
+      jobId,
+      summaryText: "",
+      timeSaved: null,
+      promptsCacheKey: null,
     });
     const settings = await getSettings();
     const provider = getProvider(settings);
@@ -1322,6 +1352,8 @@ async function summarizeActivePage() {
       notifyOnFinish: false,
       language: settings.summaryLanguage,
       translationEngine: settings.translationEngine,
+      jobId,
+      tabId: tab.id,
     };
 
     let streamId, stream;
@@ -1373,22 +1405,34 @@ async function summarizeActivePage() {
       }));
     }
 
-    await saveViewState(tab.id, {
-      view: "summaryView",
-      subview: "summarizing",
-      url: tab.url,
-      streamId,
-      promptsCacheKey,
-      summaryLanguage: settings.summaryLanguage,
-      translationEngine: settings.translationEngine,
-    });
+    const activeJobState = await saveViewStateIfJobMatches(
+      tab.id,
+      jobId,
+      {
+        view: "summaryView",
+        subview: "summarizing",
+        url: tab.url,
+        streamId,
+        promptsCacheKey,
+        summaryLanguage: settings.summaryLanguage,
+        translationEngine: settings.translationEngine,
+      },
+      "summarizing",
+    );
+    if (!activeJobState) {
+      const latestState = await loadViewState(tab.id);
+      if (latestState?.jobId !== jobId) {
+        cancelStream(streamId);
+        return;
+      }
+    }
     showCancelSummarizeButton(streamId);
 
-    await consumeSummaryStream(stream, { tab, promptsCacheKey });
+    await consumeSummaryStream(stream, { tab, promptsCacheKey, jobId });
     announce("Summary ready.");
   } catch (error) {
     if (error instanceof StreamCancelledError) {
-      returnHomeAfterCancel(activeTabId);
+      await returnHomeAfterCancel(activeTabId, jobId);
     } else {
       renderSummaryError(error);
     }
@@ -1615,7 +1659,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     activeTabId = tab.id;
     setLinkifyOriginFromUrl(tab.url);
 
-    const state = await loadViewState(tab.id);
+    let state = await loadViewState(tab.id);
 
     if (state && state.urlHash === (await hashUrl(tab.url)) && state.streamId) {
       currentSummaryLanguage =
@@ -1627,23 +1671,46 @@ document.addEventListener("DOMContentLoaded", async () => {
         showSummarizingContext();
         setLoadingIndicator(summaryText, randomSummarizeVerb());
         showCancelSummarizeButton(state.streamId);
+        let resumeFromCompletedState = false;
         try {
           await getPageData(tab);
           await consumeSummaryStream(attachToStream(state.streamId), {
             tab,
             promptsCacheKey: state.promptsCacheKey,
+            jobId: state.jobId,
           });
         } catch (error) {
           if (error instanceof StreamCancelledError) {
-            returnHomeAfterCancel(tab.id);
+            await returnHomeAfterCancel(tab.id, state.jobId);
           } else {
-            renderSummaryError(error);
-            await saveViewState(tab.id, { streamId: null });
+            const completedState = await loadViewState(tab.id);
+            if (
+              state.jobId &&
+              completedState?.jobId === state.jobId &&
+              completedState.subview === "summary" &&
+              !completedState.streamId &&
+              completedState.summaryText
+            ) {
+              state = completedState;
+              resumeFromCompletedState = true;
+            } else {
+              renderSummaryError(error);
+              if (state.jobId) {
+                await saveViewStateIfJobMatches(
+                  tab.id,
+                  state.jobId,
+                  { streamId: null },
+                  "summarizing",
+                );
+              } else {
+                await saveViewState(tab.id, { streamId: null });
+              }
+            }
           }
         } finally {
           hideCancelSummarizeButton();
         }
-        return;
+        if (!resumeFromCompletedState) return;
       }
 
       if (state.subview === "answer") {
