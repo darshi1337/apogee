@@ -37,6 +37,12 @@
         "mac": "Alt+Shift+U"
       },
       "description": "Summarize the active page"
+    },
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+A",
+        "mac": "Alt+Shift+A"
+      }
     }
   },
   "content_security_policy": {
