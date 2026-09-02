@@ -74,6 +74,11 @@ import {
 } from "../lib/extract/selection.js";
 import { ensurePermissionsForUrl } from "../lib/util/permissions.js";
 import { icon, ICONS } from "./icons.js";
+import {
+  COULD_NOT_READ_THIS_PAGE_ERROR_MSG,
+  NOTHING_TO_SUMMARIZE_ERROR_MSG,
+  COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG,
+} from "../lib/util/messages.js";
 
 async function isSidePanelOpenForTab(tabId) {
   if (!tabId || typeof chrome.runtime?.sendMessage !== "function") return false;
@@ -1541,17 +1546,11 @@ async function summarizeActivePage() {
     const pageData = await extractFromActiveTab(tab);
 
     if (!pageData) {
-      renderError(
-        summaryText,
-        "Couldn't read this page, try reloading it, or pick a different tab.",
-      );
+      renderError(summaryText, COULD_NOT_READ_THIS_PAGE_ERROR_MSG);
       return;
     }
     if (!pageData.isPdf && !pageData.content) {
-      renderError(
-        summaryText,
-        "Nothing to summarize here yet, open a page, email, or video first.",
-      );
+      renderError(summaryText, NOTHING_TO_SUMMARIZE_ERROR_MSG);
       return;
     }
     currentPageData = pageData;
@@ -1611,10 +1610,7 @@ async function summarizeActivePage() {
         throw err;
       }
       if (!pdfContent) {
-        renderError(
-          summaryText,
-          "Couldn't pull any text out of this PDF, it might be a scanned image.",
-        );
+        renderError(summaryText, COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG);
         return;
       }
       pageData.content = pdfContent;
