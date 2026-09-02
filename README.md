@@ -6,9 +6,7 @@
 
 A private, in-browser AI summarizer for your articles, videos, PDFs, DOCX files, and pasted text. Runs on WebGPU, WebAssembly, or your own local Ollama or llama.cpp server.
 
-<a href="https://chromewebstore.google.com/detail/apogee/pgemlpomhkdcjjjcpnjlebalnfglomog"><img alt="Available in Chrome Web Store" src=".github/assets/chrome-web-store.png" width="206" height="58"></a>
-&nbsp;
-<a href="https://addons.mozilla.org/en-US/firefox/addon/apogeeext/"><img alt="Get Add-on for Firefox" src=".github/assets/firefox-add-on.svg" width="152" height="53"></a>
+<a href="https://chromewebstore.google.com/detail/apogee/pgemlpomhkdcjjjcpnjlebalnfglomog"><img alt="Available in Chrome Web Store" src=".github/assets/chrome-web-store.png" width="206" height="58"></a> &nbsp; <a href="https://addons.mozilla.org/en-US/firefox/addon/apogeeext/"><img alt="Get Add-on for Firefox" src=".github/assets/firefox-add-on.svg" width="152" height="53"></a>
 
 <a href="https://darshi1337.github.io/apogee/">Website</a> | <a href="ARCHITECTURE.md">Architecture</a> | <a href="MODELS.md">Models</a> | <a href="BROWSERS.md">Browsers</a> | <a href="PRIVACY.md">Privacy</a> | <a href="ROADMAP.md">Roadmap</a> | <a href="STORE-LISTING.md">Store listing</a> | <a href="LICENSE">License</a>
 
@@ -48,16 +46,16 @@ Apogee fixes Orbit's architectural and privacy flaws by being fully local-first:
 
 The table below compares Apogee with typical cloud-based AI extensions and Mozilla's discontinued Orbit project.
 
-| Feature or Architecture       | Apogee                                                  | Cloud AI Extensions                        | Mozilla Orbit Project                       |
-| :---------------------------- | :------------------------------------------------------ | :----------------------------------------- | :------------------------------------------ |
-| Local On-Device Inference     | Yes (WebGPU, WASM, Ollama, and llama.cpp)               | No (Requires cloud API endpoints)          | No (Relied on remote Mistral 7B servers)    |
-| Zero API Key Requirement      | Yes (No keys, subscriptions, or accounts)               | No (Requires API keys or paid tiers)       | Yes                                         |
-| Offline Functionality         | Yes (Works offline after initial weight cache)          | No (Requires active internet connection)   | No (Failed without server connection)       |
-| Zero Data Transmission        | Yes (Page contents never leave your device)             | No (Full webpage text uploaded to servers) | No (Page summaries cached on remote server) |
-| Open Source License           | Yes (MIT License)                                       | Varies                                     | Yes                                         |
-| Local Ollama Integration      | Yes (Direct loopback HTTP connection)                   | Rare                                       | No                                          |
-| Local llama.cpp Integration   | Yes (Direct loopback HTTP connection to `llama-server`) | Rare                                       | No                                          |
-| Grounded Passage Highlighting | Yes (Interactive source sentence scroll)                | Rare                                       | No                                          |
+| Feature or Architecture | Apogee | Cloud AI Extensions | Mozilla Orbit Project |
+| :-- | :-- | :-- | :-- |
+| Local On-Device Inference | Yes (WebGPU, WASM, Ollama, and llama.cpp) | No (Requires cloud API endpoints) | No (Relied on remote Mistral 7B servers) |
+| Zero API Key Requirement | Yes (No keys, subscriptions, or accounts) | No (Requires API keys or paid tiers) | Yes |
+| Offline Functionality | Yes (Works offline after initial weight cache) | No (Requires active internet connection) | No (Failed without server connection) |
+| Zero Data Transmission | Yes (Page contents never leave your device) | No (Full webpage text uploaded to servers) | No (Page summaries cached on remote server) |
+| Open Source License | Yes (MIT License) | Varies | Yes |
+| Local Ollama Integration | Yes (Direct loopback HTTP connection) | Rare | No |
+| Local llama.cpp Integration | Yes (Direct loopback HTTP connection to `llama-server`) | Rare | No |
+| Grounded Passage Highlighting | Yes (Interactive source sentence scroll) | Rare | No |
 
 ## What It Can Do
 

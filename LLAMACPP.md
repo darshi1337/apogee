@@ -44,12 +44,12 @@ Apogee only connects to `127.0.0.1` and `localhost`. A server bound elsewhere is
 
 The status line under the model name tells you where you stand:
 
-| What it says                                                  | What it means                                                                 |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Detected from the server, N token context                     | Connected, and Apogee knows the running context window                        |
-| N models available                                            | A proxy in front of `llama-server` is serving several                         |
+| What it says | What it means |
+| --- | --- |
+| Detected from the server, N token context | Connected, and Apogee knows the running context window |
+| N models available | A proxy in front of `llama-server` is serving several |
 | Connected, but the model could not be read. Check the API key | The server is up but `/v1/models` refused; usually a missing or wrong API key |
-| Not connected                                                 | Nothing answered on that address                                              |
+| Not connected | Nothing answered on that address |
 
 ## The Model Field
 
@@ -97,22 +97,22 @@ Note that `/health` stays public even with a key set, so a wrong key shows as **
 
 Any instruction-tuned GGUF works. Pick a quantisation your RAM or VRAM can hold.
 
-| Model                  | Size    | Command                                                             | Notes                                         |
-| ---------------------- | ------- | ------------------------------------------------------------------- | --------------------------------------------- |
-| Qwen 2.5 7B Instruct   | ~4.7 GB | `llama-server -hf Qwen/Qwen2.5-7B-Instruct-GGUF:Q4_K_M`             | Strong multilingual summarisation             |
-| Llama 3.1 8B Instruct  | ~4.9 GB | `llama-server -hf bartowski/Meta-Llama-3.1-8B-Instruct-GGUF:Q4_K_M` | Good reasoning on technical pages             |
-| Gemma 2 9B Instruct    | ~5.8 GB | `llama-server -hf bartowski/gemma-2-9b-it-GGUF:Q4_K_M`              | Fluent prose summaries                        |
-| Qwen 2.5 0.5B Instruct | ~400 MB | `llama-server -hf Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M`           | Fast, low memory, useful for trying the setup |
+| Model | Size | Command | Notes |
+| --- | --- | --- | --- |
+| Qwen 2.5 7B Instruct | ~4.7 GB | `llama-server -hf Qwen/Qwen2.5-7B-Instruct-GGUF:Q4_K_M` | Strong multilingual summarisation |
+| Llama 3.1 8B Instruct | ~4.9 GB | `llama-server -hf bartowski/Meta-Llama-3.1-8B-Instruct-GGUF:Q4_K_M` | Good reasoning on technical pages |
+| Gemma 2 9B Instruct | ~5.8 GB | `llama-server -hf bartowski/gemma-2-9b-it-GGUF:Q4_K_M` | Fluent prose summaries |
+| Qwen 2.5 0.5B Instruct | ~400 MB | `llama-server -hf Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M` | Fast, low memory, useful for trying the setup |
 
 ## Useful Flags
 
-| Flag            | Does                                                         |
-| --------------- | ------------------------------------------------------------ |
-| `-c N`          | Context window. Apogee reads this and sizes chunks to match. |
-| `-ngl N`        | Layers to offload to GPU. `-ngl 99` offloads as many as fit. |
-| `-t N`          | CPU threads.                                                 |
-| `--port N`      | Port to listen on; match it in Settings.                     |
-| `--api-key KEY` | Require a bearer token.                                      |
+| Flag | Does |
+| --- | --- |
+| `-c N` | Context window. Apogee reads this and sizes chunks to match. |
+| `-ngl N` | Layers to offload to GPU. `-ngl 99` offloads as many as fit. |
+| `-t N` | CPU threads. |
+| `--port N` | Port to listen on; match it in Settings. |
+| `--api-key KEY` | Require a bearer token. |
 
 ## Troubleshooting
 
