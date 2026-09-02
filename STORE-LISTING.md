@@ -39,7 +39,7 @@ TWO WAYS TO RUN IT
 
 PRIVACY
 
-• No cloud inference. Models run on your device • No API keys, no sign-in, no account • No analytics or tracking • Network access is limited to: downloading model weights (from Hugging Face) on first run, and a translation model from the same place if you opt into the dedicated translation engine, your own local Ollama at 127.0.0.1, for YouTube videos the community SponsorBlock API to skip sponsor segments, and for Bilibili videos that site's own subtitle endpoints (api.bilibili.com, hdslb.com) • Page content is processed locally and never uploaded
+• No cloud inference. Models run on your device • No API keys, no sign-in, no account • No analytics or tracking • Network access is limited to: downloading model weights (from Hugging Face) on first run, and a translation model from the same place if you opt into the dedicated translation engine, your own local Ollama at 127.0.0.1, for YouTube videos the community SponsorBlock API to skip sponsor segments, for Bilibili videos that site's own subtitle endpoints (api.bilibili.com, hdslb.com), and for Bluesky posts the public AT Protocol thread endpoint (public.api.bsky.app) • Page content is processed locally and never uploaded
 
 REQUIREMENTS
 
@@ -77,13 +77,13 @@ Apogee summarizes the web page, video, or PDF the user is currently viewing and 
 
 **Host permission justification** (`http://127.0.0.1/*`, `http://localhost/*`) These loopback host permissions let Apogee connect to the user's own local Ollama server for users who opt into Local Ollama mode, sending requests directly to the model running on their own machine. Only loopback addresses on the user's device are used.
 
-**Host permission justification** (`*://*.bilibili.com/*`, `*://*.hdslb.com/*`, `*://*.youtube.com/*`, `https://sponsor.ajay.app/*`) These site-specific cross-origin permissions are declared as `optional_host_permissions` in `manifest.json`. When the user summarizes a Bilibili or YouTube video, Apogee checks for granted permissions and prompts the user on-demand to fetch subtitles from Bilibili's API (`api.bilibili.com` / `hdslb.com`), transcript metadata, or SponsorBlock timestamps (`sponsor.ajay.app`). Standing host permissions are restricted strictly to loopback addresses (`127.0.0.1`/`localhost`), and every other site is accessed on-demand via `activeTab`.
+**Host permission justification** (`*://*.bilibili.com/*`, `*://*.hdslb.com/*`, `*://*.youtube.com/*`, `*://*.bsky.app/*`, `https://sponsor.ajay.app/*`) These site-specific cross-origin permissions are declared as `optional_host_permissions` in `manifest.json`. When the user summarizes a Bilibili or YouTube video, Apogee checks for granted permissions and prompts the user on-demand to fetch subtitles from Bilibili's API (`api.bilibili.com` / `hdslb.com`), transcript metadata, or SponsorBlock timestamps (`sponsor.ajay.app`). When the user summarizes a Bluesky post, Apogee fetches the thread from the public AT Protocol endpoint (`https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread`) carrying only the public `at://` URI, with DOM fallback when offline. Standing host permissions are restricted strictly to loopback addresses (`127.0.0.1`/`localhost`), and every other site is accessed on-demand via `activeTab`.
 
 ## Remote code
 
 **No, I am not using Remote code.**
 
-Rationale: the WASM runtimes ship bundled in the package (Transformers.js's WASM is bundled; WebLLM's WASM kernels are downloaded and SHA-256-verified at build time and included in `dist/`, not fetched at runtime). The only runtime downloads are model weight files from Hugging Face, which are data, not JS or Wasm. No `eval`, no external `<script>` tags, no remotely-hosted modules.
+Rationale: the WASM runtimes ship bundled in the package (Transformers.js's WASM is bundled; WebLLM's WASM kernels are downloaded and SHA-256-verified at build time and included in `dist/`, not fetched at runtime). The only runtime downloads are model weight files from Hugging Face, which are data, not JS or Wasm, plus the Bluesky public thread API (`public.api.bsky.app`) which returns JSON discussion data, not code. No `eval`, no external `<script>` tags, no remotely-hosted modules.
 
 ## Data usage
 
@@ -102,12 +102,12 @@ Certify all three disclosures (no selling/transfer, no unrelated use, no creditw
 
 Every listing image is committed in `.github/assets/`, so what is submitted to each store is the same file that is reviewable here. They were built from HTML and CSS in the same design language as the marketing site (`docs/`): Mozilla Headline and Mozilla Text, `#5855ff` purple, the `#f7f7f7` and `#161616` grounds, the lilac card tints, and the four vertical hairlines.
 
-| File in `.github/assets/` | Size | Used for |
-| --- | --- | --- |
-| `apogee-deck-1280x800-1..5.png` | 1280x800 | Chrome Web Store screenshots |
-| `apogee-deck-2400x1800-1..5.png` | 2400x1800 | Firefox Add-ons screenshots |
-| `apogee-promo-tile-440x280.png` | 440x280 | Small promo tile |
-| `apogee-marquee-1400x560.png` | 1400x560 | Marquee promo tile |
+| File in `.github/assets/`        | Size      | Used for                     |
+| -------------------------------- | --------- | ---------------------------- |
+| `apogee-deck-1280x800-1..5.png`  | 1280x800  | Chrome Web Store screenshots |
+| `apogee-deck-2400x1800-1..5.png` | 2400x1800 | Firefox Add-ons screenshots  |
+| `apogee-promo-tile-440x280.png`  | 440x280   | Small promo tile             |
+| `apogee-marquee-1400x560.png`    | 1400x560  | Marquee promo tile           |
 
 ### The five screenshots
 

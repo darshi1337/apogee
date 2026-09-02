@@ -8,17 +8,18 @@ This document outlines current work, upcoming priorities, and long-term goals fo
 
 - **Security & Resilience Hardening**:
   - Out-of-memory (OOM) recovery, stream cancellation buffer release, and overview chunking strategy. (#114)
+  - Hierarchical map-reduce for long inputs: every chunk is mapped and partials are tree-folded in groups of `fanIn` until within the model budget, preserving full coverage with OOM-safe fallbacks instead of silently dropping chunks via sampling. (#148)
   - Zero-trust message context validation (`sender.id`), global scope isolation, prompt injection neutralization, and payload bounds. (#121-#127)
 - **Multi-Tab Context (Shipped)**:
   - Batch summarize and synthesize across multiple selected tabs via right-click context menu ("Summarize with Apogee"). (#116)
 - **Local Document Input (Shipped)**:
   - Select or drag PDF, DOCX, TXT, Markdown, JSON, or HTML files into the popup, or paste arbitrary text for summarization. (#5, #6, #97)
 - **Extractor Expansion**:
-  - Add page extractors for more platforms (GitLab, Dev.to, Bluesky).
-  - Shipped extractors: YouTube, Bilibili, Wikipedia, Gmail, Reddit, Hacker News, GitHub, Lobsters, arXiv, Mastodon, Stack Overflow, Lemmy, Discourse.
+  - Add page extractors for more platforms (GitLab, Dev.to).
+  - Shipped extractors: YouTube, Bilibili, Wikipedia, Gmail, Reddit, Hacker News, GitHub, Lobsters, arXiv, Mastodon, Stack Overflow, Lemmy, Discourse, Bluesky.
   - Keep extractor creation simple so contributors can write unit-tested extractors in Node without running a browser.
 - **Test Coverage**:
-  - Expand test suites for existing extractors and core modules (426 tests passing).
+  - Expand test suites for existing extractors and core modules (455 tests passing).
 - **Firefox Feature Parity**:
   - Bring on-device vector retrieval (Ask) and sentence-level grounding (Highlight-in-page) to Firefox when browser APIs permit.
 - **Model and Performance Optimizations**:

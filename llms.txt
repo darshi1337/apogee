@@ -9,8 +9,9 @@ Apogee is an offline-first, private browser extension for Chrome, Edge, and Fire
 - `apogee-extension/popup/`: Extension popup UI (HTML, CSS, JS).
 - `apogee-extension/lib/engines/`: LLM engine implementations (WebLLM, Transformers.js, Ollama, llama.cpp).
 - `apogee-extension/lib/engines/llamaCppClient.js`: SSE streaming client and health/context detection for a local `llama-server`.
-- `apogee-extension/lib/extract/`: Article and video text extractors (`pageExtraction.js`, site extractors).
+- `apogee-extension/lib/extract/`: Article and video text extractors (`pageExtraction.js`, site extractors: YouTube, Bilibili, Wikipedia, Gmail, Reddit, Hacker News, GitHub, Lobsters, arXiv, Mastodon, Stack Overflow, Lemmy, Discourse, Bluesky).
 - `apogee-extension/lib/extract/pdfExtract.js`: Client-side PDF text extraction using pdf.js.
+- `apogee-extension/lib/summarize/mapReduce.js`: Hierarchical map-reduce with tree-folding for long inputs (every chunk mapped, partials folded in groups of `fanIn` until within `getMaxChunks` budget, OOM-safe fallbacks).
 - `apogee-extension/lib/retrieval/rag.js`: Embedding generation, vector similarity retrieval (Ask), and grounding logic.
 - `apogee-extension/lib/retrieval/pastSummariesSearch.js`: On-device semantic vector search across past saved summaries.
 - `apogee-extension/lib/util/userError.js`: `UserFacingError` class and `toUserMessage()` fallback mapper for sanitizing raw engine/browser errors before they reach users.

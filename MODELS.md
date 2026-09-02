@@ -62,9 +62,10 @@ When Local llama.cpp mode is selected, Apogee talks to your own `llama-server` o
 
 Apogee dynamically adjusts page chunking strategies based on your active model context window limit:
 
-- **Compact Context Models**: Smaller models with 2048 or 4096 token context windows use smaller text chunks with map-reduce passes to synthesize final summaries.
+- **Compact Context Models**: Smaller models with 2048 or 4096 token context windows use smaller text chunks with hierarchical map-reduce to synthesize final summaries. When an input produces more chunks than the model's `getMaxChunks` budget (4 for Transformers.js, 12 for Ollama), every chunk is mapped to a partial and partials are tree-folded in groups of `fanIn` until fewer than `maxChunks` remain before the final reduce, preserving full coverage instead of dropping material. The `{ stage: "truncated" }` progress event only fires when a custom `selectChunksFn` is provided; otherwise overflow is handled by the tree.
 - **Servers That Report Their Own Window**: `llama-server` takes its context window from its `-c` launch flag rather than from the model, so the same GGUF can be serving 4096 tokens or 32768 with an identical name. Apogee asks the server (`/props`, falling back to `/v1/models`) and sizes chunks to what it reports, rather than inferring a window from the model name.
 - **Large Context Models**: Models with large context windows (such as Ollama models supporting 32k or 128k tokens) receive larger text chunks, reducing processing passes and speeding up response generation on long pages.
+- **OOM Resilience**: Map and reduce steps detect `out of memory` / `allocation failed` errors, emit `{ stage: "oom_fallback" }`, and fall back to already-collected partials (or concatenated intermediates for a final-reduce OOM) so a memory-constrained device still returns coverage of every chunk instead of failing.
 
 ## Performance Benchmarks
 

@@ -12,7 +12,7 @@ What the labels mean:
 
 - **`good first issue`**: self-contained, no deep context needed, an evening's work
 - **`help wanted`**: real work we would like help with, but it assumes some familiarity with the codebase already
-- **`extractor`**: adding or improving per-site page extraction, the most repeatable kind of contribution here. `content/extractors/hackernews.js` and `reddit.js` are two examples to copy from, `thread.js` is the shared machinery they both build on, `wikipedia.js` shows how to cut a long page down and hand back `null` for pages you do not handle, and `youtube.js` is an example of transcript extraction with `chrome` message stubbing
+- **`extractor`**: adding or improving per-site page extraction, the most repeatable kind of contribution here. `content/extractors/hackernews.js` and `reddit.js` are two examples to copy from, `thread.js` is the shared machinery they both build on, `wikipedia.js` shows how to cut a long page down and hand back `null` for pages you do not handle, `bluesky.js` shows API-first extraction with DOM fallback, and `youtube.js` is an example of transcript extraction with `chrome` message stubbing
 
 **Extractor work needs no browser, no GPU, and no model download.** Extractors run against saved HTML fixtures in plain Node, so `npm install && npm test` is the whole setup. See [`apogee-extension/tests/extractors/README.md`](apogee-extension/tests/extractors/README.md) for the harness and worked examples. If that is the kind of contribution you want to make, you can skip the browser setup below entirely.
 

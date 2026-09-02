@@ -49,7 +49,7 @@ Apogee fixes Orbit's architectural and privacy flaws by being fully local-first:
 The table below compares Apogee with typical cloud-based AI extensions and Mozilla's discontinued Orbit project.
 
 | Feature or Architecture       | Apogee                                                  | Cloud AI Extensions                        | Mozilla Orbit Project                       |
-|:------------------------------|:--------------------------------------------------------|:-------------------------------------------|:--------------------------------------------|
+| :---------------------------- | :------------------------------------------------------ | :----------------------------------------- | :------------------------------------------ |
 | Local On-Device Inference     | Yes (WebGPU, WASM, Ollama, and llama.cpp)               | No (Requires cloud API endpoints)          | No (Relied on remote Mistral 7B servers)    |
 | Zero API Key Requirement      | Yes (No keys, subscriptions, or accounts)               | No (Requires API keys or paid tiers)       | Yes                                         |
 | Offline Functionality         | Yes (Works offline after initial weight cache)          | No (Requires active internet connection)   | No (Failed without server connection)       |
@@ -61,9 +61,10 @@ The table below compares Apogee with typical cloud-based AI extensions and Mozil
 
 ## What It Can Do
 
-- **Articles and Web Pages**: Clean extraction of text using Readability and specialized site extractors.
+- **Articles and Web Pages**: Clean extraction of text using Readability and specialized site extractors for Wikipedia, GitHub, Reddit, Hacker News, Bluesky, Mastodon, Lemmy, Discourse, Stack Overflow, Lobsters, and arXiv.
 - **Selected Text**: Select at least 20 characters on a supported webpage and use **Selection** in the popup or the browser context menu to summarize only that text. Follow-up Ask questions keep the selected text as their source context.
 - **YouTube and Bilibili Videos**: Interactive timestamped timelines allowing you to click key moments to seek video playback directly.
+- **Social Threads**: Bluesky, Reddit, Hacker News, Mastodon, Lemmy, Discourse, and other discussion platforms are parsed into structured Markdown preserving author, score, and reply hierarchy.
 - **Local documents and text**: Select or drag PDF, DOCX, TXT, Markdown, JSON, or HTML files into the popup, or paste text directly.
 - **Ask Q&A with Smart Retrieval**: Embedded passages are matched locally so you can ask questions about long documents without losing context.
 - **Grounding and Sentence Highlighting**: Click any summary bullet to scroll the webpage directly to the original source passage on Chromium browsers.

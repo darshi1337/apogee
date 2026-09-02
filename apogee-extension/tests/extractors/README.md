@@ -12,19 +12,20 @@ npm test
 
 Read the one closest to what you're building:
 
-| File                    | Shows                                                                   |
-| ----------------------- | ----------------------------------------------------------------------- |
-| `arxiv.test.js`         | Clean extraction of title, authors, subjects, and abstract from arXiv   |
-| `bilibili.test.js`      | Subtitle fetch via `chrome` stub, multi-part page selection, null cases |
-| `gmail.test.js`         | The simplest shape: synchronous, DOM only                               |
-| `github.test.js`        | Landing page, issues, and fetching diffs for pull requests              |
-| `hackernews.test.js`    | Feeding the shared thread representation in `thread.js`                 |
-| `lobsters.test.js`      | Another thread-based extractor, same shape as Hacker News               |
-| `reddit.test.js`        | An extractor that reads a site API, with `fetch` stubbed                |
-| `stackoverflow.test.js` | Question, accepted answer, score ranking, and comment hierarchy         |
-| `thread.test.js`        | Testing shared machinery directly, with no site extractor               |
-| `wikipedia.test.js`     | Cutting a page down, and returning `null` to fall through               |
-| `youtube.test.js`       | Caption URL security checks, transcript parsing, and `chrome` stubbing  |
+| File                    | Shows                                                                      |
+| ----------------------- | -------------------------------------------------------------------------- |
+| `arxiv.test.js`         | Clean extraction of title, authors, subjects, and abstract from arXiv      |
+| `bilibili.test.js`      | Subtitle fetch via `chrome` stub, multi-part page selection, null cases    |
+| `gmail.test.js`         | The simplest shape: synchronous, DOM only                                  |
+| `github.test.js`        | Landing page, issues, and fetching diffs for pull requests                 |
+| `hackernews.test.js`    | Feeding the shared thread representation in `thread.js`                    |
+| `lobsters.test.js`      | Another thread-based extractor, same shape as Hacker News                  |
+| `reddit.test.js`        | An extractor that reads a site API, with `fetch` stubbed                   |
+| `stackoverflow.test.js` | Question, accepted answer, score ranking, and comment hierarchy            |
+| `thread.test.js`        | Testing shared machinery directly, with no site extractor                  |
+| `wikipedia.test.js`     | Cutting a page down, and returning `null` to fall through                  |
+| `bluesky.test.js`       | API-first thread fetch via `fetch` stub with DOM fallback, depth/char caps |
+| `youtube.test.js`       | Caption URL security checks, transcript parsing, and `chrome` stubbing     |
 
 ## Writing a test
 

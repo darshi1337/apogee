@@ -27,6 +27,8 @@ Highlight-in-page lets you check the summary against the source: click any bulle
 
 Videos (YouTube and Bilibili) get their own treatment: Apogee pulls the video's timestamped transcript and produces a short written gist plus a "Key moments" timeline, sized to the video's length, where every entry is a clickable link that seeks the video to that moment. When a video's description defines real chapters, the summary follows those chapters instead. Sponsor reads and self-promotion are stripped from YouTube transcripts first (see the SponsorBlock note under Privacy).
 
+Social threads get dedicated extractors so long discussions are not flattened by Readability. Reddit, Hacker News, Lobsters, Bluesky, Mastodon, Lemmy, Discourse, Stack Overflow, and GitHub each parse titles, authors, scores, and reply trees into Markdown. Bluesky (`bsky.app`) leads with the public AT Protocol endpoint `https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread` (no auth, fully nested thread) and falls back to DOM parsing when offline, capped at 80 posts and depth 8.
+
 Wikipedia gets a dedicated extractor, because its articles are long in a particular way. On the World War II article the generic path pulled 169,014 characters, of which 76,568 (45%) were See also, Notes, References, Further reading and External links, so nearly half the model passes went on citation lists. The extractor cuts everything from the first appendix heading, drops navboxes, infoboxes and the 506 inline citation markers, and re-emits the real section headings so long articles are chunked on their own boundaries rather than at blind character offsets. Same article, 85,659 characters in 17 chunks instead of 30. No network call: the page is already open in your tab.
 
 Custom instructions (Settings) let you add your own standing guidance, for example "Explain like I'm five", "Focus on the technical details", or "Answer in a formal tone", applied on top of Apogee's built-in prompt for every summary and answer. They sit under the grounding rules (a page can't use them to make the model invent things), and are capped at 2000 characters. Leave the box blank to use the defaults unchanged.
@@ -39,7 +41,7 @@ The following diagram illustrates how components interact on your local device a
 flowchart TD
     subgraph device["Your Device"]
         subgraph page["Active Tab"]
-            EX["Extractors injected on demand<br/>Readability, YouTube, Bilibili, Wikipedia,<br/>Gmail, Reddit, HN, GitHub, Lobsters, arXiv,<br/>Mastodon, Stack Overflow, Lemmy, Discourse"]
+            EX["Extractors injected on demand<br/>Readability, YouTube, Bilibili, Wikipedia,<br/>Gmail, Reddit, HN, GitHub, Lobsters, arXiv,<br/>Mastodon, Stack Overflow, Lemmy, Discourse, Bluesky"]
             HL["Highlight overlay<br/>scrolls to source text"]
         end
 
@@ -63,7 +65,7 @@ flowchart TD
     end
 
     HF["Hugging Face<br/>model weights on first run"]
-    APIS["SponsorBlock, Bilibili API<br/>optional segment and subtitle lookups"]
+    APIS["SponsorBlock, Bilibili API, Bluesky API<br/>optional segment, subtitle, and thread lookups"]
 
     POPUP <==>|"inject extractors and read page"| EX
     POPUP -->|"highlight source passage"| HL
@@ -86,7 +88,7 @@ flowchart TD
 
 ## Summarization Sequence
 
-When you request a summary, content flows through extraction, chunking, map-reduce summarization, and token streaming.
+When you request a summary, content flows through extraction, chunking, hierarchical map-reduce summarization, and token streaming. Short inputs run a single prompt; long inputs exceeding the model's `getMaxChunks` budget (4 for Transformers.js, 12 for Ollama) are mapped per chunk and then tree-folded in groups of `fanIn` until fewer than `maxChunks` intermediates remain, then a final reduce streams the result. Every chunk is covered — overflow no longer drops material via stratified sampling — and OOM mid-reduce falls back to the concatenated partials so the user still gets coverage.
 
 ```mermaid
 sequenceDiagram
@@ -108,7 +110,7 @@ sequenceDiagram
     end
     P->>DB: Cache extracted content for fast reopening
     P->>SW: Start summarization job
-    SW->>Engine: Clean text, chunk content, and run map-reduce pass
+    SW->>Engine: Clean text, chunk content, and run hierarchical map-reduce
     loop Streaming Response
         Engine-->>SW: Stream generated token
         SW-->>P: Forward buffered token stream
@@ -150,4 +152,4 @@ When you click a summary bullet in Chromium browsers, Apogee highlights the exac
 - **Extractor Input Sanitization & Payload Validation**: Specialized site extractors (e.g., Gmail) sanitize header text and control characters to prevent prompt injection. YouTube and Bilibili extractors perform parameter cross-validation between target URLs (`videoId`, `bvid`, `aid`) and embedded script tag structures (`ytInitialPlayerResponse`, `__INITIAL_STATE__`).
 - **PDF Payload Bounds**: Binary PDF payloads processed via base64 in `extract-pdf` are validated for correct string typing and capped at a maximum size of 50 MB to prevent memory exhaustion attacks.
 - **Local File Parsing**: PDF and DOCX files selected or dropped into the popup are parsed inside extension code. DOCX ZIP entries are checked for valid structure, encrypted archives are rejected, and no document bytes are sent to a remote service.
-- **Memory Limits & Out-Of-Memory (OOM) Resilience**: In-browser models automatically intercept WebGPU buffer allocation failures and WASM memory limits, calling `resetEngineState` and falling back to bounded `chunkTextOverview` sampling to ensure reliable operation under tight memory constraints.
+- **Memory Limits & Out-Of-Memory (OOM) Resilience**: In-browser models automatically intercept WebGPU buffer allocation failures and WASM memory limits, calling `resetEngineState` and falling back to bounded `chunkTextOverview` sampling to ensure reliable operation under tight memory constraints. Long-input map-reduce is also OOM-aware: an `oom_fallback` progress event fires and the tree-reduce bails out gracefully, preserving already-produced partials and falling back to concatenated intermediates so the final reduce still streams coverage of every chunk.

@@ -64,7 +64,7 @@ Apogee extension codebase lives in `apogee-extension/`. Below is a breakdown of 
 
 ### 1. `content/` (Tab Context Extractor Scripts)
 
-- **What it Contains**: Scripts injected directly into active browser tabs when you trigger summarization or Q&A. Includes `content.js` (main injection script), `Readability.js` (bundled article parser from Mozilla), and specialized site extractors in `content/extractors/` such as `youtube.js`, `bilibili.js`, `wikipedia.js`, `reddit.js`, `gmail.js`, `hackerNews.js`, `github.js`, `lobsters.js`, `arxiv.js`, `mastodon.js`, `stackoverflow.js`, `lemmy.js`, and `discourse.js`.
+- **What it Contains**: Scripts injected directly into active browser tabs when you trigger summarization or Q&A. Includes `content.js` (main injection script), `Readability.js` (bundled article parser from Mozilla), and specialized site extractors in `content/extractors/` such as `youtube.js`, `bilibili.js`, `wikipedia.js`, `reddit.js`, `gmail.js`, `hackerNews.js`, `github.js`, `lobsters.js`, `arxiv.js`, `mastodon.js`, `stackoverflow.js`, `lemmy.js`, `discourse.js`, and `bluesky.js`.
 - **How to Contribute**: Create a new extractor file in `content/extractors/` that reads DOM nodes cleanly without mutating global window scope. Register your extractor in `lib/extract/pageExtraction.js`, create a static HTML test fixture in `tests/extractors/fixtures/`, and add unit test cases in `tests/extractors/`.
 
 ### 2. `lib/` (Core Application Libraries)
@@ -93,8 +93,8 @@ The `lib/` folder contains pure JavaScript logic split into clean functional sub
 
 #### `lib/summarize/` (Prompt Engineering and Chunking)
 
-- **What it Contains**: `chunk.js` (dynamic token and character chunker), `prompts.js` (prompt template builders for articles, videos, and Q&A), and `ollamaSummarize.js` (map-reduce pipeline orchestrator and translation directives).
-- **How to Contribute**: Improve prompt templates for clarity, refine map-reduce chunking strategy, or enhance target language translation handling.
+- **What it Contains**: `chunk.js` (dynamic token and character chunker), `prompts.js` (prompt template builders for articles, videos, and Q&A), `mapReduce.js` (hierarchical map-reduce with tree-folding and OOM-safe fallbacks), and `ollamaSummarize.js` (map-reduce pipeline orchestrator and translation directives).
+- **How to Contribute**: Improve prompt templates for clarity, refine hierarchical map-reduce chunking and tree-reduction strategy, or enhance target language translation handling.
 
 #### `lib/util/` (Shared Helper Utilities)
 
