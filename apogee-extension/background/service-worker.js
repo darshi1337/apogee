@@ -77,6 +77,11 @@ import {
   saveViewStateIfJobMatches,
   removeViewState,
 } from "../lib/storage/viewState.js";
+import {
+  COULD_NOT_READ_THIS_PAGE_ERROR_MSG,
+  NOTHING_TO_SUMMARIZE_ERROR_MSG,
+  COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG,
+} from "../lib/util/messages.js";
 
 initDebugLogging();
 
@@ -827,17 +832,13 @@ async function runBackgroundSummarize(
     pageData = await extractFromActiveTab(tab);
     if (!pageData) {
       if (notifyOnFinish) {
-        notifyNothingToSummarize(
-          "Couldn't read this page. Try reloading it, or pick a different tab.",
-        );
+        notifyNothingToSummarize(COULD_NOT_READ_THIS_PAGE_ERROR_MSG);
       }
       return;
     }
     if (!pageData.isPdf && !pageData.content) {
       if (notifyOnFinish) {
-        notifyNothingToSummarize(
-          "Nothing to summarize here yet - open a page, email, or video first.",
-        );
+        notifyNothingToSummarize(NOTHING_TO_SUMMARIZE_ERROR_MSG);
       }
       return;
     }
@@ -875,9 +876,7 @@ async function runBackgroundSummarize(
     }
     if (!content) {
       if (notifyOnFinish) {
-        notifyNothingToSummarize(
-          "Couldn't pull any text out of this PDF - it might be a scanned image.",
-        );
+        notifyNothingToSummarize(COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG);
       }
       return;
     }
