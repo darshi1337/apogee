@@ -374,3 +374,62 @@ test("summarizeText with no/auto language streams directly with no system direct
   );
   assert.strictEqual(out, "Plain summary");
 });
+
+test("summarizeText (long article, Transformers.js model) keeps every chunk and feeds the final reduce <= 4 partials", async () => {
+  // 20 chunks on a model with maxChunks=4: the new pipeline keeps
+  // all 20, maps them, then tree-reduces 20 -> 4 first-level -> 1
+  // final (fanIn = ceil(20/4) = 5, so 4 groups of 5 collapse to 4
+  // intermediates, which is already within the budget). The final
+  // reduce must see <= 4 partials so that buildScaledBulletsStyle
+  // (which keys off the partials count) does not balloon.
+  const prompts = [];
+  // Make each partial distinct so we can count them inside the
+  // synthesis prompt's notes block.
+  async function* chatStreamFn(_host, _model, _prompt) {
+    prompts.push(_prompt);
+    yield `- note #${prompts.length}\n`;
+  }
+
+  const chunks = Array.from({ length: 20 }, (_, i) => `chunk ${i}`);
+  await collect(
+    summarizeText(
+      {
+        text: chunks.join(" "),
+        title: "Long article",
+        url: "https://example.com",
+        mode: "bullets",
+        model: "HuggingFaceTB/SmolLM2-360M-Instruct",
+      },
+      { chunkTextFn: () => chunks, chatStreamFn },
+    ),
+  );
+
+  // 20 map + 4 first-level + 1 final = 25.
+  assert.strictEqual(prompts.length, 25);
+
+  // The final reduce is the synthesis prompt. It contains the notes
+  // joined with "\n" - count the distinct partials in it.
+  const finalReducePrompt = prompts[prompts.length - 1];
+  assert.match(
+    finalReducePrompt,
+    /notes extracted from across a long document/,
+    "final reduce should be the synthesis prompt",
+  );
+  const noteMarkers = finalReducePrompt.match(/- note #\d+/g) || [];
+  assert.ok(
+    noteMarkers.length <= 4,
+    `final reduce must see at most maxChunks=4 partials, saw ${noteMarkers.length}`,
+  );
+
+  // The bullet count rule in the final prompt must be consistent
+  // with the actual partials count (so the model gets a
+  // self-consistent instruction set). With <=4 partials,
+  // buildScaledBulletsStyle produces 5-14 (clamped).
+  const bulletCountMatch = finalReducePrompt.match(/Output (\d+)-(\d+) bullet/);
+  assert.ok(bulletCountMatch, "synthesis prompt should include bullet count");
+  const maxBullets = parseInt(bulletCountMatch[2], 10);
+  assert.ok(
+    maxBullets <= 14,
+    `bullet count upper bound should be capped at 14, got ${maxBullets}`,
+  );
+});

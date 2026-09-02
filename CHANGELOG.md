@@ -35,6 +35,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Translation engine cache identity.** Included translation engine in cached summary identity keys to prevent cache collisions between LLM and Opus-MT translation outputs. (#100, #101)
 - **Stream expiry summary recovery.** Restored ability to view completed summaries when reopening popup after stream expiry.
 
+### Changed
+
+- **Hierarchical map-reduce for long inputs.** Replaced the `stratifiedSample` fallback in `lib/summarize/mapReduce.js` with a bottom-up tree reduction: when an input produces more chunks than the model's `getMaxChunks` budget (4 for Transformers.js, 12 for Ollama), every chunk is now mapped, then partials are folded in groups of `fanIn` until fewer than `maxChunks` remain, then a final reduce runs. This preserves comprehensive coverage of long articles, transcripts, and threads instead of silently dropping ~75% of the material. The `{ stage: "truncated" }` progress event no longer fires on overflow by default; it only fires when an injected `selectChunksFn` returns fewer chunks than the input supplied. The `{ stage: "reduce", depth, index, total }` event is new for intermediate tree-reduce calls; the final reduce event still has no `depth` field. A custom `selectChunksFn` still wins over the tree when provided. (#148)
+
 ### Security
 
 - **Removed exposed global scope objects.** Neutralized `window.__apogeeHighlight` and `window.extractPageContent` global function exposures in content scripts, replacing them with secure `chrome.runtime` / `chrome.tabs` message listeners. (#121, #122)

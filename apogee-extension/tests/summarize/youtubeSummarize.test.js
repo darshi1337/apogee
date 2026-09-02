@@ -224,7 +224,16 @@ test("summarizeYoutube stops issuing new model calls once the signal is aborted 
   );
 });
 
-test("summarizeYoutube truncates to the chunk cap instead of growing chunks past the context budget", async () => {
+test("summarizeYoutube keeps every chunk when the input exceeds the chunk cap and tree-reduces them", async () => {
+  // 300k chars at the model-derived chunk size yields ~37 chunks once
+  // the YouTube-specific YOUTUBE_MAP_CHUNK_CHARS cap (8192) is applied.
+  // Before the hierarchical map-reduce change, this dropped to 12 (and
+  // lost ~70% of the material). Now we keep every chunk, map them all,
+  // and tree-reduce the partials down to <= 12, then final reduce
+  // once. The exact call count depends on getMaxChunkChars for the
+  // (unspecified) model; we assert the shape of the events and the
+  // presence of intermediate tree-reduce calls instead of a hard
+  // number.
   const longText = "x".repeat(300000);
   const chunkCalls = [];
   const chunkTextFn = (text, maxChars) => {
@@ -248,9 +257,42 @@ test("summarizeYoutube truncates to the chunk cap instead of growing chunks past
   );
 
   assert.strictEqual(chunkCalls.length, 1, "should never re-chunk bigger");
+  // No truncation by default - the new pipeline keeps every chunk.
   const truncated = progressEvents.filter((p) => p.stage === "truncated");
-  assert.strictEqual(truncated.length, 1);
-  assert.strictEqual(truncated[0].kept, 12);
-  assert.ok(truncated[0].total > 12);
-  assert.strictEqual(mapCalls, 13);
+  assert.strictEqual(
+    truncated.length,
+    0,
+    "no chunks are dropped by default; the tree-reduce folds them instead",
+  );
+  // The map stage should produce more than the budget (12) so the
+  // tree stage actually fires. The YOUTUBE_MAP_CHUNK_CHARS cap yields
+  // ~37 chunks from 300k chars.
+  const mapEvents = progressEvents.filter((p) => p.stage === "map");
+  assert.ok(
+    mapEvents.length > 12,
+    `map stage should produce more than 12 chunks, got ${mapEvents.length}`,
+  );
+  // At least one intermediate tree-reduce call plus a final reduce.
+  const intermediateReduces = progressEvents.filter(
+    (p) => p.stage === "reduce" && p.depth === 1,
+  );
+  const finalReduces = progressEvents.filter(
+    (p) => p.stage === "reduce" && p.depth === undefined,
+  );
+  assert.ok(
+    intermediateReduces.length > 0,
+    "expected at least one intermediate reduce (the tree must fire)",
+  );
+  assert.strictEqual(finalReduces.length, 1);
+  // The final reduce must see <= 12 partials (the budget).
+  const finalReduce = progressEvents[progressEvents.length - 1];
+  assert.strictEqual(finalReduce.stage, "reduce");
+  // The chat fn was called once per map + once per intermediate
+  // reduce + once for the final reduce. We already know the map
+  // count; just assert it's strictly more than the 13 (12 maps + 1
+  // final) the old pipeline produced.
+  assert.ok(
+    mapCalls > 13,
+    `old pipeline did 13 model calls; new pipeline does at least 13+ (got ${mapCalls})`,
+  );
 });
