@@ -18,7 +18,7 @@ function copyStaticPlugin(targetBrowser) {
         );
         manifest.content_security_policy = {
           extension_pages:
-            "script-src 'self' 'wasm-unsafe-eval'; default-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://huggingface.co https://*.huggingface.co https://*.hf.co https://sponsor.ajay.app https://api.bilibili.com https://*.hdslb.com; img-src 'self' data:; font-src 'self'; style-src 'self'",
+            "script-src 'self' 'wasm-unsafe-eval'; default-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://huggingface.co https://*.huggingface.co https://*.hf.co https://sponsor.ajay.app https://api.bilibili.com https://*.hdslb.com https://public.api.bsky.app; img-src 'self' data:; font-src 'self'; style-src 'self'",
         };
         if (manifest.background) {
           delete manifest.background.service_worker;

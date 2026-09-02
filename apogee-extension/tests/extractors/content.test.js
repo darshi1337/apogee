@@ -21,6 +21,7 @@ const INJECTED_FILES = [
   "extractors/stackoverflow.js",
   "extractors/lemmy.js",
   "extractors/discourse.js",
+  "extractors/bluesky.js",
   "content.js",
 ];
 

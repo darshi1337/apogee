@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Alice (@alice.bsky.social) on Bluesky</title>
+</head>
+<body>
+  <div id="thread-root">
+    <div data-testid="postThreadItem" id="op">
+      <div data-testid="feedItem-byline">
+        <a><strong>Alice</strong></a>
+        <a>@alice.bsky.social</a>
+      </div>
+      <div data-testid="richTextText">
+        Local-first summarizers beat cloud extensions on privacy. Curious what people think.
+      </div>
+    </div>
+
+    <div data-testid="postThreadItem" id="reply-1">
+      <div data-testid="feedItem-byline">
+        <a><strong>Bob</strong></a>
+        <a>@bob.bsky.team</a>
+      </div>
+      <div data-testid="richTextText">
+        Strong agree. The on-device WebGPU path is finally fast enough to be usable.
+      </div>
+    </div>
+
+    <div data-testid="postThreadItem" id="reply-1-1" data-parent="reply-1">
+      <div data-testid="feedItem-byline">
+        <a><strong>Carol</strong></a>
+        <a>@carol.bsky.social</a>
+      </div>
+      <div data-testid="richTextText">
+        Even on WebAssembly it feels snappy for short pages.
+      </div>
+    </div>
+  </div>
+</body>
+</html>

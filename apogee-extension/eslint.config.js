@@ -57,6 +57,7 @@ export default [
         extractStackOverflow: "readonly",
         extractLemmy: "readonly",
         extractDiscourse: "readonly",
+        extractBluesky: "readonly",
       },
     },
   },
@@ -89,6 +90,7 @@ export default [
       "content/extractors/stackoverflow.js",
       "content/extractors/lemmy.js",
       "content/extractors/discourse.js",
+      "content/extractors/bluesky.js",
     ],
     languageOptions: {
       globals: {

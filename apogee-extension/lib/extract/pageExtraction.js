@@ -89,6 +89,7 @@ export async function extractFromActiveTab(tab) {
           "/content/extractors/stackoverflow.js",
           "/content/extractors/lemmy.js",
           "/content/extractors/discourse.js",
+          "/content/extractors/bluesky.js",
           "/content/content.js",
         ],
       });
