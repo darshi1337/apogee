@@ -1,6 +1,4 @@
-// Icon sources live in assets/icons/*.svg. Vite inlines each file at build
-// time, so the popup ships one bundle with no per-icon requests, and the markup
-// lands in the light DOM where app.css can still style `.ico svg` and `.f`.
+// Icon sources live in assets/icons/*.svg. Vite inlines each file at build time, so the popup ships one bundle with no per-icon requests, and the markup lands in the light DOM where app.css can still style `.ico svg` and `.f`.
 const FILES = import.meta.glob("../assets/icons/*.svg", {
   query: "?raw",
   import: "default",

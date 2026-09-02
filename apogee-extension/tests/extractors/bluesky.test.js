@@ -133,9 +133,7 @@ test("extractBluesky falls back to the rendered DOM when the API fails", async (
     result.content,
     /Local-first summarizers beat cloud extensions on privacy\./,
   );
-  // The fixture has the OP plus two replies. linkedom flattens the DOM
-  // tree, so depth tracking is best-effort here; we just verify that
-  // both reply bodies appear in the rendered output.
+  // The fixture has the OP plus two replies. linkedom flattens the DOM tree, so depth tracking is best-effort here; we just verify that both reply bodies appear in the rendered output.
   assert.match(result.content, /Strong agree\./);
   assert.match(result.content, /Even on WebAssembly/);
   // The API was attempted once and the DOM path produced the result.

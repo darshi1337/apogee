@@ -209,9 +209,7 @@ test("mapReduceStream: 24 chunks, budget 12 → fanIn=2 → 24 map + 12 reduce +
 });
 
 test("mapReduceStream: tree-reduce groups partials in input order", async () => {
-  // Every leaf partials[i] starts with its index; we want to verify
-  // that the first-level reduce groups partials in order and that
-  // the final reduce sees the grouped intermediates in order.
+  // Every leaf partials[i] starts with its index; we want to verify that the first-level reduce groups partials in order and that the final reduce sees the grouped intermediates in order.
   const seen = [];
   async function* fn(_host, _model, prompt) {
     seen.push(prompt);
@@ -265,9 +263,7 @@ test("mapReduceStream: tree-reduce groups partials in input order", async () => 
     ),
   );
 
-  // The first intermediate reduce should be over the first group of
-  // partials in order. Find the first REDUCE prompt and check it
-  // contains the expected leaves in order.
+  // The first intermediate reduce should be over the first group of partials in order. Find the first REDUCE prompt and check it contains the expected leaves in order.
   const firstReduce = seen.find((p) => p.startsWith("REDUCE("));
   // 8 partials over budget 4: fanIn = ceil(8/4) = 2, so 4 groups.
   // First group: LEAF[c0], LEAF[c1].
@@ -479,8 +475,7 @@ test("mapReduceStream: a failing selectChunksFn falls through to the default (no
 });
 
 test("mapReduceStream: final reduce sees at most maxChunks partials, even when map produced more", async () => {
-  // Direct stress: 60 chunks, budget 12. fanIn = ceil(60/12) = 5.
-  // Expect 60 map + 12 first-level + 1 final = 73 calls.
+  // Direct stress: 60 chunks, budget 12. fanIn = ceil(60/12) = 5. Expect 60 map + 12 first-level + 1 final = 73 calls.
   const { fn, calls } = recordingChat();
   const chunks = Array.from({ length: 60 }, (_, i) => `c${i}`);
 
@@ -523,8 +518,7 @@ test("mapReduceStream: cleanText runs on the input before chunking", async () =>
   assert.match(calls[0].prompt, /^SINGLE: cleaned:\d+$/);
 });
 
-// Tiny helper: count items inside the joined " || "-delimited partials
-// string of a REDUCE prompt.
+// Tiny helper: count items inside the joined " || "-delimited partials string of a REDUCE prompt.
 function finalReplaceCount(prompt) {
   const m = prompt.match(/^REDUCE\((\d+)\): /);
   if (!m) return -1;

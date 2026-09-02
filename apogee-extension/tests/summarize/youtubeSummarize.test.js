@@ -264,9 +264,7 @@ test("summarizeYoutube keeps every chunk when the input exceeds the chunk cap an
     0,
     "no chunks are dropped by default; the tree-reduce folds them instead",
   );
-  // The map stage should produce more than the budget (12) so the
-  // tree stage actually fires. The YOUTUBE_MAP_CHUNK_CHARS cap yields
-  // ~37 chunks from 300k chars.
+  // The map stage should produce more than the budget (12) so the tree stage actually fires. The YOUTUBE_MAP_CHUNK_CHARS cap yields ~37 chunks from 300k chars.
   const mapEvents = progressEvents.filter((p) => p.stage === "map");
   assert.ok(
     mapEvents.length > 12,
@@ -287,10 +285,7 @@ test("summarizeYoutube keeps every chunk when the input exceeds the chunk cap an
   // The final reduce must see <= 12 partials (the budget).
   const finalReduce = progressEvents[progressEvents.length - 1];
   assert.strictEqual(finalReduce.stage, "reduce");
-  // The chat fn was called once per map + once per intermediate
-  // reduce + once for the final reduce. We already know the map
-  // count; just assert it's strictly more than the 13 (12 maps + 1
-  // final) the old pipeline produced.
+  // The chat fn was called once per map + once per intermediate reduce + once for the final reduce. We already know the map count; just assert it's strictly more than the 13 (12 maps + 1 final) the old pipeline produced.
   assert.ok(
     mapCalls > 13,
     `old pipeline did 13 model calls; new pipeline does at least 13+ (got ${mapCalls})`,

@@ -1318,8 +1318,7 @@ function helpLink(message) {
   return link;
 }
 
-// Every failure the user can see goes through here, so each one gets the alert
-// role, the error styling, and a link into ERROR.md.
+// Every failure the user can see goes through here, so each one gets the alert role, the error styling, and a link into ERROR.md.
 function renderError(target, message) {
   const p = document.createElement("p");
   p.setAttribute("role", "alert");
@@ -1331,8 +1330,7 @@ function renderError(target, message) {
   target.appendChild(p);
 }
 
-// Same link, for the one-line status spans in Settings that have no room for a
-// paragraph.
+// Same link, for the one-line status spans in Settings that have no room for a paragraph.
 function renderStatusError(target, message) {
   if (!target) return;
   target.setAttribute("role", "alert");
@@ -1840,8 +1838,7 @@ function updateLlamaModelUI(settings, status) {
 
   llamaModelStatus.removeAttribute("role");
   if (detected.length === 0) {
-    // /health answered but the model lookup did not, which is what a wrong
-    // API key looks like: reachable, but nothing readable behind it.
+    // /health answered but the model lookup did not, which is what a wrong API key looks like: reachable, but nothing readable behind it.
     llamaModelStatus.textContent = settings.llamaApiKey
       ? "Connected, but the model could not be read. Check the API key."
       : "Connected, but the server did not report a model name.";
@@ -2470,8 +2467,7 @@ questionInput?.addEventListener("keydown", (e) => {
 
 providerRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
-    // Persist the currently-selected model for the outgoing provider so
-    // switching back later restores it (issue #26).
+    // Persist the currently-selected model for the outgoing provider so switching back later restores it (issue #26).
     const prev = await getSettings();
     const modelPatch = {};
     if (prev.provider === PROVIDERS.WEBLLM) {
@@ -2612,8 +2608,7 @@ function showHistoryWipeConfirm(summaryCount) {
   const message = `This also deletes ${what} already saved on this device. Your settings are kept. There's no undo.`;
   if (historyWipeText) historyWipeText.textContent = message;
   historyWipeConfirm.classList.remove("hidden");
-  // Focus stays on the radio the user is still arrowing through. Pulling it
-  // onto a delete button would put a destructive action one stray Space away.
+  // Focus stays on the radio the user is still arrowing through. Pulling it onto a delete button would put a destructive action one stray Space away.
   announce(message);
 }
 
@@ -2630,9 +2625,7 @@ saveHistoryRadios.forEach((radio) => {
       await saveSettings({ saveHistory: true });
       return;
     }
-    // Turning history off deletes what is already saved, which is the whole
-    // point of the toggle and also not undoable. Nothing is written or removed
-    // until the second, deliberate click.
+    // Turning history off deletes what is already saved, which is the whole point of the toggle and also not undoable. Nothing is written or removed until the second, deliberate click.
     const stored = await storedHistoryStats();
     if (!stored.any) {
       await saveSettings({ saveHistory: false });
@@ -2651,8 +2644,7 @@ historyWipeCancelBtn?.addEventListener("click", async () => {
 historyWipeDeleteBtn?.addEventListener("click", async () => {
   historyWipeDeleteBtn.disabled = true;
   try {
-    // The setting goes first: a summary still generating re-checks it when it
-    // finishes, so from here on nothing new can land behind the wipe.
+    // The setting goes first: a summary still generating re-checks it when it finishes, so from here on nothing new can land behind the wipe.
     await saveSettings({ saveHistory: false });
     await clearCachedData();
     hideHistoryWipeConfirm();
@@ -2694,8 +2686,7 @@ debugLogsRadios.forEach((radio) => {
   });
 });
 
-// Both halves clear under their own module's lock, so a write landing at the
-// same moment can't leave an order index pointing at a deleted key.
+// Both halves clear under their own module's lock, so a write landing at the same moment can't leave an order index pointing at a deleted key.
 async function clearCachedData() {
   const pages = await clearCachedPages();
   const viewStates = await clearAllViewStates();

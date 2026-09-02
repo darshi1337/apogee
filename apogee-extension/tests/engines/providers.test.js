@@ -21,8 +21,7 @@ test("every provider in the registry resolves to its own implementation", () => 
     const provider = getProvider(settings({ provider: type }));
     seen.set(type, provider.constructor.name);
   }
-  // Each provider must get its own class; two mapping to the same one would
-  // mean a missing branch in getProvider silently falling through.
+  // Each provider must get its own class; two mapping to the same one would mean a missing branch in getProvider silently falling through.
   assert.equal(
     new Set(seen.values()).size,
     seen.size,
@@ -46,9 +45,7 @@ test("getProviderType passes a known provider through and rejects anything else"
   );
 });
 
-// Each provider reads its model from its own settings key. Reading the wrong
-// one would send an empty or foreign model name to the server, and would also
-// poison the summary cache key, which is built from this value.
+// Each provider reads its model from its own settings key. Reading the wrong one would send an empty or foreign model name to the server, and would also poison the summary cache key, which is built from this value.
 test("getModelForSettings reads each provider's own model key", () => {
   const configured = settings({
     webllmModel: "webllm-one",

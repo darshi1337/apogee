@@ -251,13 +251,7 @@ async function withEngine(modelId, fn, ownerStreamId = null) {
   }
 }
 
-// WebLLM's engine can report its own decode rate on the final chunk's
-// `usage` field when the request asks for it (`stream_options.include_usage`).
-// That is more accurate than our own count, since it comes straight from the
-// engine rather than from chunk-arrival timing. Unverified against a live
-// build at time of writing: if the installed @mlc-ai/web-llm version does not
-// populate `usage.extra.decode_tokens_per_s`, this silently never fires and
-// the computed rate is used instead, which is already the designed fallback.
+// WebLLM's engine can report its own decode rate on the final chunk's `usage` field when the request asks for it (`stream_options.include_usage`). That is more accurate than our own count, since it comes straight from the engine rather than from chunk-arrival timing. Unverified against a live build at time of writing: if the installed @mlc-ai/web-llm version does not populate `usage.extra.decode_tokens_per_s`, this silently never fires and the computed rate is used instead, which is already the designed fallback.
 function reportWebLLMFinalStats(chunk, onFinalStats) {
   const tokens = chunk?.usage?.completion_tokens;
   const rate = chunk?.usage?.extra?.decode_tokens_per_s;

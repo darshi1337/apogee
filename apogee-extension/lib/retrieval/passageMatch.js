@@ -1,10 +1,6 @@
 // SHARED WITH content/highlight.js - keep in sync
 //
-// The highlighter runs as an injected content script, which is loaded as a
-// plain file and cannot import anything, so the block below is duplicated
-// there verbatim. This copy exists so the logic is testable; the copy in
-// highlight.js is the one that actually runs. A test in
-// tests/retrieval/passageMatch.test.js fails if the two drift apart.
+// The highlighter runs as an injected content script, which is loaded as a plain file and cannot import anything, so the block below is duplicated there verbatim. This copy exists so the logic is testable; the copy in highlight.js is the one that actually runs. A test in tests/retrieval/passageMatch.test.js fails if the two drift apart.
 function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

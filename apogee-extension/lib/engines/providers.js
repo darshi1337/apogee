@@ -390,9 +390,7 @@ class DirectLlamaCppProvider {
     );
   }
 
-  // `contextTokens` rides along because llama-server reports the window it is
-  // actually running, which no model name can imply. Null means it did not
-  // say, not that it is unlimited.
+  // `contextTokens` rides along because llama-server reports the window it is actually running, which no model name can imply. Null means it did not say, not that it is unlimited.
   async checkReady() {
     const response = await sendToServiceWorker({
       target: "service-worker",

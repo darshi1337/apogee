@@ -63,9 +63,7 @@ export async function searchPastSummaries({
     // Combine vector score and keyword match boost
     const score = vectorScore * 1.5 + textScore;
 
-    // Inclusion criteria:
-    // If vector comparison occurred, match if score > 0.25 or keyword match exists
-    // If entry has no vector or query embedding failed, fallback to keyword match (textScore > 0)
+    // Inclusion criteria: If vector comparison occurred, match if score > 0.25 or keyword match exists If entry has no vector or query embedding failed, fallback to keyword match (textScore > 0)
     const isMatch =
       item.v && queryVector ? score > 0.25 || textScore > 0 : textScore > 0;
 

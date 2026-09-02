@@ -9,9 +9,7 @@ import {
 
 const HOST = "http://127.0.0.1:8080";
 
-// llama-server frames its stream as `data: {...}` separated by blank lines.
-// The fixtures below are shaped after a real capture from build
-// b10603-c060ca974 serving Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M.
+// llama-server frames its stream as `data: {...}` separated by blank lines. The fixtures below are shaped after a real capture from build b10603-c060ca974 serving Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M.
 const event = (payload) => `data: ${JSON.stringify(payload)}\n\n`;
 const token = (content) =>
   event({ choices: [{ finish_reason: null, index: 0, delta: { content } }] });
@@ -292,9 +290,7 @@ test("chatStream reports an aborted request as a cancellation", async () => {
   }
 });
 
-// Errors must carry the UserFacingError marker, or toUserMessage() rewrites
-// them through its fallback table, where "could not connect" matches the
-// Ollama entry and a llama.cpp failure would be reported as an Ollama one.
+// Errors must carry the UserFacingError marker, or toUserMessage() rewrites them through its fallback table, where "could not connect" matches the Ollama entry and a llama.cpp failure would be reported as an Ollama one.
 test("chatStream errors are marked user-facing so they are not remapped", async () => {
   const restore = stubFetch(async () => {
     throw new TypeError("fetch failed");
@@ -337,8 +333,7 @@ test("chatStream sends the API key as a bearer token when one is set", async () 
   }
 });
 
-// A key that is only whitespace is the same as no key, and sending
-// "Bearer    " would turn an unauthenticated server into a 401.
+// A key that is only whitespace is the same as no key, and sending "Bearer " would turn an unauthenticated server into a 401.
 test("chatStream treats a blank API key as no key at all", async () => {
   let sent;
   const restore = stubFetch(async (_url, init) => {
@@ -378,9 +373,7 @@ test("chatStream explains a rejected API key instead of echoing the server", asy
   }
 });
 
-// Cancelling a summary breaks out of the loop partway through. The generator
-// has to release the body then, or the connection is held until the request is
-// garbage collected.
+// Cancelling a summary breaks out of the loop partway through. The generator has to release the body then, or the connection is held until the request is garbage collected.
 test("chatStream releases the response body when the consumer stops early", async () => {
   let response;
   const restore = stubFetch(async () => {
@@ -479,8 +472,7 @@ test("checkHealth reports the model and the running context window", async () =>
   });
 });
 
-// endpoint_props: false is a real server setting, so this path is reachable in
-// normal use rather than only on a broken server.
+// endpoint_props: false is a real server setting, so this path is reachable in normal use rather than only on a broken server.
 test("checkHealth falls back to /v1/models meta when /props is disabled", async () => {
   const result = await health({
     "/health": ok({ status: "ok" }),
@@ -515,9 +507,7 @@ test("checkHealth stays connected when both enrichment lookups fail", async () =
   });
 });
 
-// Verified against b10603: /health is public but /props and /v1/models are
-// both guarded, so a bad key looks like a reachable server with nothing on it.
-// The UI needs that pair to tell a bad key from an idle server.
+// Verified against b10603: /health is public but /props and /v1/models are both guarded, so a bad key looks like a reachable server with nothing on it. The UI needs that pair to tell a bad key from an idle server.
 test("checkHealth with a rejected key stays connected but reports nothing", async () => {
   const rejected = () => ({
     ok: false,
@@ -569,8 +559,7 @@ test("checkHealth reports an unreachable server as disconnected instead of throw
   });
 });
 
-// Which endpoints --api-key guards has changed between llama-server versions,
-// so the key goes on all three rather than a guessed subset.
+// Which endpoints --api-key guards has changed between llama-server versions, so the key goes on all three rather than a guessed subset.
 test("checkHealth authenticates every lookup, not just the guarded ones", async () => {
   const seen = new Map();
   const restore = stubFetch(

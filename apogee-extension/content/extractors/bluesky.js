@@ -1,11 +1,6 @@
 // Bluesky (bsky.app) thread extractor.
 //
-// bsky.app is a heavy JS-rendered SPA, so DOM scraping from a content
-// script is racey. The public AT Protocol endpoint
-// https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread returns a
-// fully-nested thread for any public post without auth, so we lead with
-// that and only fall back to the rendered DOM if the fetch is unavailable
-// (offline, CSP-blocked, or the post was removed).
+// bsky.app is a heavy JS-rendered SPA, so DOM scraping from a content script is racey. The public AT Protocol endpoint https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread returns a fully-nested thread for any public post without auth, so we lead with that and only fall back to the rendered DOM if the fetch is unavailable (offline, CSP-blocked, or the post was removed).
 
 const BLUESKY_MAX_POSTS = 80;
 const BLUESKY_MAX_DEPTH = 8;
@@ -29,9 +24,7 @@ function blueskyFormatAuthor(displayName, handle) {
 
 function blueskyPlainText(record) {
   if (!record) return "";
-  // Modern records use record.text; older or facet-only records can fall
-  // back to a concatenated text-segment walk, but the public API has
-  // already resolved that for us in `post.record.text`.
+  // Modern records use record.text; older or facet-only records can fall back to a concatenated text-segment walk, but the public API has already resolved that for us in `post.record.text`.
   if (typeof record.text === "string") return record.text;
   if (Array.isArray(record.textSegments)) {
     return record.textSegments
@@ -60,8 +53,7 @@ function blueskyCollectReplies(replies, depth, items) {
       typeof reply.post.likeCount === "number"
         ? reply.post.likeCount
         : undefined;
-    // Bluesky has no downvotes; likes map to `score` which renders as
-    // `(score: N)` in `formatThreadComments`, not `{downvotes: N}`.
+    // Bluesky has no downvotes; likes map to `score` which renders as `(score: N)` in `formatThreadComments`, not `{downvotes: N}`.
     items.push({ depth, author, text, score: likeCount });
     if (Array.isArray(reply.replies) && reply.replies.length) {
       blueskyCollectReplies(reply.replies, depth + 1, items);
@@ -166,11 +158,7 @@ function extractBlueskyFromDom() {
   const threadRoot = document.querySelector('[data-testid="postThreadItem"]');
   if (!threadRoot) return null;
 
-  // The OP is the first postThreadItem; replies are siblings/descendants
-  // beyond it. Bluesky's markup nests replies as additional
-  // [data-testid="postThreadItem"] nodes, so we collect them in document
-  // order and assign a synthetic depth by counting ancestor postThreadItem
-  // containers.
+  // The OP is the first postThreadItem; replies are siblings/descendants beyond it. Bluesky's markup nests replies as additional [data-testid="postThreadItem"] nodes, so we collect them in document order and assign a synthetic depth by counting ancestor postThreadItem containers.
   const postEls = Array.from(
     document.querySelectorAll('[data-testid="postThreadItem"]'),
   );
@@ -224,9 +212,7 @@ function blueskyReadBody(el) {
 }
 
 function blueskyReadAuthor(el) {
-  // The display name typically lives in an <a> with a strong inside;
-  // the handle sits in a sibling span. We look for the rendered text of
-  // the avatar block, splitting on the "@" handle marker when present.
+  // The display name typically lives in an <a> with a strong inside; the handle sits in a sibling span. We look for the rendered text of the avatar block, splitting on the "@" handle marker when present.
   const nameCandidates = el.querySelectorAll(
     '[data-testid="feedItem-byline"] a, [data-testid="authorDisplayName"]',
   );

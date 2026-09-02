@@ -30,8 +30,7 @@ test("validateLoopbackHost keeps the rejected value out of the user-facing messa
   const helperMatch = swCode.match(/function rejectLoopbackHost[\s\S]*?\n\}/);
   const helperBody = helperMatch[0];
 
-  // The UserFacingError constructor call itself must not interpolate the
-  // rejected host/reason - only the console.error line may.
+  // The UserFacingError constructor call itself must not interpolate the rejected host/reason - only the console.error line may.
   const userFacingErrorCall = helperBody.match(
     /new UserFacingError\(([\s\S]*?)\);/,
   )[1];

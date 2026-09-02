@@ -17,15 +17,9 @@ export async function hashUrl(url) {
   return sha256Hex(url);
 }
 
-// Everything that changes the generated text has to be part of the key, or a
-// cached answer from the old settings comes back and the change looks ignored.
-// That means the url, the response format, the model, the output language, and
-// the custom instructions, and the translation engine. Anything else that
-// starts shaping the output belongs here too.
+// Everything that changes the generated text has to be part of the key, or a cached answer from the old settings comes back and the change looks ignored. That means the url, the response format, the model, the output language, and the custom instructions, and the translation engine. Anything else that starts shaping the output belongs here too.
 //
-// Legacy keys do not identify their translation engine and cannot safely be
-// assigned to either one, so engine-aware lookups intentionally do not reuse
-// them. They remain available in history until normal eviction or a cache wipe.
+// Legacy keys do not identify their translation engine and cannot safely be assigned to either one, so engine-aware lookups intentionally do not reuse them. They remain available in history until normal eviction or a cache wipe.
 async function instructionsSuffix(customInstructions) {
   const extra = (customInstructions || "").trim();
   if (!extra) return "";
@@ -226,12 +220,7 @@ export function isSensitiveUrl(url) {
   }
 }
 
-// The list above is fixed, and it can only ever cover the webmail and chat
-// hosts we thought of. A self-hosted mail server, a patient portal, or a
-// company wiki is just as private to the person reading it, so they can name
-// their own hosts. Entries are forgiving about how they are written: a pasted
-// url, a leading "*.", "www.", a trailing slash, and separators of newline,
-// comma, or space all normalize to a bare hostname.
+// The list above is fixed, and it can only ever cover the webmail and chat hosts we thought of. A self-hosted mail server, a patient portal, or a company wiki is just as private to the person reading it, so they can name their own hosts. Entries are forgiving about how they are written: a pasted url, a leading "*.", "www.", a trailing slash, and separators of newline, comma, or space all normalize to a bare hostname.
 export function parsePrivateHosts(raw) {
   return String(raw || "")
     .split(/[\s,]+/)
@@ -254,8 +243,7 @@ export function matchesPrivateHost(url, rawHosts) {
   } catch {
     return false;
   }
-  // A named host covers its subdomains, so "example.com" also means
-  // "mail.example.com", the way the built-in patterns behave.
+  // A named host covers its subdomains, so "example.com" also means "mail.example.com", the way the built-in patterns behave.
   return hosts.some((entry) => host === entry || host.endsWith(`.${entry}`));
 }
 

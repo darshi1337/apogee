@@ -15,9 +15,7 @@ export class UserFacingError extends Error {
   }
 }
 
-// ── Fallback catalogue ─────────────────────────────────────────────────
-// Each entry is [pattern, fallback message].  Order matters: more specific
-// patterns go first, broader ones later.
+// ── Fallback catalogue ───────────────────────────────────────────────── Each entry is [pattern, fallback message]. Order matters: more specific patterns go first, broader ones later.
 
 const FALLBACKS = [
   [/\bpdf\b/i, "Couldn't process this PDF document."],

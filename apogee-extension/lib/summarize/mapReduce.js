@@ -9,15 +9,9 @@ function isOomError(err) {
   return OOM_PATTERN.test(err?.message || "");
 }
 
-// For a long input that exceeds the model's chunk budget, the previous
-// pipeline silently dropped chunks via stratified sampling. Now we keep
-// full coverage: map every chunk to a partial, then tree-fold the
-// partials in groups of `fanIn` until fewer than `maxChunks`
-// intermediates remain, then run the final reduce. Each group emits
-// its own streamed partial, so the consumer can interleave or buffer.
+// For a long input that exceeds the model's chunk budget, the previous pipeline silently dropped chunks via stratified sampling. Now we keep full coverage: map every chunk to a partial, then tree-fold the partials in groups of `fanIn` until fewer than `maxChunks` intermediates remain, then run the final reduce. Each group emits its own streamed partial, so the consumer can interleave or buffer.
 function pickFanIn(partialCount, maxChunks) {
-  // Caller guarantees partialCount > maxChunks (while guard in reduceTree),
-  // so no need for the <= branch.
+  // Caller guarantees partialCount > maxChunks (while guard in reduceTree), so no need for the <= branch.
   return Math.max(2, Math.ceil(partialCount / maxChunks));
 }
 
@@ -40,10 +34,7 @@ function choosePartialChunks(chunks, maxChunks, selectChunksFn, onProgress) {
       // Fall through to the default.
     }
   }
-  // No selector (or it failed): keep every chunk and rely on the
-  // tree-reduce stage to fold the surplus. The point of issue #148 is
-  // exactly that "drop material you don't have time to map" is the
-  // wrong default.
+  // No selector (or it failed): keep every chunk and rely on the tree-reduce stage to fold the surplus. The point of issue #148 is exactly that "drop material you don't have time to map" is the wrong default.
   return chunks;
 }
 
@@ -62,9 +53,7 @@ async function* streamReduceStep(chatStreamFn, host, model, partials, opts) {
     }
   } catch (err) {
     if (signal?.aborted || isOomError(err)) {
-      // OOM mid-reduce: signal the caller and stop the tree. The
-      // outer driver will fall back to a final reduce with whatever
-      // partials we have accumulated.
+      // OOM mid-reduce: signal the caller and stop the tree. The outer driver will fall back to a final reduce with whatever partials we have accumulated.
       if (isOomError(err)) {
         opts.onOom?.(err);
       }
@@ -94,15 +83,9 @@ async function reduceTree({
   onProgress,
   onOom,
 }) {
-  // Tree-reduce partials in groups of `fanIn` until fewer than
-  // `maxChunks` remain. Each round is one model call per group; the
-  // final round is also a model call but produces the streamed
-  // output the caller ultimately sees.
+  // Tree-reduce partials in groups of `fanIn` until fewer than `maxChunks` remain. Each round is one model call per group; the final round is also a model call but produces the streamed output the caller ultimately sees.
   //
-  // An OOM during the tree is treated the same way as an OOM during
-  // the map stage: bail out and use whatever partials we have
-  // already produced (plus any still-unmerged groups) so the caller
-  // still gets a streamed final reduce instead of nothing.
+  // An OOM during the tree is treated the same way as an OOM during the map stage: bail out and use whatever partials we have already produced (plus any still-unmerged groups) so the caller still gets a streamed final reduce instead of nothing.
   let current = partials;
   let depth = 1;
   let hitOom = false;
@@ -140,8 +123,7 @@ async function reduceTree({
         }
         throw err;
       }
-      // OOM signaled via onOom inside streamReduceStep does not throw;
-      // treat it as failure of this group and preserve its originals.
+      // OOM signaled via onOom inside streamReduceStep does not throw; treat it as failure of this group and preserve its originals.
       if (hitOom) {
         return [...next, ...current.slice(i)];
       }
@@ -250,10 +232,7 @@ export async function* mapReduceStream(
   } catch (err) {
     if (isOomError(err)) {
       onProgress?.({ stage: "oom_fallback", index: -1 });
-      // Final reduce OOM means even the folded intermediates are too large
-      // (e.g. tree was aborted mid-way and intermediates > maxChunks).
-      // Fall back to streaming the concatenated partials without a model
-      // call so the user still gets coverage of every chunk.
+      // Final reduce OOM means even the folded intermediates are too large (e.g. tree was aborted mid-way and intermediates > maxChunks). Fall back to streaming the concatenated partials without a model call so the user still gets coverage of every chunk.
       for (const p of intermediates) {
         if (signal?.aborted) return;
         yield p + "\n\n";

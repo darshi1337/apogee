@@ -3,10 +3,7 @@ import { parsePrivateHosts } from "../storage/pageCache.js";
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
 
-// customInstructions is free text the user wrote, privateHosts names sites they
-// consider private (a clinic, an employer), and ollamaHost can name a machine on
-// their network. None belongs in something pasted into a public issue, but all
-// matter to a bug report, so report their shape instead of their contents.
+// customInstructions is free text the user wrote, privateHosts names sites they consider private (a clinic, an employer), and ollamaHost can name a machine on their network. None belongs in something pasted into a public issue, but all matter to a bug report, so report their shape instead of their contents.
 function redact(key, value) {
   if (key === "customInstructions") {
     const text = String(value || "");
@@ -16,8 +13,7 @@ function redact(key, value) {
     const entries = parsePrivateHosts(value);
     return entries.length ? `${entries.length} host(s)` : "unset";
   }
-  // An API key is a credential: a bug report should say whether one is set,
-  // never what it is.
+  // An API key is a credential: a bug report should say whether one is set, never what it is.
   if (key === "llamaApiKey") {
     return value ? "set" : "unset";
   }
@@ -85,8 +81,7 @@ export function formatDiagnosticsMarkdown(settings, extra = {}, logs = []) {
   }
 
   const body = Array.isArray(logs) ? logs.join("\n") : String(logs || "");
-  // A log line containing ``` would end the fence early; widen ours past the
-  // longest run it contains.
+  // A log line containing ``` would end the fence early; widen ours past the longest run it contains.
   const longest = Math.max(
     2,
     ...(body.match(/`+/g) || []).map((r) => r.length),

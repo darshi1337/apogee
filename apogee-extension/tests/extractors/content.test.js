@@ -2,8 +2,7 @@ import test from "node:test";
 import assert from "node:assert";
 import { loadExtractors } from "./helpers/extractorHarness.js";
 
-// Mirrors the file list `lib/extract/pageExtraction.js` injects, so the
-// dispatcher sees the same global scope it does in a real tab.
+// Mirrors the file list `lib/extract/pageExtraction.js` injects, so the dispatcher sees the same global scope it does in a real tab.
 const INJECTED_FILES = [
   "Readability.js",
   "extractors/generic.js",

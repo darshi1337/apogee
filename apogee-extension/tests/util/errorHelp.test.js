@@ -69,8 +69,7 @@ test("errorHelpUrl falls back to the top of the file", () => {
   assert.strictEqual(errorHelpUrl(undefined), ERROR_HELP_URL);
 });
 
-// The anchors are GitHub heading slugs, so a renamed heading silently breaks
-// every link. Check them against the file itself.
+// The anchors are GitHub heading slugs, so a renamed heading silently breaks every link. Check them against the file itself.
 test("every anchor exists as a heading in ERROR.md", () => {
   const doc = readFileSync(
     new URL("../../../ERROR.md", import.meta.url),

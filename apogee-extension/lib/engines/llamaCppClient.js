@@ -13,21 +13,13 @@ export const DEFAULT_CONTEXT_TOKENS = 8192;
 
 const SSE_DONE = "[DONE]";
 
-// llama-server started with `--api-key` wants it as a bearer token. On
-// b10603 only `/health` is public; `/props` and `/v1/models` both answer 401
-// without it. Rather than encode that split, which has moved between
-// versions, the header goes on every request: a server that does not want it
-// ignores it, and model detection cannot silently break if the split changes.
+// llama-server started with `--api-key` wants it as a bearer token. On b10603 only `/health` is public; `/props` and `/v1/models` both answer 401 without it. Rather than encode that split, which has moved between versions, the header goes on every request: a server that does not want it ignores it, and model detection cannot silently break if the split changes.
 function authHeaders(apiKey) {
   const key = (apiKey || "").trim();
   return key ? { Authorization: `Bearer ${key}` } : {};
 }
 
-// Every llama-server failure comes back as {error:{message,type,code}}, but a
-// server_error's message can be a raw C++ exception dump ("[json.exception.
-// parse_error.101] parse error at line 1, column 2..."), which means nothing
-// to the person reading it. Request-shaped errors (400, 404) are written for
-// a caller, so those pass through.
+// Every llama-server failure comes back as {error:{message,type,code}}, but a server_error's message can be a raw C++ exception dump ("[json.exception. parse_error.101] parse error at line 1, column 2..."), which means nothing to the person reading it. Request-shaped errors (400, 404) are written for a caller, so those pass through.
 function envelopeMessage(error, model) {
   if (error?.type === "authentication_error") {
     return (
@@ -61,10 +53,7 @@ function httpError(body, status, model) {
   );
 }
 
-// An SSE event may carry several lines, of which only `data:` ones are
-// payload. Anything else (a `:` keepalive comment, an `event:` name) is
-// skipped rather than parsed, so a server version that starts emitting them
-// cannot break the stream.
+// An SSE event may carry several lines, of which only `data:` ones are payload. Anything else (a `:` keepalive comment, an `event:` name) is skipped rather than parsed, so a server version that starts emitting them cannot break the stream.
 function dataPayloadsOf(block) {
   const payloads = [];
   for (const raw of block.split("\n")) {
@@ -90,9 +79,7 @@ function readEventBlock(block, model, onFinalStats) {
       );
     }
 
-    // An error can also arrive mid-stream, after a 200. The payload is already
-    // parsed here, so this maps it directly rather than going back through
-    // httpError and parsing it a second time.
+    // An error can also arrive mid-stream, after a 200. The payload is already parsed here, so this maps it directly rather than going back through httpError and parsing it a second time.
     if (parsed?.error) {
       throw new LlamaCppError(
         envelopeMessage(parsed.error, model) ||
@@ -101,15 +88,10 @@ function readEventBlock(block, model, onFinalStats) {
     }
 
     const content = parsed?.choices?.[0]?.delta?.content;
-    // The opening chunk announces the assistant role with `content: null`, and
-    // the closing chunk carries finish_reason with an empty delta. Checking the
-    // type skips both, while still passing a single-space token through, which
-    // a truthiness check would drop.
+    // The opening chunk announces the assistant role with `content: null`, and the closing chunk carries finish_reason with an empty delta. Checking the type skips both, while still passing a single-space token through, which a truthiness check would drop.
     if (typeof content === "string" && content !== "") tokens.push(content);
 
-    // llama.cpp's own `timings` (a native extension, not part of the OpenAI
-    // schema) rides on the final chunk when the request asks for usage. It is
-    // more accurate than our own count: it excludes network transit.
+    // llama.cpp's own `timings` (a native extension, not part of the OpenAI schema) rides on the final chunk when the request asks for usage. It is more accurate than our own count: it excludes network transit.
     if (parsed?.timings?.predicted_n != null) {
       onFinalStats?.({
         tokens: parsed.timings.predicted_n,
@@ -193,10 +175,7 @@ export async function* chatStream(
       }
     }
 
-    // `data: [DONE]` arrives with no trailing blank line, so the final event is
-    // still sitting in the buffer once the reader finishes. Without this flush
-    // the sentinel is never read. ollamaClient.js flushes its last NDJSON line
-    // for the same reason.
+    // `data: [DONE]` arrives with no trailing blank line, so the final event is still sitting in the buffer once the reader finishes. Without this flush the sentinel is never read. ollamaClient.js flushes its last NDJSON line for the same reason.
     const trailing = buffer.trim();
     if (trailing) {
       const { tokens } = readEventBlock(trailing, model, onFinalStats);
@@ -209,10 +188,7 @@ export async function* chatStream(
     }
     throw createConnectionError(LlamaCppError, "llama.cpp", base, err);
   } finally {
-    // Breaking out of the loop early, which is what cancelling a summary does,
-    // resumes this generator with a return completion: that skips the catch
-    // but still runs this. cancel() is what tells the body to stop and lets
-    // the connection go; releaseLock() then leaves no locked stream behind.
+    // Breaking out of the loop early, which is what cancelling a summary does, resumes this generator with a return completion: that skips the catch but still runs this. cancel() is what tells the body to stop and lets the connection go; releaseLock() then leaves no locked stream behind.
     try {
       await reader.cancel();
     } catch {

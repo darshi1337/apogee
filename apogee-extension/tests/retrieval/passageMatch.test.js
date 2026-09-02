@@ -3,10 +3,7 @@ import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { findMatchingRange } from "../../lib/retrieval/passageMatch.js";
 
-// The matcher below is duplicated into content/highlight.js, which is injected
-// as a plain script and cannot import it. Without this guard the tests would
-// happily pass while the code that actually highlights passages drifts away
-// from the code being tested.
+// The matcher below is duplicated into content/highlight.js, which is injected as a plain script and cannot import it. Without this guard the tests would happily pass while the code that actually highlights passages drifts away from the code being tested.
 function sharedBlock(path) {
   const src = readFileSync(new URL(path, import.meta.url), "utf8");
   const start = src.indexOf("function escapeRegExp");

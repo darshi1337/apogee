@@ -1,9 +1,6 @@
 // SHARED WITH lib/retrieval/passageMatch.js - keep in sync
 //
-// This file is injected as a plain content script and cannot import anything,
-// so the block below is duplicated in lib/retrieval/passageMatch.js, which is
-// what the tests import. This copy is the one that actually runs. A test in
-// tests/retrieval/passageMatch.test.js fails if the two drift apart.
+// This file is injected as a plain content script and cannot import anything, so the block below is duplicated in lib/retrieval/passageMatch.js, which is what the tests import. This copy is the one that actually runs. A test in tests/retrieval/passageMatch.test.js fails if the two drift apart.
 function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

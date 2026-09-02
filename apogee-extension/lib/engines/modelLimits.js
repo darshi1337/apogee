@@ -67,8 +67,7 @@ function isPositiveTokenCount(value) {
 export function getMaxChunkChars(model, contextTokensOverride) {
   let contextTokens;
   if (isPositiveTokenCount(contextTokensOverride)) {
-    // Still capped: a reported 128k window would otherwise produce a single
-    // chunk far larger than is practical to generate from.
+    // Still capped: a reported 128k window would otherwise produce a single chunk far larger than is practical to generate from.
     contextTokens = Math.min(contextTokensOverride, PRACTICAL_MAX_TOKENS);
   } else if ((model || "").endsWith("-MLC")) {
     contextTokens = WEBLLM_CONTEXT_TOKENS;

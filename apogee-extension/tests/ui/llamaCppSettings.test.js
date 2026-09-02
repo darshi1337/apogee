@@ -42,8 +42,7 @@ test("app.html carries the llama.cpp settings fields", () => {
   }
 });
 
-// The model is typed or auto-filled, not chosen: llama-server loads exactly
-// one model at launch, so there is no list to render.
+// The model is typed or auto-filled, not chosen: llama-server loads exactly one model at launch, so there is no list to render.
 test("the llama.cpp model control is a text field, not a radio list", () => {
   const { document } = parseHTML(popupHtml);
   const input = document.getElementById("llamaModelInput");
@@ -91,8 +90,7 @@ test("app.js toggles the llama.cpp cards on the provider", () => {
   assert.match(popupJs, /llamaModelsCard\?\.classList\.toggle\("hidden"/);
 });
 
-// Auto-fill must only touch an empty field, so a name the user typed and a
-// name detected earlier both survive the next health check.
+// Auto-fill must only touch an empty field, so a name the user typed and a name detected earlier both survive the next health check.
 test("app.js only auto-fills the model field when it is empty", () => {
   const guard =
     /if \(detected\.length > 0 && !llamaModelInput\.value\.trim\(\)\)/;

@@ -349,9 +349,7 @@ function relayToOffscreenStream(popupPort, streamId) {
 
 const ALLOWED_LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost"]);
 
-// The rejected value stays in the console line only. The user-facing message
-// states the rule instead, so a mistyped host reads as guidance rather than
-// an internal assertion. ERROR.md documents this message word for word.
+// The rejected value stays in the console line only. The user-facing message states the rule instead, so a mistyped host reads as guidance rather than an internal assertion. ERROR.md documents this message word for word.
 function rejectLoopbackHost(label, host, reason) {
   console.error(`${label} host rejected (${reason}): ${host}`);
   const allowed = [...ALLOWED_LOOPBACK_HOSTS].join(" or ");
@@ -376,20 +374,14 @@ function validateLoopbackHost(host, label = "Ollama") {
   return url.toString().replace(/\/+$/, "");
 }
 
-// What a loopback HTTP provider contributes to a generation job: the client
-// that talks to it, the name its errors are written in, and the message action
-// its stream arrives on. Everything else in the two functions below is the
-// same whichever server is answering. Ollama is the default, so its call sites
-// pass nothing and behave exactly as before.
+// What a loopback HTTP provider contributes to a generation job: the client that talks to it, the name its errors are written in, and the message action its stream arrives on. Everything else in the two functions below is the same whichever server is answering. Ollama is the default, so its call sites pass nothing and behave exactly as before.
 const OLLAMA_PROVIDER = {
   label: "Ollama",
   streamKind: "ollama-stream",
   chatStream,
 };
 
-// llama-server reports the context window it is actually running, which comes
-// from its own -c launch flag and so cannot be read off the model name. Ollama
-// has no equivalent, which is why only this provider supplies the hook.
+// llama-server reports the context window it is actually running, which comes from its own -c launch flag and so cannot be read off the model name. Ollama has no equivalent, which is why only this provider supplies the hook.
 const LLAMACPP_PROVIDER = {
   label: "llama.cpp",
   streamKind: "llamacpp-stream",
@@ -533,13 +525,10 @@ async function startLocalHttpStream(
 
   const { customInstructions } = await getSettings();
 
-  // Populated once the final chunk carries the backend's own token count and
-  // duration (Ollama's eval_count/eval_duration, llama.cpp's timings). It is
-  // more accurate than our own count since it excludes network transit.
+  // Populated once the final chunk carries the backend's own token count and duration (Ollama's eval_count/eval_duration, llama.cpp's timings). It is more accurate than our own count since it excludes network transit.
   let serverStats = null;
 
-  // Ollama's client ignores the extra option; llama.cpp's uses it when the
-  // server was started with --api-key.
+  // Ollama's client ignores the extra option; llama.cpp's uses it when the server was started with --api-key.
   const chatStreamFn = (h, m, p, opts) =>
     client.chatStream(h, m, p, {
       ...opts,
@@ -549,8 +538,7 @@ async function startLocalHttpStream(
       },
     });
 
-  // Only a provider that can report its own window gets an explicit chunk
-  // size; everyone else keeps the model-name inference in getMaxChunkChars.
+  // Only a provider that can report its own window gets an explicit chunk size; everyone else keeps the model-name inference in getMaxChunkChars.
   let chunkTextFn;
   if (client.getContextTokens) {
     try {
@@ -558,8 +546,7 @@ async function startLocalHttpStream(
       const chunkChars = getMaxChunkChars(model, contextTokens);
       chunkTextFn = (text) => chunkBySections(text, chunkChars);
     } catch (err) {
-      // A window we could not read is not worth failing the job over: fall
-      // through to the name-based estimate the other providers use.
+      // A window we could not read is not worth failing the job over: fall through to the name-based estimate the other providers use.
       console.error("llama.cpp context-window lookup failed:", err);
     }
   }
@@ -993,8 +980,7 @@ function notifyJobFailed(err) {
   if (typeof chrome.notifications === "undefined") return;
   const message = toUserMessage(err);
   const notificationId = `apogee-summary-error-${crypto.randomUUID()}`;
-  // A notification body cannot hold a link, so clicking it opens the
-  // explanation instead of focusing the tab.
+  // A notification body cannot hold a link, so clicking it opens the explanation instead of focusing the tab.
   notificationTargets.set(notificationId, { helpUrl: errorHelpUrl(message) });
   chrome.notifications.create(notificationId, {
     type: "basic",
@@ -1129,9 +1115,7 @@ async function fetchBilibiliSubtitles({ aid, bvid, cid, preferredLang }) {
 
   let listRes;
   try {
-    // Note: credentials: "include" is required for Bilibili's /x/player/v2 endpoint
-    // because Bilibili restricts subtitle list metadata to logged-in sessions.
-    // Cookies are strictly scoped to api.bilibili.com API requests on Bilibili pages.
+    // Note: credentials: "include" is required for Bilibili's /x/player/v2 endpoint because Bilibili restricts subtitle list metadata to logged-in sessions. Cookies are strictly scoped to api.bilibili.com API requests on Bilibili pages.
     listRes = await fetch(
       `https://api.bilibili.com/x/player/v2?${params.toString()}`,
       { credentials: "include", signal: AbortSignal.timeout(6000) },
@@ -1170,8 +1154,7 @@ async function fetchBilibiliSubtitles({ aid, bvid, cid, preferredLang }) {
 
   let subRes;
   try {
-    // Subtitle track content on the hdslb.com CDN does not require session authentication,
-    // so credentials are explicitly omitted to restrict cookie scope.
+    // Subtitle track content on the hdslb.com CDN does not require session authentication, so credentials are explicitly omitted to restrict cookie scope.
     subRes = await fetch(subUrl, {
       credentials: "omit",
       signal: AbortSignal.timeout(6000),
@@ -1294,8 +1277,7 @@ async function runSuggestQuestionsJob(payload) {
       questions = [];
     }
 
-    // Generating the questions takes its own trip through the model, so the
-    // setting gets one more look before this write too.
+    // Generating the questions takes its own trip through the model, so the setting gets one more look before this write too.
     if (persist && (await shouldPersist(persistUrl || url))) {
       await chrome.storage.local.set({ [promptsCacheKey]: questions });
     }
@@ -1330,9 +1312,7 @@ async function finalizeSummaryJob({ finalize, model, title, url, text }) {
     translationEngine,
   } = finalize;
 
-  // `persist` is what was true when the job started. The write only happens if
-  // it is still true now, so turning history off mid-generation also excludes
-  // the summary that is running.
+  // `persist` is what was true when the job started. The write only happens if it is still true now, so turning history off mid-generation also excludes the summary that is running.
   const persisted =
     persist &&
     (await persistSummaryIfAllowed(
