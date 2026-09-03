@@ -69,7 +69,7 @@ The table below compares Apogee with typical cloud-based AI extensions and Mozil
 - **Persistent Chrome Side Panel**: Keep the summary or Ask flow visible beside the page while browsing.
 - **Light and dark themes**: Switch themes from the home and summary headers.
 - **Custom Standing Instructions**: Set personal prompt guidance like simple explanations or technical summaries.
-- **Multi-Language Translation**: Summarize pages into 29 supported target languages using the default Helsinki-NLP Opus-MT engine or direct LLM translation.
+- **Multi-Language Translation**: Summarize pages into 32 supported target languages using the default Helsinki-NLP Opus-MT engine or direct LLM translation.
 
 ## Screenshots
 
@@ -96,8 +96,8 @@ The table below compares Apogee with typical cloud-based AI extensions and Mozil
 
 - **Zero Data Leaks**: Page contents, transcripts, PDFs, and summaries are processed locally and never uploaded to cloud APIs.
 - **Local Loopback**: Ollama and llama.cpp connections communicate strictly over local loopback (`http://127.0.0.1`); any other host is refused.
-- **Anonymized SponsorBlock**: YouTube sponsor lookups use k-anonymity hash prefixes and can be disabled under Settings to stay fully local.
-- **Sensitive Site Exclusions**: Gmail, Outlook, Proton Mail, WhatsApp, Slack, Discord, and custom domain lists are excluded from disk caching.
+- **Anonymized SponsorBlock**: YouTube sponsor lookups send only a k-anonymity hash prefix and can be disabled under Settings > Privacy to stay fully local (no lookup request is made at all).
+- **Sensitive Site Exclusions**: Gmail, Outlook, Proton Mail, Yahoo Mail, Google Messages, WhatsApp Web, Telegram Web, Slack, Discord, Microsoft Teams, and custom domain lists are excluded from disk caching.
 
 Read our complete security model in the [Privacy and Security Architecture](PRIVACY.md).
 

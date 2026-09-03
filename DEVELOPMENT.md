@@ -6,7 +6,7 @@ This guide provides a comprehensive overview of Apogee codebase architecture, re
 
 - **Node.js**: Version 22.0.0 or newer. The repository `.nvmrc` pins Node 22.
 - **Package Manager**: npm version 10 or newer.
-- **Supported Browsers**: Chrome 113+, Edge 113+, or Firefox 140+ for extension testing.
+- **Supported Browsers**: Chrome 116+, Edge 116+, or Firefox 140+ for extension testing.
 
 ## Local Environment Setup
 
@@ -22,7 +22,7 @@ This guide provides a comprehensive overview of Apogee codebase architecture, re
 
 ## Development and Build Commands
 
-Run all development commands from the repository root or inside the `apogee-extension` directory.
+Run `install:extension`, `build`, `test`, `lint`, `format`, `dev`, and `package` from the repository root or inside the `apogee-extension` directory. The remaining scripts (`format:check`, `build:chrome`, `build:firefox`, `start:firefox`, `start:chrome`, `lint:webext`) exist only inside `apogee-extension/`.
 
 - **Watch Mode (Development)**:
 
@@ -64,7 +64,7 @@ Apogee extension codebase lives in `apogee-extension/`. Below is a breakdown of 
 
 ### 1. `content/` (Tab Context Extractor Scripts)
 
-- **What it Contains**: Scripts injected directly into active browser tabs when you trigger summarization or Q&A. Includes `content.js` (main injection script), `Readability.js` (bundled article parser from Mozilla), and specialized site extractors in `content/extractors/` such as `youtube.js`, `bilibili.js`, `wikipedia.js`, `reddit.js`, `gmail.js`, `hackerNews.js`, `github.js`, `lobsters.js`, `arxiv.js`, `mastodon.js`, `stackoverflow.js`, `lemmy.js`, `discourse.js`, and `bluesky.js`.
+- **What it Contains**: Scripts injected directly into active browser tabs when you trigger summarization or Q&A. Includes `content.js` (main injection script), `Readability.js` (bundled article parser from Mozilla), and specialized site extractors in `content/extractors/` such as `youtube.js`, `bilibili.js`, `wikipedia.js`, `reddit.js`, `gmail.js`, `hackernews.js`, `github.js`, `lobsters.js`, `arxiv.js`, `mastodon.js`, `stackoverflow.js`, `lemmy.js`, `discourse.js`, and `bluesky.js`.
 - **How to Contribute**: Create a new extractor file in `content/extractors/` that reads DOM nodes cleanly without mutating global window scope. Register your extractor in `lib/extract/pageExtraction.js`, create a static HTML test fixture in `tests/extractors/fixtures/`, and add unit test cases in `tests/extractors/`.
 
 ### 2. `lib/` (Core Application Libraries)
@@ -118,7 +118,7 @@ The `lib/` folder contains pure JavaScript logic split into clean functional sub
 
 ### 6. `rules/` (Declarative Net Request Security Rules)
 
-- **What it Contains**: `ollama-cors.json`, containing declarative net request rules that strip origin headers from local loopback requests to `127.0.0.1` and `localhost`.
+- **What it Contains**: `ollama-cors.json`, containing the bundled fallback declarative net request rule that strips origin headers from local loopback requests to `127.0.0.1` and `localhost`. Where session-scoped rules are supported, the service worker registers a narrower equivalent at runtime for non-tab requests only (see `lib/util/loopbackCors.js`).
 - **How to Contribute**: Add or adjust declarative net request header rules to maintain zero CORS friction for local loopback services.
 
 ### 7. `scripts/` (Build Automation and Verification)
@@ -128,7 +128,7 @@ The `lib/` folder contains pure JavaScript logic split into clean functional sub
 
 ### 8. `tests/` (Unit Test Suite and HTML Fixtures)
 
-- **What it Contains**: Zero-dependency unit tests running on Node built-in test runner (`node --test`), organized into subdirectories matching library modules (`tests/extractors/`, `tests/engines/`, `tests/retrieval/`, `tests/storage/`, `tests/summarize/`, `tests/util/`), along with static HTML fixtures in `tests/extractors/fixtures/`.
+- **What it Contains**: Zero-dependency unit tests running on Node built-in test runner (`node --test`), organized into subdirectories matching library modules (`tests/background/`, `tests/engines/`, `tests/extract/`, `tests/extractors/`, `tests/helpers/`, `tests/language/`, `tests/retrieval/`, `tests/storage/`, `tests/summarize/`, `tests/ui/`, `tests/util/`), plus `tests/manifest.test.js`, along with static HTML fixtures in `tests/extractors/fixtures/`.
 - **How to Contribute**: Add unit test files matching `.test.js` naming conventions, create realistic HTML fixtures for new extractors, and cover edge cases.
 
 ## Testing Workflows and Quality Assurance

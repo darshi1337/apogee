@@ -7,7 +7,7 @@ Packaging: upload a ZIP of the Chromium build (`dist/chrome`), not a CRX. The st
 ## Product details
 
 - **Title:** Apogee
-- **Summary:** AI browser assistant for articles, videos, emails and more. Runs in-browser via WebGPU, WebAssembly, and Ollama.
+- **Summary:** AI browser assistant for articles, videos, emails and more. Runs in-browser via WebGPU and WebAssembly, or locally via Ollama and llama.cpp.
 - **Category:** Productivity
 - **Language:** English (United States)
 - **Homepage URL:** https://darshi1337.github.io/apogee/
@@ -39,7 +39,7 @@ TWO WAYS TO RUN IT
 
 PRIVACY
 
-• No cloud inference. Models run on your device • No API keys, no sign-in, no account • No analytics or tracking • Network access is limited to: downloading model weights (from Hugging Face) on first run, and a translation model from the same place if you opt into the dedicated translation engine, your own local Ollama at 127.0.0.1, for YouTube videos the community SponsorBlock API to skip sponsor segments, for Bilibili videos that site's own subtitle endpoints (api.bilibili.com, hdslb.com), and for Bluesky posts the public AT Protocol thread endpoint (public.api.bsky.app) • Page content is processed locally and never uploaded
+• No cloud inference. Models run on your device • No API keys, no sign-in, no account • No analytics or tracking • Network access is limited to: downloading model weights (from Hugging Face) on first run, and a translation model from the same place if you opt into the dedicated translation engine, your own local Ollama at 127.0.0.1, for YouTube videos the community SponsorBlock API to skip sponsor segments (k-anonymity hash prefix only, opt out under Settings > Privacy to stay fully local with no lookup request at all), for Bilibili videos that site's own subtitle endpoints (api.bilibili.com, hdslb.com), and for Bluesky posts the public AT Protocol thread endpoint (public.api.bsky.app) • Page content is processed locally and never uploaded
 
 REQUIREMENTS
 
@@ -77,7 +77,7 @@ Apogee summarizes the web page, video, or PDF the user is currently viewing and 
 
 **Host permission justification** (`http://127.0.0.1/*`, `http://localhost/*`) These loopback host permissions let Apogee connect to the user's own local Ollama server for users who opt into Local Ollama mode, sending requests directly to the model running on their own machine. Only loopback addresses on the user's device are used.
 
-**Host permission justification** (`*://*.bilibili.com/*`, `*://*.hdslb.com/*`, `*://*.youtube.com/*`, `*://*.bsky.app/*`, `https://sponsor.ajay.app/*`) These site-specific cross-origin permissions are declared as `optional_host_permissions` in `manifest.json`. When the user summarizes a Bilibili or YouTube video, Apogee checks for granted permissions and prompts the user on-demand to fetch subtitles from Bilibili's API (`api.bilibili.com` / `hdslb.com`), transcript metadata, or SponsorBlock timestamps (`sponsor.ajay.app`). When the user summarizes a Bluesky post, Apogee fetches the thread from the public AT Protocol endpoint (`https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread`) carrying only the public `at://` URI, with DOM fallback when offline. Standing host permissions are restricted strictly to loopback addresses (`127.0.0.1`/`localhost`), and every other site is accessed on-demand via `activeTab`.
+**Host permission justification** (`*://*.bilibili.com/*`, `*://*.hdslb.com/*`, `*://*.youtube.com/*`, `*://*.bsky.app/*`, `https://sponsor.ajay.app/*`) These site-specific cross-origin permissions are declared as `optional_host_permissions` in `manifest.json`. When the user summarizes a Bilibili or YouTube video, Apogee checks for granted permissions and prompts the user on-demand to fetch subtitles from Bilibili's API (`api.bilibili.com` / `hdslb.com`), transcript metadata, or SponsorBlock timestamps (`sponsor.ajay.app`, opt out under Settings > Privacy to disable the lookup entirely). When the user summarizes a Bluesky post, Apogee fetches the thread from the public AT Protocol endpoint (`https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread`) carrying only the public `at://` URI, with DOM fallback when offline. Standing host permissions are restricted strictly to loopback addresses (`127.0.0.1`/`localhost`), and every other site is accessed on-demand via `activeTab`.
 
 ## Remote code
 
@@ -117,7 +117,7 @@ Shown here at 1280x800, the size uploaded to the Chrome Web Store.
 
 ![Cover slide](.github/assets/apogee-deck-1280x800-1.png)
 
-**2. Why apogee.** The usual summarizer versus apogee, side by side, over the strip of supported sites.
+**2. Why Apogee.** The usual summarizer versus apogee, side by side, over the strip of supported sites.
 
 ![Why apogee slide](.github/assets/apogee-deck-1280x800-2.png)
 
