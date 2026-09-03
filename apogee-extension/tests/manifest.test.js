@@ -94,6 +94,29 @@ test("manifest.json permissions enforce local-first privacy boundary", () => {
   );
 });
 
+test("manifest permissions exactly match the documented set (#182)", () => {
+  // Every permission below is justified in PRIVACY.md ("Browser Permission
+  // Sandboxing") and STORE-LISTING.md (permission justifications), including
+  // unlimitedStorage for the cached model weights. Fail-closed exact match
+  // so docs and manifest cannot drift apart again.
+  assert.deepStrictEqual(
+    new Set(manifest.permissions || []),
+    new Set([
+      "activeTab",
+      "scripting",
+      "storage",
+      "unlimitedStorage",
+      "offscreen",
+      "sidePanel",
+      "alarms",
+      "contextMenus",
+      "notifications",
+      "declarativeNetRequestWithHostAccess",
+    ]),
+    "manifest permissions must exactly match the documented permission set",
+  );
+});
+
 test("declarativeNetRequest rule files exist and parse as valid JSON", () => {
   assert.ok(
     manifest.declarative_net_request,
