@@ -20,6 +20,14 @@ This guide provides a comprehensive overview of Apogee codebase architecture, re
    npm run install:extension
    ```
 
+### Dependency overrides
+
+`apogee-extension/package.json` pins three transitive dependencies above the ranges their parents declare. Each pin exists because of a real advisory, so don't loosen one without checking `npm audit` first:
+
+- `adm-zip@^0.6.0` (`onnxruntime-node` asks for `^0.5.16`): GHSA-xcpc-8h2w-3j85, where a crafted ZIP triggers a multi-gigabyte allocation. Fixed in 0.6.0.
+- `sharp@^0.35.0` (`@huggingface/transformers` asks for `^0.34.5`): GHSA-f88m-g3jw-g9cj, libvips flaws up to High severity. Fixed from 0.35.0.
+- `brace-expansion@^5.0.9` (old `minimatch@3` asks for `^1.1.7`): GHSA-rgw5-rvv9-x895 and earlier brace-expansion DoS advisories. Forces the patched 5.x line even where old minimatch asks for 1.x.
+
 ## Development and Build Commands
 
 Run `install:extension`, `build`, `test`, `lint`, `format`, `dev`, and `package` from the repository root or inside the `apogee-extension` directory. The remaining scripts (`format:check`, `build:chrome`, `build:firefox`, `start:firefox`, `start:chrome`, `lint:webext`) exist only inside `apogee-extension/`.
