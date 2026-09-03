@@ -1,10 +1,14 @@
 import { getSettings } from "./settings.js";
+import { shouldPersist } from "./pageCache.js";
 
 const AUDIT_LOG_KEY = "apogee_activity_audit_log";
 const MAX_AUDIT_ENTRIES = 20;
 
 /**
  * Record a page access event in local storage for transparency audit.
+ * Skips pages that must not persist (sensitive hosts, user private hosts,
+ * or "Don't save" mode), so the audit log itself never becomes a backdoor
+ * history of pages the user asked not to keep.
  * @param {{ title: string, url: string, contentLength: number, type: string }} event
  */
 export async function recordPageAccessEvent({
@@ -15,6 +19,7 @@ export async function recordPageAccessEvent({
 }) {
   if (typeof chrome === "undefined" || !chrome.storage?.local) return;
   try {
+    if (url && !(await shouldPersist(url))) return;
     const data = await chrome.storage.local.get([AUDIT_LOG_KEY]);
     const logs = Array.isArray(data[AUDIT_LOG_KEY]) ? data[AUDIT_LOG_KEY] : [];
     const entry = {
@@ -79,7 +84,7 @@ export async function getActivityAuditSummary() {
         : "Local execution active (Optional SponsorBlock API enabled for video segment skipping)",
     },
     storageRetention: {
-      saveHistory: settings.saveHistory !== "off",
+      saveHistory: settings.saveHistory !== false,
       cachedPagesCount: storageCount,
       autoWipePrivateHosts: (settings.privateHosts || []).length > 0,
       privateHostCount: (settings.privateHosts || []).length,

@@ -116,3 +116,56 @@ test("declarativeNetRequest rule files exist and parse as valid JSON", () => {
     assert.ok(Array.isArray(rules), "Rule file content must be a JSON array");
   });
 });
+
+test("declared network egress matches the documented allow-list (#180)", () => {
+  // Every external host below is documented in PRIVACY.md ("Outbound Network
+  // Connection Details") and README/STORE-LISTING permission justifications.
+  // This test fails closed: adding a new egress host requires updating the
+  // docs and this list together, so an undisclosed call like the former
+  // api.github.com fetch cannot slip back in.
+  const documentedConnectSrc = new Set([
+    "'self'",
+    "http://127.0.0.1:*",
+    "http://localhost:*",
+    "https://huggingface.co",
+    "https://*.huggingface.co",
+    "https://*.hf.co",
+    "https://sponsor.ajay.app",
+    "https://api.bilibili.com",
+    "https://*.hdslb.com",
+    "https://public.api.bsky.app",
+  ]);
+
+  const csp = manifest.content_security_policy?.extension_pages || "";
+  const connectSrc = csp
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith("connect-src "));
+  assert.ok(connectSrc, "extension_pages CSP must declare connect-src");
+  const declared = connectSrc
+    .replace(/^connect-src\s+/, "")
+    .split(/\s+/)
+    .filter(Boolean);
+  assert.deepStrictEqual(
+    new Set(declared),
+    documentedConnectSrc,
+    "connect-src must exactly match the documented egress allow-list",
+  );
+
+  assert.deepStrictEqual(
+    new Set(manifest.host_permissions || []),
+    new Set(["http://127.0.0.1/*", "http://localhost/*"]),
+    "standing host_permissions must stay loopback-only",
+  );
+  assert.deepStrictEqual(
+    new Set(manifest.optional_host_permissions || []),
+    new Set([
+      "*://*.bilibili.com/*",
+      "*://*.hdslb.com/*",
+      "*://*.youtube.com/*",
+      "*://*.bsky.app/*",
+      "https://sponsor.ajay.app/*",
+    ]),
+    "optional_host_permissions must exactly match the documented set",
+  );
+});

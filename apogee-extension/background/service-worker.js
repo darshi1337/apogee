@@ -839,12 +839,17 @@ async function runBackgroundSummarize(
     await persistContent(tab.url, pageData);
   }
 
-  recordPageAccessEvent({
-    title: pageData.title,
-    url: pageData.url,
-    contentLength: (pageData.content || "").length,
-    type: pageData.type,
-  }).catch(() => {});
+  // The audit log lives in on-disk storage alongside the cache, so it
+  // follows the same persistence decision: sensitive pages and "Don't save"
+  // sessions (persist === false) leave no title+URL trace behind.
+  if (persist) {
+    recordPageAccessEvent({
+      title: pageData.title,
+      url: pageData.url,
+      contentLength: (pageData.content || "").length,
+      type: pageData.type,
+    }).catch(() => {});
+  }
 
   let content = pageData.content;
   if (pageData.isPdf) {

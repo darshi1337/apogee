@@ -50,20 +50,31 @@ function ghConversation() {
   return out;
 }
 
-async function ghFetchDiff(owner, repo, number) {
-  const api = `https://api.github.com/repos/${owner}/${repo}/pulls/${number}`;
-  try {
-    const res = await fetch(api, {
-      credentials: "omit",
-      headers: { Accept: "application/vnd.github.diff" },
-    });
-    if (!res.ok) return "";
-    const text = await res.text();
-    if (!/^diff --git|\n@@ /.test(text)) return "";
-    return ghTruncate(text, GH_MAX_DIFF_CHARS);
-  } catch {
-    return "";
+function ghDomDiff() {
+  // Best-effort unified diff scraped from the rendered "Files changed" DOM,
+  // so summarizing a pull request never sends a cross-origin request off the
+  // page you are already viewing. Covers both the legacy server-rendered
+  // diff tables (.blob-code-*) and the newer viewer ([data-code-marker]).
+  // Returns "" when no diff rows are rendered; the caller then falls back
+  // to "(Diff unavailable.)".
+  const seen = new Set();
+  const lines = [];
+  const cells = document.querySelectorAll(
+    ".blob-code-addition .blob-code-inner, .blob-code-deletion .blob-code-inner, .blob-code-inner[data-code-marker]",
+  );
+  for (const cell of cells) {
+    if (!cell || seen.has(cell)) continue;
+    seen.add(cell);
+    const marker =
+      cell.getAttribute?.("data-code-marker") ||
+      (cell.closest?.(".blob-code-addition") ? "+" : "-");
+    if (marker !== "+" && marker !== "-") continue;
+    const text = (cell.innerText || cell.textContent || "").replace(/\s+$/, "");
+    if (!text) continue;
+    lines.push(`${marker} ${text.replace(/^[+-]\s?/, "")}`);
   }
+  if (!lines.length) return "";
+  return ghTruncate(lines.join("\n"), GH_MAX_DIFF_CHARS);
 }
 
 async function extractGitHub() {
@@ -105,7 +116,7 @@ async function extractGitHub() {
     }
 
     if (isPull) {
-      const diff = await ghFetchDiff(owner, repo, number);
+      const diff = ghDomDiff();
       content += diff
         ? `\nCode changes (unified diff):\n${diff}\n`
         : `\n(Diff unavailable.)\n`;
