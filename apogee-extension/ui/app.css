@@ -998,7 +998,7 @@ body {
 }
 
 .past-summary-card.expanded .past-summary-title {
-  padding-right: 60px;
+  padding-right: 92px;
   font-size: 13px;
   line-height: 1.35;
   color: var(--text-main);
@@ -1099,7 +1099,7 @@ body {
   .past-summary-text
   > .past-summary-preview:first-child
   > :first-child {
-  padding-right: 60px;
+  padding-right: 92px;
 }
 
 .past-summary-card.expanded .past-summary-actions {
@@ -1108,7 +1108,8 @@ body {
   right: 14px;
 }
 
-.past-summary-card .copy-btn {
+.past-summary-card .copy-btn,
+.past-summary-card .delete-btn {
   flex-shrink: 0;
 }
 
@@ -1157,7 +1158,8 @@ body {
   gap: 8px;
 }
 
-.copy-btn {
+.copy-btn,
+.delete-btn {
   width: 26px;
   height: 26px;
   border: 1px solid var(--btn-border);
@@ -1175,7 +1177,14 @@ body {
   border-color: var(--btn-hover-border);
 }
 
-.copy-btn .ico svg {
+.delete-btn:hover {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.55);
+  color: #ef4444;
+}
+
+.copy-btn .ico svg,
+.delete-btn .ico svg {
   width: 15px;
   height: 15px;
 }
