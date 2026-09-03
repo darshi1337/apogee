@@ -152,9 +152,20 @@ test("declared network egress matches the documented allow-list (#180)", () => {
     "connect-src must exactly match the documented egress allow-list",
   );
 
-  const manifestText = JSON.stringify(manifest);
-  assert.ok(
-    !manifestText.includes("api.github.com"),
-    "manifest must not declare api.github.com egress",
+  assert.deepStrictEqual(
+    new Set(manifest.host_permissions || []),
+    new Set(["http://127.0.0.1/*", "http://localhost/*"]),
+    "standing host_permissions must stay loopback-only",
+  );
+  assert.deepStrictEqual(
+    new Set(manifest.optional_host_permissions || []),
+    new Set([
+      "*://*.bilibili.com/*",
+      "*://*.hdslb.com/*",
+      "*://*.youtube.com/*",
+      "*://*.bsky.app/*",
+      "https://sponsor.ajay.app/*",
+    ]),
+    "optional_host_permissions must exactly match the documented set",
   );
 });

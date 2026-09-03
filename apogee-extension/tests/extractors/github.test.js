@@ -236,8 +236,16 @@ test("github extractor source performs no network fetch (#180)", () => {
     !/\bfetch\s*\(/.test(source),
     "github.js must not call fetch(); PR diffs are scraped from the page DOM",
   );
-  assert.ok(
-    !source.includes("api.github.com"),
-    "github.js must not reference the undisclosed api.github.com egress",
-  );
+  // Any URL literal left in the extractor may only point at the page's own
+  // host. Hostnames are compared for exact equality (never a substring
+  // check) so lookalike hosts cannot slip through.
+  const urls = source.match(/https:\/\/[^\s"'`]+/g) || [];
+  for (const raw of urls) {
+    const host = new URL(raw.replace(/[.,;)\]]+$/, "")).hostname.toLowerCase();
+    assert.strictEqual(
+      host,
+      "github.com",
+      `github.js must not reference off-page host ${host}`,
+    );
+  }
 });
