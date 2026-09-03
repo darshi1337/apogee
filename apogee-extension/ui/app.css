@@ -2264,6 +2264,32 @@ html[data-surface="side-panel"] body {
   background-image: none;
 }
 
+/* Dotted corner motif for the popup, mirroring the side-panel treatment
+   below. Pure decoration: pointer-events none, empty content so assistive
+   tech ignores it, and .container paints above it. */
+body::after {
+  content: "";
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  width: 150px;
+  height: 150px;
+  background: url("../../docs/assets/pixel-dissolve.svg") no-repeat right
+    bottom / contain;
+  transform: rotate(180deg);
+  pointer-events: none;
+}
+
+.container {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-surface="side-panel"] body::after {
+  display: none;
+}
+
 html[data-surface="side-panel"] body::before {
   content: "";
   position: fixed;
