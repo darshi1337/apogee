@@ -36,7 +36,7 @@ export function sanitizeLogMessage(message, maxLen = MAX_LOG_MESSAGE_LENGTH) {
     "$1=[redacted]",
   );
   str = str.replace(
-    /(["'])(api[_-]?key|secret[_-]?token|access[_-]?token)\1\s*:\s*(["'])(.*?)\3/gi,
+    /(["'])(api[_-]?key|secret[_-]?token|access[_-]?token)\1\s*:\s*(["'])((?:\\.|(?!\3).)*)\3/gi,
     "$1$2$1:$3[redacted]$3",
   );
 

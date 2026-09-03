@@ -67,9 +67,10 @@ export function formatDiagnosticsMarkdown(settings, extra = {}, logs = []) {
 
   for (const [key, value] of Object.entries(extra)) {
     if (value !== undefined && value !== null && value !== "") {
-      rows.push(
-        `| ${key} | ${String(sanitizeLogMessage(value)).replace(/\\/g, "\\\\").replace(/\|/g, "\\|")} |`,
-      );
+      const shown = String(sanitizeLogMessage(value))
+        .replace(/\\/g, "\\\\")
+        .replace(/\|/g, "\\|");
+      rows.push(`| ${key} | ${shown} |`);
     }
   }
   for (const key of Object.keys(DEFAULT_SETTINGS)) {
@@ -101,7 +102,8 @@ export function formatDiagnosticsMarkdown(settings, extra = {}, logs = []) {
     "| --- | --- |",
     ...rows,
     "",
-    "<details><summary>logs</summary>",
+    "<details>",
+    "<summary>Engine logs</summary>",
     "",
     fence,
     body || "No logs recorded.",

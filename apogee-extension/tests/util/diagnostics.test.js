@@ -29,6 +29,7 @@ test("formatDiagnosticSettings: does not mark non-default values", () => {
   assert.doesNotMatch(providerLine, /\(default\)/);
   const themeLine = out.split("\n").find((l) => l.startsWith("theme:"));
   assert.doesNotMatch(themeLine, /\(default\)/);
+  // untouched key still marked
   const saveHistoryLine = out
     .split("\n")
     .find((l) => l.startsWith("saveHistory:"));
@@ -46,9 +47,7 @@ test("formatDiagnosticSettings: redacts customInstructions to shape not content"
   const set = formatDiagnosticSettings(
     cloneDefaults({ customInstructions: "hello" }),
   );
-  const line = set
-    .split("\n")
-    .find((l) => l.startsWith("customInstructions:"));
+  const line = set.split("\n").find((l) => l.startsWith("customInstructions:"));
   assert.match(line, /set \(5 chars\)/);
   assert.doesNotMatch(line, /hello/);
   const long = "a".repeat(42);
@@ -83,6 +82,7 @@ test("formatDiagnosticSettings: redacts privateHosts to count not list", () => {
     multi.split("\n").find((l) => l.startsWith("privateHosts:")),
     /3 host\(s\)/,
   );
+  // malformed entries without a dot are ignored -> still 1
   const mixed = formatDiagnosticSettings(
     cloneDefaults({ privateHosts: "localhost, example.com" }),
   );
@@ -107,6 +107,7 @@ test("formatDiagnosticSettings: redacts llamaApiKey to presence only", () => {
 });
 
 test("formatDiagnosticSettings: redacts ollamaHost and llamaHost", () => {
+  // loopback preserved
   const loopback = formatDiagnosticSettings(
     cloneDefaults({ ollamaHost: "http://127.0.0.1:11434" }),
   );
@@ -121,6 +122,7 @@ test("formatDiagnosticSettings: redacts ollamaHost and llamaHost", () => {
     localhost.split("\n").find((l) => l.startsWith("ollamaHost:")),
     /http:\/\/localhost:11434/,
   );
+  // custom host -> shape only
   const custom = formatDiagnosticSettings(
     cloneDefaults({ ollamaHost: "http://192.168.1.10:11434" }),
   );
@@ -134,6 +136,7 @@ test("formatDiagnosticSettings: redacts ollamaHost and llamaHost", () => {
     noPort.split("\n").find((l) => l.startsWith("ollamaHost:")),
     /custom host, port none/,
   );
+  // unparseable
   const bad = formatDiagnosticSettings(
     cloneDefaults({ ollamaHost: "not a url" }),
   );
@@ -146,6 +149,7 @@ test("formatDiagnosticSettings: redacts ollamaHost and llamaHost", () => {
     empty.split("\n").find((l) => l.startsWith("ollamaHost:")),
     /unset/,
   );
+  // llamaHost follows same rules
   const llamaCustom = formatDiagnosticSettings(
     cloneDefaults({ llamaHost: "http://my-server.local:8080" }),
   );
@@ -183,6 +187,12 @@ test("sanitizeLogMessage: redacts JSON-style API key fields", () => {
   assert.match(out, /access_token.*redacted/);
 });
 
+test("sanitizeLogMessage: redacts JSON values containing escaped quotes", () => {
+  const out = sanitizeLogMessage('{"apiKey":"xx\\"yy"}');
+  assert.doesNotMatch(out, /xx|yy/);
+  assert.match(out, /apiKey.*redacted/);
+});
+
 test("formatDiagnosticsMarkdown: redacts extra values", () => {
   const md = formatDiagnosticsMarkdown(
     cloneDefaults(),
@@ -194,22 +204,25 @@ test("formatDiagnosticsMarkdown: redacts extra values", () => {
 });
 
 test("formatDiagnosticsMarkdown: redacts log values", () => {
-  const md = formatDiagnosticsMarkdown(
-    cloneDefaults(),
-    {},
-    ['payload {"apiKey":"secret"}', "Authorization: Bearer secret-token"],
-  );
+  const md = formatDiagnosticsMarkdown(cloneDefaults(), {}, [
+    'payload {"apiKey":"secret"}',
+    "Authorization: Bearer secret-token",
+  ]);
   assert.doesNotMatch(md, /secret-token|apiKey.*secret/);
 });
 
 test("formatDiagnosticsMarkdown: marks defaults with _\\(default\\)_ and escapes table chars", () => {
   const settings = cloneDefaults({ provider: "local" });
   const md = formatDiagnosticsMarkdown(settings, { "extra|key": "a\\b|c" }, []);
+  // default key should have marker
   assert.match(md, /\| theme \| dark _\(default\)_ \|/);
+  // non-default should not
   const providerRow = md.split("\n").find((l) => l.includes("| provider |"));
   assert.ok(providerRow);
   assert.doesNotMatch(providerRow, /_\(default\)_/);
+  // extra escaping: key is not escaped, value is (backslash doubled, pipe escaped)
   assert.ok(md.includes("| extra|key | a\\\\b\\|c |"));
+  // setting value escaping: customInstructions with pipe is redacted, so no pipe remains
   const md2 = formatDiagnosticsMarkdown(
     cloneDefaults({ customInstructions: "a|b\\c" }),
     {},
@@ -219,22 +232,58 @@ test("formatDiagnosticsMarkdown: marks defaults with _\\(default\\)_ and escapes
 });
 
 test("formatDiagnosticsMarkdown: pipes and backslashes in redacted values are escaped", () => {
-  const md = formatDiagnosticsMarkdown(
-    cloneDefaults(),
-    { note: "a|b\\c" },
-    [],
-  );
+  // Force a value that after redaction contains no pipe, so test via extra is sufficient;
+  // also verify that DEFAULT_SETTINGS values with no special chars pass through escaped correctly.
+  const md = formatDiagnosticsMarkdown(cloneDefaults(), { note: "a|b\\c" }, []);
   assert.ok(md.includes("| note | a\\|b\\\\c |") || md.includes("a\\|b"));
 });
 
 test("formatDiagnosticsMarkdown: fence widens past the longest backtick run in logs", () => {
   const logsWithTriple = ["hello ``` world", "```code```"];
   const md = formatDiagnosticsMarkdown(cloneDefaults(), {}, logsWithTriple);
+  // longest run is 3, fence should be 4 backticks
   assert.ok(md.includes("````\nhello ``` world\n```code```\n````"));
+  // no backticks -> fence is 3
   const md2 = formatDiagnosticsMarkdown(cloneDefaults(), {}, ["no ticks here"]);
   assert.ok(md2.includes("```\nno ticks here\n```"));
+  // double backticks -> fence 3
   const md3 = formatDiagnosticsMarkdown(cloneDefaults(), {}, ["a `` b"]);
   assert.ok(md3.includes("```\na `` b\n```"));
+  // five backticks -> fence 6
   const md4 = formatDiagnosticsMarkdown(cloneDefaults(), {}, ["x ````` y"]);
   assert.ok(md4.includes("``````\nx ````` y\n``````"));
+});
+
+test("formatDiagnosticsMarkdown: handles empty or missing logs", () => {
+  const md = formatDiagnosticsMarkdown(cloneDefaults(), {}, []);
+  assert.ok(md.includes("No logs recorded."));
+  const md2 = formatDiagnosticsMarkdown(cloneDefaults(), {}, "");
+  assert.ok(md2.includes("No logs recorded."));
+});
+
+test("formatDiagnosticsMarkdown: includes heading, table header, and collapsed details", () => {
+  const md = formatDiagnosticsMarkdown(cloneDefaults(), { version: "9.9.9" }, [
+    "log line",
+  ]);
+  assert.ok(md.startsWith("### apogee diagnostics"));
+  assert.ok(md.includes("| setting | value |"));
+  assert.ok(md.includes("| --- | --- |"));
+  assert.ok(md.includes("<details>"));
+  assert.ok(md.includes("<summary>Engine logs</summary>"));
+  assert.ok(md.includes("log line"));
+  assert.ok(md.includes("> ⚠️ **Review before posting:**"));
+  // extra row present
+  assert.ok(md.includes("| version | 9.9.9 |"));
+});
+
+test("formatDiagnosticsMarkdown: omits empty extra fields", () => {
+  const md = formatDiagnosticsMarkdown(
+    cloneDefaults(),
+    { a: "", b: null, c: undefined, d: "ok" },
+    [],
+  );
+  assert.doesNotMatch(md, /\| a \|/);
+  assert.doesNotMatch(md, /\| b \|/);
+  assert.doesNotMatch(md, /\| c \|/);
+  assert.ok(md.includes("| d | ok |"));
 });
