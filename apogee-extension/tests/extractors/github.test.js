@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
+import { readFileSync } from "node:fs";
 import { loadExtractors } from "./helpers/extractorHarness.js";
 
 const FILES = ["extractors/thread.js", "extractors/github.js"];
@@ -105,16 +106,8 @@ test("extractGitHub extracts issue title, state, description, and comments", asy
   );
 });
 
-test("extractGitHub extracts pull request metadata and fetches unified diff", async () => {
-  const diffPayload = `diff --git a/index.js b/index.js
-index 1234567..89abcdef 100644
---- a/index.js
-+++ b/index.js
-@@ -1,3 +1,3 @@
--const oldVal = 1;
-+const newVal = 2;`;
-
-  const { fetchStub, calls } = stubFetch(diffPayload);
+test("extractGitHub extracts pull request metadata with DOM-only diff and no network fetch", async () => {
+  const { fetchStub, calls } = stubFetch("unused");
   const html = `
     <!doctype html>
     <html>
@@ -127,6 +120,20 @@ index 1234567..89abcdef 100644
         <div class="timeline-comment">
           <a class="author">carol</a>
           <div class="comment-body">This pull request adds feature X.</div>
+        </div>
+        <div class="diff-table">
+          <table>
+            <tr>
+              <td class="blob-code blob-code-deletion">
+                <span class="blob-code-inner" data-code-marker="-">const oldVal = 1;</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="blob-code blob-code-addition">
+                <span class="blob-code-inner">const newVal = 2;</span>
+              </td>
+            </tr>
+          </table>
         </div>
       </body>
     </html>
@@ -151,23 +158,18 @@ index 1234567..89abcdef 100644
   );
   assert.match(
     result.content,
-    /Code changes \(unified diff\):\ndiff --git a\/index\.js b\/index\.js/,
+    /Code changes \(unified diff\):\n- const oldVal = 1;\n\+ const newVal = 2;/,
   );
 
-  assert.strictEqual(calls.length, 1);
   assert.strictEqual(
-    calls[0].url,
-    "https://api.github.com/repos/owner/repo/pulls/101",
-  );
-  assert.strictEqual(calls[0].options.credentials, "omit");
-  assert.strictEqual(
-    calls[0].options.headers.Accept,
-    "application/vnd.github.diff",
+    calls.length,
+    0,
+    "PR extraction must not make any network request",
   );
 });
 
-test("extractGitHub handles pull request when diff request fails or returns unavailable diff", async () => {
-  const { fetchStub } = stubFetch("", { ok: false });
+test("extractGitHub reports diff unavailable when no diff DOM is rendered", async () => {
+  const { fetchStub, calls } = stubFetch("unused", { ok: false });
   const html = `
     <!doctype html>
     <html>
@@ -190,6 +192,11 @@ test("extractGitHub handles pull request when diff request fails or returns unav
 
   assert.strictEqual(result.type, "github");
   assert.match(result.content, /\(Diff unavailable\.\)/);
+  assert.strictEqual(
+    calls.length,
+    0,
+    "PR extraction must not make any network request",
+  );
 });
 
 test("extractGitHub returns null for unhandled pages or landing page without README", async () => {
@@ -218,4 +225,19 @@ test("extractGitHub returns null for unhandled pages or landing page without REA
     htmlNoReadme,
   );
   assert.strictEqual(await profilePage(), null);
+});
+
+test("github extractor source performs no network fetch (#180)", () => {
+  const source = readFileSync(
+    new URL("../../content/extractors/github.js", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    !/\bfetch\s*\(/.test(source),
+    "github.js must not call fetch(); PR diffs are scraped from the page DOM",
+  );
+  assert.ok(
+    !source.includes("api.github.com"),
+    "github.js must not reference the undisclosed api.github.com egress",
+  );
 });
