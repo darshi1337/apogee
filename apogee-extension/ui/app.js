@@ -1105,10 +1105,31 @@ async function loadPastSummaries() {
     chevron.className = "past-summary-chevron";
     chevron.setAttribute("aria-hidden", "true");
     chevron.innerHTML = icon("chevron");
+    
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "delete-btn";
+    deleteBtn.setAttribute("aria-label", "Delete this summary");
+    deleteBtn.innerHTML = icon("trash");
 
+    deleteBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+
+      await chrome.storage.local.remove([entry.s, entry.p]);
+
+      const { cacheOrder = [] } = 
+       await chrome.storage.local.get("cacheOrder");
+
+       const updatedOrder = cacheOrder.filter((e) => e && e.s !== entry.s);
+       
+       await chrome.storage.local.set({ cacheOrder: updatedOrder });
+
+       await loadPastSummaries();
+      
+    });
     const actions = document.createElement("div");
     actions.className = "past-summary-actions";
-    actions.append(copyBtn, chevron);
+    actions.append(copyBtn, deleteBtn, chevron);
     card.appendChild(actions);
 
     pastSummariesList.appendChild(card);
