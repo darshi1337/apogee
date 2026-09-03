@@ -64,7 +64,8 @@ export async function getActivityAuditSummary() {
     }
   }
 
-  const sponsorBlockActive = settings.useSponsorBlock !== "off";
+  const sponsorBlockActive =
+    settings.useSponsorBlock !== false && settings.useSponsorBlock !== "off";
   const externalRequestsAllowed = sponsorBlockActive;
 
   return {

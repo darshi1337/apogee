@@ -17,6 +17,9 @@ globalThis.chrome = {
           for (const [k, v] of storageMap.entries()) res[k] = v;
           return res;
         }
+        if (typeof keys === "string") {
+          return storageMap.has(keys) ? { [keys]: storageMap.get(keys) } : {};
+        }
         if (Array.isArray(keys)) {
           const res = {};
           for (const k of keys) {
@@ -65,4 +68,21 @@ test("getActivityAuditSummary returns privacy & activity audit metrics", async (
   assert.equal(summary.pageAccessCount, 1);
   assert.equal(typeof summary.networkEgress.statusMessage, "string");
   assert.equal(typeof summary.storageRetention.saveHistory, "boolean");
+});
+
+test("getActivityAuditSummary reports zero egress when SponsorBlock is off", async () => {
+  storageMap.clear();
+  await chrome.storage.local.set({ settings: { useSponsorBlock: false } });
+
+  const summary = await getActivityAuditSummary();
+  assert.equal(summary.networkEgress.sponsorBlockActive, false);
+  assert.equal(summary.networkEgress.zeroEgress, true);
+});
+
+test("getActivityAuditSummary reports SponsorBlock active by default", async () => {
+  storageMap.clear();
+
+  const summary = await getActivityAuditSummary();
+  assert.equal(summary.networkEgress.sponsorBlockActive, true);
+  assert.equal(summary.networkEgress.zeroEgress, false);
 });

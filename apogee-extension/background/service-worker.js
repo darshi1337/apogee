@@ -1053,8 +1053,12 @@ if (typeof chrome !== "undefined" && chrome.tabs?.onRemoved?.addListener) {
 
 const SPONSORBLOCK_CATEGORIES = ["sponsor", "selfpromo", "interaction"];
 
-async function fetchSponsorBlockSegments(videoId) {
+export async function fetchSponsorBlockSegments(videoId) {
   if (!/^[A-Za-z0-9_-]{11}$/.test(videoId || "")) return [];
+
+  // "Stay fully local" means no SponsorBlock lookup at all; the uploader falls back to its local phrase heuristic.
+  const { useSponsorBlock } = await getSettings();
+  if (useSponsorBlock === false || useSponsorBlock === "off") return [];
 
   const hasPerm = await hasHostPermissions([
     "*://*.youtube.com/*",
