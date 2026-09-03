@@ -1081,10 +1081,11 @@ async function loadPastSummaries() {
       else preview.textContent = firstLineOf(text);
     };
     card.addEventListener("click", (e) => {
-      if (e.target.closest("a")) return;
+      if (e.target.closest("a, button")) return;
       toggleExpanded();
     });
     card.addEventListener("keydown", (e) => {
+      if (e.target.closest("button")) return;
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         toggleExpanded();
@@ -1105,28 +1106,36 @@ async function loadPastSummaries() {
     chevron.className = "past-summary-chevron";
     chevron.setAttribute("aria-hidden", "true");
     chevron.innerHTML = icon("chevron");
-    
+
+    // The actions bar lives outside the collapsible preview, so this one
+    // delete button serves both the collapsed (off) and expanded (open)
+    // card states: inline in the row when collapsed, pinned top-right via
+    // CSS when the card is expanded.
     const deleteBtn = document.createElement("button");
     deleteBtn.type = "button";
     deleteBtn.className = "delete-btn";
     deleteBtn.setAttribute("aria-label", "Delete this summary");
+    deleteBtn.title = "Delete this summary";
     deleteBtn.innerHTML = icon("trash");
-
     deleteBtn.addEventListener("click", async (e) => {
       e.stopPropagation();
-
-      await chrome.storage.local.remove([entry.s, entry.p]);
-
-      const { cacheOrder = [] } = 
-       await chrome.storage.local.get("cacheOrder");
-
-       const updatedOrder = cacheOrder.filter((e) => e && e.s !== entry.s);
-       
-       await chrome.storage.local.set({ cacheOrder: updatedOrder });
-
-       await loadPastSummaries();
-      
+      try {
+        const removeKeys = [entry.s, entry.p].filter(Boolean);
+        if (removeKeys.length > 0) {
+          await chrome.storage.local.remove(removeKeys);
+        }
+        const { cacheOrder = [] } =
+          await chrome.storage.local.get("cacheOrder");
+        const updatedOrder = cacheOrder.filter(
+          (item) => item && item.s !== entry.s,
+        );
+        await chrome.storage.local.set({ cacheOrder: updatedOrder });
+        await loadPastSummaries();
+      } catch (err) {
+        console.error("Delete past summary error:", err);
+      }
     });
+
     const actions = document.createElement("div");
     actions.className = "past-summary-actions";
     actions.append(copyBtn, deleteBtn, chevron);
