@@ -1,5 +1,6 @@
 import { DEFAULT_SETTINGS } from "../constants.js";
 import { parsePrivateHosts } from "../storage/pageCache.js";
+import { sanitizeLogMessage } from "./log.js";
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
 
@@ -41,7 +42,7 @@ export function formatDiagnosticSettings(settings, extra = {}) {
 
   for (const [key, fallback] of Object.entries(extra)) {
     if (fallback !== undefined && fallback !== null && fallback !== "") {
-      lines.push(`${key}: ${fallback}`);
+      lines.push(`${key}: ${sanitizeLogMessage(fallback)}`);
     }
   }
 
@@ -67,7 +68,7 @@ export function formatDiagnosticsMarkdown(settings, extra = {}, logs = []) {
   for (const [key, value] of Object.entries(extra)) {
     if (value !== undefined && value !== null && value !== "") {
       rows.push(
-        `| ${key} | ${String(value).replace(/\\/g, "\\\\").replace(/\|/g, "\\|")} |`,
+        `| ${key} | ${String(sanitizeLogMessage(value)).replace(/\\/g, "\\\\").replace(/\|/g, "\\|")} |`,
       );
     }
   }
@@ -80,7 +81,7 @@ export function formatDiagnosticsMarkdown(settings, extra = {}, logs = []) {
     rows.push(`| ${key} | ${shown}${isDefault ? " _(default)_" : ""} |`);
   }
 
-  const body = Array.isArray(logs) ? logs.join("\n") : String(logs || "");
+  const body = Array.isArray(logs) ? logs.map((log) => sanitizeLogMessage(log)).join("\n") : sanitizeLogMessage(logs || "");
   // A log line containing ``` would end the fence early; widen ours past the longest run it contains.
   const longest = Math.max(
     2,
@@ -98,14 +99,12 @@ export function formatDiagnosticsMarkdown(settings, extra = {}, logs = []) {
     "| --- | --- |",
     ...rows,
     "",
-    "<details>",
-    "<summary>Engine logs</summary>",
+    "<details><summary>logs</summary>",
     "",
     fence,
-    body || "No logs recorded.",
+    body,
     fence,
     "",
     "</details>",
-    "",
   ].join("\n");
 }
