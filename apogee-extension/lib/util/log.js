@@ -35,6 +35,16 @@ export function sanitizeLogMessage(message, maxLen = MAX_LOG_MESSAGE_LENGTH) {
     /(api[_-]?key|secret[_-]?token|access[_-]?token)=([^\s&"'<>]+)/gi,
     "$1=[redacted]",
   );
+  str = str.replace(
+    /(["'])(api[_-]?key|secret[_-]?token|access[_-]?token)\1\s*:\s*(["'])((?:\\.|(?!\3).)*)\3/gi,
+    "$1$2$1:$3[redacted]$3",
+  );
+  // Bare `key: value` form from server logs and YAML-style output, where the
+  // value carries no quotes for the JSON rule above to anchor on.
+  str = str.replace(
+    /(api[_-]?key|secret[_-]?token|access[_-]?token)\s*:\s*([^\s,}"']+)/gi,
+    "$1:[redacted]",
+  );
 
   // 2. Redact data: and blob: URLs
   str = str.replace(

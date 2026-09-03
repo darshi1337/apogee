@@ -72,6 +72,32 @@ test("sanitizeLogMessage redacts Bearer tokens and secret key parameters", () =>
   );
 });
 
+test("sanitizeLogMessage redacts bare key: value credential lines", () => {
+  assert.strictEqual(
+    sanitizeLogMessage("server reply api-key: SECRET5"),
+    "server reply api-key:[redacted]",
+  );
+  assert.strictEqual(
+    sanitizeLogMessage("access_token: token-abc, retrying"),
+    "access_token:[redacted], retrying",
+  );
+});
+
+test("sanitizeLogMessage redacts JSON-style credential fields", () => {
+  assert.strictEqual(
+    sanitizeLogMessage('{"apiKey":"secret-123"}'),
+    '{"apiKey":"[redacted]"}',
+  );
+  assert.strictEqual(
+    sanitizeLogMessage("{ 'access_token' : 'token-456' }"),
+    "{ 'access_token':'[redacted]' }",
+  );
+  assert.strictEqual(
+    sanitizeLogMessage('{"apiKey":"xx\\"yy"}'),
+    '{"apiKey":"[redacted]"}',
+  );
+});
+
 test("sanitizeLogMessage handles null and undefined inputs gracefully", () => {
   assert.strictEqual(sanitizeLogMessage(null), "");
   assert.strictEqual(sanitizeLogMessage(undefined), "");
