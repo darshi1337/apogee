@@ -81,7 +81,9 @@ export function formatDiagnosticsMarkdown(settings, extra = {}, logs = []) {
     rows.push(`| ${key} | ${shown}${isDefault ? " _(default)_" : ""} |`);
   }
 
-  const body = Array.isArray(logs) ? logs.map((log) => sanitizeLogMessage(log)).join("\n") : sanitizeLogMessage(logs || "");
+  const body = Array.isArray(logs)
+    ? logs.map((log) => sanitizeLogMessage(log)).join("\n")
+    : sanitizeLogMessage(logs || "");
   // A log line containing ``` would end the fence early; widen ours past the longest run it contains.
   const longest = Math.max(
     2,
@@ -102,9 +104,10 @@ export function formatDiagnosticsMarkdown(settings, extra = {}, logs = []) {
     "<details><summary>logs</summary>",
     "",
     fence,
-    body,
+    body || "No logs recorded.",
     fence,
     "",
     "</details>",
+    "",
   ].join("\n");
 }
