@@ -1,5 +1,6 @@
 import { UserFacingError } from "../util/userError.js";
 import { createConnectionError } from "../util/connectionError.js";
+import { ensureLoopbackCorsRule } from "../util/loopbackCors.js";
 
 class OllamaError extends UserFacingError {}
 
@@ -9,6 +10,8 @@ export async function* chatStream(
   prompt,
   { signal, keepAlive = "5m", system, onFinalStats } = {},
 ) {
+  // Scope the loopback Origin-strip to this extension's own (non-tab) requests before the first byte goes out.
+  await ensureLoopbackCorsRule();
   const messages = system
     ? [
         { role: "system", content: system },
@@ -114,6 +117,7 @@ export async function* chatStream(
 }
 
 export async function checkHealth(host, timeoutMs = 3000) {
+  await ensureLoopbackCorsRule();
   try {
     const response = await fetch(`${host.replace(/\/+$/, "")}/api/tags`, {
       signal: AbortSignal.timeout(timeoutMs),

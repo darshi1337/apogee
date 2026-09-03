@@ -69,7 +69,7 @@ Apogee summarizes the web page, video, or PDF the user is currently viewing and 
 
 **alarms** Used for reliable background timing under Manifest V3, whose service worker is terminated when idle. Apogee schedules alarms to clean up finished summary streams and to close the idle offscreen AI document after a timeout, work that plain timers would not survive the worker being suspended.
 
-**declarativeNetRequestWithHostAccess** Apogee ships a single static rule that strips the `Origin` header from requests to the user's own Ollama server on `127.0.0.1`/`localhost`, so Ollama accepts them without the user having to configure `OLLAMA_ORIGINS` by hand. The rule is scoped to those loopback hosts, which the extension already has host permissions for; nothing else is modified, blocked, or redirected, and no request on any website is touched.
+**declarativeNetRequestWithHostAccess** Apogee strips the `Origin` header from requests to the user's own Ollama server on `127.0.0.1`/`localhost`, so Ollama accepts them without the user having to configure `OLLAMA_ORIGINS` by hand. Where the browser supports session-scoped rules, the rule is registered at runtime for requests that originate from no tab (the extension's own background fetches), so no request on any website is touched; a bundled static rule scoped to those loopback hosts remains as a fallback. Nothing else is modified, blocked, or redirected.
 
 **contextMenus** Adds a right-click "Summarize this page" menu item so users can trigger summarization directly, without opening the popup.
 

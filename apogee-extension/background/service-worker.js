@@ -22,6 +22,7 @@ import { chunkBySections } from "../lib/summarize/sections.js";
 import { errorHelpUrl } from "../lib/util/errorHelp.js";
 import { toUserMessage, UserFacingError } from "../lib/util/userError.js";
 import { hasHostPermissions } from "../lib/util/permissions.js";
+import { ensureLoopbackCorsRule } from "../lib/util/loopbackCors.js";
 import {
   buildAnswerPrompt,
   buildSuggestQuestionsPrompt,
@@ -1007,6 +1008,9 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onInstalled?.addListener) {
     });
   });
 }
+
+// Narrow the bundled loopback Origin-strip to this extension's non-tab requests where session rules are supported; loopback clients await the same helper before fetching, so this is only a fast track. Never rejects.
+ensureLoopbackCorsRule().catch(() => {});
 
 if (
   typeof chrome !== "undefined" &&
