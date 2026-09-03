@@ -47,7 +47,9 @@ test("formatDiagnosticSettings: redacts customInstructions to shape not content"
   const set = formatDiagnosticSettings(
     cloneDefaults({ customInstructions: "hello" }),
   );
-  const line = set.split("\n").find((l) => l.startsWith("customInstructions:"));
+  const line = set
+    .split("\n")
+    .find((l) => l.startsWith("customInstructions:"));
   assert.match(line, /set \(5 chars\)/);
   assert.doesNotMatch(line, /hello/);
   const long = "a".repeat(42);
@@ -201,7 +203,7 @@ test("formatDiagnosticsMarkdown: redacts log values", () => {
   const md = formatDiagnosticsMarkdown(
     cloneDefaults(),
     {},
-    ['payload {"apiKey":"secret"}', 'Authorization: Bearer secret-token'],
+    ['payload {"apiKey":"secret"}', "Authorization: Bearer secret-token"],
   );
   assert.doesNotMatch(md, /secret-token|apiKey.*secret/);
 });
@@ -223,7 +225,11 @@ test("formatDiagnosticsMarkdown: marks defaults with _\\(default\\)_ and escapes
 });
 
 test("formatDiagnosticsMarkdown: pipes and backslashes in redacted values are escaped", () => {
-  const md = formatDiagnosticsMarkdown(cloneDefaults(), { note: "a|b\\c" }, []);
+  const md = formatDiagnosticsMarkdown(
+    cloneDefaults(),
+    { note: "a|b\\c" },
+    [],
+  );
   assert.ok(md.includes("| note | a\\|b\\\\c |") || md.includes("a\\|b"));
 });
 
