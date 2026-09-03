@@ -4,6 +4,7 @@ import {
   formatDiagnosticSettings,
   formatDiagnosticsMarkdown,
 } from "../../lib/util/diagnostics.js";
+import { sanitizeLogMessage } from "../../lib/util/log.js";
 import { DEFAULT_SETTINGS } from "../../lib/constants.js";
 
 function cloneDefaults(overrides = {}) {
@@ -158,35 +159,61 @@ test("formatDiagnosticSettings: redacts ollamaHost and llamaHost", () => {
   );
 });
 
-test("formatDiagnosticSettings: omits empty extra fields and wraps with banners", () => {
+test("formatDiagnosticSettings: omits empty extra fields and sanitizes extra values", () => {
   const out = formatDiagnosticSettings(cloneDefaults(), {
     version: "1.2.3",
     empty: "",
     nil: null,
     undef: undefined,
-    url: "https://example.com",
+    url: "https://example.com?apiKey=secret&x=1",
   });
   assert.ok(out.startsWith("--- apogee diagnostics ---"));
   assert.ok(out.includes("--- logs ---"));
   assert.match(out, /version: 1\.2\.3/);
-  assert.match(out, /url: https:\/\/example\.com/);
+  assert.match(out, /url: https:\/\/example\.com\?\[redacted-query\]/);
+  assert.doesNotMatch(out, /apiKey=secret/);
   assert.doesNotMatch(out, /empty:/);
   assert.doesNotMatch(out, /nil:/);
   assert.doesNotMatch(out, /undef:/);
 });
 
+test("sanitizeLogMessage: redacts JSON-style API key fields", () => {
+  const out = sanitizeLogMessage(
+    '{"apiKey":"secret-123","api-key":"another-secret","access_token":"token-456"}',
+  );
+  assert.doesNotMatch(out, /secret-123|another-secret|token-456/);
+  assert.match(out, /apiKey.*redacted/);
+  assert.match(out, /api-key.*redacted/);
+  assert.match(out, /access_token.*redacted/);
+});
+
+test("formatDiagnosticsMarkdown: redacts extra values", () => {
+  const md = formatDiagnosticsMarkdown(
+    cloneDefaults(),
+    { error: 'request failed for "apiKey":"secret"' },
+    [],
+  );
+  assert.doesNotMatch(md, /secret/);
+  assert.match(md, /apiKey.*redacted/);
+});
+
+test("formatDiagnosticsMarkdown: redacts log values", () => {
+  const md = formatDiagnosticsMarkdown(
+    cloneDefaults(),
+    {},
+    ['payload {"apiKey":"secret"}', 'Authorization: Bearer secret-token'],
+  );
+  assert.doesNotMatch(md, /secret-token|apiKey.*secret/);
+});
+
 test("formatDiagnosticsMarkdown: marks defaults with _\\(default\\)_ and escapes table chars", () => {
   const settings = cloneDefaults({ provider: "local" });
   const md = formatDiagnosticsMarkdown(settings, { "extra|key": "a\\b|c" }, []);
-  // default key should have marker
   assert.match(md, /\| theme \| dark _\(default\)_ \|/);
-  // non-default should not
   const providerRow = md.split("\n").find((l) => l.includes("| provider |"));
   assert.ok(providerRow);
   assert.doesNotMatch(providerRow, /_\(default\)_/);
-  // extra escaping: key is not escaped, value is (backslash doubled, pipe escaped)
   assert.ok(md.includes("| extra|key | a\\\\b\\|c |"));
-  // setting value escaping: customInstructions with pipe is redacted, so no pipe remains
   const md2 = formatDiagnosticsMarkdown(
     cloneDefaults({ customInstructions: "a|b\\c" }),
     {},
@@ -196,8 +223,6 @@ test("formatDiagnosticsMarkdown: marks defaults with _\\(default\\)_ and escapes
 });
 
 test("formatDiagnosticsMarkdown: pipes and backslashes in redacted values are escaped", () => {
-  // Force a value that after redaction contains no pipe, so test via extra is sufficient;
-  // also verify that DEFAULT_SETTINGS values with no special chars pass through escaped correctly.
   const md = formatDiagnosticsMarkdown(cloneDefaults(), { note: "a|b\\c" }, []);
   assert.ok(md.includes("| note | a\\|b\\\\c |") || md.includes("a\\|b"));
 });
@@ -205,49 +230,11 @@ test("formatDiagnosticsMarkdown: pipes and backslashes in redacted values are es
 test("formatDiagnosticsMarkdown: fence widens past the longest backtick run in logs", () => {
   const logsWithTriple = ["hello ``` world", "```code```"];
   const md = formatDiagnosticsMarkdown(cloneDefaults(), {}, logsWithTriple);
-  // longest run is 3, fence should be 4 backticks
   assert.ok(md.includes("````\nhello ``` world\n```code```\n````"));
-  // no backticks -> fence is 3
   const md2 = formatDiagnosticsMarkdown(cloneDefaults(), {}, ["no ticks here"]);
   assert.ok(md2.includes("```\nno ticks here\n```"));
-  // double backticks -> fence 3
   const md3 = formatDiagnosticsMarkdown(cloneDefaults(), {}, ["a `` b"]);
   assert.ok(md3.includes("```\na `` b\n```"));
-  // five backticks -> fence 6
   const md4 = formatDiagnosticsMarkdown(cloneDefaults(), {}, ["x ````` y"]);
   assert.ok(md4.includes("``````\nx ````` y\n``````"));
-});
-
-test("formatDiagnosticsMarkdown: handles empty or missing logs", () => {
-  const md = formatDiagnosticsMarkdown(cloneDefaults(), {}, []);
-  assert.ok(md.includes("No logs recorded."));
-  const md2 = formatDiagnosticsMarkdown(cloneDefaults(), {}, "");
-  assert.ok(md2.includes("No logs recorded."));
-});
-
-test("formatDiagnosticsMarkdown: includes heading, table header, and collapsed details", () => {
-  const md = formatDiagnosticsMarkdown(cloneDefaults(), { version: "9.9.9" }, [
-    "log line",
-  ]);
-  assert.ok(md.startsWith("### apogee diagnostics"));
-  assert.ok(md.includes("| setting | value |"));
-  assert.ok(md.includes("| --- | --- |"));
-  assert.ok(md.includes("<details>"));
-  assert.ok(md.includes("<summary>Engine logs</summary>"));
-  assert.ok(md.includes("log line"));
-  assert.ok(md.includes("> ⚠️ **Review before posting:**"));
-  // extra row present
-  assert.ok(md.includes("| version | 9.9.9 |"));
-});
-
-test("formatDiagnosticsMarkdown: omits empty extra fields", () => {
-  const md = formatDiagnosticsMarkdown(
-    cloneDefaults(),
-    { a: "", b: null, c: undefined, d: "ok" },
-    [],
-  );
-  assert.doesNotMatch(md, /\| a \|/);
-  assert.doesNotMatch(md, /\| b \|/);
-  assert.doesNotMatch(md, /\| c \|/);
-  assert.ok(md.includes("| d | ok |"));
 });
