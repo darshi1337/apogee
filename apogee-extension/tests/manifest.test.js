@@ -55,6 +55,10 @@ test("manifest.json permissions enforce local-first privacy boundary", () => {
     "Manifest must declare storage permission",
   );
   assert.ok(
+    permissions.includes("unlimitedStorage"),
+    "Manifest must declare unlimitedStorage for cached summaries and page text",
+  );
+  assert.ok(
     permissions.includes("activeTab"),
     "Manifest must declare activeTab permission",
   );

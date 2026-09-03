@@ -19,7 +19,7 @@ This document outlines current work, upcoming priorities, and long-term goals fo
   - Shipped extractors: YouTube, Bilibili, Wikipedia, Gmail, Reddit, Hacker News, GitHub, Lobsters, arXiv, Mastodon, Stack Overflow, Lemmy, Discourse, Bluesky.
   - Keep extractor creation simple so contributors can write unit-tested extractors in Node without running a browser.
 - **Test Coverage**:
-  - Expand test suites for existing extractors and core modules (455 tests passing).
+  - Expand test suites for existing extractors and core modules (496 tests passing).
 - **Firefox Feature Parity**:
   - Bring on-device vector retrieval (Ask) and sentence-level grounding (Highlight-in-page) to Firefox when browser APIs permit.
 - **Model and Performance Optimizations**:

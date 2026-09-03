@@ -38,13 +38,13 @@ npm install
 npm run dev     # watch mode, rebuilds dist/chrome and dist/firefox on save
 ```
 
-Load `apogee-extension/dist/chrome` (or `dist/firefox`) as an unpacked/temporary extension in your browser. See the main [README](README.md#install-the-extension) for the exact steps per browser.
+Load `apogee-extension/dist/chrome` (or `dist/firefox`) as an unpacked/temporary extension in your browser. See the main [README](README.md#get-started) for the project overview and [BROWSERS.md](BROWSERS.md) for per-browser notes.
 
-If you're working on the **Local Ollama** provider, you'll also need Ollama installed and running; the extension reaches it directly with no `OLLAMA_ORIGINS` setup (see [README's Advanced: Local Ollama Mode](README.md#advanced-local-ollama-mode)).
+If you're working on the **Local Ollama** provider, you'll also need Ollama installed and running; the extension reaches it directly with no `OLLAMA_ORIGINS` setup (see the [Local Ollama Guide](OLLAMA.md)).
 
 ## Before opening a PR
 
-Run these from `apogee-extension/` (or from the repo root, where they're mirrored as `npm run lint` / `npm test` / `npm run build`):
+Run these from `apogee-extension/` (`lint`, `test`, and `build` are also mirrored at the repo root, but `format:check` is not):
 
 ```bash
 npm run format:check   # prettier --check .
@@ -75,12 +75,12 @@ This repo doesn't enforce a strict format, but commit messages generally follow 
 
 ## Privacy is the point
 
-Apogee's core guarantee is that page content and generated summaries/answers never leave your device except to your own local Ollama instance over loopback. If a change would introduce a new outbound network call, call that out explicitly in the PR description.
+Apogee's core guarantee is that page content and generated summaries/answers never leave your device except to your own local Ollama or llama.cpp server over loopback, plus the documented fetches listed in `PRIVACY.md`. If a change would introduce a new outbound network call, call that out explicitly in the PR description.
 
 Permissions and network behaviour are described in four places, and they have to agree, a claim that lives in one and not the others is exactly what store reviewers catch:
 
 - `apogee-extension/manifest.json`, the source of truth
-- [Privacy & Permissions](README.md#privacy--permissions) in the README
+- [Privacy](README.md#privacy) in the README
 - [PRIVACY.md](PRIVACY.md), the published policy the store listing links to
 - `STORE-LISTING.md`, which carries a justification per permission
 

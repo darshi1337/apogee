@@ -1,6 +1,6 @@
 # Apogee
 
-Apogee is an offline-first, private browser extension for Chrome, Edge, and Firefox. It runs LLM inference on-device using WebGPU (WebLLM), WebAssembly (Transformers.js), or Local Ollama (127.0.0.1). It summarizes web content, YouTube/Bilibili videos, and PDFs, and answers questions using on-device retrieval.
+Apogee is an offline-first, private browser extension for Chrome, Edge, and Firefox. It runs LLM inference on-device using WebGPU (WebLLM), WebAssembly (Transformers.js), or local servers over loopback (Ollama, llama.cpp). It summarizes web content, YouTube/Bilibili videos, and PDFs, and answers questions using on-device retrieval.
 
 ## Important Files
 
@@ -9,7 +9,8 @@ Apogee is an offline-first, private browser extension for Chrome, Edge, and Fire
 - `apogee-extension/popup/`: Extension popup UI (HTML, CSS, JS).
 - `apogee-extension/lib/engines/`: LLM engine implementations (WebLLM, Transformers.js, Ollama, llama.cpp).
 - `apogee-extension/lib/engines/llamaCppClient.js`: SSE streaming client and health/context detection for a local `llama-server`.
-- `apogee-extension/lib/extract/`: Article and video text extractors (`pageExtraction.js`, site extractors: YouTube, Bilibili, Wikipedia, Gmail, Reddit, Hacker News, GitHub, Lobsters, arXiv, Mastodon, Stack Overflow, Lemmy, Discourse, Bluesky).
+- `apogee-extension/content/extractors/`: Site-specific article and video text extractors (YouTube, Bilibili, Wikipedia, Gmail, Reddit, Hacker News, GitHub, Lobsters, arXiv, Mastodon, Stack Overflow, Lemmy, Discourse, Bluesky).
+- `apogee-extension/lib/extract/`: Extraction router and local file parsing (`pageExtraction.js`, `selection.js`, `pdfExtract.js`, `docxExtract.js`).
 - `apogee-extension/lib/extract/pdfExtract.js`: Client-side PDF text extraction using pdf.js.
 - `apogee-extension/lib/summarize/mapReduce.js`: Hierarchical map-reduce with tree-folding for long inputs (every chunk mapped, partials folded in groups of `fanIn` until within `getMaxChunks` budget, OOM-safe fallbacks).
 - `apogee-extension/lib/retrieval/rag.js`: Embedding generation, vector similarity retrieval (Ask), and grounding logic.
@@ -41,7 +42,7 @@ Content
 ## Quick Instructions for AI Agents
 
 - **Node Version**: Node.js 22 or newer (.nvmrc pins 22).
-- **Commands** (run from root or inside apogee-extension):
+- **Commands** (run `install:extension`, `build`, `test`, `lint`, `format`, `dev`, `package` from root or inside apogee-extension; `format:check`, `build:chrome`, `build:firefox`, `start:*`, `lint:webext` only inside apogee-extension):
   - `npm install`: Install dependencies.
   - `npm run dev`: Watch mode. Rebuilds dist/chrome and dist/firefox on save.
   - `npm run build`: Build Chromium (dist/chrome) and Firefox (dist/firefox) packages.
@@ -53,7 +54,7 @@ Content
 
 - Do not introduce cloud APIs or remote inference services.
 - Do not send page content, transcripts, PDFs, questions, or summaries to external servers.
-- Keep inference compatible with the existing WebGPU, WebAssembly, and Ollama architecture.
+- Keep inference compatible with the existing WebGPU, WebAssembly, Ollama, and llama.cpp architecture.
 - Run `npm test` and `npm run lint` before submitting changes.
 - Extractor changes must include or update Node-based HTML fixtures and tests.
 
@@ -65,7 +66,7 @@ Content
 - [Browser Support](BROWSERS.md): Browser compatibility matrix, WebGPU vs WebAssembly execution, and Ollama support.
 - [Local llama.cpp Guide](LLAMACPP.md): Connecting Apogee to your own `llama-server`.
 - [Local Ollama Guide](OLLAMA.md): Local Ollama setup for macOS, Windows, and Linux.
-- [Translation Reference](TRANSLATION.md): 29-language matrix and Opus-MT model tiers.
+- [Translation Reference](TRANSLATION.md): 32-language matrix and Opus-MT model tiers.
 - [Privacy Policy](PRIVACY.md): Detailed privacy, network connections, and permission sandboxing.
 - [Error Messages Guide](ERROR.md): Complete catalog of user-facing messages, cause breakdowns, and diagnostic steps.
 - [Developer Setup](DEVELOPMENT.md): Build environment, scripts, test suite, and contributing guidelines.

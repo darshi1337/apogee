@@ -1,10 +1,10 @@
 # Apogee Model Reference
 
-Apogee gives you full control over how AI models run on your machine. You can choose between hardware accelerated WebGPU in your browser, lightweight WebAssembly for CPU compatibility, or connect to your own Local Ollama instance.
+Apogee gives you full control over how AI models run on your machine. You can choose between hardware accelerated WebGPU in your browser, lightweight WebAssembly for CPU compatibility, or connect to your own Local Ollama instance or llama-server.
 
 ## Provider Overview
 
-The table below summarizes the key technical differences between Apogee three supported AI provider engines.
+The table below summarizes the key technical differences between Apogee's four supported AI provider engines.
 
 | Provider | Runtime Engine | Internet Dependency | Model Size Range | Recommended Hardware Target |
 | --- | --- | --- | --- | --- |
@@ -42,7 +42,7 @@ When Local Ollama mode is selected, Apogee queries your local Ollama server over
 
 | Model | Model Size | Recommended Pull Command | Primary Strengths |
 | --- | --- | --- | --- |
-| Gemma 3 4B | ~4B | `ollama pull gemma3:4b` | Outstanding speed and high quality overall outputs |
+| Gemma 3 | ~4B | `ollama pull gemma3:4b` | Outstanding speed and high quality overall outputs |
 | Qwen 3 8B | ~8B | `ollama pull qwen3:8b` | Excellent multilingual reasoning and long context handling |
 | Mistral Latest | ~7B | `ollama pull mistral:latest` | Reliable language capability and technical summarization |
 | Llama 3.1 8B | ~8B | `ollama pull llama3.1:8b` | High reasoning strength and technical context understanding |

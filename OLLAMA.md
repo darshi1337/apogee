@@ -31,16 +31,16 @@ ollama pull llama3.1:8b
 2. Click the gear icon to open **Settings**.
 3. Under **AI Provider**, select **Local Ollama**.
 4. Keep the host field set to `http://127.0.0.1:11434` unless you configured Ollama to use a custom port.
-5. Select your desired model from the **In-Browser Model** dropdown list.
+5. Select your desired model from the **Local LLM** dropdown list.
 
 ## Automatic CORS Handling
 
 Apogee connects to Ollama without requiring custom environment variables or CORS configuration:
 
-- **Header Stripping Rule**: Apogee includes a bundled declarative net request rule that strips origin headers from local loopback requests sent to `127.0.0.1` and `localhost`.
-- **Zero OLLAMA_ORIGINS Setup**: Because requests appear as same-origin loopback requests, Ollama serves them without needing `OLLAMA_ORIGINS="*"` environment variables.
-- **Security Sandboxing**: The header stripping rule excludes local web pages as initiators, preserving security boundaries for other local development servers running on your machine.
+- **Header Stripping Rule**: Apogee strips `Origin` headers from its own local loopback requests sent to `127.0.0.1` and `localhost`. Where the browser supports session-scoped rules, this is registered at runtime for requests originating from no tab (the extension's own background fetches), so other sites and local services are untouched; the bundled static rule remains as a fallback. The same handling covers llama.cpp.
+- **Zero OLLAMA_ORIGINS Setup**: Because requests arrive without an `Origin` header, Ollama serves them without needing `OLLAMA_ORIGINS="*"` environment variables.
+- **Security Sandboxing**: Stripping applies to the extension's own requests only, preserving security boundaries for other local development servers running on your machine.
 
 ## Dynamic Model Discovery
 
-When Local Ollama mode is active, Apogee queries Ollama local `/api/tags` endpoint to fetch your installed models in real time. Any new model you download via `ollama pull` appears automatically in Apogee settings.
+When Local Ollama mode is active, Apogee queries Ollama's local `/api/tags` endpoint to fetch your installed models in real time. Any new model you download via `ollama pull` appears automatically in Apogee settings.
