@@ -148,7 +148,8 @@ export default defineConfig(() => {
           if (this._isWatch) return null;
           if (!id.endsWith("ui/app.js")) return null;
 
-          const mockGuardPattern = /if \(\s*typeof chrome === "undefined"[\s\S]*?await import\("\.\/mock\.js"\);\s*\}\n?/;
+          const mockGuardPattern =
+            /if \(\s*typeof chrome === "undefined"[\s\S]*?await import\("\.\/mock\.js"\);\s*\}\n?/;
           const match = code.match(mockGuardPattern);
           if (!match) {
             throw new Error(
