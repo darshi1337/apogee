@@ -518,6 +518,196 @@ test("mapReduceStream: cleanText runs on the input before chunking", async () =>
   assert.match(calls[0].prompt, /^SINGLE: cleaned:\d+$/);
 });
 
+test("mapReduceStream: single-chunk fast path uses buildSingle not map/reduce", async () => {
+  const { fn, calls } = recordingChat((prompt) => `out:${prompt}`);
+  const buildSingle = (chunk) => `SINGLE:${chunk}`;
+  const buildMap = () => {
+    throw new Error("buildMap should not be called on single-chunk fast path");
+  };
+  const buildReduce = () => {
+    throw new Error(
+      "buildReduce should not be called on single-chunk fast path",
+    );
+  };
+  const chunkTextFn = () => ["only-one"];
+  const out = await collect(
+    mapReduceStream(
+      { text: "irrelevant", model: "m", host: "h" },
+      { chunkTextFn, chatStreamFn: fn, onProgress: NOOP_PROGRESS },
+      { buildSingle, buildMap, buildReduce },
+    ),
+  );
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0].prompt, "SINGLE:only-one");
+  assert.deepStrictEqual(out, ["out:SINGLE:only-one"]);
+});
+
+test("mapReduceStream: empty input (no chunks) hits single-chunk fast path with empty string", async () => {
+  const { fn, calls } = recordingChat();
+  const chunkTextFn = () => [];
+  const out = await collect(
+    mapReduceStream(
+      { text: "   ", model: "m", host: "h" },
+      { chunkTextFn, chatStreamFn: fn, onProgress: NOOP_PROGRESS },
+      makePrompts(),
+    ),
+  );
+  assert.strictEqual(calls.length, 1);
+  assert.match(calls[0].prompt, /^SINGLE: $/);
+  assert.strictEqual(out.length, 1);
+});
+
+test("mapReduceStream: injectable chunkTextFn receives cleaned text and maxChunkChars", async () => {
+  let seenText = null;
+  let seenMax = null;
+  const chunkTextFn = (text, maxChars) => {
+    seenText = text;
+    seenMax = maxChars;
+    return ["a"];
+  };
+  const { fn } = recordingChat();
+  await collect(
+    mapReduceStream(
+      { text: "  hello \n\n world  ", model: "m", host: "h" },
+      { chunkTextFn, chatStreamFn: fn, onProgress: NOOP_PROGRESS },
+      makePrompts(),
+    ),
+  );
+  // cleanText collapses whitespace/newlines before chunking
+  assert.ok(seenText.includes("hello"));
+  assert.ok(seenText.includes("world"));
+  assert.doesNotMatch(seenText, / {2,}/);
+  assert.ok(typeof seenMax === "number" && seenMax > 0);
+});
+
+test("mapReduceStream: injectable chatStreamFn receives host, model, and signal", async () => {
+  const controller = new AbortController();
+  const seen = [];
+  async function* chatStreamFn(host, model, prompt, opts) {
+    seen.push({ host, model, prompt, signal: opts.signal });
+    yield "ok";
+  }
+  await collect(
+    mapReduceStream(
+      {
+        text: "irrelevant",
+        model: "my-model",
+        host: "my-host",
+        signal: controller.signal,
+      },
+      {
+        chunkTextFn: () => ["a", "b"],
+        chatStreamFn,
+        onProgress: NOOP_PROGRESS,
+      },
+      makePrompts(),
+    ),
+  );
+  assert.strictEqual(seen.length, 3);
+  for (const c of seen) {
+    assert.strictEqual(c.host, "my-host");
+    assert.strictEqual(c.model, "my-model");
+    assert.strictEqual(c.signal, controller.signal);
+  }
+});
+
+test("mapReduceStream: stratified sampling via selectChunksFn emits truncated progress", async () => {
+  const progress = [];
+  const chunks = Array.from({ length: 30 }, (_, i) => `c${i}`);
+  const selectChunksFn = (all, max) => {
+    assert.strictEqual(max, 12);
+    return all.slice(0, 5);
+  };
+  const { fn, calls } = recordingChat();
+  await collect(
+    mapReduceStream(
+      { text: "irrelevant", model: "m", host: "h" },
+      {
+        chunkTextFn: () => chunks,
+        chatStreamFn: fn,
+        onProgress: (p) => progress.push(p),
+        selectChunksFn,
+      },
+      makePrompts(),
+    ),
+  );
+  assert.ok(
+    progress.some(
+      (p) => p.stage === "truncated" && p.kept === 5 && p.total === 30,
+    ),
+    "should emit truncated with kept/total",
+  );
+  // only 5 map + 1 final reduce
+  assert.strictEqual(calls.length, 6);
+});
+
+test("mapReduceStream: selectChunksFn returning same count does not emit truncated", async () => {
+  const progress = [];
+  const chunks = Array.from({ length: 20 }, (_, i) => `c${i}`);
+  const selectChunksFn = (all) => all;
+  const { fn } = recordingChat();
+  await collect(
+    mapReduceStream(
+      { text: "irrelevant", model: "m", host: "h" },
+      {
+        chunkTextFn: () => chunks,
+        chatStreamFn: fn,
+        onProgress: (p) => progress.push(p),
+        selectChunksFn,
+      },
+      makePrompts(),
+    ),
+  );
+  assert.ok(!progress.some((p) => p.stage === "truncated"));
+});
+
+test("mapReduceStream: selectChunksFn returning empty array falls through to full coverage", async () => {
+  const progress = [];
+  const chunks = Array.from({ length: 6 }, (_, i) => `c${i}`);
+  const selectChunksFn = () => [];
+  const { fn, calls } = recordingChat();
+  await collect(
+    mapReduceStream(
+      { text: "irrelevant", model: "m", host: "h" },
+      {
+        chunkTextFn: () => chunks,
+        chatStreamFn: fn,
+        onProgress: (p) => progress.push(p),
+        selectChunksFn,
+      },
+      makePrompts(),
+    ),
+  );
+  // empty selection is falsy for truncated path -> falls back to all chunks (6 map + 1 reduce)
+  assert.strictEqual(calls.length, 7);
+  assert.ok(!progress.some((p) => p.stage === "truncated"));
+});
+
+test("mapReduceStream: selectChunksFn returning more than max still goes through tree-reduce bound", async () => {
+  const chunks = Array.from({ length: 30 }, (_, i) => `c${i}`);
+  // selector returns 20, still > 12, so tree should fire
+  const selectChunksFn = () => chunks.slice(0, 20);
+  const { fn, calls } = recordingChat();
+  const progress = [];
+  await collect(
+    mapReduceStream(
+      { text: "irrelevant", model: "m", host: "h" },
+      {
+        chunkTextFn: () => chunks,
+        chatStreamFn: fn,
+        onProgress: (p) => progress.push(p),
+        selectChunksFn,
+      },
+      makePrompts(),
+    ),
+  );
+  // 20 map + ceil(20/2)=10 intermediate + 1 final = 31, final reduce <=12
+  const finalReduce = calls[calls.length - 1].prompt;
+  const m = finalReduce.match(/^REDUCE\((\d+)\):/);
+  assert.ok(m);
+  assert.ok(parseInt(m[1], 10) <= 12);
+});
+
 // Tiny helper: count items inside the joined " || "-delimited partials string of a REDUCE prompt.
 function finalReplaceCount(prompt) {
   const m = prompt.match(/^REDUCE\((\d+)\): /);
