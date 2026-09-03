@@ -32,6 +32,10 @@ Please **do** report a mismatch between what the docs promise and what the code 
 - Reports against your own Ollama instance's configuration, which is outside what this extension controls
 - Automated scanner output with no working proof of concept
 
+## Accepted risks
+
+- **`image-size` HIGH advisories in dev tooling (`GHSA-w3rx-r6r6-pgpr`, `GHSA-5p2g-fcmc-qvqq`).** The vulnerable ICNS/JXL/HEIF parsers reach us only through `web-ext` → `addons-linter`, which pins `image-size@2.0.2` exactly, and no fixed upstream release exists. Exploiting it needs a malicious image inside this repo, which already means commit access, and only affects the machine running the linter; the shipped extension never bundles it (`npm audit --omit=dev` is clean). Accepted until upstream ships a fix; re-check on every dependency bump.
+
 ## Supported versions
 
 Only the latest released version gets fixes. Apogee ships through the Chrome Web Store and Firefox Add-ons, which auto-update, so "upgrade to the current version" is the remedy for anything reported against an older one.
