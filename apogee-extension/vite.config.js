@@ -147,18 +147,16 @@ export default defineConfig(() => {
         transform(code, id) {
           if (this._isWatch) return null;
           if (!id.endsWith("ui/app.js")) return null;
-          const stripped = code.replace(
-            /if \(\s*typeof chrome === "undefined"[\s\S]*?await import\("\.\/mock\.js"\);\s*\}\n?/,
-            "",
-          );
-          if (stripped === code) {
-            this.warn(
-              "strip-dev-mock: mock.js import guard not found in app.js; " +
-                "the strip pattern may be stale (mock chunk may still ship).",
+
+          const mockGuardPattern = /if \(\s*typeof chrome === "undefined"[\s\S]*?await import\("\.\/mock\.js"\);\s*\}\n?/;
+          const match = code.match(mockGuardPattern);
+          if (!match) {
+            throw new Error(
+              "strip-dev-mock: mock.js import guard not found in app.js; refusing to continue production build.",
             );
-            return null;
           }
-          return { code: stripped, map: null };
+
+          return { code: code.replace(mockGuardPattern, ""), map: null };
         },
       },
 
