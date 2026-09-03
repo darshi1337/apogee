@@ -29,7 +29,6 @@ test("formatDiagnosticSettings: does not mark non-default values", () => {
   assert.doesNotMatch(providerLine, /\(default\)/);
   const themeLine = out.split("\n").find((l) => l.startsWith("theme:"));
   assert.doesNotMatch(themeLine, /\(default\)/);
-  // untouched key still marked
   const saveHistoryLine = out
     .split("\n")
     .find((l) => l.startsWith("saveHistory:"));
@@ -84,7 +83,6 @@ test("formatDiagnosticSettings: redacts privateHosts to count not list", () => {
     multi.split("\n").find((l) => l.startsWith("privateHosts:")),
     /3 host\(s\)/,
   );
-  // malformed entries without a dot are ignored -> still 1
   const mixed = formatDiagnosticSettings(
     cloneDefaults({ privateHosts: "localhost, example.com" }),
   );
@@ -109,7 +107,6 @@ test("formatDiagnosticSettings: redacts llamaApiKey to presence only", () => {
 });
 
 test("formatDiagnosticSettings: redacts ollamaHost and llamaHost", () => {
-  // loopback preserved
   const loopback = formatDiagnosticSettings(
     cloneDefaults({ ollamaHost: "http://127.0.0.1:11434" }),
   );
@@ -124,7 +121,6 @@ test("formatDiagnosticSettings: redacts ollamaHost and llamaHost", () => {
     localhost.split("\n").find((l) => l.startsWith("ollamaHost:")),
     /http:\/\/localhost:11434/,
   );
-  // custom host -> shape only
   const custom = formatDiagnosticSettings(
     cloneDefaults({ ollamaHost: "http://192.168.1.10:11434" }),
   );
@@ -138,7 +134,6 @@ test("formatDiagnosticSettings: redacts ollamaHost and llamaHost", () => {
     noPort.split("\n").find((l) => l.startsWith("ollamaHost:")),
     /custom host, port none/,
   );
-  // unparseable
   const bad = formatDiagnosticSettings(
     cloneDefaults({ ollamaHost: "not a url" }),
   );
@@ -151,7 +146,6 @@ test("formatDiagnosticSettings: redacts ollamaHost and llamaHost", () => {
     empty.split("\n").find((l) => l.startsWith("ollamaHost:")),
     /unset/,
   );
-  // llamaHost follows same rules
   const llamaCustom = formatDiagnosticSettings(
     cloneDefaults({ llamaHost: "http://my-server.local:8080" }),
   );
