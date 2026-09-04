@@ -17,7 +17,11 @@ function redact(key, value) {
   if (key === "llamaApiKey") {
     return value ? "set" : "unset";
   }
-  if (/(api[_-]?key|secret[_-]?token|access[_-]?token|authorization|auth)/i.test(key)) {
+  if (
+    /(api[_-]?key|secret[_-]?token|access[_-]?token|authorization|auth)/i.test(
+      key,
+    )
+  ) {
     return value ? "[redacted]" : "unset";
   }
   if (key === "ollamaHost" || key === "llamaHost") {
