@@ -82,8 +82,16 @@ test("sanitizeLogMessage redacts JSON and YAML-style credential forms", () => {
   );
   assert.strictEqual(
     sanitizeLogMessage(yamlInput),
-    "api-key:[redacted] secret-token:[redacted]",
+    "api-key: [redacted] secret-token: [redacted]",
   );
+});
+
+test("sanitizeLogMessage redacts password-style keys but not author", () => {
+  assert.strictEqual(
+    sanitizeLogMessage("login password=hunter2 pwd=x token=abc"),
+    "login password=[redacted] pwd=[redacted] token=[redacted]",
+  );
+  assert.strictEqual(sanitizeLogMessage("author=John"), "author=John");
 });
 
 test("sanitizeLogMessage handles null and undefined inputs gracefully", () => {

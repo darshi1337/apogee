@@ -171,12 +171,16 @@ test("formatDiagnosticSettings: omits empty extra fields and wraps with banners"
 
 test("formatDiagnosticsMarkdown: marks defaults with _\\(default\\)_ and escapes table chars", () => {
   const settings = cloneDefaults({ provider: "local" });
-  const md = formatDiagnosticsMarkdown(settings, { "extra|key": "a\\b|c" }, []);
+  const md = formatDiagnosticsMarkdown(
+    settings,
+    { "extra|note": "a\\b|c" },
+    [],
+  );
   assert.match(md, /\| theme \| dark _\(default\)_ \|/);
   const providerRow = md.split("\n").find((l) => l.includes("| provider |"));
   assert.ok(providerRow);
   assert.doesNotMatch(providerRow, /_\(default\)_/);
-  assert.ok(md.includes("| extra\\|key | a\\\\b\\|c |"));
+  assert.ok(md.includes("| extra\\|note | a\\\\b\\|c |"));
   const md2 = formatDiagnosticsMarkdown(
     cloneDefaults({ customInstructions: "a|b\\c" }),
     {},
@@ -196,6 +200,8 @@ test("formatDiagnosticsMarkdown: redacts sensitive extra values", () => {
     auth: "Bearer super-secret-token",
     apiKeyJson: '{"apiKey":"json-secret"}',
     apiKeyYaml: "api-key: yaml-secret",
+    password: "hunter2",
+    author: "John Doe",
     url: "https://user:password@example.com/path?token=secret",
   });
 
@@ -203,8 +209,11 @@ test("formatDiagnosticsMarkdown: redacts sensitive extra values", () => {
   assert.doesNotMatch(md, /super-secret-token/);
   assert.doesNotMatch(md, /json-secret/);
   assert.doesNotMatch(md, /yaml-secret/);
+  assert.doesNotMatch(md, /hunter2/);
   assert.doesNotMatch(md, /password@example\.com/);
   assert.doesNotMatch(md, /token=secret/);
+  // non-credential keys pass through untouched
+  assert.ok(md.includes("John Doe"));
 });
 
 test("formatDiagnosticsMarkdown: fence widens past the longest backtick run in logs", () => {

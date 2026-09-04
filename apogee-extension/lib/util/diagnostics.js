@@ -1,6 +1,6 @@
 import { DEFAULT_SETTINGS } from "../constants.js";
 import { parsePrivateHosts } from "../storage/pageCache.js";
-import { sanitizeLogMessage } from "./log.js";
+import { isSensitiveCredentialKey, sanitizeLogMessage } from "./log.js";
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
 
@@ -17,11 +17,7 @@ function redact(key, value) {
   if (key === "llamaApiKey") {
     return value ? "set" : "unset";
   }
-  if (
-    /(api[_-]?key|secret[_-]?token|access[_-]?token|authorization|auth)/i.test(
-      key,
-    )
-  ) {
+  if (isSensitiveCredentialKey(key)) {
     return value ? "[redacted]" : "unset";
   }
   if (key === "ollamaHost" || key === "llamaHost") {

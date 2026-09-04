@@ -23,6 +23,22 @@ export async function initDebugLogging() {
 
 const MAX_LOG_MESSAGE_LENGTH = 500;
 
+// True when an `extra` / log key names a credential. CamelCase, snake_case,
+// kebab-case and dotted forms are normalized to words first, so bare `auth`
+// matches `myAuth` / `my-auth` but not `author`.
+export function isSensitiveCredentialKey(key) {
+  const normalized = String(key ?? "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_.-]+/g, " ")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return false;
+  return /\b(api key|apikey|access token|accesstoken|auth token|authtoken|authorization|auth|basic auth|secret|password|passwd|pwd|private key|privatekey|client secret|clientsecret|token|key)\b/.test(
+    normalized,
+  );
+}
+
 export function sanitizeLogMessage(message, maxLen = MAX_LOG_MESSAGE_LENGTH) {
   let str = String(message ?? "");
 
@@ -32,9 +48,11 @@ export function sanitizeLogMessage(message, maxLen = MAX_LOG_MESSAGE_LENGTH) {
     "Bearer [redacted-token]",
   );
   str = str.replace(
-    /(["']?)(api[_-]?key|secret[_-]?token|access[_-]?token)\1\s*([:=])\s*(["']?)([^\s,&"'<>}\]]+)\4/gi,
-    (_, quote, key, separator, valueQuote) =>
-      `${quote}${key}${quote}${separator}${valueQuote}[redacted]${valueQuote}`,
+    /(["']?)([A-Za-z0-9_.$-]+)\1(\s*[:=]\s*)(["']?)([^\s,&"'<>}\]]+)\4/g,
+    (match, quote, key, separator, valueQuote) => {
+      if (!isSensitiveCredentialKey(key)) return match;
+      return `${quote}${key}${quote}${separator}${valueQuote}[redacted]${valueQuote}`;
+    },
   );
 
   // 2. Redact data: and blob: URLs
