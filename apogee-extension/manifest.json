@@ -21,6 +21,7 @@
     "*://*.bilibili.com/*",
     "*://*.hdslb.com/*",
     "*://*.youtube.com/*",
+    "*://*.googlevideo.com/*",
     "*://*.bsky.app/*",
     "https://sponsor.ajay.app/*"
   ],

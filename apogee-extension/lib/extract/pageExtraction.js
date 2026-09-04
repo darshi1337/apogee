@@ -1,4 +1,5 @@
 import { UserFacingError } from "../util/userError.js";
+import { MAX_UPLOAD_FILE_BYTES } from "./fileLimits.js";
 
 // Pages the browser itself refuses to let extensions script, even though they are ordinary https URLs. Without this the raw engine error ("The extensions gallery cannot be scripted.") leaks into the popup.
 const BLOCKED_PAGES = [
@@ -110,8 +111,6 @@ export async function extractFromActiveTab(tab) {
 }
 
 // Chrome extension messaging has an internal size ceiling. Base64 costs 1.33× and the chunked String.fromCharCode loop holds a second full copy, so we cap the raw PDF size well below the point where sendMessage would silently fail.
-const MAX_PDF_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
-
 export async function extractPdfContent(tab) {
   const results = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
@@ -133,7 +132,7 @@ export async function extractPdfContent(tab) {
       }
       return btoa(binary);
     },
-    args: [MAX_PDF_SIZE_BYTES],
+    args: [MAX_UPLOAD_FILE_BYTES],
   });
   const pdfBase64 = results?.[0]?.result;
   if (!pdfBase64) throw new UserFacingError("Could not download PDF.");

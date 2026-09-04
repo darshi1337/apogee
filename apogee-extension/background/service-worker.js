@@ -32,6 +32,7 @@ import {
 import { truncateForPrompt } from "../lib/summarize/chunk.js";
 import { parseSuggestedQuestions } from "../lib/summarize/questions.js";
 import { extractPdfText } from "../lib/extract/pdfExtract.js";
+import { MAX_UPLOAD_FILE_BYTES } from "../lib/extract/fileLimits.js";
 import {
   recordPageAccessEvent,
   getActivityAuditSummary,
@@ -839,12 +840,17 @@ async function runBackgroundSummarize(
     await persistContent(tab.url, pageData);
   }
 
-  recordPageAccessEvent({
-    title: pageData.title,
-    url: pageData.url,
-    contentLength: (pageData.content || "").length,
-    type: pageData.type,
-  }).catch(() => {});
+  // The audit log lives in on-disk storage alongside the cache, so it
+  // follows the same persistence decision: sensitive pages and "Don't save"
+  // sessions (persist === false) leave no title+URL trace behind.
+  if (persist) {
+    recordPageAccessEvent({
+      title: pageData.title,
+      url: pageData.url,
+      contentLength: (pageData.content || "").length,
+      type: pageData.type,
+    }).catch(() => {});
+  }
 
   let content = pageData.content;
   if (pageData.isPdf) {
@@ -1867,7 +1873,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case "extract-pdf": {
           const pdfBase64 = message.payload?.pdfBase64;
-          const MAX_PDF_BASE64_LENGTH = Math.ceil((50 * 1024 * 1024 * 4) / 3);
+          const MAX_PDF_BASE64_LENGTH = Math.ceil(
+            (MAX_UPLOAD_FILE_BYTES * 4) / 3,
+          );
           if (
             typeof pdfBase64 !== "string" ||
             pdfBase64.length > MAX_PDF_BASE64_LENGTH
