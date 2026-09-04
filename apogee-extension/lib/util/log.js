@@ -26,14 +26,14 @@ const MAX_LOG_MESSAGE_LENGTH = 500;
 export function sanitizeLogMessage(message, maxLen = MAX_LOG_MESSAGE_LENGTH) {
   let str = String(message ?? "");
 
-  // 1. Redact Authorization Bearer tokens & secret/API keys
+  // 1. Redact Authorization Bearer tokens & secret/API keys, including JSON/YAML-style forms.
   str = str.replace(
     /Bearer\s+[a-zA-Z0-9._~+/-]+=*/gi,
     "Bearer [redacted-token]",
   );
   str = str.replace(
-    /(api[_-]?key|secret[_-]?token|access[_-]?token)=([^\s&"'<>]+)/gi,
-    "$1=[redacted]",
+    /(["']?)(api[_-]?key|secret[_-]?token|access[_-]?token)\1\s*[:=]\s*(["']?)([^\s,&"'<>}\]]+)\3/gi,
+    "$1$2$1=[redacted]",
   );
 
   // 2. Redact data: and blob: URLs
