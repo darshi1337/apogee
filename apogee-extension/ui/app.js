@@ -367,7 +367,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
   setSuggestedQuestions(questions);
 });
 
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (sender?.id && sender.id !== chrome.runtime.id) return;
   if (
     message.type === "suggested-prompts-ready" &&
     message.promptsCacheKey === currentPromptsCacheKey
@@ -743,7 +744,8 @@ async function getPageData(tab) {
 
 let modelProgressHideTimer = null;
 
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (sender?.id && sender.id !== chrome.runtime.id) return;
   if (message.type === "selection-summary-started" && isSidePanelSurface) {
     window.location.reload();
     return;

@@ -62,7 +62,10 @@ export async function getActivityAuditSummary() {
     try {
       const allData = await chrome.storage.local.get(null);
       storageCount = Object.keys(allData).filter(
-        (k) => k.startsWith("summary_") || k.startsWith("cache_"),
+        (k) =>
+          k.startsWith("summary:") ||
+          k.startsWith("suggested-prompts:") ||
+          k.startsWith("content:"),
       ).length;
     } catch {
       storageCount = 0;

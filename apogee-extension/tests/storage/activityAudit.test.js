@@ -121,3 +121,17 @@ test("getActivityAuditSummary reports saveHistory false when history is off", as
   const summary = await getActivityAuditSummary();
   assert.equal(summary.storageRetention.saveHistory, false);
 });
+
+test("getActivityAuditSummary counts real cached-page keys (#208)", async () => {
+  storageMap.clear();
+  await chrome.storage.local.set({
+    "summary:bullets:auto:m:abc": "text",
+    "suggested-prompts:bullets:auto:m:abc": ["q?"],
+    "content:def": { title: "t" },
+    cacheOrder: [{ s: "summary:bullets:auto:m:abc" }],
+    unrelated: 1,
+  });
+
+  const summary = await getActivityAuditSummary();
+  assert.equal(summary.storageRetention.cachedPagesCount, 3);
+});
