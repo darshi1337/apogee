@@ -51,6 +51,7 @@ export default [
         extractReddit: "readonly",
         extractLobsters: "readonly",
         extractGitHub: "readonly",
+        extractGitLab: "readonly",
         extractWikipedia: "readonly",
         extractArxiv: "readonly",
         extractMastodon: "readonly",
@@ -68,24 +69,12 @@ export default [
     },
   },
   {
-    files: ["content/extractors/thread.js"],
-    rules: {
-      "no-unused-vars": [
-        "warn",
-        {
-          argsIgnorePattern: "^_",
-          varsIgnorePattern:
-            "^(threadTruncate|buildThreadNodes|selectThreadComments|formatThreadComments|THREAD_COMMENTS_HEADER)$",
-        },
-      ],
-    },
-  },
-  {
     files: [
       "content/extractors/hackernews.js",
       "content/extractors/reddit.js",
       "content/extractors/lobsters.js",
       "content/extractors/github.js",
+      "content/extractors/gitlab.js",
       "content/extractors/mastodon.js",
       "content/extractors/stackoverflow.js",
       "content/extractors/lemmy.js",
@@ -100,6 +89,19 @@ export default [
         formatThreadComments: "readonly",
         THREAD_COMMENTS_HEADER: "readonly",
       },
+    },
+  },
+  {
+    files: ["content/extractors/thread.js"],
+    rules: {
+      "no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern:
+            "^(threadTruncate|buildThreadNodes|selectThreadComments|formatThreadComments|THREAD_COMMENTS_HEADER)$",
+        },
+      ],
     },
   },
   prettier,
