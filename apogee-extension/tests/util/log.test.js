@@ -78,11 +78,11 @@ test("sanitizeLogMessage redacts JSON and YAML-style credential forms", () => {
 
   assert.strictEqual(
     sanitizeLogMessage(jsonInput),
-    '"apiKey=[redacted],"access_token=[redacted]',
+    '{"apiKey":"[redacted]","access_token":"[redacted]"}',
   );
   assert.strictEqual(
     sanitizeLogMessage(yamlInput),
-    "api-key=[redacted] secret-token=[redacted]",
+    "api-key:[redacted] secret-token:[redacted]",
   );
 });
 
