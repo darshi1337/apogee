@@ -9,10 +9,12 @@
   "scripts": {
     "install:extension": "npm install --prefix apogee-extension",
     "build": "npm run build --prefix apogee-extension",
+    "build:edge": "npm run build:edge --prefix apogee-extension",
     "test": "npm test --prefix apogee-extension",
     "lint": "npm run lint --prefix apogee-extension",
     "format": "npm run format --prefix apogee-extension",
     "dev": "npm run dev --prefix apogee-extension",
-    "package": "npm run package --prefix apogee-extension"
+    "package": "npm run package --prefix apogee-extension",
+    "package:edge": "npm run package:edge --prefix apogee-extension"
   }
 }

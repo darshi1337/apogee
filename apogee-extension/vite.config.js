@@ -51,19 +51,22 @@ function copyStaticPlugin(targetBrowser) {
 }
 
 function bundleModelLibsPlugin(targetBrowser) {
+  // Edge is Chromium-based, so it shares the Chrome build path
+  // (offscreen, service_worker, model libs). Only Firefox diverges.
+  const isChromium = targetBrowser === "chrome" || targetBrowser === "edge";
   let libs = [];
   return {
     name: "bundle-webllm-model-libs",
     async buildStart() {
-      if (targetBrowser !== "chrome") return;
+      if (!isChromium) return;
       libs = await ensureModelLibs();
     },
     closeBundle() {
-      if (targetBrowser !== "chrome") return;
+      if (!isChromium) return;
       for (const { file, path } of libs) {
         cpSync(
           path,
-          resolve(__dirname, `dist/chrome/assets/model-libs/${file}`),
+          resolve(__dirname, `dist/${targetBrowser}/assets/model-libs/${file}`),
         );
       }
     },
