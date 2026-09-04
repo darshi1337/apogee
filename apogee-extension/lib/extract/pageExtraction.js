@@ -81,6 +81,7 @@ export async function extractFromActiveTab(tab) {
           "/content/extractors/reddit.js",
           "/content/extractors/lobsters.js",
           "/content/extractors/github.js",
+          "/content/extractors/gitlab.js",
           "/content/extractors/wikipedia.js",
           "/content/extractors/arxiv.js",
           "/content/extractors/mastodon.js",
