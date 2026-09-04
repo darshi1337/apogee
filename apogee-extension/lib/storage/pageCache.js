@@ -42,6 +42,30 @@ export async function getSummaryCacheKey(
 ) {
   return `summary:${fmt}:${lang}:${model}:${translationEngineKey(translationEngine)}:${await hashUrl(url)}${await instructionsSuffix(customInstructions)}`;
 }
+
+// Inverse of getSummaryCacheKey for display/export: pulls the response
+// format, language, and model back out of a stored cache key. Best-effort —
+// legacy or malformed keys yield empty strings. The model itself may contain
+// colons (e.g. "qwen3:8b"), so the trailing segments (instructions suffix,
+// url hash, engine) are stripped from the end rather than split positionally.
+// The source URL is a one-way hash and is not recoverable.
+export function parseSummaryCacheKey(cacheKey) {
+  const fallback = { format: "", language: "", model: "" };
+  if (typeof cacheKey !== "string" || !cacheKey.startsWith("summary:")) {
+    return fallback;
+  }
+  const rest = cacheKey
+    .replace(/:i[0-9a-f]{12}$/, "")
+    .replace(/:[0-9a-f]{32}$/, "")
+    .replace(
+      new RegExp(`:(${TRANSLATION_ENGINES.OPUS}|${TRANSLATION_ENGINES.LLM})$`),
+      "",
+    )
+    .replace(/^summary:/, "");
+  const [format = "", language = "", ...modelParts] = rest.split(":");
+  if (!format || !language || modelParts.length === 0) return fallback;
+  return { format, language, model: modelParts.join(":") };
+}
 export async function getPromptsCacheKey(
   url,
   fmt,

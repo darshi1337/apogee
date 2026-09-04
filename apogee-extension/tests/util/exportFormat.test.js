@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert";
 import {
+  formatSummaryAsJSON,
   formatSummaryAsMarkdown,
   formatSummaryAsPlainText,
+  safeExportFilename,
 } from "../../lib/util/exportFormat.js";
 
 test("formatSummaryAsMarkdown includes title, source, and summary", () => {
@@ -78,4 +80,53 @@ test("formatSummaryAsPlainText removes Markdown formatting", () => {
     result,
     "Example Article\n\nSource: https://example.com/article\n\nKey points\n\n- First point\n- Second point\n",
   );
+});
+
+test("formatSummaryAsJSON includes all fields and preserves summary structure", () => {
+  const result = formatSummaryAsJSON({
+    title: "Example Article",
+    url: "https://example.com/article",
+    model: "Qwen 2.5 1.5B",
+    format: "bullets",
+    language: "English",
+    summary: "- First point\n- Second point",
+    suggestedQuestions: ["What next?"],
+  });
+
+  assert.deepStrictEqual(JSON.parse(result), {
+    title: "Example Article",
+    url: "https://example.com/article",
+    model: "Qwen 2.5 1.5B",
+    format: "bullets",
+    language: "English",
+    summary: "- First point\n- Second point",
+    suggestedQuestions: ["What next?"],
+  });
+});
+
+test("formatSummaryAsJSON defaults missing fields and non-array questions", () => {
+  const result = JSON.parse(formatSummaryAsJSON({}));
+  assert.deepStrictEqual(result, {
+    title: "",
+    url: "",
+    model: "",
+    format: "",
+    language: "",
+    summary: "",
+    suggestedQuestions: [],
+  });
+
+  const nonArray = JSON.parse(
+    formatSummaryAsJSON({ suggestedQuestions: "nope" }),
+  );
+  assert.deepStrictEqual(nonArray.suggestedQuestions, []);
+});
+
+test("safeExportFilename strips illegal characters and falls back", () => {
+  assert.strictEqual(
+    safeExportFilename('Report: Q&A / test<>:"/\\|?*'),
+    "Report Q&A test",
+  );
+  assert.strictEqual(safeExportFilename(""), "summary");
+  assert.strictEqual(safeExportFilename("   "), "summary");
 });

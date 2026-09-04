@@ -59,7 +59,7 @@ export function formatSummaryAsJSON({
       model: model || "",
       format: format || "",
       language: language || "",
-      summary: summary?.replace ? summary.replace(/[\r\n]+/g, " ") : "",
+      summary: typeof summary === "string" ? summary : "",
       suggestedQuestions: Array.isArray(suggestedQuestions)
         ? suggestedQuestions
         : [],
@@ -67,4 +67,18 @@ export function formatSummaryAsJSON({
     null,
     2,
   );
+}
+
+// Page titles can contain characters that are illegal in file names
+// (e.g. `/`, `\`, `:`) or that browsers interpret as paths. Strip those,
+// collapse whitespace, and fall back to "summary" so the JSON download
+// always gets a safe, single-segment file name.
+export function safeExportFilename(title, fallback = "summary") {
+  const cleaned = String(title || "")
+    // eslint-disable-next-line no-control-regex
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 100);
+  return cleaned || fallback;
 }
