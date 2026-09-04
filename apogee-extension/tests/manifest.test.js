@@ -186,9 +186,47 @@ test("declared network egress matches the documented allow-list (#180)", () => {
       "*://*.bilibili.com/*",
       "*://*.hdslb.com/*",
       "*://*.youtube.com/*",
+      "*://*.googlevideo.com/*",
       "*://*.bsky.app/*",
       "https://sponsor.ajay.app/*",
     ]),
     "optional_host_permissions must exactly match the documented set",
   );
+});
+
+test("extractor fetch hosts are declared and documented (#185)", () => {
+  // The YouTube transcript fetch runs in the content script (page context),
+  // so extension_pages connect-src does not bind it; what binds it is the
+  // extractor's own host allow-list plus optional_host_permissions. Both
+  // directions are pinned here: every host the extractor accepts must be
+  // declared, and every declared pattern must be named in the docs.
+  const youtubeSource = readFileSync(
+    resolve(manifestPath.pathname, "..", "content/extractors/youtube.js"),
+    "utf8",
+  );
+  const suffixDecl = youtubeSource.match(/allowedSuffixes\s*=\s*\[([^\]]*)\]/);
+  assert.ok(suffixDecl, "youtube.js must declare allowedSuffixes");
+  const suffixes = [...suffixDecl[1].matchAll(/"(\.[^"]+)"/g)].map((m) => m[1]);
+  assert.ok(suffixes.length > 0, "allowedSuffixes must not be empty");
+
+  const optional = new Set(manifest.optional_host_permissions || []);
+  for (const suffix of suffixes) {
+    const pattern = `*://*${suffix}/*`;
+    assert.ok(
+      optional.has(pattern),
+      `extractor-accepted host ${suffix} must be declared as ${pattern}`,
+    );
+  }
+
+  const docTokens = new Set();
+  for (const doc of ["../../PRIVACY.md", "../../STORE-LISTING.md"]) {
+    const text = readFileSync(new URL(doc, import.meta.url), "utf8");
+    for (const [, token] of text.matchAll(/`([^`]+)`/g)) docTokens.add(token);
+  }
+  for (const pattern of optional) {
+    assert.ok(
+      docTokens.has(pattern),
+      `declared permission ${pattern} must be named verbatim in PRIVACY.md or STORE-LISTING.md`,
+    );
+  }
 });

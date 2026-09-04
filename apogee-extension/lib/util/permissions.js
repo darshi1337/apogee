@@ -56,7 +56,11 @@ export function getOptionalOriginsForUrl(url) {
       host.endsWith(".youtube.com") ||
       host === "youtu.be"
     ) {
-      return ["*://*.youtube.com/*", "https://sponsor.ajay.app/*"];
+      return [
+        "*://*.youtube.com/*",
+        "*://*.googlevideo.com/*",
+        "https://sponsor.ajay.app/*",
+      ];
     }
   } catch {}
   return [];

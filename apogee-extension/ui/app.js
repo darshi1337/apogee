@@ -68,6 +68,7 @@ import {
   extractFromActiveTab,
   extractPdfContent,
 } from "../lib/extract/pageExtraction.js";
+import { assertUploadSizeOk } from "../lib/extract/fileLimits.js";
 import {
   activateSelectionCapture,
   MIN_SELECTION_LENGTH,
@@ -2415,8 +2416,20 @@ pasteDialog?.addEventListener("keydown", (event) => {
 const fileUploadInput = document.getElementById("fileUploadInput");
 
 async function summarizeFile(file) {
+  // Same ceiling as the tab-PDF path, checked before any read so an
+  // oversized file never becomes several in-memory copies (arrayBuffer +
+  // base64 + binary string) on the way in.
+  const lowerName = file.name.toLowerCase();
+  assertUploadSizeOk(
+    file.size,
+    lowerName.endsWith(".pdf")
+      ? "PDF"
+      : lowerName.endsWith(".docx")
+        ? "DOCX file"
+        : "file",
+  );
   let text;
-  if (file.name.toLowerCase().endsWith(".pdf")) {
+  if (lowerName.endsWith(".pdf")) {
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
     let binary = "";
@@ -2430,7 +2443,7 @@ async function summarizeFile(file) {
     const base64 = btoa(binary);
     const { extractPdfText } = await import("../lib/extract/pdfExtract.js");
     text = await extractPdfText(base64);
-  } else if (file.name.toLowerCase().endsWith(".docx")) {
+  } else if (lowerName.endsWith(".docx")) {
     const { extractDocxText } = await import("../lib/extract/docxExtract.js");
     text = await extractDocxText(await file.arrayBuffer());
   } else {
