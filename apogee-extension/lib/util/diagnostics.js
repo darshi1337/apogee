@@ -31,9 +31,7 @@ function redact(key, value) {
 }
 
 function escapeMarkdownTableCell(value) {
-  return String(value)
-    .replace(/\\/g, "\\\\")
-    .replace(/\|/g, "\\|");
+  return String(value).replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 }
 
 /**
@@ -80,7 +78,9 @@ export function formatDiagnosticsMarkdown(settings, extra = {}, logs = []) {
     const value = settings?.[key];
     const shown = escapeMarkdownTableCell(redact(key, value));
     const isDefault = value === DEFAULT_SETTINGS[key];
-    rows.push(`| ${escapeMarkdownTableCell(key)} | ${shown}${isDefault ? " _(default)_" : ""} |`);
+    rows.push(
+      `| ${escapeMarkdownTableCell(key)} | ${shown}${isDefault ? " _(default)_" : ""} |`,
+    );
   }
 
   const body = Array.isArray(logs) ? logs.join("\n") : String(logs || "");
