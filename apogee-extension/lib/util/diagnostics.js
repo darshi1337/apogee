@@ -30,6 +30,12 @@ function redact(key, value) {
   return value;
 }
 
+function escapeMarkdownTableCell(value) {
+  return String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/\|/g, "\\|");
+}
+
 /**
  * A settings block to sit above the offscreen logs, so a copied report says
  * which configuration produced the behaviour. Values equal to the shipped
@@ -66,18 +72,15 @@ export function formatDiagnosticsMarkdown(settings, extra = {}, logs = []) {
 
   for (const [key, value] of Object.entries(extra)) {
     if (value !== undefined && value !== null && value !== "") {
-      rows.push(
-        `| ${key} | ${String(value).replace(/\\/g, "\\\\").replace(/\|/g, "\\|")} |`,
-      );
+      const shown = escapeMarkdownTableCell(value);
+      rows.push(`| ${escapeMarkdownTableCell(key)} | ${shown} |`);
     }
   }
   for (const key of Object.keys(DEFAULT_SETTINGS)) {
     const value = settings?.[key];
-    const shown = String(redact(key, value))
-      .replace(/\\/g, "\\\\")
-      .replace(/\|/g, "\\|");
+    const shown = escapeMarkdownTableCell(redact(key, value));
     const isDefault = value === DEFAULT_SETTINGS[key];
-    rows.push(`| ${key} | ${shown}${isDefault ? " _(default)_" : ""} |`);
+    rows.push(`| ${escapeMarkdownTableCell(key)} | ${shown}${isDefault ? " _(default)_" : ""} |`);
   }
 
   const body = Array.isArray(logs) ? logs.join("\n") : String(logs || "");
