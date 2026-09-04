@@ -1,4 +1,5 @@
 import { UserFacingError } from "../util/userError.js";
+import { MAX_PDF_TEXT_CHARS } from "./fileLimits.js";
 
 class PdfExtractionError extends UserFacingError {}
 
@@ -56,14 +57,32 @@ export async function extractPdfText(pdfBase64) {
     for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
       const page = await doc.getPage(pageNum);
       const content = await page.getTextContent();
+      let addition = "";
       for (const item of content.items) {
         if (typeof item.str !== "string") continue;
-        text += item.str + (item.hasEOL ? "\n" : " ");
+        addition += item.str + (item.hasEOL ? "\n" : " ");
       }
-      text += "\n";
+      addition += "\n";
+      text = appendPdfText(text, addition);
     }
     return text;
   } finally {
     await loadingTask.destroy();
   }
+}
+
+/**
+ * Append one page's text to the running extraction, enforcing the text
+ * accumulation ceiling so pathological content-stream inflation inside the
+ * parser cannot turn the result string itself into the OOM vector.
+ */
+export function appendPdfText(text, addition) {
+  const next = text + addition;
+  if (next.length > MAX_PDF_TEXT_CHARS) {
+    throw new PdfExtractionError(
+      "This PDF contains too much text to process in the extension. " +
+        "Try a shorter document.",
+    );
+  }
+  return next;
 }

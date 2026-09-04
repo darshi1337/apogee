@@ -32,6 +32,7 @@ import {
 import { truncateForPrompt } from "../lib/summarize/chunk.js";
 import { parseSuggestedQuestions } from "../lib/summarize/questions.js";
 import { extractPdfText } from "../lib/extract/pdfExtract.js";
+import { MAX_UPLOAD_FILE_BYTES } from "../lib/extract/fileLimits.js";
 import {
   recordPageAccessEvent,
   getActivityAuditSummary,
@@ -1872,7 +1873,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case "extract-pdf": {
           const pdfBase64 = message.payload?.pdfBase64;
-          const MAX_PDF_BASE64_LENGTH = Math.ceil((50 * 1024 * 1024 * 4) / 3);
+          const MAX_PDF_BASE64_LENGTH = Math.ceil(
+            (MAX_UPLOAD_FILE_BYTES * 4) / 3,
+          );
           if (
             typeof pdfBase64 !== "string" ||
             pdfBase64.length > MAX_PDF_BASE64_LENGTH
