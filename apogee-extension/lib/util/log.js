@@ -32,8 +32,9 @@ export function sanitizeLogMessage(message, maxLen = MAX_LOG_MESSAGE_LENGTH) {
     "Bearer [redacted-token]",
   );
   str = str.replace(
-    /(["']?)(api[_-]?key|secret[_-]?token|access[_-]?token)\1\s*[:=]\s*(["']?)([^\s,&"'<>}\]]+)\3/gi,
-    "$1$2$1=[redacted]",
+    /(["']?)(api[_-]?key|secret[_-]?token|access[_-]?token)\1\s*([:=])\s*(["']?)([^\s,&"'<>}\]]+)\4/gi,
+    (_, quote, key, separator, valueQuote) =>
+      `${quote}${key}${quote}${separator}${valueQuote}[redacted]${valueQuote}`,
   );
 
   // 2. Redact data: and blob: URLs
