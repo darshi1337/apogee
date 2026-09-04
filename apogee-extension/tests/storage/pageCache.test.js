@@ -6,6 +6,7 @@ import {
   getSummaryCacheKey,
   getPromptsCacheKey,
   getContentCacheKey,
+  parseSummaryCacheKey,
   persistSummary,
   persistSummaryIfAllowed,
   persistContent,
@@ -85,6 +86,48 @@ test("cache key helpers embed the hashed url and are namespaced by kind", async 
     `suggested-prompts:bullets:es:model-x:opus:${hash}`,
   );
   assert.strictEqual(await getContentCacheKey(url), `content:${hash}`);
+});
+
+test("parseSummaryCacheKey recovers format, language, and model", async () => {
+  const url = "https://example.com/article";
+  assert.deepStrictEqual(
+    parseSummaryCacheKey(await getSummaryCacheKey(url, "bullets", "model-x")),
+    { format: "bullets", language: "auto", model: "model-x" },
+  );
+  assert.deepStrictEqual(
+    parseSummaryCacheKey(
+      await getSummaryCacheKey(url, "bullets", "model-x", "es"),
+    ),
+    { format: "bullets", language: "es", model: "model-x" },
+  );
+});
+
+test("parseSummaryCacheKey tolerates colons in the model and an instructions suffix", async () => {
+  const url = "https://example.com/article";
+  assert.deepStrictEqual(
+    parseSummaryCacheKey(await getSummaryCacheKey(url, "bullets", "qwen3:8b")),
+    { format: "bullets", language: "auto", model: "qwen3:8b" },
+  );
+  assert.deepStrictEqual(
+    parseSummaryCacheKey(
+      await getSummaryCacheKey(
+        url,
+        "bullets",
+        "model-x",
+        "auto",
+        "Focus on the numbers",
+      ),
+    ),
+    { format: "bullets", language: "auto", model: "model-x" },
+  );
+});
+
+test("parseSummaryCacheKey falls back to empty strings for foreign keys", () => {
+  const fallback = { format: "", language: "", model: "" };
+  assert.deepStrictEqual(parseSummaryCacheKey("content:abc123"), fallback);
+  assert.deepStrictEqual(parseSummaryCacheKey("summary:onlyone"), fallback);
+  assert.deepStrictEqual(parseSummaryCacheKey(null), fallback);
+  assert.deepStrictEqual(parseSummaryCacheKey(""), fallback);
 });
 
 test("cache keys change with the translation engine that shaped the output", async () => {

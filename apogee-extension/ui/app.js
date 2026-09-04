@@ -29,8 +29,9 @@ import {
 import { getSettings } from "../lib/storage/settings.js";
 import { validateOllamaHost } from "../lib/util/ollamaHost.js";
 import {
+  formatSummaryAsJSON,
   formatSummaryAsMarkdown,
-  formatSummaryAsPlainText,
+  safeExportFilename,
 } from "../lib/util/exportFormat.js";
 import {
   formatDiagnosticSettings,
@@ -56,6 +57,7 @@ import {
   hashUrl,
   getSummaryCacheKey,
   getPromptsCacheKey,
+  parseSummaryCacheKey,
   persistContent,
   getCachedContent,
   shouldPersist,
@@ -181,9 +183,8 @@ const timeSavedBadge = document.getElementById("timeSavedBadge");
 const tokensPerSecBadgeSummary = document.getElementById(
   "tokensPerSecBadgeSummary",
 );
-const copySummaryBtn = document.getElementById("copySummaryBtn");
+const exportJsonBtn = document.getElementById("exportJsonBtn");
 const copyMarkdownBtn = document.getElementById("copyMarkdownBtn");
-const copyPlainTextBtn = document.getElementById("copyPlainTextBtn");
 const copyAnswerBtn = document.getElementById("copyAnswerBtn");
 const cancelAskBtn = document.getElementById("cancelAskBtn");
 const tokensPerSecBadgeAsk = document.getElementById("tokensPerSecBadgeAsk");
@@ -1095,25 +1096,60 @@ async function loadPastSummaries() {
       }
     });
 
-    const copyBtn = document.createElement("button");
-    copyBtn.type = "button";
-    copyBtn.className = "copy-btn";
-    copyBtn.setAttribute("aria-label", "Copy this summary");
-    copyBtn.innerHTML = icon("copy");
-    copyBtn.addEventListener("click", (e) => {
+    const copyMdBtn = document.createElement("button");
+    copyMdBtn.type = "button";
+    copyMdBtn.className = "copy-btn";
+    copyMdBtn.setAttribute("aria-label", "Copy as Markdown");
+    copyMdBtn.title = "Copy as Markdown";
+    copyMdBtn.innerHTML = icon("filetext");
+    copyMdBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      copyToClipboard(text, copyBtn);
+      copyToClipboard(
+        formatSummaryAsMarkdown({
+          title: entry.t || "",
+          url: "",
+          summary: text,
+        }),
+        copyMdBtn,
+      );
     });
 
-    const chevron = document.createElement("span");
-    chevron.className = "past-summary-chevron";
-    chevron.setAttribute("aria-hidden", "true");
-    chevron.innerHTML = icon("chevron");
+    const copyJsonBtn = document.createElement("button");
+    copyJsonBtn.type = "button";
+    copyJsonBtn.className = "copy-btn";
+    copyJsonBtn.setAttribute("aria-label", "Copy as JSON");
+    copyJsonBtn.title = "Copy as JSON";
+    copyJsonBtn.innerHTML = icon("download");
+    copyJsonBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      try {
+        const { format, language, model } = parseSummaryCacheKey(entry.s);
+        const stored = entry.p ? await chrome.storage.local.get(entry.p) : {};
+        const suggestedQuestions = Array.isArray(stored?.[entry.p])
+          ? stored[entry.p]
+          : [];
+        copyToClipboard(
+          formatSummaryAsJSON({
+            title: entry.t || "",
+            url: "",
+            model,
+            format,
+            language,
+            summary: text,
+            suggestedQuestions,
+          }),
+          copyJsonBtn,
+        );
+      } catch (err) {
+        console.error("Copy past summary as JSON error:", err);
+      }
+    });
 
     // The actions bar lives outside the collapsible preview, so this one
     // delete button serves both the collapsed (off) and expanded (open)
     // card states: inline in the row when collapsed, pinned top-right via
-    // CSS when the card is expanded.
+    // CSS when the card is expanded. Clicking anywhere else on the card
+    // toggles it open (see the card click/keydown handlers above).
     const deleteBtn = document.createElement("button");
     deleteBtn.type = "button";
     deleteBtn.className = "delete-btn";
@@ -1141,7 +1177,7 @@ async function loadPastSummaries() {
 
     const actions = document.createElement("div");
     actions.className = "past-summary-actions";
-    actions.append(copyBtn, deleteBtn, chevron);
+    actions.append(copyMdBtn, copyJsonBtn, deleteBtn);
     card.appendChild(actions);
 
     pastSummariesList.appendChild(card);
@@ -1265,10 +1301,9 @@ function setTokensPerSecBadge(el, rate) {
 }
 
 function setSummaryCopyButtonsVisible(hasText) {
-  copySummaryBtn.classList.toggle("hidden", !hasText);
   copyMarkdownBtn?.classList.toggle("hidden", !hasText);
-  copyPlainTextBtn?.classList.toggle("hidden", !hasText);
   resummarizeBtn?.classList.toggle("hidden", !hasText);
+  exportJsonBtn?.classList.toggle("hidden", !hasText);
 }
 
 async function copyToClipboard(text, btn) {
@@ -1287,10 +1322,52 @@ async function copyToClipboard(text, btn) {
     btn.innerHTML = original;
   }, 1500);
 }
+exportJsonBtn?.addEventListener("click", async () => {
+  const [tab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
 
-copySummaryBtn?.addEventListener("click", () =>
-  copyToClipboard(currentSummaryText, copySummaryBtn),
-);
+  const settings = await getSettings();
+
+  const title = currentPageData?.title || tab?.title || "";
+  const url = currentPageData?.url || tab?.url || "";
+
+  const prompts = currentPromptsCacheKey
+    ? await chrome.storage.local.get(currentPromptsCacheKey)
+    : {};
+
+  const suggestedQuestions = Array.isArray(prompts[currentPromptsCacheKey])
+    ? prompts[currentPromptsCacheKey]
+    : [];
+
+  const json = formatSummaryAsJSON({
+    title,
+    url,
+    model: getModelForSettings(settings),
+    format: settings.responseFormat,
+    language: currentSummaryLanguage || settings.summaryLanguage,
+    summary: currentSummaryText,
+    suggestedQuestions,
+  });
+
+  const blob = new Blob([json], {
+    type: "application/json",
+  });
+
+  const objectUrl = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = `${safeExportFilename(title)}.json`;
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  URL.revokeObjectURL(objectUrl);
+});
+
 copyMarkdownBtn?.addEventListener("click", async () => {
   const [tab] = await chrome.tabs.query({
     active: true,
@@ -1305,22 +1382,6 @@ copyMarkdownBtn?.addEventListener("click", async () => {
   });
 
   copyToClipboard(markdown, copyMarkdownBtn);
-});
-
-copyPlainTextBtn?.addEventListener("click", async () => {
-  const [tab] = await chrome.tabs.query({
-    active: true,
-    currentWindow: true,
-  });
-  const title = currentPageData?.title || tab?.title || "";
-  const url = currentPageData?.url || tab?.url || "";
-  const plainText = formatSummaryAsPlainText({
-    title,
-    url,
-    summary: currentSummaryText,
-  });
-
-  copyToClipboard(plainText, copyPlainTextBtn);
 });
 
 copyAnswerBtn?.addEventListener("click", () =>
