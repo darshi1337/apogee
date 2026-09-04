@@ -48,7 +48,7 @@ async function extractPageContent() {
     if (data) return { ...data, isPdf: false };
   }
 
-  if (isHost("gitlab.com") || host.endsWith(".gitlab.com")) {
+  if (isHost("gitlab.com")) {
     const data = await extractGitLab();
     if (data) return { ...data, isPdf: false };
   }

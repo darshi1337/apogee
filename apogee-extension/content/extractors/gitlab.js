@@ -38,25 +38,30 @@ function glComments() {
 }
 
 function glDiff() {
+  // Best-effort unified diff scraped from the rendered diff DOM. Only
+  // content cells are read — line-number cells (.diff-line-num) would leak
+  // row numbers into the summary — and rows without an add/remove marker
+  // (hunk headers, context outside a marked row) are skipped.
   const lines = [];
   const seen = new Set();
   const cells = document.querySelectorAll(
-    ".diff-line-content, .diff-line-num, .line_holder .line_content",
+    ".diff-line-content, .line_holder .line_content",
   );
   for (const cell of cells) {
     const text = (cell?.innerText || cell?.textContent || "").replace(
       /\s+$/,
       "",
     );
-    if (!text || seen.has(cell)) continue;
-    seen.add(cell);
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
     const parent = cell.closest?.(".line_holder, .diff-line");
     const marker = parent?.classList.contains("new")
       ? "+"
       : parent?.classList.contains("old")
         ? "-"
         : "";
-    if (marker) lines.push(`${marker} ${text.replace(/^[+-]\s?/, "")}`);
+    if (marker !== "+" && marker !== "-") continue;
+    lines.push(`${marker} ${text.replace(/^[+-]\s?/, "")}`);
   }
   return lines.length ? glTruncate(lines.join("\n"), GL_MAX_DIFF_CHARS) : "";
 }
@@ -87,7 +92,9 @@ async function extractGitLab() {
       ?.innerText?.trim() || "";
   const comments = glComments();
 
-  let content = `GitLab ${kind} in ${project} (!${number})\n\nTitle: ${title}\n`;
+  // GitLab numbers merge requests with `!` and issues with `#`.
+  const ref = `${isMR ? "!" : "#"}${number}`;
+  let content = `GitLab ${kind} in ${project} (${ref})\n\nTitle: ${title}\n`;
   if (state) content += `State: ${state}\n`;
   if (comments.length) {
     const [first, ...rest] = comments;
