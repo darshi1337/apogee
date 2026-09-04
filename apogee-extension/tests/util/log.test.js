@@ -44,7 +44,7 @@ test("sanitizeLogMessage redacts file, data, and blob URLs", () => {
   );
 
   const dataInput =
-    "Image loaded data:image/png;base64,iVBORw0KGgoAAAANSU5EUgAA...";
+    "Image loaded data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...";
   assert.strictEqual(
     sanitizeLogMessage(dataInput),
     "Image loaded data:[redacted-data-url]",
@@ -70,6 +70,28 @@ test("sanitizeLogMessage redacts Bearer tokens and secret key parameters", () =>
     sanitizeLogMessage(keyInput),
     "Config loaded api_key=[redacted]",
   );
+});
+
+test("sanitizeLogMessage redacts JSON and YAML-style credential forms", () => {
+  const jsonInput = '{"apiKey":"json-secret","access_token":"access-secret"}';
+  const yamlInput = "api-key: yaml-secret secret-token: another-secret";
+
+  assert.strictEqual(
+    sanitizeLogMessage(jsonInput),
+    '{"apiKey":"[redacted]","access_token":"[redacted]"}',
+  );
+  assert.strictEqual(
+    sanitizeLogMessage(yamlInput),
+    "api-key: [redacted] secret-token: [redacted]",
+  );
+});
+
+test("sanitizeLogMessage redacts password-style keys but not author", () => {
+  assert.strictEqual(
+    sanitizeLogMessage("login password=hunter2 pwd=x token=abc"),
+    "login password=[redacted] pwd=[redacted] token=[redacted]",
+  );
+  assert.strictEqual(sanitizeLogMessage("author=John"), "author=John");
 });
 
 test("sanitizeLogMessage handles null and undefined inputs gracefully", () => {

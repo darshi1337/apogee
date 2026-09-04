@@ -1,5 +1,6 @@
 import { DEFAULT_SETTINGS } from "../constants.js";
 import { parsePrivateHosts } from "../storage/pageCache.js";
+import { isSensitiveCredentialKey, sanitizeLogMessage } from "./log.js";
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
 
@@ -13,9 +14,11 @@ function redact(key, value) {
     const entries = parsePrivateHosts(value);
     return entries.length ? `${entries.length} host(s)` : "unset";
   }
-  // An API key is a credential: a bug report should say whether one is set, never what it is.
   if (key === "llamaApiKey") {
     return value ? "set" : "unset";
+  }
+  if (isSensitiveCredentialKey(key)) {
+    return value ? "[redacted]" : "unset";
   }
   if (key === "ollamaHost" || key === "llamaHost") {
     const host = String(value || "");
@@ -30,6 +33,14 @@ function redact(key, value) {
   return value;
 }
 
+function escapeMarkdownTableCell(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
+}
+
+function redactExtra(key, value) {
+  return sanitizeLogMessage(redact(key, value));
+}
+
 /**
  * A settings block to sit above the offscreen logs, so a copied report says
  * which configuration produced the behaviour. Values equal to the shipped
@@ -41,7 +52,7 @@ export function formatDiagnosticSettings(settings, extra = {}) {
 
   for (const [key, fallback] of Object.entries(extra)) {
     if (fallback !== undefined && fallback !== null && fallback !== "") {
-      lines.push(`${key}: ${fallback}`);
+      lines.push(`${key}: ${redactExtra(key, fallback)}`);
     }
   }
 
@@ -66,18 +77,17 @@ export function formatDiagnosticsMarkdown(settings, extra = {}, logs = []) {
 
   for (const [key, value] of Object.entries(extra)) {
     if (value !== undefined && value !== null && value !== "") {
-      rows.push(
-        `| ${key} | ${String(value).replace(/\\/g, "\\\\").replace(/\|/g, "\\|")} |`,
-      );
+      const shown = escapeMarkdownTableCell(redactExtra(key, value));
+      rows.push(`| ${escapeMarkdownTableCell(key)} | ${shown} |`);
     }
   }
   for (const key of Object.keys(DEFAULT_SETTINGS)) {
     const value = settings?.[key];
-    const shown = String(redact(key, value))
-      .replace(/\\/g, "\\\\")
-      .replace(/\|/g, "\\|");
+    const shown = escapeMarkdownTableCell(redact(key, value));
     const isDefault = value === DEFAULT_SETTINGS[key];
-    rows.push(`| ${key} | ${shown}${isDefault ? " _(default)_" : ""} |`);
+    rows.push(
+      `| ${escapeMarkdownTableCell(key)} | ${shown}${isDefault ? " _(default)_" : ""} |`,
+    );
   }
 
   const body = Array.isArray(logs) ? logs.join("\n") : String(logs || "");
