@@ -14,6 +14,7 @@ const INJECTED_FILES = [
   "extractors/reddit.js",
   "extractors/lobsters.js",
   "extractors/github.js",
+  "extractors/gitlab.js",
   "extractors/wikipedia.js",
   "extractors/arxiv.js",
   "extractors/mastodon.js",
