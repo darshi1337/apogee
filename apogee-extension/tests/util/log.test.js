@@ -44,7 +44,7 @@ test("sanitizeLogMessage redacts file, data, and blob URLs", () => {
   );
 
   const dataInput =
-    "Image loaded data:image/png;base64,iVBORw0KGgoAAAANSU5EUgAA...";
+    "Image loaded data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...";
   assert.strictEqual(
     sanitizeLogMessage(dataInput),
     "Image loaded data:[redacted-data-url]",
@@ -69,6 +69,20 @@ test("sanitizeLogMessage redacts Bearer tokens and secret key parameters", () =>
   assert.strictEqual(
     sanitizeLogMessage(keyInput),
     "Config loaded api_key=[redacted]",
+  );
+});
+
+test("sanitizeLogMessage redacts JSON and YAML-style credential forms", () => {
+  const jsonInput = '{"apiKey":"json-secret","access_token":"access-secret"}';
+  const yamlInput = "api-key: yaml-secret secret-token: another-secret";
+
+  assert.strictEqual(
+    sanitizeLogMessage(jsonInput),
+    '"apiKey=[redacted],"access_token=[redacted]',
+  );
+  assert.strictEqual(
+    sanitizeLogMessage(yamlInput),
+    "api-key=[redacted] secret-token=[redacted]",
   );
 });
 
