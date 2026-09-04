@@ -1,5 +1,6 @@
 import { DEFAULT_SETTINGS } from "../constants.js";
 import { parsePrivateHosts } from "../storage/pageCache.js";
+import { sanitizeLogMessage } from "./log.js";
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
 
@@ -12,6 +13,10 @@ function redact(key, value) {
   if (key === "privateHosts") {
     const entries = parsePrivateHosts(value);
     return entries.length ? `${entries.length} host(s)` : "unset";
+  }
+  // API keys and token-like extras are credentials: a bug report should say whether one is set, never what it is.
+  if (/(api[_-]?key|secret[_-]?token|access[_-]?token|authorization|auth)/i.test(key)) {
+    return value ? "[redacted]" : "unset";
   }
   // An API key is a credential: a bug report should say whether one is set, never what it is.
   if (key === "llamaApiKey") {
@@ -34,6 +39,10 @@ function escapeMarkdownTableCell(value) {
   return String(value).replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 }
 
+function redactExtra(key, value) {
+  return sanitizeLogMessage(redact(key, value));
+}
+
 /**
  * A settings block to sit above the offscreen logs, so a copied report says
  * which configuration produced the behaviour. Values equal to the shipped
@@ -45,7 +54,7 @@ export function formatDiagnosticSettings(settings, extra = {}) {
 
   for (const [key, fallback] of Object.entries(extra)) {
     if (fallback !== undefined && fallback !== null && fallback !== "") {
-      lines.push(`${key}: ${fallback}`);
+      lines.push(`${key}: ${redactExtra(key, fallback)}`);
     }
   }
 
@@ -70,7 +79,7 @@ export function formatDiagnosticsMarkdown(settings, extra = {}, logs = []) {
 
   for (const [key, value] of Object.entries(extra)) {
     if (value !== undefined && value !== null && value !== "") {
-      const shown = escapeMarkdownTableCell(value);
+      const shown = escapeMarkdownTableCell(redactExtra(key, value));
       rows.push(`| ${escapeMarkdownTableCell(key)} | ${shown} |`);
     }
   }
