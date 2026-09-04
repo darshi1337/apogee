@@ -5,7 +5,7 @@
  */
 export async function hasHostPermissions(origins) {
   if (typeof chrome === "undefined" || !chrome.permissions?.contains) {
-    return true;
+    return false;
   }
   try {
     return await new Promise((resolve) => {

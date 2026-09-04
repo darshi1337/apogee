@@ -8,12 +8,12 @@ import {
   ensurePermissionsForUrl,
 } from "../../lib/util/permissions.js";
 
-test("hasHostPermissions returns true when chrome.permissions is undefined", async () => {
+test("hasHostPermissions returns false when chrome.permissions is undefined (#209)", async () => {
   const originalChrome = globalThis.chrome;
   delete globalThis.chrome;
   try {
     const result = await hasHostPermissions(["*://*.bilibili.com/*"]);
-    assert.strictEqual(result, true);
+    assert.strictEqual(result, false);
   } finally {
     globalThis.chrome = originalChrome;
   }
