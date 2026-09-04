@@ -17,6 +17,9 @@ globalThis.chrome = {
           for (const [k, v] of storageMap.entries()) res[k] = v;
           return res;
         }
+        if (typeof keys === "string") {
+          return storageMap.has(keys) ? { [keys]: storageMap.get(keys) } : {};
+        }
         if (Array.isArray(keys)) {
           const res = {};
           for (const k of keys) {
@@ -65,4 +68,70 @@ test("getActivityAuditSummary returns privacy & activity audit metrics", async (
   assert.equal(summary.pageAccessCount, 1);
   assert.equal(typeof summary.networkEgress.statusMessage, "string");
   assert.equal(typeof summary.storageRetention.saveHistory, "boolean");
+});
+
+test("getActivityAuditSummary reports zero egress when SponsorBlock is off", async () => {
+  storageMap.clear();
+  await chrome.storage.local.set({ settings: { useSponsorBlock: false } });
+
+  const summary = await getActivityAuditSummary();
+  assert.equal(summary.networkEgress.sponsorBlockActive, false);
+  assert.equal(summary.networkEgress.zeroEgress, true);
+});
+
+test("getActivityAuditSummary reports SponsorBlock active by default", async () => {
+  storageMap.clear();
+
+  const summary = await getActivityAuditSummary();
+  assert.equal(summary.networkEgress.sponsorBlockActive, true);
+  assert.equal(summary.networkEgress.zeroEgress, false);
+});
+
+test("recordPageAccessEvent skips sensitive pages even with history on (#181)", async () => {
+  storageMap.clear();
+  await recordPageAccessEvent({
+    title: "Inbox",
+    url: "https://mail.google.com/mail/u/0/#inbox",
+    contentLength: 900,
+    type: "generic",
+  });
+
+  const logs = await getPageAccessLog();
+  assert.equal(logs.length, 0);
+});
+
+test("recordPageAccessEvent skips all pages when saveHistory is off (#181)", async () => {
+  storageMap.clear();
+  await chrome.storage.local.set({ settings: { saveHistory: false } });
+  await recordPageAccessEvent({
+    title: "A normal article",
+    url: "https://example.com/article",
+    contentLength: 900,
+    type: "article",
+  });
+
+  const logs = await getPageAccessLog();
+  assert.equal(logs.length, 0);
+});
+
+test("getActivityAuditSummary reports saveHistory false when history is off", async () => {
+  storageMap.clear();
+  await chrome.storage.local.set({ settings: { saveHistory: false } });
+
+  const summary = await getActivityAuditSummary();
+  assert.equal(summary.storageRetention.saveHistory, false);
+});
+
+test("getActivityAuditSummary counts real cached-page keys (#208)", async () => {
+  storageMap.clear();
+  await chrome.storage.local.set({
+    "summary:bullets:auto:m:abc": "text",
+    "suggested-prompts:bullets:auto:m:abc": ["q?"],
+    "content:def": { title: "t" },
+    cacheOrder: [{ s: "summary:bullets:auto:m:abc" }],
+    unrelated: 1,
+  });
+
+  const summary = await getActivityAuditSummary();
+  assert.equal(summary.storageRetention.cachedPagesCount, 3);
 });

@@ -69,6 +69,7 @@ import {
   extractFromActiveTab,
   extractPdfContent,
 } from "../lib/extract/pageExtraction.js";
+import { assertUploadSizeOk } from "../lib/extract/fileLimits.js";
 import {
   activateSelectionCapture,
   MIN_SELECTION_LENGTH,
@@ -368,7 +369,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
   setSuggestedQuestions(questions);
 });
 
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (sender?.id && sender.id !== chrome.runtime.id) return;
   if (
     message.type === "suggested-prompts-ready" &&
     message.promptsCacheKey === currentPromptsCacheKey
@@ -744,7 +746,8 @@ async function getPageData(tab) {
 
 let modelProgressHideTimer = null;
 
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (sender?.id && sender.id !== chrome.runtime.id) return;
   if (message.type === "selection-summary-started" && isSidePanelSurface) {
     window.location.reload();
     return;
@@ -1083,10 +1086,11 @@ async function loadPastSummaries() {
       else preview.textContent = firstLineOf(text);
     };
     card.addEventListener("click", (e) => {
-      if (e.target.closest("a")) return;
+      if (e.target.closest("a, button")) return;
       toggleExpanded();
     });
     card.addEventListener("keydown", (e) => {
+      if (e.target.closest("button")) return;
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         toggleExpanded();
@@ -1108,9 +1112,38 @@ async function loadPastSummaries() {
     chevron.setAttribute("aria-hidden", "true");
     chevron.innerHTML = icon("chevron");
 
+    // The actions bar lives outside the collapsible preview, so this one
+    // delete button serves both the collapsed (off) and expanded (open)
+    // card states: inline in the row when collapsed, pinned top-right via
+    // CSS when the card is expanded.
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "delete-btn";
+    deleteBtn.setAttribute("aria-label", "Delete this summary");
+    deleteBtn.title = "Delete this summary";
+    deleteBtn.innerHTML = icon("trash");
+    deleteBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      try {
+        const removeKeys = [entry.s, entry.p].filter(Boolean);
+        if (removeKeys.length > 0) {
+          await chrome.storage.local.remove(removeKeys);
+        }
+        const { cacheOrder = [] } =
+          await chrome.storage.local.get("cacheOrder");
+        const updatedOrder = cacheOrder.filter(
+          (item) => item && item.s !== entry.s,
+        );
+        await chrome.storage.local.set({ cacheOrder: updatedOrder });
+        await loadPastSummaries();
+      } catch (err) {
+        console.error("Delete past summary error:", err);
+      }
+    });
+
     const actions = document.createElement("div");
     actions.className = "past-summary-actions";
-    actions.append(copyBtn, chevron);
+    actions.append(copyBtn, deleteBtn, chevron);
     card.appendChild(actions);
 
     pastSummariesList.appendChild(card);
@@ -2435,8 +2468,20 @@ pasteDialog?.addEventListener("keydown", (event) => {
 const fileUploadInput = document.getElementById("fileUploadInput");
 
 async function summarizeFile(file) {
+  // Same ceiling as the tab-PDF path, checked before any read so an
+  // oversized file never becomes several in-memory copies (arrayBuffer +
+  // base64 + binary string) on the way in.
+  const lowerName = file.name.toLowerCase();
+  assertUploadSizeOk(
+    file.size,
+    lowerName.endsWith(".pdf")
+      ? "PDF"
+      : lowerName.endsWith(".docx")
+        ? "DOCX file"
+        : "file",
+  );
   let text;
-  if (file.name.toLowerCase().endsWith(".pdf")) {
+  if (lowerName.endsWith(".pdf")) {
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
     let binary = "";
@@ -2450,7 +2495,7 @@ async function summarizeFile(file) {
     const base64 = btoa(binary);
     const { extractPdfText } = await import("../lib/extract/pdfExtract.js");
     text = await extractPdfText(base64);
-  } else if (file.name.toLowerCase().endsWith(".docx")) {
+  } else if (lowerName.endsWith(".docx")) {
     const { extractDocxText } = await import("../lib/extract/docxExtract.js");
     text = await extractDocxText(await file.arrayBuffer());
   } else {

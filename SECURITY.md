@@ -13,9 +13,9 @@ Apogee is maintained by one person in their spare time, so please expect a first
 
 ## What counts
 
-Apogee's central claim is that page content, summaries, and answers never leave your device, except to your own Ollama instance over loopback. Anything that breaks that claim is a vulnerability here, even if it wouldn't be one in an ordinary extension. For example:
+Apogee's central claim is that page content, summaries, and answers never leave your device, except to your own Ollama or llama.cpp server over loopback, plus the documented fetches listed in `PRIVACY.md` (model weights, site transcripts/subtitles/threads, and the SponsorBlock hash-prefix lookup). Anything that breaks that claim is a vulnerability here, even if it wouldn't be one in an ordinary extension. For example:
 
-- Page content, extracted text, or a generated summary reaching any host other than `127.0.0.1` / `localhost`
+- Page content, extracted text, or a generated summary reaching any host other than the documented ones (`127.0.0.1` / `localhost` for local inference; Hugging Face, YouTube, Bilibili, Bluesky, and SponsorBlock endpoints as described in `PRIVACY.md`)
 - A web page reading data belonging to another page through the extension, or reaching extension-privileged APIs
 - Bypassing extension sender context validation (`sender.id === chrome.runtime.id`) to invoke background actions from untrusted web pages
 - Polluting DOM global scope objects or exploiting content script execution contexts
@@ -23,7 +23,7 @@ Apogee's central claim is that page content, summaries, and answers never leave 
 - Prompt injection from page content that escapes the grounding rules to make the model exfiltrate data or act outside summarizing (injection that merely produces a wrong or silly summary is a bug, not a vulnerability)
 - Anything letting an attacker widen the extension's permissions or host access
 
-Please **do** report a mismatch between what the docs promise and what the code does, even if nothing is exploitable yet. The manifest, the README's Privacy and Permissions section, `PRIVACY.md`, and `STORE-LISTING.md` are supposed to describe the same permission set, and a drift between them is exactly the kind of thing that turns into a real problem later.
+Please **do** report a mismatch between what the docs promise and what the code does, even if nothing is exploitable yet. The manifest, the README's Privacy section, `PRIVACY.md`, and `STORE-LISTING.md` are supposed to describe the same permission set, and a drift between them is exactly the kind of thing that turns into a real problem later.
 
 ## What doesn't
 
@@ -31,6 +31,10 @@ Please **do** report a mismatch between what the docs promise and what the code 
 - Anything requiring the attacker to already have local access to your machine, your browser profile, or your unlocked extension storage
 - Reports against your own Ollama instance's configuration, which is outside what this extension controls
 - Automated scanner output with no working proof of concept
+
+## Accepted risks
+
+- **`image-size` HIGH advisories in dev tooling (`GHSA-w3rx-r6r6-pgpr`, `GHSA-5p2g-fcmc-qvqq`).** The vulnerable ICNS/JXL/HEIF parsers reach us only through `web-ext` → `addons-linter`, which pins `image-size@2.0.2` exactly, and no fixed upstream release exists. Exploiting it needs a malicious image inside this repo, which already means commit access, and only affects the machine running the linter; the shipped extension never bundles it (`npm audit --omit=dev` is clean). Accepted until upstream ships a fix; re-check on every dependency bump.
 
 ## Supported versions
 

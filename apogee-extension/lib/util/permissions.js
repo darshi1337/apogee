@@ -5,7 +5,7 @@
  */
 export async function hasHostPermissions(origins) {
   if (typeof chrome === "undefined" || !chrome.permissions?.contains) {
-    return true;
+    return false;
   }
   try {
     return await new Promise((resolve) => {
@@ -56,7 +56,11 @@ export function getOptionalOriginsForUrl(url) {
       host.endsWith(".youtube.com") ||
       host === "youtu.be"
     ) {
-      return ["*://*.youtube.com/*", "https://sponsor.ajay.app/*"];
+      return [
+        "*://*.youtube.com/*",
+        "*://*.googlevideo.com/*",
+        "https://sponsor.ajay.app/*",
+      ];
     }
   } catch {}
   return [];

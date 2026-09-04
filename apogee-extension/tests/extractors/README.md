@@ -22,6 +22,11 @@ Read the one closest to what you're building:
 | `lobsters.test.js` | Another thread-based extractor, same shape as Hacker News |
 | `reddit.test.js` | An extractor that reads a site API, with `fetch` stubbed |
 | `stackoverflow.test.js` | Question, accepted answer, score ranking, and comment hierarchy |
+| `mastodon.test.js` | Federated host detection, main post, engagement, reply chains |
+| `lemmy.test.js` | Post, community, scores, threaded comment chains |
+| `discourse.test.js` | Topic, original post, category, reply post streams |
+| `generic.test.js` | Readability fallback on plain articles |
+| `content.test.js` | Dispatcher routing across extractors, including the SponsorBlock handoff |
 | `thread.test.js` | Testing shared machinery directly, with no site extractor |
 | `wikipedia.test.js` | Cutting a page down, and returning `null` to fall through |
 | `bluesky.test.js` | API-first thread fetch via `fetch` stub with DOM fallback, depth/char caps |
@@ -59,7 +64,7 @@ Some rules that will save you time:
 
 - **Scrub personal data.** Usernames, emails, and avatars from a real page don't belong in the repo. Rewrite them to `alice`/`bob`, as the existing fixtures do.
 - **Keep the markup well-formed.** The parser is literal and won't synthesize `<html>`/`<head>` around a stray `<title>` the way a browser does.
-- **Fixtures are exempt from Prettier** (see `.prettierignore`). Extractors read `innerText`, so reflowing markup can change what a test asserts.
+- **Fixtures are exempt from Prettier** (see `apogee-extension/.prettierignore`). Extractors read `innerText`, so reflowing markup can change what a test asserts.
 
 ## What this can't cover
 

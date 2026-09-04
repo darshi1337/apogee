@@ -1,4 +1,9 @@
 import { UserFacingError } from "../util/userError.js";
+import {
+  MAX_DOCX_ENTRIES,
+  MAX_DOCX_EXPANSION_RATIO,
+  MAX_DOCX_XML_BYTES,
+} from "./fileLimits.js";
 
 const EOCD_SIGNATURE = 0x06054b50;
 const CENTRAL_SIGNATURE = 0x02014b50;
@@ -50,16 +55,55 @@ async function inflate(bytes) {
       "This browser cannot decompress DOCX files. Try exporting the document as PDF or plain text.",
     );
   }
+  // A single deflate entry can expand orders of magnitude beyond its stored
+  // size (the classic zip bomb), so accumulate with the stream reader and
+  // abort past the ceiling instead of awaiting one unbounded buffer.
+  const maxBytes = Math.min(
+    bytes.length * MAX_DOCX_EXPANSION_RATIO,
+    MAX_DOCX_XML_BYTES,
+  );
   const stream = new Blob([bytes])
     .stream()
     .pipeThrough(new DecompressionStream("deflate-raw"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+  const reader = stream.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      try {
+        await reader.cancel();
+      } catch {}
+      throw new UserFacingError(
+        "This DOCX file expands to an unreasonable size and cannot be processed safely.",
+      );
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
 }
 
 function centralDirectoryEntries(bytes, view) {
-  for (let i = bytes.length - 22; i >= 0; i--) {
+  // Per the ZIP spec the end-of-central-directory record sits within the
+  // last 64 KiB (the archive comment is a uint16 length), so only that tail
+  // is scanned. Scanning the whole file would turn a large hostile input
+  // into tens of millions of wasted reads.
+  const EOCD_SEARCH_WINDOW = 22 + 65535;
+  const scanStart = Math.max(0, bytes.length - EOCD_SEARCH_WINDOW);
+  for (let i = bytes.length - 22; i >= scanStart; i--) {
     if (view.getUint32(i, true) !== EOCD_SIGNATURE) continue;
     const count = view.getUint16(i + 10, true);
+    if (count > MAX_DOCX_ENTRIES) {
+      throw new UserFacingError("This DOCX file is corrupt.");
+    }
     const offset = view.getUint32(i + 16, true);
     const entries = [];
     let cursor = offset;

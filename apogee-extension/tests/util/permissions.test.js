@@ -8,12 +8,12 @@ import {
   ensurePermissionsForUrl,
 } from "../../lib/util/permissions.js";
 
-test("hasHostPermissions returns true when chrome.permissions is undefined", async () => {
+test("hasHostPermissions returns false when chrome.permissions is undefined (#209)", async () => {
   const originalChrome = globalThis.chrome;
   delete globalThis.chrome;
   try {
     const result = await hasHostPermissions(["*://*.bilibili.com/*"]);
-    assert.strictEqual(result, true);
+    assert.strictEqual(result, false);
   } finally {
     globalThis.chrome = originalChrome;
   }
@@ -73,11 +73,19 @@ test("getOptionalOriginsForUrl returns required origins for bilibili and youtube
   );
   assert.deepStrictEqual(
     getOptionalOriginsForUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
-    ["*://*.youtube.com/*", "https://sponsor.ajay.app/*"],
+    [
+      "*://*.youtube.com/*",
+      "*://*.googlevideo.com/*",
+      "https://sponsor.ajay.app/*",
+    ],
   );
   assert.deepStrictEqual(
     getOptionalOriginsForUrl("https://youtu.be/dQw4w9WgXcQ"),
-    ["*://*.youtube.com/*", "https://sponsor.ajay.app/*"],
+    [
+      "*://*.youtube.com/*",
+      "*://*.googlevideo.com/*",
+      "https://sponsor.ajay.app/*",
+    ],
   );
   assert.deepStrictEqual(
     getOptionalOriginsForUrl("https://en.wikipedia.org/wiki/Main_Page"),
@@ -108,6 +116,7 @@ test("ensurePermissionsForUrl requests permissions on-demand when not already gr
     assert.strictEqual(result, true);
     assert.deepStrictEqual(requestedOrigins, [
       "*://*.youtube.com/*",
+      "*://*.googlevideo.com/*",
       "https://sponsor.ajay.app/*",
     ]);
   } finally {

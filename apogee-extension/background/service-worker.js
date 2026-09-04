@@ -22,6 +22,7 @@ import { chunkBySections } from "../lib/summarize/sections.js";
 import { errorHelpUrl } from "../lib/util/errorHelp.js";
 import { toUserMessage, UserFacingError } from "../lib/util/userError.js";
 import { hasHostPermissions } from "../lib/util/permissions.js";
+import { ensureLoopbackCorsRule } from "../lib/util/loopbackCors.js";
 import {
   buildAnswerPrompt,
   buildSuggestQuestionsPrompt,
@@ -31,6 +32,7 @@ import {
 import { truncateForPrompt } from "../lib/summarize/chunk.js";
 import { parseSuggestedQuestions } from "../lib/summarize/questions.js";
 import { extractPdfText } from "../lib/extract/pdfExtract.js";
+import { MAX_UPLOAD_FILE_BYTES } from "../lib/extract/fileLimits.js";
 import {
   recordPageAccessEvent,
   getActivityAuditSummary,
@@ -838,12 +840,17 @@ async function runBackgroundSummarize(
     await persistContent(tab.url, pageData);
   }
 
-  recordPageAccessEvent({
-    title: pageData.title,
-    url: pageData.url,
-    contentLength: (pageData.content || "").length,
-    type: pageData.type,
-  }).catch(() => {});
+  // The audit log lives in on-disk storage alongside the cache, so it
+  // follows the same persistence decision: sensitive pages and "Don't save"
+  // sessions (persist === false) leave no title+URL trace behind.
+  if (persist) {
+    recordPageAccessEvent({
+      title: pageData.title,
+      url: pageData.url,
+      contentLength: (pageData.content || "").length,
+      type: pageData.type,
+    }).catch(() => {});
+  }
 
   let content = pageData.content;
   if (pageData.isPdf) {
@@ -1008,6 +1015,9 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onInstalled?.addListener) {
   });
 }
 
+// Narrow the bundled loopback Origin-strip to this extension's non-tab requests where session rules are supported; loopback clients await the same helper before fetching, so this is only a fast track. Never rejects.
+ensureLoopbackCorsRule().catch(() => {});
+
 if (
   typeof chrome !== "undefined" &&
   chrome.contextMenus?.onClicked?.addListener
@@ -1049,8 +1059,12 @@ if (typeof chrome !== "undefined" && chrome.tabs?.onRemoved?.addListener) {
 
 const SPONSORBLOCK_CATEGORIES = ["sponsor", "selfpromo", "interaction"];
 
-async function fetchSponsorBlockSegments(videoId) {
+export async function fetchSponsorBlockSegments(videoId) {
   if (!/^[A-Za-z0-9_-]{11}$/.test(videoId || "")) return [];
+
+  // "Stay fully local" means no SponsorBlock lookup at all; the uploader falls back to its local phrase heuristic.
+  const { useSponsorBlock } = await getSettings();
+  if (useSponsorBlock === false || useSponsorBlock === "off") return [];
 
   const hasPerm = await hasHostPermissions([
     "*://*.youtube.com/*",
@@ -1859,7 +1873,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case "extract-pdf": {
           const pdfBase64 = message.payload?.pdfBase64;
-          const MAX_PDF_BASE64_LENGTH = Math.ceil((50 * 1024 * 1024 * 4) / 3);
+          const MAX_PDF_BASE64_LENGTH = Math.ceil(
+            (MAX_UPLOAD_FILE_BYTES * 4) / 3,
+          );
           if (
             typeof pdfBase64 !== "string" ||
             pdfBase64.length > MAX_PDF_BASE64_LENGTH
