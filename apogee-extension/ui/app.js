@@ -29,6 +29,7 @@ import {
 import { getSettings } from "../lib/storage/settings.js";
 import { validateOllamaHost } from "../lib/util/ollamaHost.js";
 import {
+  formatSummaryAsJSON,
   formatSummaryAsMarkdown,
   formatSummaryAsPlainText,
 } from "../lib/util/exportFormat.js";
@@ -180,6 +181,7 @@ const timeSavedBadge = document.getElementById("timeSavedBadge");
 const tokensPerSecBadgeSummary = document.getElementById(
   "tokensPerSecBadgeSummary",
 );
+const exportJsonBtn = document.getElementById("exportJsonBtn");
 const copySummaryBtn = document.getElementById("copySummaryBtn");
 const copyMarkdownBtn = document.getElementById("copyMarkdownBtn");
 const copyPlainTextBtn = document.getElementById("copyPlainTextBtn");
@@ -1236,6 +1238,7 @@ function setSummaryCopyButtonsVisible(hasText) {
   copyMarkdownBtn?.classList.toggle("hidden", !hasText);
   copyPlainTextBtn?.classList.toggle("hidden", !hasText);
   resummarizeBtn?.classList.toggle("hidden", !hasText);
+  exportJsonBtn?.classList.toggle("hidden", !hasText);
 }
 
 async function copyToClipboard(text, btn) {
@@ -1254,6 +1257,53 @@ async function copyToClipboard(text, btn) {
     btn.innerHTML = original;
   }, 1500);
 }
+exportJsonBtn?.addEventListener("click", async () => {
+  const [tab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+
+  const settings = await getSettings();
+
+  const title = currentPageData?.title || tab?.title || "";
+  const url = currentPageData?.url || tab?.url || "";
+
+  const prompts = currentPromptsCacheKey
+    ? await chrome.storage.local.get(currentPromptsCacheKey)
+    : {};
+
+  const suggestedQuestions = Array.isArray(
+    prompts[currentPromptsCacheKey],
+  )
+    ? prompts[currentPromptsCacheKey]
+    : [];
+
+  const json = formatSummaryAsJSON({
+    title,
+    url,
+    model: getModelForSettings(settings),
+    format: settings.responseFormat,
+    language: currentSummaryLanguage || settings.summaryLanguage,
+    summary: currentSummaryText,
+    suggestedQuestions,
+  });
+
+  const blob = new Blob([json], {
+    type: "application/json",
+  });
+
+  const objectUrl = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = `${title || "summary"}.json`;
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  URL.revokeObjectURL(objectUrl);
+});
 
 copySummaryBtn?.addEventListener("click", () =>
   copyToClipboard(currentSummaryText, copySummaryBtn),

@@ -42,3 +42,29 @@ export function formatSummaryAsPlainText({ title, url, summary }) {
 
   return parts.join("\n\n").trim() + "\n";
 }
+
+export function formatSummaryAsJSON({
+  title,
+  url,
+  model,
+  format,
+  language,
+  summary,
+  suggestedQuestions = [],
+}) {
+  return JSON.stringify(
+    {
+      title: title || "",
+      url: url || "",
+      model: model || "",
+      format: format || "",
+      language: language || "",
+      summary: summary?.replace ? summary.replace(/[\r\n]+/g, " ") : "",
+      suggestedQuestions: Array.isArray(suggestedQuestions)
+        ? suggestedQuestions
+        : [],
+    },
+    null,
+    2,
+  );
+}
