@@ -14,13 +14,13 @@ function redact(key, value) {
     const entries = parsePrivateHosts(value);
     return entries.length ? `${entries.length} host(s)` : "unset";
   }
-  // API keys and token-like extras are credentials: a bug report should say whether one is set, never what it is.
-  if (/(api[_-]?key|secret[_-]?token|access[_-]?token|authorization|auth)/i.test(key)) {
-    return value ? "[redacted]" : "unset";
-  }
   // An API key is a credential: a bug report should say whether one is set, never what it is.
   if (key === "llamaApiKey") {
     return value ? "set" : "unset";
+  }
+  // API keys and token-like extras are credentials: a bug report should say whether one is set, never what it is.
+  if (/(api[_-]?key|secret[_-]?token|access[_-]?token|authorization|auth)/i.test(key)) {
+    return value ? "[redacted]" : "unset";
   }
   if (key === "ollamaHost" || key === "llamaHost") {
     const host = String(value || "");
