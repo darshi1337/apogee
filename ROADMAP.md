@@ -1,54 +1,54 @@
 # Apogee Product Roadmap
 
-Apogee is a private, in-browser AI summarizer for articles, videos (YouTube and Bilibili), PDFs, DOCX files, and pasted text. It runs on-device through WebGPU (WebLLM), WebAssembly (Transformers.js), or Local Ollama (127.0.0.1) and llama.cpp.
+Apogee is a private AI tool that works in your browser. It makes summaries of articles, videos (YouTube and Bilibili), PDFs, Word documents, and text you copy and paste. It runs on your computer using WebGPU, WebAssembly, or Local Ollama (127.0.0.1) with llama.cpp.
 
-This document outlines current work, upcoming priorities, and long-term goals for Apogee.
+This document shows what we are working on now, what we plan to do soon, and our long-term plans for Apogee.
 
 ## Now
 
-- **Security & Resilience Hardening**:
-  - Out-of-memory (OOM) recovery, stream cancellation buffer release, and overview chunking strategy. (#114)
-  - Hierarchical map-reduce for long inputs: every chunk is mapped and partials are tree-folded in groups of `fanIn` until within the model budget, preserving full coverage with OOM-safe fallbacks instead of silently dropping chunks via sampling. (#148)
-  - Zero-trust message context validation (`sender.id`), global scope isolation, prompt injection neutralization, and payload bounds. (#121-#127)
-- **Multi-Tab Context (Shipped)**:
-  - Batch summarize and synthesize across multiple selected tabs via right-click context menu ("Summarize with Apogee"). (#116)
-- **Local Document Input (Shipped)**:
-  - Select or drag PDF, DOCX, TXT, Markdown, JSON, or HTML files into the popup, or paste arbitrary text for summarization. (#5, #6, #97)
-- **Extractor Expansion**:
-  - Add page extractors for more platforms (GitLab, Dev.to).
-  - Shipped extractors: YouTube, Bilibili, Wikipedia, Gmail, Reddit, Hacker News, GitHub, Lobsters, arXiv, Mastodon, Stack Overflow, Lemmy, Discourse, Bluesky.
-  - Keep extractor creation simple so contributors can write unit-tested extractors in Node without running a browser.
-- **Test Coverage**:
-  - Expand test suites for existing extractors and core modules (496 tests passing).
-- **Firefox Feature Parity**:
-  - Bring on-device vector retrieval (Ask) and sentence-level grounding (Highlight-in-page) to Firefox when browser APIs permit.
-- **Model and Performance Optimizations**:
-  - Keep WebLLM and Transformers.js model libraries updated with small models (SmolLM2, Qwen 2.5, Llama 3.2).
-  - Reduce cold-start memory usage and download sizes.
+- **Making it Stronger & More Reliable**:
+  - We're fixing problems like running out of memory (OOM) and stopping streams smoothly. (#114)
+  - We’re using a special way to handle big pieces of text so the AI doesn’t run out of memory. It breaks the text into smaller parts, groups them together, and then uses the model to understand everything. (#148)
+  - We're making sure messages are safe and secure. This includes checking who sent the message, isolating different parts of the system, stopping prompt injection attacks, and limiting what data can be used. (#121-#127)
+- **Summarize Multiple Tabs**:
+  - You can now select multiple tabs in your browser and have Apogee summarize them all at once using the right-click menu ("Summarize with Apogee"). (#116)
+- **Use Local Documents**:
+  - You can load PDFs, Word documents (DOCX), text files (TXT), Markdown files, JSON files, or HTML files directly into Apogee. Or you can just copy and paste text from anywhere. (#5, #6, #97)
+- **Adding More Places to Get Information**:
+  - We’re adding extractors to get information from more websites like GitLab and Dev.to.
+  - We already have extractors for: YouTube, Bilibili, Wikipedia, Gmail, Reddit, Hacker News, GitHub, Lobsters, arXiv, Mastodon, Stack Overflow, Lemmy, Discourse, Bluesky.
+  - It’s easy to add new extractors – you can write simple programs in Node.js without needing a browser.
+- **More Testing**:
+  - We're adding more tests for the existing extractors and core parts of Apogee (496 tests are passing).
+- **Firefox Compatibility**:
+  - We want to make sure Apogee works well on Firefox. When possible, we’ll bring features like asking questions about the text and highlighting specific sentences to Firefox.
+- **Making the AI Faster & Smaller**:
+  - We keep updating the WebLLM and Transformers.js libraries with smaller versions of the models (SmolLM2, Qwen 2.5, Llama 3.2).
+  - We’re also making it faster to start up and reducing how much data needs to be downloaded.
 
 ## Next
 
-- **Extractor Generator**:
-  - Create a generator tool and template for site extractors with pre-built test fixtures.
-  - Support domain-specific prompt rules (such as custom prompts for research papers or tech blogs).
-- **UI Improvements**:
-  - Expand export integrations for past summaries to note tools like Obsidian and Notion.
-- **Ollama and Custom Host Settings**:
-  - Allow custom host settings for self-hosted LLM endpoints with proper CORS handling.
+- **Easy Extractor Tool**:
+  - We'll create a tool that helps you easily make extractors for websites. It will have templates and test programs.
+  - You can set special rules for the AI based on the type of website (like custom prompts for research papers or tech blogs).
+- **Better Export Options**:
+  - We’ll add more ways to save your summaries, like directly to note tools such as Obsidian and Notion.
+- **Control Your Own LLM**:
+  - You'll be able to set up your own settings so Apogee uses a specific AI endpoint (like Local Ollama) with proper security measures.
 
 ## Later
 
 - **Safari Support**:
-  - Explore packaging requirements for Safari support.
-- **Custom Extractor Plugin API**:
-  - Allow users to load custom extractors directly in settings without editing core source code.
+  - We’ll look into how to make Apogee work on Safari computers.
+- **Custom Extractors**:
+  - You'll be able to load your own extractors directly in the settings without having to change the main code.
 
-## Non-Goals
+## Things We Won’t Do
 
-- **Cloud Backends**: Apogee will not send, store, or process page text on remote servers.
-- **Tracking**: No user tracking, analytics SDKs, or external monitoring.
-- **API Keys**: In-browser execution remains free and keyless by default.
+- **Cloud Servers**: Apogee will never send, store, or process text from websites on remote servers.
+- **Tracking Users**: We won’t track you or use any special tools to collect information about your browsing habits.
+- **API Keys**: You don't need any keys to use Apogee – it works directly in your browser.
 
-## How to Contribute
+## How to Help
 
-To help with a roadmap item, check the open issues on GitHub or read CONTRIBUTING.md.
+To help us build Apogee, check the open issues on GitHub or read CONTRIBUTING.md.

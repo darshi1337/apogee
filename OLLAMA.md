@@ -1,22 +1,22 @@
 # Local Ollama Setup Guide
 
-Local Ollama mode allows power users to connect Apogee directly to an Ollama instance running on their local machine. This enables running larger models (such as 4B to 8B+ parameter models) while keeping all text analysis completely private.
+Local Ollama mode lets advanced users connect Apogee directly to an Ollama instance running on their own computer. This way, they can run bigger models (like those with 4 billion to 8 billion+ parameters) while keeping all text analysis private.
 
 ## How It Works
 
-Apogee communicates directly with Ollama over local HTTP (`http://127.0.0.1:11434`). There is no intermediate backend application to configure or run.
+Apogee talks directly to Ollama using the internet (`http://127.0.0.1:11434`). There's no other program that needs to be set up or run.
 
 ## Step 1: Install Ollama
 
-Install Ollama for your operating system:
+Install Ollama for your computer:
 
-- **macOS**: Download the application installer from [ollama.com/download](https://ollama.com/download) or run `brew install ollama` using Homebrew.
-- **Windows**: Download and run the setup installer from [ollama.com/download](https://ollama.com/download).
-- **Linux**: Install via terminal using `curl -fsSL https://ollama.com/install.sh | sh`.
+- **macOS**: Download the installer from [https://ollama.com/download](https://ollama.com/download) or use `brew install ollama` with Homebrew.
+- **Windows**: Download and run the setup installer from [https://ollama.com/download](https://ollama.com/download).
+- **Linux**: Use the terminal to install: `curl -fsSL https://ollama.com/install.sh | sh`.
 
 ## Step 2: Pull Your Models
 
-Open your terminal and pull the AI models you want to use for summarization and Q&A:
+Open your terminal and get the AI models you want to use for summarizing text and answering questions:
 
 ```bash
 ollama pull gemma3:4b
@@ -29,18 +29,18 @@ ollama pull llama3.1:8b
 
 1. Open Apogee by clicking the extension icon.
 2. Click the gear icon to open **Settings**.
-3. Under **AI Provider**, select **Local Ollama**.
-4. Keep the host field set to `http://127.0.0.1:11434` unless you configured Ollama to use a custom port.
-5. Select your desired model from the **Local LLM** dropdown list.
+3. Under **AI Provider**, choose **Local Ollama**.
+4. Make sure the host field is set to `http://127.0.0.1:11434`. Change this only if you changed the port that Ollama uses.
+5. Pick your desired model from the **Local LLM** dropdown list.
 
 ## Automatic CORS Handling
 
-Apogee connects to Ollama without requiring custom environment variables or CORS configuration:
+Apogee connects to Ollama without needing extra settings or complicated configurations:
 
-- **Header Stripping Rule**: Apogee strips `Origin` headers from its own local loopback requests sent to `127.0.0.1` and `localhost`. Where the browser supports session-scoped rules, this is registered at runtime for requests originating from no tab (the extension's own background fetches), so other sites and local services are untouched; the bundled static rule remains as a fallback. The same handling covers llama.cpp.
-- **Zero OLLAMA_ORIGINS Setup**: Because requests arrive without an `Origin` header, Ollama serves them without needing `OLLAMA_ORIGINS="*"` environment variables.
-- **Security Sandboxing**: Stripping applies to the extension's own requests only, preserving security boundaries for other local development servers running on your machine.
+- **Header Stripping Rule**: Apogee removes the `Origin` header from its own requests sent to `127.0.0.1` and `localhost`. If your browser supports special rules for temporary connections, this is set up automatically. This protects other websites and local services. The same rule works with llama.cpp.
+- **Zero OLLAMA_ORIGINS Setup**: Because requests don't have an `Origin` header, Ollama doesn’t need the `OLLAMA_ORIGINS="*"` environment variable.
+- **Security Sandboxing**: This header stripping only applies to Apogee's own requests, keeping your computer safe from other programs running on it.
 
 ## Dynamic Model Discovery
 
-When Local Ollama mode is active, Apogee queries Ollama's local `/api/tags` endpoint to fetch your installed models in real time. Any new model you download via `ollama pull` appears automatically in Apogee settings.
+When Local Ollama mode is active, Apogee checks Ollama’s local `/api/tags` endpoint to find all the models you have installed. Any new model you download with `ollama pull` appears automatically in Apogee settings.

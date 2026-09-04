@@ -1,57 +1,55 @@
 # Apogee Translation Architecture and Reference
 
-Apogee can produce its summaries, Q&A answers, and suggested questions in a language other than the source page. You can pick an output language under Settings, then Summary language. The default is English (summaries come out in English no matter what language the page is in), and "Same as article" keeps the page's own language. 32 target languages are supported.
+Apogee can make summaries, answers to questions, and suggested questions in a language different from the original page. You choose the output language under Settings, then Summary language. The normal setting is English (summaries will be in English no matter what language the original page was). “Same as article” keeps the original page’s language. There are 32 languages you can use.
 
 ## Translation Engines
 
-Under the hood there are two translation engines, selectable under Settings, then Translation engine:
+There are two translation engines used:
 
-- **Opus-MT (default)**: A dedicated Helsinki-NLP Opus-MT translation model. The summary is generated neutrally (in English), then translated by a purpose-built model: deterministic, structure-preserving (bullets and `[MM:SS](url)` timestamp links are kept intact), and noticeably stronger on the low-resource long tail. Each model is a small (~80 MB) ONNX file downloaded from Hugging Face on first use and cached offline. Any language Opus-MT cannot reach automatically falls back to the LLM engine.
-- **LLM (opt-in)**: The summarization model translates as it writes: one generation pass with a system-level "write in X" directive, the output is language-checked, and only if the model slipped does an explicit translate pass run. No extra download; it reuses the model already loaded for summarizing. Works for every language, but small in-browser models get weaker the further a language sits from English.
+- **Opus-MT (default)**: This is a model from Helsinki-NLP. It makes summaries in English, then translates them using a special tool. It keeps the structure of the text (like bullet points and links) and works best for languages that aren’t as common. Each model is small (~80 MB) and downloaded when you first use it, then saved for later. If Opus-MT doesn't understand a language automatically, it uses another engine.
+- **LLM (opt-in)**: This engine translates while it writes. It tries to make the summary in the target language directly. It checks the language carefully and only does an extra translation step if needed. It’s always available, but smaller models might be weaker when translating languages that are far from English.
 
 ## Complete 32-Language Matrix
 
-Opus-MT is English-centric, so it uses one of three tiers per language. The table below is the English-to-target path used when translating a summary:
+Opus-MT is mainly for English, so it uses different levels for each language. Here's a table showing how it translates from English to other languages:
 
-| Target Language | Opus-MT Model (English-to-Target) | Tier | Recommended Engine |
-| --- | --- | --- | --- |
-| Spanish | `opus-mt-en-es` | Dedicated model | Opus (Default) |
-| French | `opus-mt-en-fr` | Dedicated model | Opus (Default) |
-| German | `opus-mt-en-de` | Dedicated model | Opus (Default) |
-| Italian | `opus-mt-en-it` | Dedicated model | Opus (Default) |
-| Dutch | `opus-mt-en-nl` | Dedicated model | Opus (Default) |
-| Russian | `opus-mt-en-ru` | Dedicated model | Opus (Default) |
-| Chinese (Simplified) | `opus-mt-en-zh` | Dedicated model | Opus (Default) |
-| Japanese | `opus-mt-en-jap` | Dedicated model | Opus (Default) |
-| Ukrainian | `opus-mt-en-uk` | Dedicated model | Opus (Default) |
-| Czech | `opus-mt-en-cs` | Dedicated model | Opus (Default) |
-| Romanian | `opus-mt-en-ro` | Dedicated model | Opus (Default) |
-| Hungarian | `opus-mt-en-hu` | Dedicated model | Opus (Default) |
-| Swedish | `opus-mt-en-sv` | Dedicated model | Opus (Default) |
-| Danish | `opus-mt-en-da` | Dedicated model | Opus (Default) |
-| Finnish | `opus-mt-en-fi` | Dedicated model | Opus (Default) |
-| Indonesian | `opus-mt-en-id` | Dedicated model | Opus (Default) |
-| Portuguese | `opus-mt-en-mul (>>por<<)` | Grouped model | Opus (Default) |
-| Polish | `opus-mt-en-mul (>>pol<<)` | Grouped model | Opus (Default) |
-| Slovenian | `opus-mt-en-mul (>>slv<<)` | Grouped model | Opus (Default) |
-| Bulgarian | `opus-mt-en-mul (>>bul<<)` | Grouped model | Opus (Default) |
-| Greek | `opus-mt-en-mul (>>ell<<)` | Grouped model | Opus (Default) |
-| Turkish | `opus-mt-en-mul (>>tur<<)` | Grouped model | Opus (Default) |
-| Norwegian | `opus-mt-en-mul (>>nob<<)` | Grouped model | Opus (Default) |
-| Estonian | `opus-mt-en-mul (>>est<<)` | Grouped model | Opus (Default) |
-| Latvian | `opus-mt-en-mul (>>lav<<)` | Grouped model | Opus (Default) |
-| Lithuanian | `opus-mt-en-mul (>>lit<<)` | Grouped model | Opus (Default) |
-| Slovak | `none (LLM only)` | No Opus model | LLM (only option) |
-| Korean | `none (LLM only)` | No Opus model | LLM (only option) |
-| Chinese (Traditional) | `none (LLM only)` | No Opus model | LLM (only option) |
-| Hindi | `none (LLM only)` | No Opus model | LLM (only option) |
-| Vietnamese | `none (LLM only)` | No Opus model | LLM (only option) |
-| Thai | `none (LLM only)` | No Opus model | LLM (only option) |
+| Target Language | Opus-MT Model (English-to-Target) | Tier        | Recommended Engine |
+| :--------------- | :---------------------------------- | :---------- | :------------------ |
+| Spanish          | `opus-mt-en-es`                      | Dedicated   | Opus (Default)      |
+| French           | `opus-mt-en-fr`                      | Dedicated   | Opus (Default)      |
+| German           | `opus-mt-en-de`                      | Dedicated   | Opus (Default)      |
+| Italian          | `opus-mt-en-it`                      | Dedicated   | Opus (Default)      |
+| Dutch            | `opus-mt-en-nl`                      | Dedicated   | Opus (Default)      |
+| Russian          | `opus-mt-en-ru`                      | Dedicated   | Opus (Default)      |
+| Chinese (Simplified)| `opus-mt-en-zh`                     | Dedicated   | Opus (Default)      |
+| Japanese         | `opus-mt-en-jap`                     | Dedicated   | Opus (Default)      |
+| Ukrainian        | `opus-mt-en-uk`                      | Dedicated   | Opus (Default)      |
+| Czech            | `opus-mt-en-cs`                      | Dedicated   | Opus (Default)      |
+| Romanian         | `opus-mt-en-ro`                      | Dedicated   | Opus (Default)      |
+| Hungarian        | `opus-mt-en-hu`                      | Dedicated   | Opus (Default)      |
+| Swedish          | `opus-mt-en-sv`                      | Dedicated   | Opus (Default)      |
+| Danish           | `opus-mt-en-da`                      | Dedicated   | Opus (Default)      |
+| Finnish          | `opus-mt-en-fi`                      | Dedicated   | Opus (Default)      |
+| Indonesian       | `opus-mt-en-id`                      | Dedicated   | Opus (Default)      |
+| Portuguese       | `opus-mt-en-mul (>>por<<)`           | Grouped     | Opus (Default)      |
+| Polish           | `opus-mt-en-mul (>>pol<<)`           | Grouped     | Opus (Default)      |
+| Slovenian        | `opus-mt-en-mul (>>slv<<)`           | Grouped     | Opus (Default)      |
+| Bulgarian        | `opus-mt-en-mul (>>bul<<)`           | Grouped     | Opus (Default)      |
+| Greek            | `opus-mt-en-mul (>>ell<<)`           | Grouped     | Opus (Default)      |
+| Turkish          | `opus-mt-en-mul (>>tur<<)`           | Grouped     | Opus (Default)      |
+| Norwegian        | `opus-mt-en-mul (>>nob<<)`           | Grouped     | Opus (Default)      |
+| Estonian         | `opus-mt-en-mul (>>est<<)`           | Grouped     | Opus (Default)      |
+| Latvian          | `opus-mt-en-mul (>>lav<<)`           | Grouped     | Opus (Default)      |
+| Lithuanian       | `opus-mt-en-mul (>>lit<<)`           | Grouped     | Opus (Default)      |
+| Slovak           | `none (LLM only)`                   | No Opus     | LLM (only option)   |
+| Korean           | `none (LLM only)`                   | No Opus     | LLM (only option)   |
+| Chinese (Traditional)| `none (LLM only)`                   | No Opus     | LLM (only option)   |
+| Hindi            | `none (LLM only)`                   | No Opus     | LLM (only option)   |
+| Vietnamese       | `none (LLM only)`                   | No Opus     | LLM (only option)   |
+| Thai             | `none (LLM only)`                   | No Opus     | LLM (only option)   |
 
 ## Understanding Translation Tiers and Directions
 
-- **Dedicated model**: A small, single-pair Opus-MT model (`opus-mt-en-<code>`), which is the highest-quality tier. For well-resourced languages (Spanish, French, German, Italian, Dutch, Russian, Chinese, Japanese) both engines work well, but Opus is default for structure preservation.
-- **Grouped model**: The multilingual `opus-mt-en-mul` model, steered to the target with a `>>code<<` token. These cover the lower-resource languages that Opus-MT handles with high fluency.
-- **No Opus model**: Slovak, Korean, Traditional Chinese, Hindi, Vietnamese, and Thai have no English-to-target Opus-MT path, so they always use the LLM engine (choosing Opus for these silently falls back to the LLM anyway).
-
-When translating the other direction (a non-English page summarized in English), Opus-MT uses the matching `opus-mt-<code>-en` dedicated models where they exist and the grouped `opus-mt-mul-en` catch-all otherwise. Non-English-to-non-English pairs are not translated directly and fall back to the LLM engine.
+- **Dedicated model**: This is a small, single-pair model (`opus-mt-en-<code>`). It’s the best quality level. It works well for languages like Spanish, French, German, etc. Opus is the default because it keeps the structure of the text (like bullet points and links) better.
+- **Grouped model**: This uses a multilingual model (`opus-mt-en-mul`) with a special code to tell it what language to use. It's good for languages that aren’t as common.
+- **No Opus model**: Slovak, Korean, Traditional Chinese, Hindi, Vietnamese, and Thai don’t have an English-to-target Opus-MT path. So, they always use the LLM engine (Opus falls back to the LLM anyway).
