@@ -21,10 +21,13 @@ function glComments() {
       const text = (body?.innerText || body?.textContent || "").trim();
       if (!text || seen.has(text)) continue;
       seen.add(text);
-      const container = body.closest?.('.note, .discussion-note, [data-testid="note"]');
+      const container = body.closest?.(
+        '.note, .discussion-note, [data-testid="note"]',
+      );
       const author =
-        container?.querySelector?.('.author, .note-header a, [data-testid="author-link"]')
-          ?.innerText?.trim() || "";
+        container?.querySelector?.(
+          '.author, .note-header a, [data-testid="author-link"]',
+        )?.innerText?.trim() || "";
       out.push({ author, text: glTruncate(text, GL_MAX_COMMENT_CHARS) });
       if (out.length >= GL_MAX_COMMENTS) return out;
     }
@@ -39,14 +42,23 @@ function glDiff() {
     '.diff-line-content, .diff-line-num, .line_holder .line_content',
   );
   for (const cell of cells) {
-    const text = (cell?.innerText || cell?.textContent || "").replace(/\s+$/, "");
+    const text = (cell?.innerText || cell?.textContent || "").replace(
+      /\s+$/,
+      "",
+    );
     if (!text || seen.has(cell)) continue;
     seen.add(cell);
     const parent = cell.closest?.('.line_holder, .diff-line');
-    const marker = parent?.classList.contains('new') ? '+' : parent?.classList.contains('old') ? '-' : '';
+    const marker = parent?.classList.contains('new')
+      ? '+'
+      : parent?.classList.contains('old')
+        ? '-'
+        : '';
     if (marker) lines.push(`${marker} ${text.replace(/^[+-]\s?/, "")}`);
   }
-  return lines.length ? glTruncate(lines.join("\n"), GL_MAX_DIFF_CHARS) : "";
+  return lines.length
+    ? glTruncate(lines.join("\n"), GL_MAX_DIFF_CHARS)
+    : "";
 }
 
 async function extractGitLab() {
@@ -57,18 +69,22 @@ async function extractGitLab() {
   const mrIndex = parts.indexOf("merge_requests");
   const issueIndex = parts.indexOf("issues");
   const isMR = mrIndex >= 2 && /^\d+$/.test(parts[mrIndex + 1] || "");
-  const isIssue = issueIndex >= 2 && /^\d+$/.test(parts[issueIndex + 1] || "");
+  const isIssue =
+    issueIndex >= 2 && /^\d+$/.test(parts[issueIndex + 1] || "");
   if (!isMR && !isIssue) return null;
 
   const kind = isMR ? "merge request" : "issue";
   const number = isMR ? parts[mrIndex + 1] : parts[issueIndex + 1];
-  const project = parts.slice(0, isMR ? mrIndex - 1 : issueIndex - 1).join("/");
+  const project = parts
+    .slice(0, isMR ? mrIndex - 1 : issueIndex - 1)
+    .join("/");
   const title =
     document.querySelector('[data-testid="issuable-title"]')?.innerText?.trim() ||
     document.querySelector('.title.page-title, h1')?.innerText?.trim() ||
     document.title;
   const state =
-    document.querySelector('[data-testid="issuable-state"]')?.innerText?.trim() || "";
+    document.querySelector('[data-testid="issuable-state"]')?.innerText?.trim() ||
+    "";
   const comments = glComments();
 
   let content = `GitLab ${kind} in ${project} (!${number})\n\nTitle: ${title}\n`;
