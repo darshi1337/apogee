@@ -70,7 +70,10 @@ import {
   extractFromActiveTab,
   extractPdfContent,
 } from "../lib/extract/pageExtraction.js";
-import { assertUploadSizeOk } from "../lib/extract/fileLimits.js";
+import {
+  assertUploadSizeOk,
+  truncatePastedText,
+} from "../lib/extract/fileLimits.js";
 import {
   activateSelectionCapture,
   MIN_SELECTION_LENGTH,
@@ -2247,6 +2250,16 @@ async function summarizeCustomContent(title, content, url = "") {
   if (activeSummarizeStreamId) {
     cancelStream(activeSummarizeStreamId);
   }
+  // Cap pasted / plain-text input up front (#211): clipboard and dialog text
+  // reach this choke point unbounded, so truncate with a note before the
+  // content fans out into chunks, cache keys, and stored history.
+  const capped = truncatePastedText(content);
+  if (capped.truncated) {
+    announce(
+      "Pasted content exceeded the text limit and was truncated to the first 100,000 characters.",
+    );
+  }
+  content = capped.text;
   currentPageData = { type: "article", content };
   showOnlyView("summaryView");
   showSummarizingContext();
@@ -2412,7 +2425,10 @@ async function summarizeFile(file) {
     const { extractDocxText } = await import("../lib/extract/docxExtract.js");
     text = await extractDocxText(await file.arrayBuffer());
   } else {
-    text = await file.text();
+    // Plain-text branch (txt/md/json/html): file.size bounds the upload but
+    // the post-read string was unbounded, so cap it before it fans out (#211).
+    // summarizeCustomContent re-applies the same cap as a choke point.
+    text = truncatePastedText(await file.text()).text;
   }
 
   if (!text || !text.trim()) {

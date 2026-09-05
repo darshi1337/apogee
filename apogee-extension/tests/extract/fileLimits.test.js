@@ -2,9 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  MAX_PASTED_CHARS,
   MAX_UPLOAD_FILE_BYTES,
   MAX_UPLOAD_FILE_MB,
   assertUploadSizeOk,
+  truncatePastedText,
 } from "../../lib/extract/fileLimits.js";
 
 test("upload ceiling matches the documented 50 MB tab-PDF limit", () => {
@@ -28,4 +30,21 @@ test("assertUploadSizeOk rejects oversized files with a friendly message (#184)"
       return true;
     },
   );
+});
+
+test("truncatePastedText passes short text through untouched (#211)", () => {
+  assert.equal(MAX_PASTED_CHARS, 100 * 1024);
+  const { text, truncated } = truncatePastedText("  hello  ");
+  assert.equal(text, "hello");
+  assert.equal(truncated, false);
+  const atCap = truncatePastedText("x".repeat(MAX_PASTED_CHARS));
+  assert.equal(atCap.truncated, false);
+  assert.equal(atCap.text.length, MAX_PASTED_CHARS);
+});
+
+test("truncatePastedText truncates with a note past the ceiling (#211)", () => {
+  const { text, truncated } = truncatePastedText("y".repeat(MAX_PASTED_CHARS + 1000));
+  assert.equal(truncated, true);
+  assert.ok(text.length < MAX_PASTED_CHARS + 1000);
+  assert.match(text, /\[\.\.\.pasted content truncated/);
 });
