@@ -1,3 +1,13 @@
+// Reddit comments-page extractor.
+//
+// Fetches the thread JSON for the page already open (`${location.origin}${location.pathname}.json`,
+// same origin as the viewed comments page) from the content script (the page's
+// own context), so no extra host permission or extension-pages connect-src
+// entry applies: the request cannot reach any host other than the Reddit page
+// itself. Sent with credentials omitted and an explicit JSON accept, carrying
+// no page content beyond the URL already viewed. Documented in PRIVACY.md
+// ("Outbound Network Connection Details") alongside the YouTube page-context
+// fetch rationale.
 const REDDIT_MAX_COMMENTS = 60;
 const REDDIT_MAX_DEPTH = 8;
 const REDDIT_MAX_COMMENT_CHARS = 1500;
