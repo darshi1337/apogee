@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert";
-import { validateOllamaHost } from "../../lib/util/ollamaHost.js";
+import {
+  ALLOWED_OLLAMA_HOSTS,
+  DEFAULT_OLLAMA_PORT,
+  validateLoopbackUrl,
+  validateOllamaHost,
+} from "../../lib/util/ollamaHost.js";
 
 test("validateOllamaHost accepts default Ollama host http://127.0.0.1:11434", () => {
   const result = validateOllamaHost("http://127.0.0.1:11434");
@@ -71,5 +76,36 @@ test("validateOllamaHost rejects malformed URLs", () => {
   assert.throws(
     () => validateOllamaHost("not a valid url"),
     /Invalid Ollama host/,
+  );
+});
+
+test("the shared allowed set is exactly 127.0.0.1 and localhost, no IPv6 (#210)", () => {
+  assert.deepStrictEqual(
+    new Set(ALLOWED_OLLAMA_HOSTS),
+    new Set(["127.0.0.1", "localhost"]),
+  );
+  assert.strictEqual(DEFAULT_OLLAMA_PORT, "11434");
+  assert.throws(
+    () => validateLoopbackUrl("http://[::1]:11434"),
+    /Disallowed Ollama host/,
+  );
+  assert.throws(
+    () => validateLoopbackUrl("http://[::1]:11434", { label: "llama.cpp" }),
+    /Disallowed llama\.cpp host/,
+  );
+});
+
+test("validateLoopbackUrl supports a per-provider default port (#210)", () => {
+  assert.strictEqual(
+    validateLoopbackUrl("http://127.0.0.1", { defaultPort: "8080" }),
+    "http://127.0.0.1:8080",
+  );
+  assert.strictEqual(
+    validateLoopbackUrl("http://localhost"),
+    "http://localhost:11434",
+  );
+  assert.strictEqual(
+    validateLoopbackUrl("http://127.0.0.1:9999", { defaultPort: "8080" }),
+    "http://127.0.0.1:9999",
   );
 });

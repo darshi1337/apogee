@@ -25,7 +25,10 @@ export async function hasHostPermissions(origins) {
  */
 export async function requestHostPermissions(origins) {
   if (typeof chrome === "undefined" || !chrome.permissions?.request) {
-    return true;
+    // Fail closed like hasHostPermissions: without the permissions API there
+    // is no prompt to grant, so callers must treat access as denied rather
+    // than assuming the gated fetch is allowed.
+    return false;
   }
   try {
     return await new Promise((resolve) => {

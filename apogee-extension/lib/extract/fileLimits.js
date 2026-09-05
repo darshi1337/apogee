@@ -32,3 +32,22 @@ export const MAX_DOCX_ENTRIES = 10000;
 // bounds pathological content-stream inflation inside the parser before the
 // result string itself becomes the OOM vector.
 export const MAX_PDF_TEXT_CHARS = 25 * 1024 * 1024;
+
+// Pasted-text and plain-text file ceiling (#211). file.size bounds the upload
+// (~50 MB string), but two post-read text paths were unbounded: file.text()
+// for txt/md/json/html and the pasted-text dialog. A multi-MB string here
+// becomes thousands of prompt chunks (slow prompt / local OOM), so truncate
+// early with a note, mirroring truncateForPrompt's convention.
+export const MAX_PASTED_CHARS = 100 * 1024;
+
+export function truncatePastedText(text) {
+  const clean = (text || "").trim();
+  if (clean.length <= MAX_PASTED_CHARS)
+    return { text: clean, truncated: false };
+  return {
+    text:
+      `${clean.slice(0, MAX_PASTED_CHARS).trim()}\n\n` +
+      `[...pasted content truncated to the first ${MAX_PASTED_CHARS} characters...]`,
+    truncated: true,
+  };
+}

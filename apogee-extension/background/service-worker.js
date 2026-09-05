@@ -72,7 +72,16 @@ import {
   getProviderType,
   getModelForSettings,
 } from "../lib/engines/providers.js";
-import { PROVIDERS, TRANSLATION_ENGINES } from "../lib/constants.js";
+import {
+  PROVIDERS,
+  TRANSLATION_ENGINES,
+  DEFAULT_LLAMACPP_HOST,
+} from "../lib/constants.js";
+import {
+  ALLOWED_OLLAMA_HOSTS,
+  DEFAULT_OLLAMA_PORT,
+  validateLoopbackUrl,
+} from "../lib/util/ollamaHost.js";
 import { broadcastToStream } from "../lib/util/streamBroadcast.js";
 import {
   saveViewState,
@@ -349,7 +358,7 @@ function relayToOffscreenStream(popupPort, streamId) {
   });
 }
 
-const ALLOWED_LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost"]);
+const ALLOWED_LOOPBACK_HOSTS = ALLOWED_OLLAMA_HOSTS;
 
 // The rejected value stays in the console line only. The user-facing message states the rule instead, so a mistyped host reads as guidance rather than an internal assertion. ERROR.md documents this message word for word.
 function rejectLoopbackHost(label, host, reason) {
@@ -360,20 +369,38 @@ function rejectLoopbackHost(label, host, reason) {
   );
 }
 
+function loopbackDefaultPort(label) {
+  // One shared validator (see lib/util/ollamaHost.js): the port rule and the
+  // 127.0.0.1/localhost-only stance come from there for every provider. The
+  // only per-provider part is the default port, since llama.cpp listens on
+  // 8080 while Ollama listens on 11434. (LLAMACPP_PROVIDER is declared below;
+  // this lookup runs at call time, after module init.)
+  if (label === LLAMACPP_PROVIDER.label) {
+    try {
+      return new URL(DEFAULT_LLAMACPP_HOST).port || "8080";
+    } catch {
+      return "8080";
+    }
+  }
+  return DEFAULT_OLLAMA_PORT;
+}
+
 function validateLoopbackHost(host, label = "Ollama") {
-  let url;
   try {
-    url = new URL(host);
-  } catch {
-    throw rejectLoopbackHost(label, host, "unparseable URL");
+    return validateLoopbackUrl(host, {
+      label,
+      defaultPort: loopbackDefaultPort(label),
+    });
+  } catch (err) {
+    // Map the shared validator's plain errors onto the console-only reason;
+    // the user-facing message stays generic (see rejectLoopbackHost).
+    const message = err instanceof Error ? err.message : String(err);
+    const reason = message
+      .replace(`Invalid ${label} host`, "unparseable URL")
+      .replace(`Disallowed ${label} `, "")
+      .replace(`Invalid ${label} `, "");
+    throw rejectLoopbackHost(label, host, reason);
   }
-  if (url.protocol !== "http:") {
-    throw rejectLoopbackHost(label, host, `protocol ${url.protocol}`);
-  }
-  if (!ALLOWED_LOOPBACK_HOSTS.has(url.hostname)) {
-    throw rejectLoopbackHost(label, host, `hostname ${url.hostname}`);
-  }
-  return url.toString().replace(/\/+$/, "");
 }
 
 // What a loopback HTTP provider contributes to a generation job: the client that talks to it, the name its errors are written in, and the message action its stream arrives on. Everything else in the two functions below is the same whichever server is answering. Ollama is the default, so its call sites pass nothing and behave exactly as before.

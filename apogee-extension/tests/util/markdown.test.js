@@ -101,8 +101,33 @@ test("stored summaries strip same-origin links (cached-summary path, #187)", () 
     "stored same-origin link must be stripped",
   );
   assert.ok(
-    html.includes("https://www.youtube.com/watch?v=1"),
-    "stored youtube link still renders",
+    !html.includes("<a href="),
+    "stored summaries linkify nothing: always-linkify hosts stay plain text (#212)",
+  );
+  assert.ok(html.includes("a"), "link label text survives");
+  assert.ok(html.includes("b"), "youtube link label text survives");
+});
+
+test("stored summaries never linkify youtube/bilibili, live summaries still do (#212)", () => {
+  resetLinkify();
+  const stored = renderStoredSummaryMarkdown(
+    "[v](https://www.youtube.com/watch?v=1)\n[b](https://www.bilibili.com/video/BV1xx411c7mD)",
+  );
+  assert.ok(!stored.includes("<a href="), "no clickable links in stored view");
+  assert.ok(
+    stored.includes("https://www.youtube.com/watch?v=1") === false,
+    "stored youtube href must not survive as a link target",
+  );
+  const live = renderMarkdown(
+    "[v](https://www.youtube.com/watch?v=1)\n[b](https://www.bilibili.com/video/BV1xx411c7mD)",
+  );
+  assert.ok(
+    live.includes('href="https://www.youtube.com/watch?v=1"'),
+    "live youtube links still render",
+  );
+  assert.ok(
+    live.includes('href="https://www.bilibili.com/video/BV1xx411c7mD"'),
+    "live bilibili links still render",
   );
 });
 
