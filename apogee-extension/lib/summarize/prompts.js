@@ -530,7 +530,13 @@ export function buildYoutubeBriefPrompt(
     const link = `[${formatSecondsAsTimestamp(start)}](${tsBase}${start}${tsSuffix})`;
     const range =
       end > start ? `covers ${start}s-${end}s` : `covers ${start}s onward`;
-    return `### ${link} ${c.title}   (${range})`;
+    // Chapter titles are page-controlled (video description), but these
+    // headings land in the trusted-instruction section, not inside a fence.
+    // Same treatment as titles/URLs: strip fence markers and control chars so
+    // a hostile title cannot smuggle newlines, fake headings, or breakout
+    // markers past its own heading line.
+    const safeChapterTitle = sanitizePromptField(c.title, TITLE_MAX_CHARS);
+    return `### ${link} ${safeChapterTitle}   (${range})`;
   });
 
   return [
