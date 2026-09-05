@@ -380,6 +380,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (sender?.id !== chrome.runtime.id) return;
+  if (sender.tab) return;
   if (
     message.type === "suggested-prompts-ready" &&
     message.promptsCacheKey === currentPromptsCacheKey
@@ -765,6 +766,7 @@ let modelProgressHideTimer = null;
 
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (sender?.id !== chrome.runtime.id) return;
+  if (sender.tab) return;
   if (message.type === "selection-summary-started" && isSidePanelSurface) {
     window.location.reload();
     return;

@@ -187,7 +187,10 @@ if (
   chrome.runtime.onMessage
 ) {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (sender.id && sender.id !== chrome.runtime.id) return;
+    if (sender?.id !== chrome.runtime.id) return;
+    // Highlight requests come from the extension page via tabs.sendMessage
+    // (no sender tab); tab-hosted contexts must not trigger page highlights.
+    if (sender.tab) return;
     if (message && message.action === "apogee-highlight") {
       const result = performHighlight(message.chunkText);
       sendResponse(result);
