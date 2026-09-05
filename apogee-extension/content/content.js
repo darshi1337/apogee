@@ -88,7 +88,7 @@ if (
   chrome.runtime.onMessage
 ) {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (sender.id && sender.id !== chrome.runtime.id) return;
+    if (sender?.id !== chrome.runtime.id) return;
     if (message && message.action === "extract-page-content") {
       extractPageContent()
         .then((data) => sendResponse(data))
