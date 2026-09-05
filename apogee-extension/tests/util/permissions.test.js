@@ -160,3 +160,29 @@ test("ensurePermissionsForUrl requests permissions on-demand when not already gr
     globalThis.chrome = originalChrome;
   }
 });
+
+test("requestHostPermissions fails closed when chrome.permissions is undefined (#209)", async () => {
+  const originalChrome = globalThis.chrome;
+  delete globalThis.chrome;
+  try {
+    const result = await requestHostPermissions(["*://*.bilibili.com/*"]);
+    assert.strictEqual(result, false);
+  } finally {
+    globalThis.chrome = originalChrome;
+  }
+});
+
+test("ensurePermissionsForUrl fails closed when the permissions API is absent (#209)", async () => {
+  const originalChrome = globalThis.chrome;
+  delete globalThis.chrome;
+  try {
+    // hasHostPermissions is already fail-closed; the gate must stay denied
+    // end to end instead of failing open through the request path.
+    const result = await ensurePermissionsForUrl(
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    );
+    assert.strictEqual(result, false);
+  } finally {
+    globalThis.chrome = originalChrome;
+  }
+});
