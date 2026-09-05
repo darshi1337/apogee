@@ -18,9 +18,7 @@ test("popup onMessage listeners validate the sender (#207)", async () => {
   );
 
   const guards =
-    appCode.match(
-      /if \(sender\?\.id && sender\.id !== chrome\.runtime\.id\) return;/g,
-    ) || [];
+    appCode.match(/if \(sender\?\.id !== chrome\.runtime\.id\) return;/g) || [];
   assert.ok(
     guards.length >= listeners.length,
     "every popup onMessage listener must reject foreign senders",

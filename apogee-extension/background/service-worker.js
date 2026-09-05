@@ -1522,6 +1522,15 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onConnect?.addListener) {
       } catch {}
       return;
     }
+    // All port families here (popup-lifecycle, side-panel-tab-*, popup-stream-*)
+    // are opened by extension pages, never by tab-hosted contexts — the tab id
+    // for side-panel ports travels in the port name instead.
+    if (port.sender?.tab) {
+      try {
+        port.disconnect();
+      } catch {}
+      return;
+    }
     if (port.name && port.name.startsWith("side-panel-tab-")) {
       const tabId = parseInt(port.name.replace("side-panel-tab-", ""), 10);
       if (!isNaN(tabId)) {

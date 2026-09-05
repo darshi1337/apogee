@@ -666,6 +666,14 @@ chrome.runtime.onConnect.addListener((port) => {
     } catch {}
     return;
   }
+  // Stream ports are opened by the service-worker relay only; tab-hosted
+  // contexts must not siphon stream text, mirroring the onMessage tab reject.
+  if (port.sender?.tab) {
+    try {
+      port.disconnect();
+    } catch {}
+    return;
+  }
   if (!port.name.startsWith("offscreen-stream-")) return;
 
   const streamId = port.name.replace("offscreen-stream-", "");
