@@ -25,10 +25,6 @@ export const ALWAYS_LINKIFY_HOSTS = new Set(["youtube.com", "bilibili.com"]);
 
 let linkifyPageHost = null;
 
-export function getLinkifyPageHost() {
-  return linkifyPageHost;
-}
-
 export function setLinkifyPageHostForTests(host) {
   linkifyPageHost = host;
 }
