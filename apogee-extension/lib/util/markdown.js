@@ -48,14 +48,19 @@ export function setLinkifyOriginFromUrl(url) {
   }
 }
 
-export function isLinkifiableHref(href) {
+export function isLinkifiableHref(href, { allowAlwaysHosts = true } = {}) {
   let host;
   try {
     host = normalizeLinkHost(new URL(href).hostname);
   } catch {
     return false;
   }
-  return host === linkifyPageHost || ALWAYS_LINKIFY_HOSTS.has(host);
+  // Stored past summaries render with the page host nulled and
+  // allowAlwaysHosts off (see renderStoredSummaryMarkdown): a planted
+  // youtube/bilibili link from a malicious page then stays plain text
+  // instead of clickable (#212).
+  if (ALWAYS_LINKIFY_HOSTS.has(host)) return allowAlwaysHosts;
+  return host === linkifyPageHost;
 }
 
 /**
@@ -82,12 +87,13 @@ export function isSafeMarkdownHref(href) {
   return true;
 }
 
-export function extractMarkdownLinks(escapedText) {
+export function extractMarkdownLinks(escapedText, { allowAlwaysHosts = true } = {}) {
   const links = [];
   const text = escapedText.replace(
     /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g,
     (match, label, href) => {
-      if (!isSafeMarkdownHref(href) || !isLinkifiableHref(href)) return label;
+      if (!isSafeMarkdownHref(href) || !isLinkifiableHref(href, { allowAlwaysHosts }))
+        return label;
       links.push(
         `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`,
       );
@@ -97,8 +103,8 @@ export function extractMarkdownLinks(escapedText) {
   return { text, links };
 }
 
-export function renderInline(escapedText) {
-  const { text, links } = extractMarkdownLinks(escapedText);
+export function renderInline(escapedText, { allowAlwaysHosts = true } = {}) {
+  const { text, links } = extractMarkdownLinks(escapedText, { allowAlwaysHosts });
   return text
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
@@ -164,9 +170,11 @@ export function sanitizeMarkdownHtml(html) {
   );
 }
 
-export function renderMarkdown(source) {
+export function renderMarkdown(source, { stored = false } = {}) {
   // Strip private-use placeholder marks from user input so model/cached text
   // cannot inject link placeholders that the restore pass would expand.
+  const allowAlwaysHosts = !stored;
+  const inline = (escapedText) => renderInline(escapedText, { allowAlwaysHosts });
   const lines = escapeHtml(source ?? "")
     .replace(/\uE000/g, "")
     .split(/\r?\n/);
@@ -187,7 +195,7 @@ export function renderMarkdown(source) {
     const heading = line.match(/^(#{1,6})\s+(.*)$/);
     if (heading) {
       closeList();
-      html += `<h${heading[1].length}>${renderInline(heading[2])}</h${heading[1].length}>`;
+      html += `<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`;
       continue;
     }
     const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
@@ -197,7 +205,7 @@ export function renderMarkdown(source) {
         html += "<ul>";
         listType = "ul";
       }
-      html += `<li>${renderInline(bullet[1])}</li>`;
+      html += `<li>${inline(bullet[1])}</li>`;
       continue;
     }
     const ordered = line.match(/^\s*\d+[.)]\s+(.*)$/);
@@ -207,21 +215,26 @@ export function renderMarkdown(source) {
         html += "<ol>";
         listType = "ol";
       }
-      html += `<li>${renderInline(ordered[1])}</li>`;
+      html += `<li>${inline(ordered[1])}</li>`;
       continue;
     }
     closeList();
-    html += `<p>${renderInline(line)}</p>`;
+    html += `<p>${inline(line)}</p>`;
   }
   closeList();
   return sanitizeMarkdownHtml(html);
 }
 
 export function renderStoredSummaryMarkdown(text) {
+  // Stored past summaries render with no page context: the page host is
+  // nulled AND the always-linkify hosts are off, so every link (including a
+  // youtube/bilibili URL planted by a malicious page) stays plain label text
+  // instead of becoming clickable (#212). Live summaries keep the
+  // same-origin + youtube/bilibili link behavior via renderMarkdown().
   const savedHost = linkifyPageHost;
   linkifyPageHost = null;
   try {
-    return renderMarkdown(text);
+    return renderMarkdown(text, { stored: true });
   } finally {
     linkifyPageHost = savedHost;
   }
