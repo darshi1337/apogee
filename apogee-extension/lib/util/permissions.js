@@ -62,6 +62,13 @@ export function getOptionalOriginsForUrl(url) {
         "https://sponsor.ajay.app/*",
       ];
     }
+    if (host === "bsky.app" || host.endsWith(".bsky.app")) {
+      // Covers both the bsky.app page and the public.api.bsky.app thread
+      // endpoint fetched by the Bluesky extractor. Without this mapping
+      // getOptionalOriginsForUrl() returned [] for bsky.app, so the
+      // on-demand permission prompt in ensurePermissionsForUrl() never fired.
+      return ["*://*.bsky.app/*"];
+    }
   } catch {}
   return [];
 }

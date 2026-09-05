@@ -91,6 +91,43 @@ test("getOptionalOriginsForUrl returns required origins for bilibili and youtube
     getOptionalOriginsForUrl("https://en.wikipedia.org/wiki/Main_Page"),
     [],
   );
+  assert.deepStrictEqual(
+    getOptionalOriginsForUrl(
+      "https://bsky.app/profile/alice.bsky.social/post/3l6pyiu4dws2p",
+    ),
+    ["*://*.bsky.app/*"],
+  );
+  assert.deepStrictEqual(
+    getOptionalOriginsForUrl("https://www.bsky.app/profile/bob/post/abc"),
+    ["*://*.bsky.app/*"],
+  );
+});
+
+test("ensurePermissionsForUrl prompts on-demand for bsky.app URLs (#186)", async () => {
+  const originalChrome = globalThis.chrome;
+  let requestedOrigins = null;
+
+  globalThis.chrome = {
+    permissions: {
+      contains(_opts, callback) {
+        callback(false);
+      },
+      request({ origins }, callback) {
+        requestedOrigins = origins;
+        callback(true);
+      },
+    },
+  };
+
+  try {
+    const result = await ensurePermissionsForUrl(
+      "https://bsky.app/profile/alice.bsky.social/post/3l6pyiu4dws2p",
+    );
+    assert.strictEqual(result, true);
+    assert.deepStrictEqual(requestedOrigins, ["*://*.bsky.app/*"]);
+  } finally {
+    globalThis.chrome = originalChrome;
+  }
 });
 
 test("ensurePermissionsForUrl requests permissions on-demand when not already granted", async () => {
