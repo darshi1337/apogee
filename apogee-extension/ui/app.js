@@ -27,7 +27,10 @@ import {
   isVideoType,
 } from "../lib/constants.js";
 import { getSettings } from "../lib/storage/settings.js";
-import { validateOllamaHost } from "../lib/util/ollamaHost.js";
+import {
+  validateLoopbackUrl,
+  validateOllamaHost,
+} from "../lib/util/ollamaHost.js";
 import {
   formatSummaryAsJSON,
   formatSummaryAsMarkdown,
@@ -2780,7 +2783,23 @@ llamaHostInput?.addEventListener("change", async () => {
   if (val && !/^https?:\/\//i.test(val)) {
     val = `http://${val}`;
   }
-  val = val.replace(/\/+$/, "");
+  try {
+    // Same shared validator the service worker enforces at request time, with
+    // the llama.cpp default port — an invalid host falls back to the default
+    // instead of persisting, mirroring the Ollama handler above.
+    let llamaDefaultPort = "8080";
+    try {
+      llamaDefaultPort = new URL(DEFAULT_LLAMACPP_HOST).port || "8080";
+    } catch {
+      // Keep the built-in fallback above.
+    }
+    val = validateLoopbackUrl(val, {
+      label: "llama.cpp",
+      defaultPort: llamaDefaultPort,
+    });
+  } catch {
+    val = DEFAULT_LLAMACPP_HOST;
+  }
   llamaHostInput.value = val;
   await saveSettings({ llamaHost: val });
   await refreshLlamaConnection();
