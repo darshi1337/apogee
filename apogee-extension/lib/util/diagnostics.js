@@ -1,8 +1,12 @@
 import { DEFAULT_SETTINGS } from "../constants.js";
 import { parsePrivateHosts } from "../storage/pageCache.js";
 import { isSensitiveCredentialKey, sanitizeLogMessage } from "./log.js";
+import { ALLOWED_OLLAMA_HOSTS } from "./ollamaHost.js";
 
-const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
+// The loopback display uses the same shared set as the validators
+// (see ollamaHost.js): only 127.0.0.1 and localhost. IPv6 loopback
+// ([::1] / ::1) is rejected by the validators, so diagnostics reports it as
+// a custom host instead of implying it would connect (#210).
 
 // customInstructions is free text the user wrote, privateHosts names sites they consider private (a clinic, an employer), and ollamaHost can name a machine on their network. None belongs in something pasted into a public issue, but all matter to a bug report, so report their shape instead of their contents.
 function redact(key, value) {
@@ -24,7 +28,8 @@ function redact(key, value) {
     const host = String(value || "");
     try {
       const { hostname, port, protocol } = new URL(host);
-      if (!LOOPBACK.has(hostname)) return `custom host, port ${port || "none"}`;
+      if (!ALLOWED_OLLAMA_HOSTS.has(hostname))
+        return `custom host, port ${port || "none"}`;
       return `${protocol}//${hostname}${port ? ":" + port : ""}`;
     } catch {
       return host ? "unparseable" : "unset";

@@ -152,6 +152,15 @@ test("formatDiagnosticSettings: redacts ollamaHost and llamaHost", () => {
   );
 });
 
+test("formatDiagnosticSettings: IPv6 loopback is a custom host like the validators treat it (#210)", () => {
+  const v6 = formatDiagnosticSettings(
+    cloneDefaults({ ollamaHost: "http://[::1]:11434" }),
+  );
+  const line = v6.split("\n").find((l) => l.startsWith("ollamaHost:"));
+  assert.match(line, /custom host, port 11434/);
+  assert.doesNotMatch(line, /\[::1\]:11434.*http/);
+});
+
 test("formatDiagnosticSettings: omits empty extra fields and wraps with banners", () => {
   const out = formatDiagnosticSettings(cloneDefaults(), {
     version: "1.2.3",
