@@ -1608,7 +1608,7 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onConnect?.addListener) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.target !== "service-worker") return false;
 
-  if (sender.id !== chrome.runtime.id) return false;
+  if (sender?.id !== chrome.runtime.id) return false;
 
   const ALLOWED_CONTENT_SCRIPT_ACTIONS = new Set([
     "sponsorblock-segments",

@@ -716,7 +716,7 @@ chrome.runtime.onConnect.addListener((port) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.target !== "offscreen") return false;
 
-  if (sender.id !== chrome.runtime.id) return false;
+  if (sender?.id !== chrome.runtime.id) return false;
 
   const handler = async () => {
     try {
