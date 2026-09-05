@@ -1514,6 +1514,14 @@ const activeSidePanelTabs = new Set();
 
 if (typeof chrome !== "undefined" && chrome.runtime?.onConnect?.addListener) {
   chrome.runtime.onConnect.addListener((port) => {
+    // Ports are same-extension by construction, but validate the sender like
+    // the onMessage handlers do; unknown-name ports are already dropped below.
+    if (port.sender?.id !== chrome.runtime.id) {
+      try {
+        port.disconnect();
+      } catch {}
+      return;
+    }
     if (port.name && port.name.startsWith("side-panel-tab-")) {
       const tabId = parseInt(port.name.replace("side-panel-tab-", ""), 10);
       if (!isNaN(tabId)) {

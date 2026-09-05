@@ -658,6 +658,14 @@ async function runStream(streamId, pending, stream) {
 }
 
 chrome.runtime.onConnect.addListener((port) => {
+  // Same sender validation as the onMessage handlers; unknown-name ports are
+  // already dropped below.
+  if (port.sender?.id !== chrome.runtime.id) {
+    try {
+      port.disconnect();
+    } catch {}
+    return;
+  }
   if (!port.name.startsWith("offscreen-stream-")) return;
 
   const streamId = port.name.replace("offscreen-stream-", "");
