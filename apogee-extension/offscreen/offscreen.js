@@ -718,6 +718,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (sender?.id !== chrome.runtime.id) return false;
 
+  // The service worker is the only legitimate sender (every target:
+  // "offscreen" call site originates there). Tab-hosted contexts must not
+  // invoke local-compute actions directly, so reject them outright rather
+  // than allow-listing actions per sender.
+  if (sender.tab) return false;
+
   const handler = async () => {
     try {
       switch (message.action) {
