@@ -53,9 +53,30 @@ function getPlayerResponse() {
 }
 
 function decodeHtmlEntities(text) {
-  const el = document.createElement("textarea");
-  el.innerHTML = text;
-  return el.value;
+  // Decode the XML/HTML entities YouTube captions use without parsing HTML:
+  // assigning to innerHTML here would sink transcript text into an HTML
+  // parser (harmless on a detached textarea, but the same pattern elsewhere
+  // is a real XSS sink), so decode the known entities by replacement.
+  return String(text ?? "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;|&#x27;/gi, "'")
+    .replace(/&#(\d+);/g, (_, n) => {
+      try {
+        return String.fromCodePoint(Number(n));
+      } catch {
+        return _;
+      }
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => {
+      try {
+        return String.fromCodePoint(parseInt(n, 16));
+      } catch {
+        return _;
+      }
+    })
+    .replace(/&amp;/g, "&");
 }
 
 function isAllowedCaptionUrl(rawUrl) {

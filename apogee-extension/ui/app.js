@@ -76,6 +76,10 @@ import {
   MIN_SELECTION_LENGTH,
 } from "../lib/extract/selection.js";
 import { ensurePermissionsForUrl } from "../lib/util/permissions.js";
+import {
+  setLinkifyOriginFromUrl,
+  setMarkdownHtml,
+} from "../lib/util/markdown.js";
 import { icon, ICONS } from "./icons.js";
 import {
   COULD_NOT_READ_THIS_PAGE_ERROR_MSG,
@@ -421,7 +425,11 @@ function buildWebllmModelUI(selectedId) {
     input.value = model.id;
     if (model.id === selectedId) input.checked = true;
     const span = document.createElement("span");
-    span.innerHTML = `${model.label} <small class="model-size">${model.size}</small>`;
+    span.textContent = model.label;
+    const size = document.createElement("small");
+    size.className = "model-size";
+    size.textContent = model.size;
+    span.append(" ", size);
     label.appendChild(input);
     label.appendChild(span);
     webllmModelList.appendChild(label);
@@ -445,7 +453,11 @@ function buildTransformersModelUI(selectedId) {
     input.value = model.id;
     if (model.id === selectedId) input.checked = true;
     const span = document.createElement("span");
-    span.innerHTML = `${model.label} <small class="model-size">${model.size}</small>`;
+    span.textContent = model.label;
+    const size = document.createElement("small");
+    size.className = "model-size";
+    size.textContent = model.size;
+    span.append(" ", size);
     label.appendChild(input);
     label.appendChild(span);
     transformersModelList.appendChild(label);
@@ -860,127 +872,10 @@ function announce(message) {
   a11yAnnouncer.textContent = message;
 }
 
-function escapeHtml(text) {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-const LINK_PLACEHOLDER_MARK = "\uE000";
-
-const ALWAYS_LINKIFY_HOSTS = new Set(["youtube.com", "bilibili.com"]);
-
-let linkifyPageHost = null;
-
-function normalizeLinkHost(host) {
-  const h = host.toLowerCase().replace(/^(www\.|m\.)/, "");
-  return h === "youtu.be" ? "youtube.com" : h;
-}
-
-function setLinkifyOriginFromUrl(url) {
-  try {
-    linkifyPageHost = normalizeLinkHost(new URL(url).hostname);
-  } catch {
-    linkifyPageHost = null;
-  }
-}
-
-function isLinkifiableHref(href) {
-  let host;
-  try {
-    host = normalizeLinkHost(new URL(href).hostname);
-  } catch {
-    return false;
-  }
-  return host === linkifyPageHost || ALWAYS_LINKIFY_HOSTS.has(host);
-}
-
-function extractMarkdownLinks(escapedText) {
-  const links = [];
-  const text = escapedText.replace(
-    /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g,
-    (match, label, href) => {
-      if (!isLinkifiableHref(href)) return label;
-      links.push(
-        `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`,
-      );
-      return `${LINK_PLACEHOLDER_MARK}${links.length - 1}${LINK_PLACEHOLDER_MARK}`;
-    },
-  );
-  return { text, links };
-}
-
-function renderInline(escapedText) {
-  const { text, links } = extractMarkdownLinks(escapedText);
-  return text
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/__(.+?)__/g, "<strong>$1</strong>")
-    .replace(/(^|[^*])\*([^*\n]+?)\*/g, "$1<em>$2</em>")
-    .replace(/(^|[^_])_([^_\n]+?)_/g, "$1<em>$2</em>")
-    .replace(/\uE000(\d+)\uE000/g, (_, i) => links[Number(i)]);
-}
-function renderMarkdown(source) {
-  const lines = escapeHtml(source).split(/\r?\n/);
-  let html = "";
-  let listType = null;
-  const closeList = () => {
-    if (listType) {
-      html += `</${listType}>`;
-      listType = null;
-    }
-  };
-  for (const rawLine of lines) {
-    const line = rawLine.trimEnd();
-    if (line.trim() === "") {
-      closeList();
-      continue;
-    }
-    const heading = line.match(/^(#{1,6})\s+(.*)$/);
-    if (heading) {
-      closeList();
-      html += `<h${heading[1].length}>${renderInline(heading[2])}</h${heading[1].length}>`;
-      continue;
-    }
-    const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
-    if (bullet) {
-      if (listType !== "ul") {
-        closeList();
-        html += "<ul>";
-        listType = "ul";
-      }
-      html += `<li>${renderInline(bullet[1])}</li>`;
-      continue;
-    }
-    const ordered = line.match(/^\s*\d+[.)]\s+(.*)$/);
-    if (ordered) {
-      if (listType !== "ol") {
-        closeList();
-        html += "<ol>";
-        listType = "ol";
-      }
-      html += `<li>${renderInline(ordered[1])}</li>`;
-      continue;
-    }
-    closeList();
-    html += `<p>${renderInline(line)}</p>`;
-  }
-  closeList();
-  return html;
-}
-
-function renderStoredSummaryMarkdown(text) {
-  const savedHost = linkifyPageHost;
-  linkifyPageHost = null;
-  try {
-    return renderMarkdown(text);
-  } finally {
-    linkifyPageHost = savedHost;
-  }
-}
+// Markdown rendering (escape-then-allow-list plus a fail-closed sanitizer
+// pass) lives in lib/util/markdown.js so node tests can exercise the
+// untrusted-input paths directly. All innerHTML sinks for model output and
+// cached summaries go through setMarkdownHtml() there.
 
 document.addEventListener("click", (e) => {
   const anchor = e.target.closest?.("a[href^='http']");
@@ -990,6 +885,13 @@ document.addEventListener("click", (e) => {
   if (!inCurrentPageView && !inPastSummary) return;
   e.preventDefault();
   const url = anchor.getAttribute("href");
+  let protocol;
+  try {
+    protocol = new URL(url).protocol;
+  } catch {
+    return;
+  }
+  if (protocol !== "http:" && protocol !== "https:") return;
   if (inCurrentPageView && activeTabId != null) {
     chrome.tabs.update(activeTabId, { url, active: true });
   } else {
@@ -1081,7 +983,7 @@ async function loadPastSummaries() {
     const toggleExpanded = () => {
       const expanded = card.classList.toggle("expanded");
       card.setAttribute("aria-expanded", String(expanded));
-      if (expanded) preview.innerHTML = renderStoredSummaryMarkdown(text);
+      if (expanded) setMarkdownHtml(preview, text, { stored: true });
       else preview.textContent = firstLineOf(text);
     };
     card.addEventListener("click", (e) => {
@@ -1546,9 +1448,9 @@ async function streamGeneratorIntoElement(generator, element) {
     const visible = fullText.trimStart();
     if (!started && visible === "") continue;
     started = true;
-    element.innerHTML = renderMarkdown(visible);
+    setMarkdownHtml(element, visible);
   }
-  element.innerHTML = renderMarkdown(fullText.trimStart());
+  setMarkdownHtml(element, fullText.trimStart());
   return fullText;
 }
 
@@ -1789,7 +1691,7 @@ async function consumeAnswerStream(stream, { tab, question }) {
     }
     answerBox.textContent = fullText.trimStart();
   }
-  if (started) answerBox.innerHTML = renderMarkdown(answerBox.textContent);
+  if (started) setMarkdownHtml(answerBox, fullText.trimStart());
   else renderError(answerBox, EMPTY_ANSWER_MESSAGE);
 
   currentAnswerText = fullText;
@@ -2181,7 +2083,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           showAnswerContext(state.question);
           currentAnswerText = state.answerText || "";
           if (currentAnswerText.trim()) {
-            answerBox.innerHTML = renderMarkdown(currentAnswerText);
+            setMarkdownHtml(answerBox, currentAnswerText);
           } else {
             renderError(answerBox, EMPTY_ANSWER_MESSAGE);
           }
@@ -2200,7 +2102,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             state.summaryLanguage ?? settings.summaryLanguage;
           currentTranslationEngine =
             state.translationEngine ?? settings.translationEngine;
-          summaryText.innerHTML = renderMarkdown(state.summaryText);
+          setMarkdownHtml(summaryText, state.summaryText);
           makeSummaryPassagesFocusable();
           setSummaryCopyButtonsVisible(!!state.summaryText.trim());
           updateResummarizeHint(settings);
@@ -2257,7 +2159,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       currentSummaryText = cached[cacheKey];
       currentSummaryLanguage = settings.summaryLanguage;
       currentTranslationEngine = settings.translationEngine;
-      summaryText.innerHTML = renderMarkdown(cached[cacheKey]);
+      setMarkdownHtml(summaryText, cached[cacheKey]);
       makeSummaryPassagesFocusable();
       setSummaryCopyButtonsVisible(!!cached[cacheKey].trim());
       updateResummarizeHint(settings);
