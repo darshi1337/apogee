@@ -236,9 +236,18 @@ test("every extractor fetch host is declared or same-origin-documented (#205)", 
   // requires declaring it (connect-src / optional_host_permissions) and
   // documenting it, so an undisclosed call like the former api.github.com
   // fetch or the undocumented reddit .json fetch cannot slip back in.
-  const extractorsDir = resolve(manifestPath.pathname, "..", "content/extractors");
+  const extractorsDir = resolve(
+    manifestPath.pathname,
+    "..",
+    "content/extractors",
+  );
   const csp = manifest.content_security_policy?.extension_pages || "";
-  const connectSrc = (csp.split(";").map((p) => p.trim()).find((p) => p.startsWith("connect-src ")) || "")
+  const connectSrc = (
+    csp
+      .split(";")
+      .map((p) => p.trim())
+      .find((p) => p.startsWith("connect-src ")) || ""
+  )
     .replace(/^connect-src\s+/, "")
     .split(/\s+/)
     .filter(Boolean);
@@ -248,7 +257,8 @@ test("every extractor fetch host is declared or same-origin-documented (#205)", 
     for (const entry of connectSrc) {
       const e = entry.replace(/^https?:\/\//, "");
       if (e === h) return true;
-      if (e.startsWith("*." ) && (h === e.slice(2) || h.endsWith(e.slice(1)))) return true;
+      if (e.startsWith("*.") && (h === e.slice(2) || h.endsWith(e.slice(1))))
+        return true;
     }
     for (const pattern of optional) {
       const m = pattern.match(/^\*:\/\/(\*\.|)([^/]+)\/\*$/);
@@ -259,15 +269,22 @@ test("every extractor fetch host is declared or same-origin-documented (#205)", 
     return false;
   };
 
-  const privacyText = readFileSync(new URL("../../PRIVACY.md", import.meta.url), "utf8");
-  for (const file of readdirSync(extractorsDir).filter((f) => f.endsWith(".js"))) {
+  const privacyText = readFileSync(
+    new URL("../../PRIVACY.md", import.meta.url),
+    "utf8",
+  );
+  for (const file of readdirSync(extractorsDir).filter((f) =>
+    f.endsWith(".js"),
+  )) {
     const source = readFileSync(resolve(extractorsDir, file), "utf8");
     if (!/\bfetch\s*\(/.test(source)) continue;
     // Absolute cross-origin targets must be declared; page-derived targets
     // (caption/track URLs validated against an allow-list, same-origin URLs
     // built from location.origin) are covered by the per-extractor docs.
     const absoluteHosts = new Set(
-      [...source.matchAll(/https:\/\/([A-Za-z0-9.-]+)/g)].map((m) => m[1].toLowerCase()),
+      [...source.matchAll(/https:\/\/([A-Za-z0-9.-]+)/g)].map((m) =>
+        m[1].toLowerCase(),
+      ),
     );
     for (const host of absoluteHosts) {
       assert.ok(
@@ -279,7 +296,18 @@ test("every extractor fetch host is declared or same-origin-documented (#205)", 
 
   // The reddit .json fetch is same-origin page context: it must stay built
   // from location.origin (reaching no new host) and stay documented.
-  const redditSource = readFileSync(resolve(extractorsDir, "reddit.js"), "utf8");
-  assert.match(redditSource, /location\.origin/, "reddit.js .json fetch must stay same-origin (location.origin)");
-  assert.match(privacyText, /Reddit Thread JSON/, "PRIVACY.md must document the reddit same-origin thread fetch");
+  const redditSource = readFileSync(
+    resolve(extractorsDir, "reddit.js"),
+    "utf8",
+  );
+  assert.match(
+    redditSource,
+    /location\.origin/,
+    "reddit.js .json fetch must stay same-origin (location.origin)",
+  );
+  assert.match(
+    privacyText,
+    /Reddit Thread JSON/,
+    "PRIVACY.md must document the reddit same-origin thread fetch",
+  );
 });

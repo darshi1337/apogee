@@ -42,7 +42,8 @@ export const MAX_PASTED_CHARS = 100 * 1024;
 
 export function truncatePastedText(text) {
   const clean = (text || "").trim();
-  if (clean.length <= MAX_PASTED_CHARS) return { text: clean, truncated: false };
+  if (clean.length <= MAX_PASTED_CHARS)
+    return { text: clean, truncated: false };
   return {
     text:
       `${clean.slice(0, MAX_PASTED_CHARS).trim()}\n\n` +

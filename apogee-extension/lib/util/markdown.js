@@ -87,12 +87,18 @@ export function isSafeMarkdownHref(href) {
   return true;
 }
 
-export function extractMarkdownLinks(escapedText, { allowAlwaysHosts = true } = {}) {
+export function extractMarkdownLinks(
+  escapedText,
+  { allowAlwaysHosts = true } = {},
+) {
   const links = [];
   const text = escapedText.replace(
     /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g,
     (match, label, href) => {
-      if (!isSafeMarkdownHref(href) || !isLinkifiableHref(href, { allowAlwaysHosts }))
+      if (
+        !isSafeMarkdownHref(href) ||
+        !isLinkifiableHref(href, { allowAlwaysHosts })
+      )
         return label;
       links.push(
         `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`,
@@ -104,7 +110,9 @@ export function extractMarkdownLinks(escapedText, { allowAlwaysHosts = true } = 
 }
 
 export function renderInline(escapedText, { allowAlwaysHosts = true } = {}) {
-  const { text, links } = extractMarkdownLinks(escapedText, { allowAlwaysHosts });
+  const { text, links } = extractMarkdownLinks(escapedText, {
+    allowAlwaysHosts,
+  });
   return text
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
@@ -174,7 +182,8 @@ export function renderMarkdown(source, { stored = false } = {}) {
   // Strip private-use placeholder marks from user input so model/cached text
   // cannot inject link placeholders that the restore pass would expand.
   const allowAlwaysHosts = !stored;
-  const inline = (escapedText) => renderInline(escapedText, { allowAlwaysHosts });
+  const inline = (escapedText) =>
+    renderInline(escapedText, { allowAlwaysHosts });
   const lines = escapeHtml(source ?? "")
     .replace(/\uE000/g, "")
     .split(/\r?\n/);

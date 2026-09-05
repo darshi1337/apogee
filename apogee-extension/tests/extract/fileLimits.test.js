@@ -43,7 +43,9 @@ test("truncatePastedText passes short text through untouched (#211)", () => {
 });
 
 test("truncatePastedText truncates with a note past the ceiling (#211)", () => {
-  const { text, truncated } = truncatePastedText("y".repeat(MAX_PASTED_CHARS + 1000));
+  const { text, truncated } = truncatePastedText(
+    "y".repeat(MAX_PASTED_CHARS + 1000),
+  );
   assert.equal(truncated, true);
   assert.ok(text.length < MAX_PASTED_CHARS + 1000);
   assert.match(text, /\[\.\.\.pasted content truncated/);
