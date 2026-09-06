@@ -17,7 +17,7 @@ Apogee’s central claim is that page content, summaries, and answers never leav
 
 - Page content, extracted text, or a generated summary reaching any host other than the documented ones (`127.0.0.1` / `localhost` for local inference; Hugging Face, YouTube, Bilibili, Bluesky, and SponsorBlock endpoints as described in `PRIVACY.md`)
 - A web page reading data belonging to another page through the extension, or reaching extension-privileged APIs
-- Bypassing extension sender context validation (`sender.id === chrome.runtime.id`) to invoke background actions from untrusted web pages
+- Bypassing extension sender checks (`sender.id`, tab-origin and port-sender validation) to invoke background actions from untrusted web pages
 - Polluting DOM global scope objects or exploiting content script execution contexts
 - Cached summaries or extracted content being readable by something other than the extension, or persisting for a URL that [`isSensitiveUrl`](apogee-extension/lib/storage/pageCache.js) should have excluded
 - Prompt injection from page content that escapes the grounding rules to make the model exfiltrate data or act outside summarizing (injection that merely produces a wrong or silly summary is a bug, not a vulnerability)
@@ -34,7 +34,7 @@ Please **do** report a mismatch between what the docs promise and what the code 
 
 ## Accepted Risks
 
-- **`image-size` HIGH advisories in dev tooling (`GHSA-w3rx-r6r6-pgpr`, `GHSA-5p2g-fcmc-qvqq`).** The vulnerable ICNS/JXL/HEIF parsers reach us only through `web-ext` → `addons-linter`, which pins `image-size@2.0.2` exactly, and no fixed upstream release exists. Exploiting it needs a malicious image inside this repo, which already means commit access, and only affects the machine running the linter; the shipped extension never bundles it (`npm audit --omit=dev` is clean). Accepted until upstream ships a fix; re-check on every dependency bump.
+- **`image-size` HIGH advisories in dev tooling (`GHSA-w3rx-r6r6-pgpr`, `GHSA-5p2g-fcmc-qvqq`).** The vulnerable ICNS/JXL/HEIF parsers reach us only through `web-ext` → `addons-linter`, which pins `image-size@2.0.2` exactly, and no fixed upstream release exists. The upstream repo is archived (June 2026) and will not publish a fix from GitHub, so the watch items are a revival published to npm, or `addons-linter` dropping the dependency. Exploiting it needs a malicious image inside this repo, which already means commit access, and only affects the machine running the linter; the shipped extension never bundles it (`npm audit --omit=dev` is clean). Accepted until one of those happens; re-check on every dependency bump.
 
 ## Supported Versions
 

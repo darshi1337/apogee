@@ -35,6 +35,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Domain permissions refactored to `optional_host_permissions`.** Replaced static cross-origin host permissions in `manifest.json` with strict `activeTab` access by default, moving site-specific cross-origin domains (`*.bilibili.com`, `*.hdslb.com`, `*.youtube.com`, `*.bsky.app`, `sponsor.ajay.app`) to `optional_host_permissions`. (#94, #115)
 - **Translation engine cache identity.** Included translation engine in cached summary identity keys to prevent cache collisions between LLM and Opus-MT translation outputs. (#100, #101)
 - **Stream expiry summary recovery.** Restored ability to view completed summaries when reopening popup after stream expiry.
+- **Reddit same-origin thread fetch disclosure.** The Reddit extractor fetches the open comments page own thread JSON (same origin, no new host); this is now documented in `PRIVACY.md` alongside the YouTube page-context rationale, with a fail-closed test pinning every extractor fetch host to a declared permission or a same-origin doc entry. (#205)
+- **Loopback validator unification.** One shared loopback validator (`127.0.0.1`/`localhost` only, IPv6 rejected, strict ports) now serves the settings UI, the service worker (per-provider default ports: 11434 Ollama, 8080 llama.cpp), and the diagnostics display, which no longer disagrees about `::1`. (#210)
 
 ### Changed
 
@@ -49,6 +51,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **PDF input type and size validation.** Added strict type checking and a 50MB base64 size limit in the service worker `extract-pdf` action to prevent memory exhaustion and invalid payload processing. (#126)
 - **Service worker message router context validation.** Added sender context validation (`sender.id === chrome.runtime.id`) to the `service-worker.js` message listener to prevent unauthorized content-script invocation of internal privileged actions. (#127)
 - **CodeQL security hardening.** Resolved CodeQL alerts for URL scheme validation, hostname regex parsing, and markdown link sanitization.
+- **Prompt-injection fencing for questions, instructions, and translated text.** The answer-path question, custom instructions, and translation source text are now fenced like titles and URLs, so page-influenced suggested questions cannot smuggle instructions back into the prompt on resubmission. Follow-up work sanitizes YouTube chapter titles the same way before they enter the brief headings. (#206)
+- **Optional-permission gates fail closed without the permissions API.** Both the check and the request paths now deny when `chrome.permissions` is absent, instead of the request path failing open. (#209)
+- **Pasted-text and plain-text input caps.** Pasted text and `file.text()` input is truncated at 100,000 characters with a note, closing the unbounded post-read path left over from the 50 MB upload cap. (#211)
+- **Stored summaries render without clickable links.** Past summaries render with no page context, so the YouTube/Bilibili always-linkify exception no longer applies there and planted links stay plain text. (#212)
+- **Message sender, tab, and port validation.** All extension message and connection listeners reject foreign senders, tab-originated messages and ports, and unlisted actions, with settings inputs (loopback hosts, model names) validated against the same rules. (#157, #207)
 
 ## [0.2.1] - 2026-08-19
 
