@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  MAX_FINALIZE_TEXT_CHARS,
   MAX_PASTED_CHARS,
   MAX_UPLOAD_FILE_BYTES,
   MAX_UPLOAD_FILE_MB,
@@ -49,4 +50,8 @@ test("truncatePastedText truncates with a note past the ceiling (#211)", () => {
   assert.equal(truncated, true);
   assert.ok(text.length < MAX_PASTED_CHARS + 1000);
   assert.match(text, /\[\.\.\.pasted content truncated/);
+});
+
+test("finished-summary backstop is a generous fixed ceiling", () => {
+  assert.equal(MAX_FINALIZE_TEXT_CHARS, 1024 * 1024);
 });
