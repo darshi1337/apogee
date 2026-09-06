@@ -24,6 +24,7 @@ import {
   SUMMARY_LANGUAGES,
   CUSTOM_INSTRUCTIONS_MAX_CHARS,
   PRIVATE_HOSTS_MAX_CHARS,
+  MODEL_NAME_MAX_CHARS,
   isVideoType,
 } from "../lib/constants.js";
 import { getSettings } from "../lib/storage/settings.js";
@@ -2814,7 +2815,9 @@ llamaApiKeyInput?.addEventListener("change", async () => {
 });
 
 llamaModelInput?.addEventListener("change", async () => {
-  await saveSettings({ llamaModel: llamaModelInput.value.trim() });
+  const value = llamaModelInput.value.slice(0, MODEL_NAME_MAX_CHARS).trim();
+  llamaModelInput.value = value;
+  await saveSettings({ llamaModel: value });
 });
 
 promptsCloseBtn?.addEventListener("click", () => {

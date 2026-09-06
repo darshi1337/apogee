@@ -114,6 +114,11 @@ export const CUSTOM_INSTRUCTIONS_MAX_CHARS = 2000;
 
 export const PRIVATE_HOSTS_MAX_CHARS = 1000;
 
+// Model-name free text (llama.cpp server model, Ollama tag override). Real
+// names are tens of chars; cap so a pasted blob cannot ride along into
+// loopback request bodies and stored settings.
+export const MODEL_NAME_MAX_CHARS = 100;
+
 export const TRANSLATION_ENGINES = { LLM: "llm", OPUS: "opus" };
 const DEFAULT_TRANSLATION_ENGINE = TRANSLATION_ENGINES.OPUS;
 
