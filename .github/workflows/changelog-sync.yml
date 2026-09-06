@@ -1,0 +1,70 @@
+name: Changelog Sync
+
+# Keeps the [Unreleased] section of CHANGELOG.md current after every merge to
+# main. Release-please owns the versioned sections; this workflow only
+# rewrites [Unreleased] from conventional commits since the last tag, so after
+# a release ships the section shrinks back on its own. The bot commit carries
+# [skip ci] and the job ignores bot pushes, so it never loops.
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  sync-unreleased:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install git-cliff
+        run: |
+          curl -sL https://github.com/orhun/git-cliff/releases/download/v2.10.0/git-cliff-2.10.0-x86_64-unknown-linux-gnu.tar.gz -o /tmp/git-cliff.tar.gz
+          tar -xzf /tmp/git-cliff.tar.gz -C /tmp
+          echo "/tmp/git-cliff-2.10.0" >> "$GITHUB_PATH"
+
+      - name: Rewrite Unreleased section
+        run: |
+          git-cliff --config cliff.toml --unreleased > /tmp/unreleased-body.md
+          python3 - <<'EOF'
+          from pathlib import Path
+
+          changelog = Path("CHANGELOG.md")
+          lines = changelog.read_text().splitlines(keepends=True)
+
+          start = next(
+              i for i, l in enumerate(lines) if l.startswith("## [Unreleased]")
+          )
+          end = next(
+              (
+                  i
+                  for i, l in enumerate(lines[start + 1 :], start + 1)
+                  if l.startswith("## [")
+              ),
+              len(lines),
+          )
+
+          body = Path("/tmp/unreleased-body.md").read_text().strip()
+          section = "## [Unreleased]\n" + ("\n" + body + "\n" if body else "")
+          changelog.write_text(
+              "".join(lines[:start]) + section + "\n" + "".join(lines[end:])
+          )
+          EOF
+          git diff --quiet -- CHANGELOG.md && echo "unchanged" || echo "changed"
+
+      - name: Commit back
+        run: |
+          if git diff --quiet -- CHANGELOG.md; then
+            echo "Changelog already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "docs: sync changelog unreleased section [skip ci]"
+          git push

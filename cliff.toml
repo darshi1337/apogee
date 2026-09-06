@@ -1,0 +1,49 @@
+[changelog]
+header = ""
+body = """
+{% set added = commits | filter(attribute="group", value="Added") -%}
+{% set fixed = commits | filter(attribute="group", value="Fixed") -%}
+{% set changed = commits | filter(attribute="group", value="Changed") -%}
+{% set security = commits | filter(attribute="group", value="Security") -%}
+{% if added -%}
+### Added
+
+{% for commit in added -%}
+- {{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/darshi1337/apogee/commit/{{ commit.id }}))
+{% endfor %}
+{% endif -%}
+{% if fixed -%}
+### Fixed
+
+{% for commit in fixed -%}
+- {{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/darshi1337/apogee/commit/{{ commit.id }}))
+{% endfor %}
+{% endif -%}
+{% if changed -%}
+### Changed
+
+{% for commit in changed -%}
+- {{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/darshi1337/apogee/commit/{{ commit.id }}))
+{% endfor %}
+{% endif -%}
+{% if security -%}
+### Security
+
+{% for commit in security -%}
+- {{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/darshi1337/apogee/commit/{{ commit.id }}))
+{% endfor %}
+{% endif -%}
+"""
+footer = ""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+commit_parsers = [
+  { message = "^feat", group = "Added" },
+  { message = "^fix", group = "Fixed" },
+  { message = "^perf", group = "Changed" },
+  { message = "^security", group = "Security" },
+]
+tag_pattern = "v[0-9]*"

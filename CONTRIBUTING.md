@@ -57,7 +57,7 @@ CI runs the same four checks on each push and pull request. A PR cannot merge un
 
 If `format:check` fails, run `npm run format` to fix it on its own.
 
-**Do not edit `CHANGELOG.md`.** It is written when a version is released, not per PR. If all add their own entry, each open PR conflicts with each other one, and then again after each merge. Describe the change in your PR text instead and it will be credited at release.
+**Do not edit `CHANGELOG.md`.** It is written when a version is released, not per PR. If all add their own entry, each open PR conflicts with each other one, and then again after each merge. Describe the change in your PR text instead and it will be credited at release. A bot rewrites the `[Unreleased]` section from commit subjects after every merge, which is another reason to write the subject as the entry.
 
 ### Test fixtures
 
