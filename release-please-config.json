@@ -1,6 +1,7 @@
 {
   "include-component-in-tag": false,
   "plugins": ["sentence-case"],
+  "release-as": "0.2.1",
   "packages": {
     ".": {
       "release-type": "node",
