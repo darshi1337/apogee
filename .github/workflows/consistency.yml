@@ -84,6 +84,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Every manifest permission is named in both docs
+        # shellcheck disable=SC2016: the ${...} below is JS inside node -e, not shell.
         run: |
           node -e '
             const fs = require("fs");
@@ -118,10 +119,13 @@ jobs:
     if: github.event_name == 'pull_request'
     steps:
       - name: Check title, warn but never fail
+        # PR title goes through $PR_TITLE, never ${{ }} inline: a title is
+        # attacker-controlled, and inline expansion is a script-injection hole.
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          TITLE="${{ github.event.pull_request.title }}"
-          if echo "$TITLE" | grep -qiE '^(feat|fix|perf|security|docs|chore|style|test|refactor|ci|build)(\(.+\))?: .+'; then
-            echo "Title OK: $TITLE"
+          if printf '%s' "$PR_TITLE" | grep -qiE '^(feat|fix|perf|security|docs|chore|style|test|refactor|ci|build)(\(.+\))?: .+'; then
+            echo "Title OK: $PR_TITLE"
           else
-            echo "::warning::PR title '$TITLE' does not look like 'type: summary' (feat/fix/perf/security/docs/chore/...). Merges still work, but the changelog bot will skip it. See CONTRIBUTING.md."
+            echo "::warning::PR title does not look like 'type: summary' (feat/fix/perf/security/docs/chore/...). Merges still work, but the changelog bot will skip it. See CONTRIBUTING.md."
           fi
