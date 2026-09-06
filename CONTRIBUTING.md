@@ -71,7 +71,7 @@ If your change adds an HTML fixture under `tests/extractors/fixtures/`, trim it 
 
 ## Commit messages
 
-This repo does not enforce a strict format, but commit messages tend to follow a `type: summary` shape (`fix:`, `feat:`, `perf:`, `chore:`, `docs:`, `style:`), matching what you see in `git log`.
+This repo does not enforce a strict format, but commit messages tend to follow a `type: summary` shape (`fix:`, `feat:`, `perf:`, `chore:`, `docs:`, `style:`), matching what you see in `git log`. The shape matters more than it used to: a bot turns commit subjects into `CHANGELOG.md` entries on release, so write the subject as the entry. `feat:` lands under Added, `fix:` under Fixed, `perf:` under Changed, and `security:` under Security; anything else stays out of the changelog. Use `security:` for security fixes rather than `fix(security):` so they land in the right section. End the subject with the issue ref when there is one, as in `fix: Stored summaries render without clickable links (#212)`, and put the details in the body.
 
 ## Privacy is the point
 
