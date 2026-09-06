@@ -459,8 +459,6 @@ export function buildYoutubeAssemblyPrompt(
   url,
   notes,
   lastAvailableSeconds,
-  // eslint-disable-next-line no-unused-vars
-  mode,
 ) {
   const lastTimestamp = formatSecondsAsTimestamp(lastAvailableSeconds);
   // Sanitize before deriving jump-link templates: the URL is interpolated

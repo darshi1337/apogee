@@ -1,5 +1,9 @@
 import { UserFacingError } from "../util/userError.js";
 import {
+  DEFAULT_OLLAMA_PORT,
+  validateLoopbackUrl,
+} from "../util/ollamaHost.js";
+import {
   PROVIDERS,
   DEFAULT_PROVIDER,
   DEFAULT_OLLAMA_HOST,
@@ -268,7 +272,17 @@ class TransformersProvider {
 class DirectOllamaProvider {
   constructor(model, host) {
     this.model = model;
-    this.host = (host || DEFAULT_OLLAMA_HOST).replace(/\/+$/, "");
+    // Defense in depth: the service worker re-validates and overwrites this
+    // host before any fetch, but never persist or send a value the shared
+    // validator would reject.
+    try {
+      this.host = validateLoopbackUrl(host || DEFAULT_OLLAMA_HOST, {
+        label: "Ollama",
+        defaultPort: DEFAULT_OLLAMA_PORT,
+      });
+    } catch {
+      this.host = DEFAULT_OLLAMA_HOST;
+    }
   }
 
   summarize({
@@ -336,7 +350,22 @@ class DirectOllamaProvider {
 class DirectLlamaCppProvider {
   constructor(model, host, apiKey) {
     this.model = model;
-    this.host = (host || DEFAULT_LLAMACPP_HOST).replace(/\/+$/, "");
+    // Same shared validator as the Ollama provider above, with the llama.cpp
+    // default port derived from DEFAULT_LLAMACPP_HOST.
+    let llamaDefaultPort = "8080";
+    try {
+      llamaDefaultPort = new URL(DEFAULT_LLAMACPP_HOST).port || "8080";
+    } catch {
+      // Keep the built-in fallback above.
+    }
+    try {
+      this.host = validateLoopbackUrl(host || DEFAULT_LLAMACPP_HOST, {
+        label: "llama.cpp",
+        defaultPort: llamaDefaultPort,
+      });
+    } catch {
+      this.host = DEFAULT_LLAMACPP_HOST;
+    }
     this.apiKey = apiKey || "";
   }
 

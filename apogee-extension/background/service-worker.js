@@ -32,7 +32,10 @@ import {
 import { truncateForPrompt } from "../lib/summarize/chunk.js";
 import { parseSuggestedQuestions } from "../lib/summarize/questions.js";
 import { extractPdfText } from "../lib/extract/pdfExtract.js";
-import { MAX_UPLOAD_FILE_BYTES } from "../lib/extract/fileLimits.js";
+import {
+  MAX_FINALIZE_TEXT_CHARS,
+  MAX_UPLOAD_FILE_BYTES,
+} from "../lib/extract/fileLimits.js";
 import {
   recordPageAccessEvent,
   getActivityAuditSummary,
@@ -1336,6 +1339,13 @@ async function runSuggestQuestionsJob(payload) {
 
 async function finalizeSummaryJob({ finalize, model, title, url, text }) {
   if (!finalize) return;
+  // stream-finished text arrives via extension messaging and fans out into
+  // cache/history/view-state: bound it at the trust boundary before use.
+  if (typeof text === "string" && text.length > MAX_FINALIZE_TEXT_CHARS) {
+    text =
+      `${text.slice(0, MAX_FINALIZE_TEXT_CHARS).trim()}\n\n` +
+      `[...summary truncated to the first ${MAX_FINALIZE_TEXT_CHARS} characters...]`;
+  }
   const {
     cacheKey,
     promptsCacheKey,
