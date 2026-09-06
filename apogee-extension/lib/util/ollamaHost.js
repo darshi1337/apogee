@@ -1,3 +1,5 @@
+import { DEFAULT_LLAMACPP_HOST } from "../constants.js";
+
 const ALLOWED_OLLAMA_HOSTS = new Set(["127.0.0.1", "localhost"]);
 const DEFAULT_OLLAMA_PORT = "11434";
 
@@ -39,5 +41,20 @@ export function validateOllamaHost(host) {
   return validateLoopbackUrl(host, {
     label: "Ollama",
     defaultPort: DEFAULT_OLLAMA_PORT,
+  });
+}
+
+function llamaDefaultPort() {
+  try {
+    return new URL(DEFAULT_LLAMACPP_HOST).port || "8080";
+  } catch {
+    return "8080";
+  }
+}
+
+export function validateLlamaHost(host) {
+  return validateLoopbackUrl(host, {
+    label: "llama.cpp",
+    defaultPort: llamaDefaultPort(),
   });
 }
