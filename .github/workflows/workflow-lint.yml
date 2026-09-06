@@ -38,8 +38,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Annotations instead of Advanced Security: SARIF upload needs
+      # security-events: write, which this read-only workflow must not have.
+      # Per the action docs these two are mutually exclusive.
       - name: Run zizmor
         uses: zizmorcore/zizmor-action@v0.6.3
         with:
           inputs: .github/workflows
           online-audits: false
+          advanced-security: false
+          annotations: true
