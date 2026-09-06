@@ -52,7 +52,7 @@ jobs:
       - run: npm ci
 
       - name: OSV scan
-        uses: google/osv-scanner-action@v2
+        uses: google/osv-scanner-action@v2.5.1
         continue-on-error: true
         with:
           scan-args: |
