@@ -1,0 +1,73 @@
+name: Security scans
+
+# Complements CodeQL + dependency-review:
+# - Gitleaks is BLOCKING (fake test keys are allowlisted in .gitleaks.toml).
+# - OSV + npm audit are REPORT-ONLY: addons-linter pulls a known-vulnerable
+#   image-size whose fix needs a breaking major bump, so failing the build
+#   here would keep main red until that migration lands. Triage the uploaded
+#   reports instead.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    name: Gitleaks secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan history + working tree
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  vulns:
+    name: OSV + npm audit (report-only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: apogee-extension
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apogee-extension/package-lock.json
+
+      - run: npm ci
+
+      - name: OSV scan
+        uses: google/osv-scanner-action@v2
+        continue-on-error: true
+        with:
+          scan-args: |
+            --lockfile=apogee-extension/package-lock.json
+
+      - name: npm audit report
+        run: |
+          npm audit --audit-level=high --json > /tmp/npm-audit.json || true
+          HIGH=$(node -e 'const r=require("/tmp/npm-audit.json"); const v=(r.metadata&&r.metadata.vulnerabilities)||{}; console.log((v.high||0)+" high, "+(v.critical||0)+" critical")')
+          echo "### npm audit (report-only): $HIGH" >> "$GITHUB_STEP_SUMMARY"
+          echo "Known issue: image-size via addons-linter/web-ext needs a breaking major bump; triage before promoting to blocking." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-reports
+          path: /tmp/npm-audit.json
+          retention-days: 14
