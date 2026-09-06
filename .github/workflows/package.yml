@@ -1,0 +1,89 @@
+name: Package
+
+# Proves the store artifacts actually build on every PR/main push:
+# builds both targets, runs web-ext packaging, verifies filenames carry
+# the manifest version, uploads zips as artifacts, reports sizes.
+# Sizes are report-only (WASM/model libs are legitimately large).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: apogee-extension
+
+jobs:
+  smoke:
+    name: Build + package smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apogee-extension/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Verify Firefox manifest transform
+        run: |
+          node -e '
+            const chrome = require("./dist/chrome/manifest.json");
+            const firefox = require("./dist/firefox/manifest.json");
+            const assert = require("assert");
+            assert.ok(!firefox.permissions.includes("offscreen"), "firefox build must strip offscreen");
+            assert.ok(!firefox.permissions.includes("sidePanel"), "firefox build must strip sidePanel");
+            assert.ok(!("side_panel" in firefox), "firefox build must strip side_panel");
+            assert.ok(firefox.sidebar_action, "firefox build must add sidebar_action");
+            assert.ok(chrome.permissions.includes("sidePanel"), "chrome build must keep sidePanel");
+            console.log("manifest transforms OK");
+          '
+
+      - run: npm run package
+
+      - name: Verify artifacts carry the manifest version
+        run: |
+          V=$(node -e 'console.log(require("./manifest.json").version)')
+          test -f "../apogee-${V}-chrome.zip" || { echo "::error::missing ../apogee-${V}-chrome.zip"; ls -la ..; exit 1; }
+          test -f "../apogee-${V}-mozilla.xpi" || { echo "::error::missing ../apogee-${V}-mozilla.xpi"; ls -la ..; exit 1; }
+          echo "artifacts OK for v$V"
+
+      - name: Sizes to job summary (report-only)
+        run: |
+          {
+            echo "### Package sizes"
+            echo ""
+            echo "| artifact | size |"
+            echo "|---|---|"
+            for f in ../apogee-*-chrome.zip ../apogee-*-mozilla.xpi; do
+              echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"
+            done
+            echo ""
+            echo "| dist | unpacked |"
+            echo "|---|---|"
+            for d in dist/chrome dist/firefox; do
+              echo "| $d | $(du -sh "$d" | cut -f1) |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload store artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-packages
+          path: |
+            apogee-*-chrome.zip
+            apogee-*-mozilla.xpi
+          retention-days: 7

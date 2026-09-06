@@ -1,0 +1,67 @@
+name: Docs
+
+# Link checking + spell checking for the markdown-heavy repo.
+# Lychee is tolerant (403/429 accepted, localhost excluded) via lychee.toml.
+# CSpell uses cspell.json + .cspell-project-words.txt — add project terms
+# there instead of scattering inline ignores.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**.md"
+      - "docs/**"
+      - "lychee.toml"
+      - "cspell.json"
+      - ".cspell-project-words.txt"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "**.md"
+      - "docs/**"
+      - "lychee.toml"
+      - "cspell.json"
+      - ".cspell-project-words.txt"
+      - ".github/workflows/docs.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    name: Lychee link check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check markdown + docs links
+        # Scoped to project prose on purpose: '**/*.md' would also crawl
+        # node_modules READMEs (7000+ dependency links). CHANGELOG.md is
+        # excluded in lychee.toml (bot-generated commit links).
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --config lychee.toml --verbose --no-progress '*.md' 'apogee-extension/tests/extractors/README.md' 'docs/**/*.html'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  spelling:
+    name: CSpell (markdown only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check spelling in prose
+        # Scoped to markdown on purpose: checking code/CSS/HTML flags every
+        # identifier (fcard, fcol, ...) as a typo. CHANGELOG.md is generated
+        # from commit subjects and is excluded in cspell.json for the same
+        # reason. New project terms go in .cspell-project-words.txt.
+        run: npx -y cspell lint --no-progress --no-summary --config ./cspell.json "**/*.md"

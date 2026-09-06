@@ -1,0 +1,28 @@
+# Zizmor policy for Apogee.
+#
+# Unpinned actions: tag pins are this repo's chosen policy. Dependabot
+# checks github-actions daily and auto-merge keeps tags current, so a
+# tag ref is as fresh as a hash pin without the churn of 30+ SHAs.
+# ref-pin still fails truly unpinned uses. Revisit hash-pinning if a
+# tag-mutating incident ever hits our dependency tree.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        "*": ref-pin
+
+  # Each ignore below is a conscious risk acceptance, not sweeping.
+  artipacked:
+    ignore:
+      # changelog-sync's entire job is pushing the synced CHANGELOG back.
+      # No credentials means no push means no job. Token stays at
+      # least-privilege contents:write.
+      - changelog-sync.yml:21
+
+  superfluous-actions:
+    ignore:
+      # softprops/action-gh-release is pinned and does checksum-aware
+      # uploads plus generate_release_notes in one step. Rewiring the
+      # release upload to raw `gh` to silence a notice risks the release
+      # itself. Revisit next time release.yml is touched anyway.
+      - release.yml:42

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json",
+  "version": "0.2",
+  "language": "en",
+  "useGitignore": true,
+  "ignorePaths": [
+    "CHANGELOG.md",
+    "node_modules/**",
+    "apogee-extension/node_modules/**",
+    "apogee-extension/dist/**",
+    "apogee-extension/.model-libs-cache/**",
+    "**/fixtures/**",
+    "package-lock.json",
+    "apogee-extension/package-lock.json",
+    "*.png",
+    "*.svg",
+    "*.zip",
+    "*.xpi",
+    "docs/fonts/**"
+  ],
+  "dictionaries": ["project-words"],
+  "dictionaryDefinitions": [
+    {
+      "name": "project-words",
+      "path": "./.cspell-project-words.txt",
+      "addWords": true
+    }
+  ],
+  "ignoreWords": ["darshi"],
+  "ignoreRegExpList": ["GHSA-[a-z0-9-]+"],
+  "words": []
+}
