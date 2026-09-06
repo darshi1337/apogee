@@ -1,0 +1,131 @@
+name: Consistency
+
+# Catches the drift that blocks store review: versions in 4 files,
+# STORE-LISTING version stamp, required store assets. Read-only, fast,
+# no dependencies to install.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  versions:
+    name: Version sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: All version files match
+        run: |
+          node -e '
+            const fs = require("fs");
+            const root = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
+            const ext = JSON.parse(fs.readFileSync("apogee-extension/package.json", "utf8")).version;
+            const manifest = JSON.parse(fs.readFileSync("apogee-extension/manifest.json", "utf8")).version;
+            const pinned = JSON.parse(fs.readFileSync(".release-please-manifest.json", "utf8"))["."];
+            console.log({ root, ext, manifest, pinned });
+            const assert = require("assert");
+            assert.strictEqual(ext, root, "apogee-extension/package.json must match package.json");
+            assert.strictEqual(manifest, root, "apogee-extension/manifest.json must match package.json");
+            assert.strictEqual(pinned, root, ".release-please-manifest.json must match package.json");
+          '
+
+  store-listing:
+    name: Store listing stamp + assets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: STORE-LISTING version matches manifest
+        run: |
+          MANIFEST_V=$(node -e 'console.log(require("./apogee-extension/manifest.json").version)')
+          if ! grep -q "Version at last edit: $MANIFEST_V" STORE-LISTING.md; then
+            echo "::error::STORE-LISTING.md stamp must say 'Version at last edit: $MANIFEST_V'"
+            exit 1
+          fi
+
+      - name: Required store assets exist and are non-empty
+        run: |
+          missing=0
+          for f in \
+            .github/assets/apogee-deck-1280x800-1.png \
+            .github/assets/apogee-deck-1280x800-2.png \
+            .github/assets/apogee-deck-1280x800-3.png \
+            .github/assets/apogee-deck-1280x800-4.png \
+            .github/assets/apogee-deck-1280x800-5.png \
+            .github/assets/apogee-deck-2400x1800-1.png \
+            .github/assets/apogee-deck-2400x1800-2.png \
+            .github/assets/apogee-deck-2400x1800-3.png \
+            .github/assets/apogee-deck-2400x1800-4.png \
+            .github/assets/apogee-deck-2400x1800-5.png \
+            .github/assets/apogee-promo-tile-440x280.png \
+            .github/assets/apogee-marquee-1400x560.png \
+            apogee-extension/assets/icon-16.png \
+            apogee-extension/assets/icon-32.png \
+            apogee-extension/assets/icon-48.png \
+            apogee-extension/assets/icon-96.png \
+            apogee-extension/assets/icon.png; do
+            if [ ! -s "$f" ]; then
+              echo "::error::missing or empty: $f"
+              missing=1
+            fi
+          done
+          exit $missing
+
+  permissions-docs:
+    name: Permissions documented (PRIVACY + STORE-LISTING)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every manifest permission is named in both docs
+        # shellcheck disable=SC2016: the ${...} below is JS inside node -e, not shell.
+        run: |
+          node -e '
+            const fs = require("fs");
+            const m = JSON.parse(fs.readFileSync("apogee-extension/manifest.json", "utf8"));
+            const privacy = fs.readFileSync("PRIVACY.md", "utf8");
+            const listing = fs.readFileSync("STORE-LISTING.md", "utf8");
+            let fail = false;
+            for (const p of m.permissions || []) {
+              for (const [name, text] of [["PRIVACY.md", privacy], ["STORE-LISTING.md", listing]]) {
+                if (!text.includes(p)) {
+                  console.error(`::error::permission "${p}" not mentioned in ${name}`);
+                  fail = true;
+                }
+              }
+            }
+            for (const h of [...(m.host_permissions || []), ...(m.optional_host_permissions || [])]) {
+              for (const [name, text] of [["PRIVACY.md", privacy], ["STORE-LISTING.md", listing]]) {
+                if (!text.includes(h)) {
+                  console.error(`::error::host "${h}" not named verbatim in ${name}`);
+                  fail = true;
+                }
+              }
+            }
+            // README intentionally not checked: it links to PRIVACY.md instead of listing permissions.
+            if (fail) process.exit(1);
+            console.log("permissions documented OK");
+          '
+
+  pr-title:
+    name: PR title looks like a changelog entry (warn-only)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Check title, warn but never fail
+        # PR title goes through $PR_TITLE, never ${{ }} inline: a title is
+        # attacker-controlled, and inline expansion is a script-injection hole.
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if printf '%s' "$PR_TITLE" | grep -qiE '^(feat|fix|perf|security|docs|chore|style|test|refactor|ci|build)(\(.+\))?: .+'; then
+            echo "Title OK: $PR_TITLE"
+          else
+            echo "::warning::PR title does not look like 'type: summary' (feat/fix/perf/security/docs/chore/...). Merges still work, but the changelog bot will skip it. See CONTRIBUTING.md."
+          fi

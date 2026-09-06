@@ -1,0 +1,45 @@
+name: Workflow lint
+
+# Lints the workflows themselves. Cheap, read-only, runs only when
+# workflows change. Catches bad YAML, wrong contexts, and risky
+# permissions (e.g. pull_request_target without need).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run actionlint
+        uses: reviewdog/action-actionlint@v1.73.4
+        with:
+          fail_on_error: true
+
+  zizmor:
+    # Advisory until the first green run proves the config in this repo,
+    # then drop continue-on-error to make it blocking.
+    name: zizmor (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@v0.6.3
+        with:
+          inputs: .github/workflows
+          online-audits: false

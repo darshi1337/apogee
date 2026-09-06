@@ -1,0 +1,22 @@
+# Gitleaks config for Apogee.
+# Test fixtures use fake keys (sk-secret, sk-live-secret) and alice/bob
+# placeholders — never real credentials. This allowlist keeps the secret
+# scan blocking without false positives on those fixtures.
+
+title = "apogee gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "unit tests and fixtures with fake keys, never real secrets"
+paths = [
+  '''apogee-extension/tests/.*''',
+  '''docs/assets/.*''',
+  '''\.github/assets/.*''',
+]
+regexes = [
+  '''sk-secret''',
+  '''sk-live-secret''',
+  '''sk-1234567890abcdef.*''',
+]

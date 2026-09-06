@@ -34,7 +34,7 @@ The first in-browser run downloads the picked model. After the model is cached, 
 
 ## Why Apogee
 
-Apogee was inspired by Mozilla's discontinued Orbit project (read the [Review of Orbit by Mozilla](https://discourse.mozilla.org/t/review-of-orbit-by-mozilla/130283)). Orbit tried browser-based page summarization, but it used central API servers and stored summaries on servers.
+Apogee was inspired by Mozilla's discontinued Orbit project. Orbit tried browser-based page summarization, but it used central API servers and stored summaries on servers.
 
 Apogee fixes Orbit's design and privacy problems by staying local-first:
 

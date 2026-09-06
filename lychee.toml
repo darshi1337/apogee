@@ -1,0 +1,25 @@
+# Lychee config for Apogee docs link checking.
+# Tolerant by design: video/CDN/model hosts rate-limit bots, so 403/429
+# are accepted. 404s and 500s still fail.
+
+exclude = [
+  "http://127\\.0\\.0\\.1.*",
+  "http://localhost.*",
+  "https://github\\.com/darshi1337/apogee/(issues|pull)/.*",
+]
+
+exclude_path = [
+  "node_modules",
+  "apogee-extension/node_modules",
+  "apogee-extension/dist",
+  "apogee-extension/.model-libs-cache",
+  ".git",
+  "CHANGELOG.md",
+]
+
+accept = [200, 201, 202, 203, 204, 206, 301, 302, 303, 307, 308, 403, 429, 999]
+
+timeout = 20
+retry_wait_time = 2
+max_retries = 2
+max_concurrency = 8
