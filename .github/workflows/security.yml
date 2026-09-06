@@ -51,12 +51,16 @@ jobs:
 
       - run: npm ci
 
-      - name: OSV scan
-        uses: google/osv-scanner-action@v2.5.1
+      # Pinned CLI binary, not the marketplace action: v2 of
+      # osv-scanner-action ships reusable workflows only (no step action),
+      # and this job wants a plain report next to npm audit anyway.
+      - name: OSV scan (report-only)
         continue-on-error: true
-        with:
-          scan-args: |
-            --lockfile=apogee-extension/package-lock.json
+        run: |
+          curl -sL https://github.com/google/osv-scanner/releases/download/v2.5.1/osv-scanner_linux_amd64 -o /tmp/osv-scanner
+          chmod +x /tmp/osv-scanner
+          /tmp/osv-scanner scan --lockfile=package-lock.json --format=json > /tmp/osv-report.json || true
+          /tmp/osv-scanner scan --lockfile=package-lock.json --format=table || true
 
       - name: npm audit report
         run: |
@@ -65,9 +69,11 @@ jobs:
           echo "### npm audit (report-only): $HIGH" >> "$GITHUB_STEP_SUMMARY"
           echo "Known issue: image-size via addons-linter/web-ext needs a breaking major bump; triage before promoting to blocking." >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload audit report
+      - name: Upload audit reports
         uses: actions/upload-artifact@v4
         with:
           name: audit-reports
-          path: /tmp/npm-audit.json
+          path: |
+            /tmp/npm-audit.json
+            /tmp/osv-report.json
           retention-days: 14
