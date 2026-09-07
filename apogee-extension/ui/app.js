@@ -2443,21 +2443,9 @@ async function summarizeFile(file) {
   await summarizeCustomContent(file.name, text.trim());
 }
 
-document
-  .getElementById("uploadFileBtn")
-  ?.addEventListener("click", async () => {
-    if (!isSidePanelSurface) {
-      try {
-        await openSidePanel();
-        closeTransientSurface();
-      } catch (err) {
-        console.error("Could not open side panel for file upload:", err);
-        announce(`Could not open side panel: ${err.message || err}`);
-      }
-      return;
-    }
-    fileUploadInput?.click();
-  });
+document.getElementById("uploadFileBtn")?.addEventListener("click", () => {
+  fileUploadInput?.click();
+});
 
 async function handleFile(file) {
   if (!file) return;
