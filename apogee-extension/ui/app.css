@@ -379,6 +379,13 @@ body {
   white-space: nowrap;
 }
 
+/* Popup surface shows only Paste text + Select text, centered by .chip-row.
+   Upload lives in the side panel, where the file picker keeps its change
+   event instead of crashing the transient popup. */
+html:not([data-surface="side-panel"]) #uploadFileBtn {
+  display: none;
+}
+
 .dialog-backdrop {
   position: fixed;
   inset: 0;
