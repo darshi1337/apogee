@@ -56,6 +56,12 @@ coverage/
 Thumbs.db
 desktop.ini
 
+# Local agent skills (antislop, project-local installs, reinstall with npx)
+.agents/
+.opencode/
+AGENTS.md
+skills-lock.json
+
 # Locally generated social preview source and render
 .github/social-preview.html
 .github/social-preview.css

@@ -88,7 +88,10 @@ if (
   chrome.runtime.onMessage
 ) {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (sender.id && sender.id !== chrome.runtime.id) return;
+    if (sender?.id !== chrome.runtime.id) return;
+    // Extraction requests come from the extension page via tabs.sendMessage
+    // (no sender tab); tab-hosted contexts must not pull page text this way.
+    if (sender.tab) return;
     if (message && message.action === "extract-page-content") {
       extractPageContent()
         .then((data) => sendResponse(data))

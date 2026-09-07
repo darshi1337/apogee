@@ -1,16 +1,16 @@
 # Apogee Developer Setup and Contribution Guide
 
-This guide provides a comprehensive overview of Apogee codebase architecture, repository directory layout, testing workflows, and step by step guidelines for contributing to every folder in the project.
+This guide explains the Apogee codebase layout, repo folder structure, testing steps, and how to contribute to each folder in the project.
 
 ## Prerequisites
 
-- **Node.js**: Version 22.0.0 or newer. The repository `.nvmrc` pins Node 22.
+- **Node.js**: Version 22.0.0 or newer. The repo `.nvmrc` pins Node 22.
 - **Package Manager**: npm version 10 or newer.
 - **Supported Browsers**: Chrome 116+, Edge 116+, or Firefox 140+ for extension testing.
 
 ## Local Environment Setup
 
-1. Clone the repository to your local machine:
+1. Clone the repo to your local machine:
    ```bash
    git clone https://github.com/darshi1337/apogee.git
    cd apogee
@@ -22,7 +22,7 @@ This guide provides a comprehensive overview of Apogee codebase architecture, re
 
 ### Dependency overrides
 
-`apogee-extension/package.json` pins three transitive dependencies above the ranges their parents declare. Each pin exists because of a real advisory, so don't loosen one without checking `npm audit` first:
+`apogee-extension/package.json` pins three transitive deps above the ranges their parents declare. Each pin exists because of a real advisory, so do not loosen one without checking `npm audit` first:
 
 - `adm-zip@^0.6.0` (`onnxruntime-node` asks for `^0.5.16`): GHSA-xcpc-8h2w-3j85, where a crafted ZIP triggers a multi-gigabyte allocation. Fixed in 0.6.0.
 - `sharp@^0.35.0` (`@huggingface/transformers` asks for `^0.34.5`): GHSA-f88m-g3jw-g9cj, libvips flaws up to High severity. Fixed from 0.35.0.
@@ -30,7 +30,7 @@ This guide provides a comprehensive overview of Apogee codebase architecture, re
 
 ## Development and Build Commands
 
-Run `install:extension`, `build`, `test`, `lint`, `format`, `dev`, and `package` from the repository root or inside the `apogee-extension` directory. The remaining scripts (`format:check`, `build:chrome`, `build:firefox`, `start:firefox`, `start:chrome`, `lint:webext`) exist only inside `apogee-extension/`.
+Run `install:extension`, `build`, `test`, `lint`, `format`, `dev`, and `package` from the repo root or inside the `apogee-extension` directory. The rest (`format:check`, `build:chrome`, `build:firefox`, `start:firefox`, `start:chrome`, `lint:webext`) live only inside `apogee-extension/`.
 
 - **Watch Mode (Development)**:
 
@@ -38,7 +38,7 @@ Run `install:extension`, `build`, `test`, `lint`, `format`, `dev`, and `package`
   npm run dev
   ```
 
-  Rebuilds both `dist/chrome` and `dist/firefox` output directories automatically whenever source files change.
+  Rebuilds both `dist/chrome` and `dist/firefox` output folders on their own whenever source files change.
 
 - **Production Build**:
 
@@ -62,86 +62,86 @@ Run `install:extension`, `build`, `test`, `lint`, `format`, `dev`, and `package`
   npm run start:chrome
   ```
 
-  Launches an isolated browser instance (Firefox or Chromium) pre-loaded with the local Apogee extension build for live debugging and interactive testing.
+  Opens a separate browser instance (Firefox or Chromium) pre-loaded with the local Apogee extension build for live debugging and hands-on testing.
 
-- **Windows Build Notes**: Build scripts use POSIX environment variable syntax. If you are using native Windows CMD or PowerShell, run build commands inside **Git Bash** or **WSL** for seamless execution.
+- **Windows Build Notes**: Build scripts use POSIX env var syntax. If you use native Windows CMD or PowerShell, run build commands inside **Git Bash** or **WSL** so the POSIX syntax works.
 
 ## Repository Folder Guide and Contribution Rules
 
-Apogee extension codebase lives in `apogee-extension/`. Below is a breakdown of every folder, what files it contains, and how to contribute to it.
+The Apogee extension code lives in `apogee-extension/`. Below is what each folder holds, what files it has, and how to contribute to it.
 
 ### 1. `content/` (Tab Context Extractor Scripts)
 
-- **What it Contains**: Scripts injected directly into active browser tabs when you trigger summarization or Q&A. Includes `content.js` (main injection script), `Readability.js` (bundled article parser from Mozilla), and specialized site extractors in `content/extractors/` such as `youtube.js`, `bilibili.js`, `wikipedia.js`, `reddit.js`, `gmail.js`, `hackernews.js`, `github.js`, `lobsters.js`, `arxiv.js`, `mastodon.js`, `stackoverflow.js`, `lemmy.js`, `discourse.js`, and `bluesky.js`.
-- **How to Contribute**: Create a new extractor file in `content/extractors/` that reads DOM nodes cleanly without mutating global window scope. Register your extractor in `lib/extract/pageExtraction.js`, create a static HTML test fixture in `tests/extractors/fixtures/`, and add unit test cases in `tests/extractors/`.
+- **What it holds**: Scripts injected straight into active tabs when you start summarization or Q&A. Includes `content.js` (main injection script), `Readability.js` (bundled article parser from Mozilla), and site-specific extractors in `content/extractors/` such as `youtube.js`, `bilibili.js`, `wikipedia.js`, `reddit.js`, `gmail.js`, `hackernews.js`, `github.js`, `lobsters.js`, `arxiv.js`, `mastodon.js`, `stackoverflow.js`, `lemmy.js`, `discourse.js`, and `bluesky.js`.
+- **How to contribute**: Add a new extractor file in `content/extractors/` that reads DOM nodes cleanly without touching global window scope. Register your extractor in `lib/extract/pageExtraction.js`, add a static HTML test fixture in `tests/extractors/fixtures/`, and add unit test cases in `tests/extractors/`.
 
 ### 2. `lib/` (Core Application Libraries)
 
-The `lib/` folder contains pure JavaScript logic split into clean functional subdirectories:
+The `lib/` folder holds plain JavaScript logic split into clean functional folders:
 
 #### `lib/engines/` (AI Model Runtime Adapters)
 
-- **What it Contains**: `transformersEngine.js` (WebAssembly CPU engine), `ollamaClient.js` (Local Ollama HTTP streaming client), `llamaCppClient.js` (local llama.cpp SSE client), and `providers.js` (engine registry).
-- **How to Contribute**: Add new model configurations to `providers.js` or optimize token streaming handlers inside the provider clients and engine adapters. Keep inference strictly on-device without cloud API dependencies.
+- **What it holds**: `transformersEngine.js` (WebAssembly CPU engine), `ollamaClient.js` (Local Ollama HTTP streaming client), `llamaCppClient.js` (local llama.cpp SSE client), and `providers.js` (engine registry).
+- **How to contribute**: Add new model configs to `providers.js` or improve token streaming handlers inside the provider clients and engine adapters. Keep inference strictly on-device with no cloud API deps.
 
 #### `lib/extract/` (Text Extraction Routers)
 
-- **What it Contains**: `pageExtraction.js` (tab extraction router), `pdfExtract.js` (client-side PDF parsing using pdf.js), and `docxExtract.js` (dependency-free DOCX ZIP/XML parsing).
-- **How to Contribute**: Add routing rules for new extractors or refine fallback text extraction algorithms for complex web layouts.
+- **What it holds**: `pageExtraction.js` (tab extraction router), `pdfExtract.js` (client-side PDF parsing with pdf.js), and `docxExtract.js` (dep-free DOCX ZIP/XML parsing).
+- **How to contribute**: Add routing rules for new extractors or improve fallback text extraction for complex page layouts.
 
 #### `lib/retrieval/` (On-Device RAG and Semantic Search)
 
-- **What it Contains**: `rag.js` (on-device passage chunking, embedding generation using `all-MiniLM-L6-v2`, and vector similarity retrieval) and `pastSummariesSearch.js` (on-device vector search across saved past summaries).
-- **How to Contribute**: Tune cosine similarity thresholds, passage overlap parameters, or optimize vector search index performance.
+- **What it holds**: `rag.js` (on-device passage chunking, embedding with `all-MiniLM-L6-v2`, and vector similarity retrieval) and `pastSummariesSearch.js` (on-device vector search across saved past summaries).
+- **How to contribute**: Tune cosine similarity limits, passage overlap values, or improve vector search index speed.
 
 #### `lib/storage/` (Extension Local Storage Managers)
 
-- **What it Contains**: `pageCache.js` (summary caching, SHA-256 URL key hashing, and sensitive site exclusions) and `settings.js` (user preference persistence and defaults).
-- **How to Contribute**: Add user preferences or refine sensitive host exclusion patterns to protect user privacy.
+- **What it holds**: `pageCache.js` (summary caching, SHA-256 URL key hashing, and sensitive site exclusions) and `settings.js` (user pref storage and defaults).
+- **How to contribute**: Add user prefs or improve sensitive host exclusion patterns to guard user privacy.
 
 #### `lib/summarize/` (Prompt Engineering and Chunking)
 
-- **What it Contains**: `chunk.js` (dynamic token and character chunker), `prompts.js` (prompt template builders for articles, videos, and Q&A), `mapReduce.js` (hierarchical map-reduce with tree-folding and OOM-safe fallbacks), and `ollamaSummarize.js` (map-reduce pipeline orchestrator and translation directives).
-- **How to Contribute**: Improve prompt templates for clarity, refine hierarchical map-reduce chunking and tree-reduction strategy, or enhance target language translation handling.
+- **What it holds**: `chunk.js` (dynamic token and character chunker), `prompts.js` (prompt template builders for articles, videos, and Q&A), `mapReduce.js` (hierarchical map-reduce with tree-folding and OOM-safe fallbacks), and `ollamaSummarize.js` (map-reduce pipeline runner and translation directives).
+- **How to contribute**: Improve prompt templates for clarity, improve hierarchical map-reduce chunking and tree-reduction, or improve target language translation handling.
 
 #### `lib/util/` (Shared Helper Utilities)
 
-- **What it Contains**: `userError.js` (sanitized user-facing error mapping), `permissions.js` (dynamic host permissions checking and on-demand origin prompting), execution mutex locks, and reading time saved calculation functions.
-- **How to Contribute**: Add friendly user error mappers or general utility functions used across extension background scripts and popups.
+- **What it holds**: `userError.js` (cleaned user-facing error mapping), `permissions.js` (dynamic host permission checks and on-demand origin prompts), execution mutex locks, and reading time saved calc functions.
+- **How to contribute**: Add friendly user error mappers or shared util functions used across extension background scripts and popups.
 
 ### 3. `background/` (Service Worker Architecture)
 
-- **What it Contains**: `service-worker.js`, which serves as the central background routing hub for Manifest V3. Handles message passing, streaming port connections, offscreen document lifecycles, and alarm cleanup timers.
-- **How to Contribute**: Modify service worker message listeners, refine token buffer streaming, or optimize background idle timers.
+- **What it holds**: `service-worker.js`, which acts as the central background routing hub for Manifest V3. Handles message passing, streaming port links, offscreen document lifecycles, and alarm cleanup timers.
+- **How to contribute**: Change service worker message listeners, improve token buffer streaming, or improve background idle timers.
 
 ### 4. `offscreen/` (Chromium Inference Sandbox)
 
-- **What it Contains**: `offscreen.html` and `offscreen.js`, providing an offscreen document context on Chromium browsers to execute WebLLM WebGPU and Transformers.js WebAssembly models outside service worker constraints.
-- **How to Contribute**: Update offscreen message handlers, manage WebGPU device initialization, or handle ONNX model weight caching.
+- **What it holds**: `offscreen.html` and `offscreen.js`, giving an offscreen document context on Chromium browsers to run WebLLM WebGPU and Transformers.js WebAssembly models outside service worker limits.
+- **How to contribute**: Update offscreen message handlers, manage WebGPU device startup, or handle ONNX model weight caching.
 
 ### 5. `ui/` (Popup and Side Panel Interface)
 
-- **What it Contains**: `app.html`, `app.css`, `app.js`, and `icons.js` (inline SVG icons), rendering the shared popup and side-panel interface for Home, Summary, Ask, local file upload, Past Summaries search, and Settings views.
-- **How to Contribute**: Enhance UI components, update theme styles, improve accessibility, or add interactive controls while adhering to extension design standards.
+- **What it holds**: `app.html`, `app.css`, `app.js`, and `icons.js` (inline SVG icons), rendering the shared popup and side-panel interface for Home, Summary, Ask, local file upload, Past Summaries search, and Settings views.
+- **How to contribute**: Improve UI parts, update theme styles, improve accessibility, or add interactive controls while keeping extension design standards.
 
 ### 6. `rules/` (Declarative Net Request Security Rules)
 
-- **What it Contains**: `ollama-cors.json`, containing the bundled fallback declarative net request rule that strips origin headers from local loopback requests to `127.0.0.1` and `localhost`. Where session-scoped rules are supported, the service worker registers a narrower equivalent at runtime for non-tab requests only (see `lib/util/loopbackCors.js`).
-- **How to Contribute**: Add or adjust declarative net request header rules to maintain zero CORS friction for local loopback services.
+- **What it holds**: `ollama-cors.json`, with the bundled fallback declarative net request rule that strips origin headers from local loopback requests to `127.0.0.1` and `localhost`. Where session-scoped rules are supported, the service worker sets a narrower match at runtime for non-tab requests only (see `lib/util/loopbackCors.js`).
+- **How to contribute**: Add or adjust declarative net request header rules to keep zero CORS friction for local loopback services.
 
 ### 7. `scripts/` (Build Automation and Verification)
 
-- **What it Contains**: Node scripts such as `model-libs.mjs` for fetching and verifying model WebAssembly binary libraries.
-- **How to Contribute**: Add automation scripts for build verification, dependency checking, or asset updates.
+- **What it holds**: Node scripts such as `model-libs.mjs` for fetching and checking model WebAssembly binary libs.
+- **How to contribute**: Add automation scripts for build checks, dep checks, or asset updates.
 
 ### 8. `tests/` (Unit Test Suite and HTML Fixtures)
 
-- **What it Contains**: Zero-dependency unit tests running on Node built-in test runner (`node --test`), organized into subdirectories matching library modules (`tests/background/`, `tests/engines/`, `tests/extract/`, `tests/extractors/`, `tests/helpers/`, `tests/language/`, `tests/retrieval/`, `tests/storage/`, `tests/summarize/`, `tests/ui/`, `tests/util/`), plus `tests/manifest.test.js`, along with static HTML fixtures in `tests/extractors/fixtures/`.
-- **How to Contribute**: Add unit test files matching `.test.js` naming conventions, create realistic HTML fixtures for new extractors, and cover edge cases.
+- **What it holds**: Dep-free unit tests running on Node built-in test runner (`node --test`), grouped into folders matching lib modules (`tests/background/`, `tests/engines/`, `tests/extract/`, `tests/extractors/`, `tests/helpers/`, `tests/language/`, `tests/retrieval/`, `tests/storage/`, `tests/summarize/`, `tests/ui/`, `tests/util/`), plus `tests/manifest.test.js`, plus static HTML fixtures in `tests/extractors/fixtures/`.
+- **How to contribute**: Add unit test files matching `.test.js` naming, add realistic HTML fixtures for new extractors, and cover edge cases.
 
 ## Testing Workflows and Quality Assurance
 
-Before submitting a pull request, run the complete suite of tests and quality checks:
+Before you open a pull request, run the full tests and quality checks:
 
 - **Run Unit Tests**:
 
@@ -149,7 +149,7 @@ Before submitting a pull request, run the complete suite of tests and quality ch
   npm test
   ```
 
-  Executes the complete unit test suite across extractors, local file parsing, engines, retrieval, storage, prompts, chunking, permissions, and error handlers.
+  Runs the full unit test suite across extractors, local file parsing, engines, retrieval, storage, prompts, chunking, permissions, and error handlers.
 
 - **Run Linter Checks**:
 
@@ -157,17 +157,17 @@ Before submitting a pull request, run the complete suite of tests and quality ch
   npm run lint
   ```
 
-  Runs ESLint across the entire codebase to enforce code quality standards.
+  Runs ESLint across the full codebase to enforce code quality standards.
 
 - **Check Code Formatting**:
   ```bash
   npm run format:check
   ```
-  Verifies that JavaScript and Markdown files follow Prettier formatting rules.
+  Checks that JavaScript and Markdown files follow Prettier formatting rules.
 
 ## Browser Automation & E2E Testing
 
-Apogee can be loaded and controlled in automated browser test suites using tools like **Playwright** or **Puppeteer**. Because Chromium extension APIs require headful execution, set `headless: false` when running browser automation.
+Apogee can be loaded and driven in automated browser test suites with tools such as **Playwright** or **Puppeteer**. Because Chromium extension APIs need headful runs, set `headless: false` when running browser automation.
 
 ### 1. Playwright (Chromium) Integration Example
 
@@ -239,7 +239,7 @@ const path = require("path");
 
 ### 3. Programmatic Service Worker Messaging
 
-For custom test runners, invoke background service worker actions directly using WebExtension messaging:
+For custom test runners, call background service worker actions straight with WebExtension messaging:
 
 ```javascript
 // Programmatically trigger background page summarization
@@ -252,5 +252,5 @@ chrome.runtime.sendMessage({
 ## Guidelines for Pull Requests
 
 - Keep PRs focused on a single feature, site extractor, or bug fix.
-- Ensure all unit tests pass (`npm test`) and no linter warnings are introduced (`npm run lint`).
-- Preserve on-device privacy guarantees by keeping all data processing and inference on your local machine.
+- Make sure all unit tests pass (`npm test`) and no new linter warnings appear (`npm run lint`).
+- Keep on-device privacy promises by keeping all data handling and inference on your local machine.

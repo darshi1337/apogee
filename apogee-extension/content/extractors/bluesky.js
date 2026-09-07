@@ -1,6 +1,7 @@
 // Bluesky (bsky.app) thread extractor.
 //
-// bsky.app is a heavy JS-rendered SPA, so DOM scraping from a content script is racey. The public AT Protocol endpoint https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread returns a fully-nested thread for any public post without auth, so we lead with that and only fall back to the rendered DOM if the fetch is unavailable (offline, CSP-blocked, or the post was removed).
+// bsky.app is a heavy JS-rendered SPA, so DOM scraping from a content script is racey. The public AT Protocol endpoint https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread returns a fully-nested thread for any public post without auth, so we lead with that and only fall back to the rendered DOM if the fetch is unavailable (offline, CSP-blocked, permission denied, or the post was removed).
+// The fetch runs in the content script (the page's own context) and is gated by the same on-demand optional_host_permissions flow as YouTube transcripts: the popup calls ensurePermissionsForUrl(tab.url) before extraction, and getOptionalOriginsForUrl() maps bsky.app to "*://*.bsky.app/*" (which covers public.api.bsky.app).
 
 const BLUESKY_MAX_POSTS = 80;
 const BLUESKY_MAX_DEPTH = 8;

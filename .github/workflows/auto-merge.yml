@@ -1,6 +1,12 @@
 name: Dependabot Auto-Merge
 
-on: pull_request_target
+# pull_request (not pull_request_target): this job never checks out code,
+# it only enables auto-merge via the API, so it needs no elevated trigger.
+# Actor check uses pull_request.user.login, not github.actor: actor is the
+# last modifier of the PR context and is spoofable, user.login is the PR
+# author. Same-repo check keeps fork PRs out. See zizmor bot-conditions.
+
+on: pull_request
 
 permissions:
   contents: write
@@ -10,7 +16,7 @@ jobs:
   dependabot-auto-merge:
     name: Dependabot Auto-Merge
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == github.event.pull_request.head.repo.full_name
     steps:
       - name: Dependabot metadata
         id: metadata

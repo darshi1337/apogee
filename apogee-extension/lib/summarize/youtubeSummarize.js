@@ -26,7 +26,7 @@ function lastAvailableSecondsIn(text) {
 }
 
 export async function* summarizeYoutube(
-  { text, title, url, mode, model, host, signal, language, customInstructions },
+  { text, title, url, model, host, signal, language, customInstructions },
   {
     chunkTextFn = chunkText,
     chatStreamFn = chatStream,
@@ -61,7 +61,6 @@ export async function* summarizeYoutube(
             url,
             noteText,
             lastAvailableSeconds,
-            mode,
           ),
       customInstructions,
     );

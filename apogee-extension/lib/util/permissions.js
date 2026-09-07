@@ -25,7 +25,10 @@ export async function hasHostPermissions(origins) {
  */
 export async function requestHostPermissions(origins) {
   if (typeof chrome === "undefined" || !chrome.permissions?.request) {
-    return true;
+    // Fail closed like hasHostPermissions: without the permissions API there
+    // is no prompt to grant, so callers must treat access as denied rather
+    // than assuming the gated fetch is allowed.
+    return false;
   }
   try {
     return await new Promise((resolve) => {
@@ -61,6 +64,13 @@ export function getOptionalOriginsForUrl(url) {
         "*://*.googlevideo.com/*",
         "https://sponsor.ajay.app/*",
       ];
+    }
+    if (host === "bsky.app" || host.endsWith(".bsky.app")) {
+      // Covers both the bsky.app page and the public.api.bsky.app thread
+      // endpoint fetched by the Bluesky extractor. Without this mapping
+      // getOptionalOriginsForUrl() returned [] for bsky.app, so the
+      // on-demand permission prompt in ensurePermissionsForUrl() never fired.
+      return ["*://*.bsky.app/*"];
     }
   } catch {}
   return [];

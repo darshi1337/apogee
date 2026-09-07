@@ -45,3 +45,26 @@ test("validateLoopbackHost's message is built from ALLOWED_LOOPBACK_HOSTS, not h
   const helperBody = helperMatch[0];
   assert.match(helperBody, /ALLOWED_LOOPBACK_HOSTS/);
 });
+
+test("validateLoopbackHost shares the allowed set with lib/util/ollamaHost.js (#210)", () => {
+  assert.match(
+    swCode,
+    /from "\.\.\/lib\/util\/ollamaHost\.js"/,
+    "service worker must import the shared loopback validator",
+  );
+  assert.match(swCode, /validateLoopbackUrl/);
+  assert.match(
+    swCode,
+    /const ALLOWED_LOOPBACK_HOSTS\s*=\s*ALLOWED_OLLAMA_HOSTS/,
+    "the allowed set must alias the shared set so they cannot diverge",
+  );
+});
+
+test("validateLoopbackHost applies the shared port check with a per-provider default (#210)", () => {
+  assert.match(fnBody, /validateLoopbackUrl/);
+  assert.match(fnBody, /defaultPort/);
+  assert.ok(
+    /label === LLAMACPP_PROVIDER\.label/.test(swCode),
+    "llama.cpp hosts must default to the llama port, not the Ollama one",
+  );
+});

@@ -91,6 +91,43 @@ test("getOptionalOriginsForUrl returns required origins for bilibili and youtube
     getOptionalOriginsForUrl("https://en.wikipedia.org/wiki/Main_Page"),
     [],
   );
+  assert.deepStrictEqual(
+    getOptionalOriginsForUrl(
+      "https://bsky.app/profile/alice.bsky.social/post/3l6pyiu4dws2p",
+    ),
+    ["*://*.bsky.app/*"],
+  );
+  assert.deepStrictEqual(
+    getOptionalOriginsForUrl("https://www.bsky.app/profile/bob/post/abc"),
+    ["*://*.bsky.app/*"],
+  );
+});
+
+test("ensurePermissionsForUrl prompts on-demand for bsky.app URLs (#186)", async () => {
+  const originalChrome = globalThis.chrome;
+  let requestedOrigins = null;
+
+  globalThis.chrome = {
+    permissions: {
+      contains(_opts, callback) {
+        callback(false);
+      },
+      request({ origins }, callback) {
+        requestedOrigins = origins;
+        callback(true);
+      },
+    },
+  };
+
+  try {
+    const result = await ensurePermissionsForUrl(
+      "https://bsky.app/profile/alice.bsky.social/post/3l6pyiu4dws2p",
+    );
+    assert.strictEqual(result, true);
+    assert.deepStrictEqual(requestedOrigins, ["*://*.bsky.app/*"]);
+  } finally {
+    globalThis.chrome = originalChrome;
+  }
 });
 
 test("ensurePermissionsForUrl requests permissions on-demand when not already granted", async () => {
@@ -119,6 +156,32 @@ test("ensurePermissionsForUrl requests permissions on-demand when not already gr
       "*://*.googlevideo.com/*",
       "https://sponsor.ajay.app/*",
     ]);
+  } finally {
+    globalThis.chrome = originalChrome;
+  }
+});
+
+test("requestHostPermissions fails closed when chrome.permissions is undefined (#209)", async () => {
+  const originalChrome = globalThis.chrome;
+  delete globalThis.chrome;
+  try {
+    const result = await requestHostPermissions(["*://*.bilibili.com/*"]);
+    assert.strictEqual(result, false);
+  } finally {
+    globalThis.chrome = originalChrome;
+  }
+});
+
+test("ensurePermissionsForUrl fails closed when the permissions API is absent (#209)", async () => {
+  const originalChrome = globalThis.chrome;
+  delete globalThis.chrome;
+  try {
+    // hasHostPermissions is already fail-closed; the gate must stay denied
+    // end to end instead of failing open through the request path.
+    const result = await ensurePermissionsForUrl(
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    );
+    assert.strictEqual(result, false);
   } finally {
     globalThis.chrome = originalChrome;
   }

@@ -658,6 +658,22 @@ async function runStream(streamId, pending, stream) {
 }
 
 chrome.runtime.onConnect.addListener((port) => {
+  // Same sender validation as the onMessage handlers; unknown-name ports are
+  // already dropped below.
+  if (port.sender?.id !== chrome.runtime.id) {
+    try {
+      port.disconnect();
+    } catch {}
+    return;
+  }
+  // Stream ports are opened by the service-worker relay only; tab-hosted
+  // contexts must not siphon stream text, mirroring the onMessage tab reject.
+  if (port.sender?.tab) {
+    try {
+      port.disconnect();
+    } catch {}
+    return;
+  }
   if (!port.name.startsWith("offscreen-stream-")) return;
 
   const streamId = port.name.replace("offscreen-stream-", "");
@@ -716,7 +732,13 @@ chrome.runtime.onConnect.addListener((port) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.target !== "offscreen") return false;
 
-  if (sender.id !== chrome.runtime.id) return false;
+  if (sender?.id !== chrome.runtime.id) return false;
+
+  // The service worker is the only legitimate sender (every target:
+  // "offscreen" call site originates there). Tab-hosted contexts must not
+  // invoke local-compute actions directly, so reject them outright rather
+  // than allow-listing actions per sender.
+  if (sender.tab) return false;
 
   const handler = async () => {
     try {
