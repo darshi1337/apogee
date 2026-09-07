@@ -29,7 +29,7 @@ jobs:
           persist-credentials: false
 
       - name: Scan history + working tree
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_CONFIG: .gitleaks.toml
@@ -73,7 +73,7 @@ jobs:
           echo "Known issue: image-size via addons-linter/web-ext needs a breaking major bump; triage before promoting to blocking." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload audit reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: audit-reports
           path: |
