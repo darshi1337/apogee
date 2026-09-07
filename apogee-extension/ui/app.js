@@ -2521,17 +2521,7 @@ async function summarizeFile(file) {
 
 document
   .getElementById("uploadFileBtn")
-  ?.addEventListener("click", async () => {
-    if (!isSidePanelSurface) {
-      try {
-        await openSidePanel();
-        closeTransientSurface();
-      } catch (err) {
-        console.error("Could not open side panel for file upload:", err);
-        announce(`Could not open side panel: ${err.message || err}`);
-      }
-      return;
-    }
+  ?.addEventListener("click", () => {
     fileUploadInput?.click();
   });
 
