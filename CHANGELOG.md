@@ -43,6 +43,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Add GitLab issue and merge request extractor ([2e8baf2](https://github.com/darshi1337/apogee/commit/2e8baf2fb6fb6377131c6555fdac849f3a6fea02))
 - Route GitLab pages through extractor ([d5d57ea](https://github.com/darshi1337/apogee/commit/d5d57ea6e7c56b23787499789b698d8cd33a1ab3))
 - Inject GitLab extractor ([bf94a7c](https://github.com/darshi1337/apogee/commit/bf94a7c2aa564443fe3c4b1b0f70095728d0bf3d))
+- Add Dev.to article extractor (#169) ([64e2f3d](https://github.com/darshi1337/apogee/commit/64e2f3d665b5532c38788e4cd5950a54984c5c1a))
 
 ### Fixed
 
