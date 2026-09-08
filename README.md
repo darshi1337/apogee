@@ -115,6 +115,16 @@ Read the full security model in [Privacy and Security Architecture](PRIVACY.md).
 
 ### For Developers & Contributors
 
+**Extractor contributions need no browser, GPU, or model download.** The fixture harness runs site extractors against saved HTML in Node.js 22 or newer:
+
+```bash
+cd apogee-extension
+npm install
+npm test
+```
+
+See the [extractor test harness and worked examples](apogee-extension/tests/extractors/README.md) to add a fixture or test a site-specific extractor. The [contributing guide](CONTRIBUTING.md) lists available issues and the checks to run before a PR.
+
 - **[Architecture Reference](ARCHITECTURE.md)**: Details on the 4 contexts, how it works, execution flows, and trust limits.
 - **[Developer Setup](DEVELOPMENT.md)**: Steps to build, run watch mode, run test suites, and format code.
 - **[Contributing Guide](CONTRIBUTING.md)**: Rules for opening pull requests, sending code changes, and claiming issues.
