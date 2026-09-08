@@ -10,6 +10,8 @@ A private AI summarizer in your browser for articles, videos, PDFs, DOCX files, 
 
 <a href="https://darshi1337.github.io/apogee/">Website</a> | <a href="ARCHITECTURE.md">Architecture</a> | <a href="MODELS.md">Models</a> | <a href="BROWSERS.md">Browsers</a> | <a href="PRIVACY.md">Privacy</a> | <a href="ROADMAP.md">Roadmap</a> | <a href="STORE-LISTING.md">Store listing</a> | <a href="LICENSE">License</a>
 
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md) [![Good first issues](https://img.shields.io/github/issues-search/darshi1337/apogee?query=label%3A%22good%20first%20issue%22%20state%3Aopen&label=good%20first%20issues&color=7057ff)](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) [![Help wanted](https://img.shields.io/github/issues-search/darshi1337/apogee?query=label%3A%22help%20wanted%22%20state%3Aopen&label=help%20wanted&color=008672)](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
+
 <sub>An offline-first browser extension that respects privacy, built with care by <a href="https://github.com/darshi1337">darshi1337</a> and <a href="https://github.com/darshi1337/apogee/graphs/contributors">contributors</a></sub>
 
 </div>
