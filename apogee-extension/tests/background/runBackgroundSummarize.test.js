@@ -52,12 +52,22 @@ test("runBackgroundSummarize only calls startLocalHttpStream once for Local Olla
 // Each branch now throws a UserFacingError so the call site's
 // `.catch(notifyJobFailed)` presents it.
 
+// `node --test` runs each test file in its own process, so this module-scope
+// `globalThis.chrome` cannot leak into other files (same pattern as
+// sponsorBlockGate.test.js). It is not torn down between tests here because
+// runBackgroundSummarize kicks off fire-and-forget work (audit logging,
+// follow-up question generation) that would throw if `chrome` disappeared.
 const { chrome } = createExtensionApiMock({ settings: {} });
 chrome.scripting = {
-  // Version check short-circuits (matches getManifest().version) so no content
-  // scripts are injected; for the PDF path this same stub returns a truthy
-  // "base64" blob so extractPdfContent proceeds to the extract-pdf message.
-  executeScript: async () => [{ result: "0.2.1" }],
+  executeScript: async ({ func }) => {
+    // The extractor-version probe must match getManifest().version so no
+    // content scripts are injected; the PDF-download script returns a base64
+    // blob so extractPdfContent proceeds to the extract-pdf message.
+    if (String(func).includes("__apogeeExtractorVersion")) {
+      return [{ result: "0.2.1" }];
+    }
+    return [{ result: "JVBERi0xLjQK" }]; // "%PDF-1.4\n" base64
+  },
 };
 globalThis.chrome = chrome;
 
