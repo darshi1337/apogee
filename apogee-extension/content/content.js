@@ -75,6 +75,9 @@ async function extractPageContent() {
   const discourseData = extractDiscourse();
   if (discourseData) return { ...discourseData, isPdf: false };
 
+  const devtoData = extractDevto();
+  if (devtoData) return { ...devtoData, isPdf: false };
+
   const blueskyData = await extractBluesky();
   if (blueskyData) return { ...blueskyData, isPdf: false };
 
