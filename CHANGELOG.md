@@ -112,6 +112,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Cap llamaModel free-text input ([2af27dc](https://github.com/darshi1337/apogee/commit/2af27dc302193cada20b9ad0a0e403ebc677f209))
 - Schema-validate settings on read ([18895e6](https://github.com/darshi1337/apogee/commit/18895e66dedd6e2c7e6ec99888c3f3a9432af8a1))
 - Show upload only in side panel ([939d315](https://github.com/darshi1337/apogee/commit/939d3155bb49ceb5bcd0f9a0bbfd290b9aea5db9))
+- Make empty-content summarize branches throw instead of silently returning ([bf569a5](https://github.com/darshi1337/apogee/commit/bf569a5b54de514bac4f55b77bdcfdeccc6ccf86))
 
 ### Security
 
