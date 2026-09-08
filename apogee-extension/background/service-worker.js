@@ -829,12 +829,9 @@ async function runBackgroundSummarize(
 
   const selection = normalizeSelectedText(selectionText);
   if (selection && !isSummarizableSelection(selection)) {
-    if (notifyOnFinish) {
-      notifyNothingToSummarize(
-        `Select at least ${MIN_SELECTION_LENGTH} characters to summarize.`,
-      );
-    }
-    return;
+    throw new UserFacingError(
+      `Select at least ${MIN_SELECTION_LENGTH} characters to summarize.`,
+    );
   }
   const isSelection = selection.length > 0;
 
@@ -850,16 +847,10 @@ async function runBackgroundSummarize(
   } else {
     pageData = await extractFromActiveTab(tab);
     if (!pageData) {
-      if (notifyOnFinish) {
-        notifyNothingToSummarize(COULD_NOT_READ_THIS_PAGE_ERROR_MSG);
-      }
-      return;
+      throw new UserFacingError(COULD_NOT_READ_THIS_PAGE_ERROR_MSG);
     }
     if (!pageData.isPdf && !pageData.content) {
-      if (notifyOnFinish) {
-        notifyNothingToSummarize(NOTHING_TO_SUMMARIZE_ERROR_MSG);
-      }
-      return;
+      throw new UserFacingError(NOTHING_TO_SUMMARIZE_ERROR_MSG);
     }
   }
 
@@ -889,20 +880,14 @@ async function runBackgroundSummarize(
     } catch (err) {
       const msg = err?.message || String(err);
       if (msg.startsWith("PDF_TOO_LARGE:")) {
-        if (notifyOnFinish) {
-          notifyNothingToSummarize(
-            "This PDF is too large to process inside the extension. Try a shorter document.",
-          );
-        }
-        return;
+        throw new UserFacingError(
+          "This PDF is too large to process inside the extension. Try a shorter document.",
+        );
       }
       throw err;
     }
     if (!content) {
-      if (notifyOnFinish) {
-        notifyNothingToSummarize(COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG);
-      }
-      return;
+      throw new UserFacingError(COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG);
     }
   }
 
@@ -1420,18 +1405,6 @@ function notifyJobComplete({ title, tabId, windowId }) {
     iconUrl: chrome.runtime.getURL("assets/icon-96.png"),
     title: "Summary ready",
     message: title ? `"${title}" is ready to view.` : "Click to view it.",
-  });
-}
-
-function notifyNothingToSummarize(message) {
-  if (typeof chrome.notifications === "undefined") return;
-  const notificationId = `apogee-summary-empty-${crypto.randomUUID()}`;
-  notificationTargets.set(notificationId, { helpUrl: errorHelpUrl(message) });
-  chrome.notifications.create(notificationId, {
-    type: "basic",
-    iconUrl: chrome.runtime.getURL("assets/icon-96.png"),
-    title: "Nothing to summarize",
-    message: `${message} Click to see what this means.`,
   });
 }
 

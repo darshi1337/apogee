@@ -34,3 +34,66 @@ test("runBackgroundSummarize only calls startLocalHttpStream once for Local Olla
     "streamId init block should not call startLocalHttpStream before registerStreamJob",
   );
 });
+
+test("runBackgroundSummarize throws UserFacingError for empty-content cases instead of silently returning (#253)", () => {
+  const swCode = fs.readFileSync(
+    new URL("../../background/service-worker.js", import.meta.url),
+    "utf-8",
+  );
+
+  const fnMatch = swCode.match(
+    /async function runBackgroundSummarize[\s\S]*?\n\}/,
+  );
+  assert.ok(fnMatch, "runBackgroundSummarize function found");
+  const fnBody = fnMatch[0];
+
+  // Every empty-content guard now throws a UserFacingError so the caller's
+  // .catch(notifyJobFailed) surfaces it, instead of returning undefined and
+  // leaving the waiter hanging.
+  const throwCount = (fnBody.match(/throw new UserFacingError\(/g) || [])
+    .length;
+  assert.ok(
+    throwCount >= 5,
+    `expected >= 5 'throw new UserFacingError(...)' guards, found ${throwCount}`,
+  );
+
+  // The old silent-return pattern must be gone.
+  assert.ok(
+    !fnBody.includes("notifyNothingToSummarize"),
+    "notifyNothingToSummarize should no longer be called",
+  );
+  assert.ok(
+    !/if \(notifyOnFinish\)/.test(fnBody),
+    "no `if (notifyOnFinish)` empty-content guard should remain",
+  );
+});
+
+test("runBackgroundSummarize still threads notifyOnFinish for the success notification (#253)", () => {
+  const swCode = fs.readFileSync(
+    new URL("../../background/service-worker.js", import.meta.url),
+    "utf-8",
+  );
+
+  const fnMatch = swCode.match(
+    /async function runBackgroundSummarize[\s\S]*?\n\}/,
+  );
+  assert.ok(fnMatch, "runBackgroundSummarize function found");
+  const fnBody = fnMatch[0];
+
+  // notifyOnFinish is still accepted and passed into the finalize object so the
+  // success-path completion notification keeps working.
+  assert.ok(
+    fnBody.includes("{ notifyOnFinish, selectionText } = {}"),
+    "runBackgroundSummarize should still accept notifyOnFinish",
+  );
+  assert.ok(
+    /\n\s*notifyOnFinish,\n/.test(fnBody),
+    "notifyOnFinish should still be threaded into the finalize object",
+  );
+
+  // The orphaned helper should be removed from the module entirely.
+  assert.ok(
+    !swCode.includes("function notifyNothingToSummarize"),
+    "the orphaned notifyNothingToSummarize helper should be removed",
+  );
+});
