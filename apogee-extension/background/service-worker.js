@@ -819,7 +819,7 @@ async function generateTransformersSuggestions(
   });
 }
 
-async function runBackgroundSummarize(
+export async function runBackgroundSummarize(
   tab,
   { notifyOnFinish, selectionText } = {},
 ) {
