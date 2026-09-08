@@ -128,4 +128,6 @@ These should never reach the UI. If one does, it is a bug worth reporting with t
 
 ## Reporting one
 
+If your symptom matches a known failure, the [Troubleshooting](TROUBLESHOOTING.md) page may fix it faster than a report.
+
 Turn on debug logs in Settings, reproduce the failure, then use Copy diagnostics. That copies the browser, provider, model, WebGPU state, and recent log lines plus the raw base error, which is often more exact than the message shown in the popup.
