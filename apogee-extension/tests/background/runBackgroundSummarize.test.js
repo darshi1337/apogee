@@ -64,7 +64,7 @@ chrome.scripting = {
     // content scripts are injected; the PDF-download script returns a base64
     // blob so extractPdfContent proceeds to the extract-pdf message.
     if (String(func).includes("__apogeeExtractorVersion")) {
-      return [{ result: "0.2.1" }];
+      return [{ result: chrome.runtime.getManifest().version }];
     }
     return [{ result: "JVBERi0xLjQK" }]; // "%PDF-1.4\n" base64
   },
