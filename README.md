@@ -112,6 +112,7 @@ Read the full security model in [Privacy and Security Architecture](PRIVACY.md).
 - **[Translation Reference](TRANSLATION.md)**: Overview of 29 supported target languages and Opus-MT model tiers.
 - **[Privacy Architecture](PRIVACY.md)**: Full details on network limits, storage, and permissions.
 - **[Error Messages Guide](ERROR.md)**: Full list of user-facing messages, causes, fixes, and diagnostics.
+- **[Troubleshooting](TROUBLESHOOTING.md)**: Fix the common failures by symptom: no WebGPU, stalled model download, Ollama unreachable, slow Firefox, unreadable page.
 
 ### For Developers & Contributors
 

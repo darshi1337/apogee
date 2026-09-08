@@ -69,6 +69,7 @@ Content
 - [Translation Reference](TRANSLATION.md): 32-language matrix and Opus-MT model tiers.
 - [Privacy Policy](PRIVACY.md): Detailed privacy, network connections, and permission sandboxing.
 - [Error Messages Guide](ERROR.md): Complete catalog of user-facing messages, cause breakdowns, and diagnostic steps.
+- [Troubleshooting](TROUBLESHOOTING.md): Common failures by symptom, with fixes and links to the guides above.
 - [Developer Setup](DEVELOPMENT.md): Build environment, scripts, test suite, and contributing guidelines.
 - [Contributing](./CONTRIBUTING.md): Development setup, PR rules, and issue claiming guidelines.
 - [Roadmap](./ROADMAP.md): Project goals, completed releases, and planned feature roadmap.
