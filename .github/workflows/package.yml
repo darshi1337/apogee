@@ -37,6 +37,18 @@ jobs:
 
       - run: npm run build
 
+      - name: Verify vulnerable dev-only packages never ship in dist
+        run: |
+          # adm-zip (via onnxruntime-node/firefox-profile) and image-size (via
+          # addons-linter) carry unpatched advisories but must stay dev-only:
+          # Vite only bundles imported modules, so none of these may appear in
+          # the shipped bundles. onnxruntime-web WASM ("ort-wasm") is expected.
+          LEAKED=$(grep -rl --exclude='*.map' -e 'adm-zip' -e 'AdmZip' -e 'image-size' -e 'onnxruntime-node' -e 'firefox-profile' -e 'FirefoxProfile' dist/chrome dist/firefox || true)
+          if [ -n "$LEAKED" ]; then
+            echo "::error::dev-only vulnerable package leaked into dist:"; echo "$LEAKED"; exit 1;
+          fi
+          echo "dist is free of adm-zip/image-size/onnxruntime-node/firefox-profile"
+
       - name: Verify Firefox manifest transform
         run: |
           node -e '

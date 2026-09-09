@@ -2,10 +2,17 @@ name: Security scans
 
 # Complements CodeQL + dependency-review:
 # - Gitleaks is BLOCKING (fake test keys are allowlisted in .gitleaks.toml).
-# - OSV + npm audit are REPORT-ONLY: addons-linter pulls a known-vulnerable
-#   image-size whose fix needs a breaking major bump, so failing the build
-#   here would keep main red until that migration lands. Triage the uploaded
-#   reports instead.
+# - OSV + npm audit are REPORT-ONLY: the only findings trace to two advisories
+#   with no patched version published upstream —
+#     * adm-zip symlink traversal (latest 0.6.0 still flagged; pinned via
+#       overrides; audit's only "fix" is downgrading transformers, rejected)
+#     * image-size parser DoS (latest 2.0.2 still flagged; latest
+#       addons-linter 10.11.0 still ships it)
+#   Both are dev-only/install-time and never ship in dist/ (enforced by the
+#   "vulnerable dev-only packages" guard in package.yml), so failing the build
+#   here would keep main red with no actionable upgrade. Triage the uploaded
+#   reports instead, and re-test an addons-linter bump whenever upstream
+#   publishes fixed image-parser dependencies.
 
 on:
   push:
@@ -70,7 +77,7 @@ jobs:
           npm audit --audit-level=high --json > /tmp/npm-audit.json || true
           HIGH=$(node -e 'const r=require("/tmp/npm-audit.json"); const v=(r.metadata&&r.metadata.vulnerabilities)||{}; console.log((v.high||0)+" high, "+(v.critical||0)+" critical")')
           echo "### npm audit (report-only): $HIGH" >> "$GITHUB_STEP_SUMMARY"
-          echo "Known issue: image-size via addons-linter/web-ext needs a breaking major bump; triage before promoting to blocking." >> "$GITHUB_STEP_SUMMARY"
+          echo "Known issues, both unpatched upstream and dev-only (never in dist/): adm-zip via onnxruntime-node/firefox-profile, image-size via addons-linter/web-ext. Triage before promoting to blocking." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload audit reports
         uses: actions/upload-artifact@v7
