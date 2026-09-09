@@ -22,10 +22,19 @@ const { fetchBilibiliSubtitles } =
 const ARGS = { aid: "12345", cid: "67890", preferredLang: "en" };
 const TRACK_URL = "https://xy123.hdslb.com/track.json";
 
+// Exact hostname match: a substring check here would treat an attacker's
+// api.bilibili.com.evil.example as the first-party metadata endpoint.
+function isMetadataRequest(url) {
+  try {
+    return new URL(String(url)).hostname === "api.bilibili.com";
+  } catch {
+    return false;
+  }
+}
+
 function mockFetch(trackBody) {
   return async (url) => {
-    const text = url.toString();
-    const payload = text.includes("api.bilibili.com")
+    const payload = isMetadataRequest(url)
       ? {
           data: {
             subtitle: { subtitles: [{ lan: "en", subtitle_url: TRACK_URL }] },
