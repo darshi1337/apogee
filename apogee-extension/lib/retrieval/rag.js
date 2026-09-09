@@ -12,8 +12,15 @@ const MIN_REFINE_SENTENCE_CHARS = 25;
 const MAX_CACHE_ENTRIES = 5;
 const indexCache = new Map();
 
+// Length-prefixed so two different documents can only collide on both the
+// 53-bit hash and the exact byte length, closing the truncation-collision
+// class without paying for an async SHA-256 on every lookup.
+export function ragIndexCacheKey(content) {
+  return `${content.length}:${cyrb53(content)}`;
+}
+
 async function getOrBuildIndex(content, embedTextsFn) {
-  const key = cyrb53(content);
+  const key = ragIndexCacheKey(content);
   const cached = indexCache.get(key);
   if (cached) return cached;
 

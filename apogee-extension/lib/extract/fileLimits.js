@@ -38,6 +38,14 @@ export const MAX_PDF_TEXT_CHARS = 25 * 1024 * 1024;
 // before it fans out: real summaries are kilobytes, 1 MB is generous.
 export const MAX_FINALIZE_TEXT_CHARS = 1024 * 1024;
 
+// Bilibili subtitle hardening. Track JSON comes from the hdslb CDN and each
+// entry is mapped into a segment, so a malformed track with millions of
+// entries (or megabyte bodies) would turn the service worker into an OOM
+// vector. Real tracks are hundreds of segments and tens of KB; both ceilings
+// are generous headroom, mirroring the PDF/DOCX accumulation backstops above.
+export const MAX_BILIBILI_SUBTITLE_SEGMENTS = 5000;
+export const MAX_BILIBILI_SUBTITLE_CHARS = 500 * 1024;
+
 // Pasted-text and plain-text file ceiling (#211). file.size bounds the upload
 // (~50 MB string), but two post-read text paths were unbounded: file.text()
 // for txt/md/json/html and the pasted-text dialog. A multi-MB string here

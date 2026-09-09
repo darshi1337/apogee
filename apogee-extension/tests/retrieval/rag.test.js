@@ -5,6 +5,7 @@ import {
   retrieveRelevantContent,
   findBestPassage,
   selectSalientChunks,
+  ragIndexCacheKey,
 } from "../../lib/retrieval/rag.js";
 
 function fakeEmbed(texts) {
@@ -73,6 +74,15 @@ test("retrieveRelevantContent reuses cached chunk embeddings across questions", 
   );
 
   assert.equal(indexBuildCalls, 1);
+});
+
+test("ragIndexCacheKey prefixes the hash with content length", () => {
+  const a = "lorem ipsum dolor sit amet ".repeat(100);
+  const b = `${a}extra sentence.`;
+  assert.ok(ragIndexCacheKey(a).startsWith(`${a.length}:`));
+  assert.ok(ragIndexCacheKey(b).startsWith(`${b.length}:`));
+  assert.notStrictEqual(ragIndexCacheKey(a), ragIndexCacheKey(b));
+  assert.strictEqual(ragIndexCacheKey(a), ragIndexCacheKey(a));
 });
 
 test("retrieveRelevantContent falls back to truncation if embedding fails", async () => {

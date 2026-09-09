@@ -12,7 +12,11 @@ import {
   selectSalientChunks,
 } from "../lib/retrieval/rag.js";
 import { createLock } from "../lib/util/mutex.js";
-import { WEBLLM_MODELS, TRANSLATION_ENGINES } from "../lib/constants.js";
+import {
+  WEBLLM_MODELS,
+  TRANSLATION_ENGINES,
+  isKnownWebLLMModelId,
+} from "../lib/constants.js";
 import {
   withTransformersEngine,
   transformersChatStream,
@@ -122,6 +126,15 @@ async function getPrompts() {
 }
 
 async function ensureEngine(modelId) {
+  // Defense in depth behind the settings sanitize: the offscreen document
+  // also accepts model ids from message payloads, so reject anything outside
+  // the allow-list here, where a miss would otherwise fall back to a remote
+  // HuggingFace CDN fetch for model config.
+  if (!isKnownWebLLMModelId(modelId)) {
+    throw new Error(
+      `Unknown WebLLM model "${modelId}". Pick one of the bundled models in settings.`,
+    );
+  }
   if (engine && currentModelId === modelId) {
     return engine;
   }
