@@ -3,29 +3,32 @@ import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { findMatchingRange } from "../../lib/retrieval/passageMatch.js";
 
-// The matcher below is duplicated into content/highlight.js, which is injected as a plain script and cannot import it. Without this guard the tests would happily pass while the code that actually highlights passages drifts away from the code being tested.
-function sharedBlock(path) {
-  const src = readFileSync(new URL(path, import.meta.url), "utf8");
-  const start = src.indexOf("function escapeRegExp");
-  const end = src.indexOf("// END SHARED");
-  assert.ok(
-    start !== -1 && end > start,
-    `${path} is missing the shared matcher markers`,
+// content/highlight.js is bundled by Vite and imports the matcher below, so
+// there is one implementation. This guard fails if someone reintroduces a
+// duplicated matcher into the content script instead of importing it.
+test("content/highlight.js imports the canonical matcher instead of duplicating it", () => {
+  const highlightSrc = readFileSync(
+    new URL("../../content/highlight.js", import.meta.url),
+    "utf8",
   );
-  return src
-    .slice(start, end)
-    .replace(/^export /gm, "")
-    .trimEnd();
-}
-
-test("the matcher in content/highlight.js is identical to the one under test", () => {
-  assert.strictEqual(
-    sharedBlock("../../content/highlight.js"),
-    sharedBlock("../../lib/retrieval/passageMatch.js"),
-    "content/highlight.js and lib/retrieval/passageMatch.js have drifted apart. " +
-      "The content script is the copy that runs; edit both, or these tests stop " +
-      "saying anything about the shipped highlighter.",
+  assert.match(
+    highlightSrc,
+    /from\s+["']\.\.\/lib\/retrieval\/passageMatch\.js["']/,
+    "content/highlight.js must import findMatchingRange from lib/retrieval/passageMatch.js",
   );
+  for (const duplicated of [
+    "function escapeRegExp",
+    "function buildFlexibleMatcher",
+    "function tryMatch",
+    "function splitIntoSpans",
+    "PREFIX_WINDOW_CHARS",
+    "MAX_MATCH_TEXT_CHARS",
+  ]) {
+    assert.ok(
+      !highlightSrc.includes(duplicated),
+      `content/highlight.js must not duplicate the matcher (${duplicated} found); import it instead.`,
+    );
+  }
 });
 
 test("findMatchingRange finds an exact match", () => {

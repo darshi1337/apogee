@@ -30,6 +30,7 @@ export default [
   },
   {
     files: ["content/**/*.js"],
+    ignores: ["content/highlight.js"],
     languageOptions: { sourceType: "script" },
     rules: {
       "no-unused-vars": [
@@ -37,6 +38,11 @@ export default [
         { argsIgnorePattern: "^_", varsIgnorePattern: "^extract" },
       ],
     },
+  },
+  // Bundled by Vite as an ES module entry (imports the passage matcher).
+  {
+    files: ["content/highlight.js"],
+    languageOptions: { sourceType: "module" },
   },
   {
     files: ["content/content.js"],

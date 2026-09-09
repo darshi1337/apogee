@@ -90,6 +90,7 @@ import {
   saveViewState,
   saveViewStateIfJobMatches,
   removeViewState,
+  cleanupOrphanedViewStates,
 } from "../lib/storage/viewState.js";
 import {
   COULD_NOT_READ_THIS_PAGE_ERROR_MSG,
@@ -1069,6 +1070,21 @@ if (typeof chrome !== "undefined" && chrome.commands?.onCommand?.addListener) {
 if (typeof chrome !== "undefined" && chrome.tabs?.onRemoved?.addListener) {
   chrome.tabs.onRemoved.addListener((tabId) => {
     removeViewState(tabId).catch(() => {});
+    // Opportunistically purge legacy URL-keyed view states that predate the
+    // numeric-tab-id guard; they are never removed by removeViewState alone.
+    cleanupOrphanedViewStates().catch(() => {});
+  });
+}
+
+// One-time purge of legacy URL-keyed view states on install/startup.
+if (typeof chrome !== "undefined" && chrome.runtime?.onStartup?.addListener) {
+  chrome.runtime.onStartup.addListener(() => {
+    cleanupOrphanedViewStates().catch(() => {});
+  });
+}
+if (typeof chrome !== "undefined" && chrome.runtime?.onInstalled?.addListener) {
+  chrome.runtime.onInstalled.addListener(() => {
+    cleanupOrphanedViewStates().catch(() => {});
   });
 }
 
@@ -2203,6 +2219,10 @@ export async function summarizeMultiTab(tabsToSummarize) {
       return generateInTargetLanguage(chat, prompt, qLanguage, { translateFn });
     });
   } else {
+    // WebLLM/Transformers run inside the offscreen document. Multi-tab uses
+    // the single-shot "generate-text" route there (handled in
+    // offscreen/offscreen.js) because there is one synthesized prompt rather
+    // than a per-tab stream.
     await ensureOffscreenDocument();
     const response = await chrome.runtime.sendMessage({
       target: "offscreen",
@@ -2228,11 +2248,22 @@ export async function summarizeMultiTab(tabsToSummarize) {
     tabs: extractedResults.map((t) => ({ title: t.title, url: t.url })),
   };
 
-  await saveViewState(url, {
-    status: "completed",
-    summary: summaryResult,
-    pageData,
-  });
+  // The popup restores per-tab state via loadViewState(tabId), so the
+  // multi-tab result must live under the owning tab's numeric id. Keying by
+  // URL string used to create unreachable `popupViewState:https://...` keys
+  // that leaked raw URLs into key names and were never cleaned on tab close.
+  const ownerTabId = tabsToSummarize.find((t) => Number.isInteger(t?.id))?.id;
+  if (ownerTabId != null) {
+    await saveViewState(ownerTabId, {
+      view: "summaryView",
+      subview: "summary",
+      url,
+      streamId: null,
+      summaryText: summaryResult,
+      summaryLanguage: settings.summaryLanguage,
+      translationEngine: settings.translationEngine,
+    });
+  }
 
   if (typeof chrome !== "undefined" && chrome.notifications) {
     chrome.notifications.create(`${notificationId}-ready`, {
