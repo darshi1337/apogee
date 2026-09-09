@@ -120,6 +120,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Orphan view-state keys, dedupe highlight matcher, harden generate-text ([0a0c244](https://github.com/darshi1337/apogee/commit/0a0c244e64a7a16b61a6c6eb15202044661b5827))
 - Multi-tab view-state shape, subtitle caps, model allow-list, rag key ([1bc2052](https://github.com/darshi1337/apogee/commit/1bc2052896b0a3eb7747647046597143bfd5ceb5))
 - Exact hostname match in bilibili subtitle test mock ([22ca001](https://github.com/darshi1337/apogee/commit/22ca00161b9cdf4aab951eb0925ec21a855b1d03))
+- Bump addons-linter, guard dist from vulnerable dev-only packages ([6927d8a](https://github.com/darshi1337/apogee/commit/6927d8ad45316c0ed302becd2e538f13a25f8f63))
 
 ### Security
 
