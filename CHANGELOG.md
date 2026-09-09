@@ -116,6 +116,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Make empty-content summarize branches throw instead of silently returning ([bf569a5](https://github.com/darshi1337/apogee/commit/bf569a5b54de514bac4f55b77bdcfdeccc6ccf86))
 - Accessibility pass on the landing page (#240) ([76de301](https://github.com/darshi1337/apogee/commit/76de301c31ab18318843188e319da92766934c94))
 - Quick audit wins (viewport, icons dup, CSP, ollama leak, abort drain, privateHosts count) ([7cca9d7](https://github.com/darshi1337/apogee/commit/7cca9d792dba1bb821815b1714e4ecbede426654))
+- Bump sharp to 0.35.4 and pin js-yaml to 4.3.2 ([3fdfc2b](https://github.com/darshi1337/apogee/commit/3fdfc2bac06eb0aa7c006b271346bae5021c90f1))
 
 ### Security
 
