@@ -113,6 +113,17 @@ export async function* chatStream(
       );
     }
     throw createConnectionError(OllamaError, "Ollama", host, err);
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      // Safe fallback: best-effort reader cancellation
+    }
+    try {
+      reader.releaseLock();
+    } catch {
+      // Safe fallback: best-effort release of reader lock
+    }
   }
 }
 

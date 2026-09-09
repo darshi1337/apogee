@@ -1,5 +1,5 @@
 import { getSettings } from "./settings.js";
-import { shouldPersist } from "./pageCache.js";
+import { parsePrivateHosts, shouldPersist } from "./pageCache.js";
 
 const AUDIT_LOG_KEY = "apogee_activity_audit_log";
 const MAX_AUDIT_ENTRIES = 20;
@@ -89,8 +89,8 @@ export async function getActivityAuditSummary() {
     storageRetention: {
       saveHistory: settings.saveHistory !== false,
       cachedPagesCount: storageCount,
-      autoWipePrivateHosts: (settings.privateHosts || []).length > 0,
-      privateHostCount: (settings.privateHosts || []).length,
+      autoWipePrivateHosts: parsePrivateHosts(settings.privateHosts).length > 0,
+      privateHostCount: parsePrivateHosts(settings.privateHosts).length,
     },
   };
 }
