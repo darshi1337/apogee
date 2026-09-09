@@ -1,4 +1,8 @@
-import { DEFAULT_SETTINGS, PROVIDERS } from "../constants.js";
+import {
+  DEFAULT_SETTINGS,
+  PROVIDERS,
+  isKnownWebLLMModelId,
+} from "../constants.js";
 import { validateLlamaHost, validateOllamaHost } from "../util/ollamaHost.js";
 
 const PROVIDER_VALUES = new Set(Object.values(PROVIDERS));
@@ -10,6 +14,12 @@ function sanitizeSettings(settings) {
   // validator the service worker enforces at request time.
   if (!PROVIDER_VALUES.has(clean.provider)) {
     clean.provider = DEFAULT_SETTINGS.provider;
+  }
+  // An unknown WebLLM model id would make the offscreen engine fetch config
+  // from the remote CDN instead of the bundled libs, so reset it to the
+  // default rather than passing it through.
+  if (!isKnownWebLLMModelId(clean.webllmModel)) {
+    clean.webllmModel = DEFAULT_SETTINGS.webllmModel;
   }
   try {
     clean.ollamaHost = validateOllamaHost(clean.ollamaHost);

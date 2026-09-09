@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  MAX_BILIBILI_SUBTITLE_CHARS,
+  MAX_BILIBILI_SUBTITLE_SEGMENTS,
   MAX_FINALIZE_TEXT_CHARS,
   MAX_PASTED_CHARS,
   MAX_UPLOAD_FILE_BYTES,
@@ -54,4 +56,9 @@ test("truncatePastedText truncates with a note past the ceiling (#211)", () => {
 
 test("finished-summary backstop is a generous fixed ceiling", () => {
   assert.equal(MAX_FINALIZE_TEXT_CHARS, 1024 * 1024);
+});
+
+test("bilibili subtitle ceilings bound segments and characters", () => {
+  assert.equal(MAX_BILIBILI_SUBTITLE_SEGMENTS, 5000);
+  assert.equal(MAX_BILIBILI_SUBTITLE_CHARS, 500 * 1024);
 });

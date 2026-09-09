@@ -33,6 +33,8 @@ import { truncateForPrompt } from "../lib/summarize/chunk.js";
 import { parseSuggestedQuestions } from "../lib/summarize/questions.js";
 import { extractPdfText } from "../lib/extract/pdfExtract.js";
 import {
+  MAX_BILIBILI_SUBTITLE_CHARS,
+  MAX_BILIBILI_SUBTITLE_SEGMENTS,
   MAX_FINALIZE_TEXT_CHARS,
   MAX_UPLOAD_FILE_BYTES,
 } from "../lib/extract/fileLimits.js";
@@ -1145,7 +1147,12 @@ export async function fetchSponsorBlockSegments(videoId) {
     .map((s) => [s.segment[0], s.segment[1]]);
 }
 
-async function fetchBilibiliSubtitles({ aid, bvid, cid, preferredLang }) {
+export async function fetchBilibiliSubtitles({
+  aid,
+  bvid,
+  cid,
+  preferredLang,
+}) {
   if (!cid || (!aid && !bvid)) return [];
   const cidStr = String(cid);
   if (!/^\d+$/.test(cidStr)) return [];
@@ -1218,14 +1225,23 @@ async function fetchBilibiliSubtitles({ aid, bvid, cid, preferredLang }) {
 
   const body = subData?.body;
   if (!Array.isArray(body)) return [];
-  return body
-    .map((seg) => ({
-      start: Number(seg.from) || 0,
-      text: String(seg.content || "")
-        .replace(/\s+/g, " ")
-        .trim(),
-    }))
-    .filter((seg) => seg.text);
+  // Bounded accumulation: stop at the segment cap and past the char budget
+  // so a malformed track cannot bloat service-worker memory. Segments past
+  // the budget are dropped, never partially kept, to keep start/text pairs
+  // intact.
+  const segments = [];
+  let totalChars = 0;
+  for (const seg of body) {
+    if (segments.length >= MAX_BILIBILI_SUBTITLE_SEGMENTS) break;
+    const text = String(seg?.content || "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!text) continue;
+    if (totalChars + text.length > MAX_BILIBILI_SUBTITLE_CHARS) break;
+    segments.push({ start: Number(seg?.from) || 0, text });
+    totalChars += text.length;
+  }
+  return segments;
 }
 
 async function generateLocalSuggestions(
@@ -2260,6 +2276,9 @@ export async function summarizeMultiTab(tabsToSummarize) {
       url,
       streamId: null,
       summaryText: summaryResult,
+      // No per-tab prompts key exists for a multi-tab synthesis; null clears
+      // any stale single-tab key the merge would otherwise inherit.
+      promptsCacheKey: null,
       summaryLanguage: settings.summaryLanguage,
       translationEngine: settings.translationEngine,
     });

@@ -32,6 +32,14 @@ export const WEBLLM_MODELS = [
 
 const DEFAULT_WEBLLM_MODEL = WEBLLM_MODELS.find((m) => m.default).id;
 
+// Allow-list for WebLLM model ids. Anything else passed to CreateMLCEngine
+// makes it fetch model config from the remote HuggingFace CDN, so unknown
+// ids (stale storage, tampered settings, untrusted message payloads) must be
+// rejected before the engine starts, keeping model loads on the bundled libs.
+export function isKnownWebLLMModelId(id) {
+  return WEBLLM_MODELS.some((m) => m.id === id);
+}
+
 export const TRANSFORMERS_MODELS = [
   {
     id: "HuggingFaceTB/SmolLM2-360M-Instruct",
