@@ -46,11 +46,12 @@
       "suggested_key": {
         "default": "Alt+Shift+A",
         "mac": "Alt+Shift+A"
-      }
+      },
+      "description": "Open Apogee"
     }
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; default-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://huggingface.co https://*.huggingface.co https://*.hf.co https://sponsor.ajay.app https://api.bilibili.com https://*.hdslb.com https://public.api.bsky.app; img-src 'self' data:; font-src 'self'; style-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; default-src 'self'; base-uri 'self'; object-src 'none'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://huggingface.co https://*.huggingface.co https://*.hf.co https://sponsor.ajay.app https://api.bilibili.com https://*.hdslb.com https://public.api.bsky.app; img-src 'self' data:; font-src 'self'; style-src 'self'"
   },
   "background": {
     "service_worker": "background/service-worker.js",

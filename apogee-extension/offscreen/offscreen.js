@@ -267,7 +267,7 @@ async function* drainWebLLMStream(eng, completion, signal, onFinalStats) {
       interrupted = true;
       eng.interruptGenerate();
     }
-    if (interrupted) continue;
+    if (interrupted) break;
     const text = chunk.choices?.[0]?.delta?.content || "";
     if (text) yield text;
     reportWebLLMFinalStats(chunk, onFinalStats);
