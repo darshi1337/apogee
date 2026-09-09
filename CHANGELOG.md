@@ -118,6 +118,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Quick audit wins (viewport, icons dup, CSP, ollama leak, abort drain, privateHosts count) ([7cca9d7](https://github.com/darshi1337/apogee/commit/7cca9d792dba1bb821815b1714e4ecbede426654))
 - Bump sharp to 0.35.4 and pin js-yaml to 4.3.2 ([3fdfc2b](https://github.com/darshi1337/apogee/commit/3fdfc2bac06eb0aa7c006b271346bae5021c90f1))
 - Orphan view-state keys, dedupe highlight matcher, harden generate-text ([0a0c244](https://github.com/darshi1337/apogee/commit/0a0c244e64a7a16b61a6c6eb15202044661b5827))
+- Multi-tab view-state shape, subtitle caps, model allow-list, rag key ([1bc2052](https://github.com/darshi1337/apogee/commit/1bc2052896b0a3eb7747647046597143bfd5ceb5))
+- Exact hostname match in bilibili subtitle test mock ([22ca001](https://github.com/darshi1337/apogee/commit/22ca00161b9cdf4aab951eb0925ec21a855b1d03))
 
 ### Security
 
