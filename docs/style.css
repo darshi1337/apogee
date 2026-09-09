@@ -84,6 +84,27 @@ body {
 img, svg { display: block; max-width: 100%; }
 a { color: inherit; text-decoration: none; }
 
+/* Skip link: visually hidden until keyboard focus lands on it. */
+.skip {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 100;
+  padding: 0.75rem 1.25rem;
+  background: var(--ink);
+  color: #fff;
+  font-size: 1rem;
+  transition: top 0.2s ease;
+}
+.skip:focus-visible { top: 1rem; }
+
+/* One visible keyboard indicator for every control, on light and dark
+   surfaces alike (purple holds 3:1 against both). */
+:focus-visible {
+  outline: 3px solid var(--purple);
+  outline-offset: 3px;
+}
+
 /* Monochrome icons drawn from assets/icons via mask, so they keep inheriting
    `color` (and its hover transitions) the way inline SVG did. */
 .ico {
@@ -395,7 +416,7 @@ h4 { font-size: 1.75rem; }
   color: var(--text);
   margin-bottom: 0.75rem;
 }
-.cta-b1 { grid-column: 3; grid-row: 2; }
+.cta-b1 { grid-column: 3; grid-row: 2; text-transform: uppercase; }
 .cta-b2 { grid-column: 4; grid-row: 3; }
 .cta .btn {
   width: 100%;
@@ -412,7 +433,7 @@ h4 { font-size: 1.75rem; }
 }
 .foot-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.875rem; }
 .fcol { display: flex; flex-direction: column; gap: 1rem; }
-.fcol h4 {
+.fcol h3 {
   font-family: var(--body);
   font-size: 1rem;
   font-weight: 500;
@@ -482,6 +503,8 @@ h4 { font-size: 1.75rem; }
   html { scroll-behavior: auto; }
   .reveal { opacity: 1; transform: none; transition: none; }
   [data-split] .w { opacity: 1; transform: none; animation: none; }
+  .tile, .tile:hover { transform: none; }
+  .btn, .nav-links a, .ghlink, .fcol a, .fsocial a, .skip { transition: none; }
 }
 
 @media (max-width: 991px) {
