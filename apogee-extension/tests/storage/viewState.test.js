@@ -8,6 +8,9 @@ import {
   clearAllViewStates,
   isViewStateKey,
   removeViewState,
+  cleanupOrphanedViewStates,
+  isValidTabId,
+  isOrphanedViewStateKey,
 } from "../../lib/storage/viewState.js";
 import { hashUrl } from "../../lib/storage/pageCache.js";
 
@@ -247,6 +250,72 @@ test("saveViewState returns null and writes nothing for null tabId", async () =>
     await saveViewState(undefined, { view: "homeView" }),
     null,
   );
+});
+
+test("saveViewState rejects non-numeric tab ids instead of creating orphan keys", async () => {
+  const data = installFakeStorage({ settings: { saveHistory: true } });
+  assert.strictEqual(
+    await saveViewState("https://example.com/article", {
+      view: "summaryView",
+    }),
+    null,
+  );
+  assert.strictEqual(await saveViewState("7", { view: "summaryView" }), null);
+  assert.strictEqual(await saveViewState(7.5, { view: "summaryView" }), null);
+  assert.strictEqual(await saveViewState(-1, { view: "summaryView" }), null);
+  assert.strictEqual(await saveViewState(NaN, { view: "summaryView" }), null);
+  assert.deepStrictEqual(
+    Object.keys(data).filter((k) => k.startsWith("popupViewState:")),
+    [],
+  );
+  assert.strictEqual(data.viewStateOrder, undefined);
+  assert.strictEqual(await loadViewState("https://example.com/a"), null);
+  assert.strictEqual(await loadViewState("7"), null);
+  // String ids must not throw or delete anything either.
+  await removeViewState("https://example.com/a");
+  assert.deepStrictEqual(
+    Object.keys(data).filter((k) => k.startsWith("popupViewState:")),
+    [],
+  );
+});
+
+test("isValidTabId only accepts non-negative integer tab ids", () => {
+  assert.strictEqual(isValidTabId(0), true);
+  assert.strictEqual(isValidTabId(7), true);
+  assert.strictEqual(isValidTabId("7"), false);
+  assert.strictEqual(isValidTabId("https://example.com"), false);
+  assert.strictEqual(isValidTabId(1.5), false);
+  assert.strictEqual(isValidTabId(-1), false);
+  assert.strictEqual(isValidTabId(null), false);
+  assert.strictEqual(isValidTabId(undefined), false);
+});
+
+test("cleanupOrphanedViewStates removes legacy URL-keyed states and prunes the order index", async () => {
+  const data = installFakeStorage({
+    settings: { saveHistory: true },
+    "popupViewState:https://example.com/article?token=hunter2": {
+      view: "summaryView",
+    },
+    "popupViewState:7": { view: "summaryView" },
+    viewStateOrder: [
+      "popupViewState:7",
+      "popupViewState:https://example.com/article?token=hunter2",
+    ],
+  });
+  assert.strictEqual(isOrphanedViewStateKey("popupViewState:7"), false);
+  assert.strictEqual(
+    isOrphanedViewStateKey("popupViewState:https://example.com/a"),
+    true,
+  );
+  const removed = await cleanupOrphanedViewStates();
+  assert.strictEqual(removed, 1);
+  assert.strictEqual(
+    data["popupViewState:https://example.com/article?token=hunter2"],
+    undefined,
+  );
+  assert.notStrictEqual(data["popupViewState:7"], undefined);
+  assert.deepStrictEqual(data.viewStateOrder, ["popupViewState:7"]);
+  assert.ok(!JSON.stringify(data).includes("hunter2"));
 });
 
 test("saveViewStateIfJobMatches returns null for falsy jobId", async () => {

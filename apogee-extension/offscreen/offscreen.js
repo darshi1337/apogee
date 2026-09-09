@@ -853,9 +853,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        // Single-shot (non-streaming) generation for multi-tab synthesis in
+        // service-worker.js summarizeMultiTab, which combines several tabs
+        // into one prompt and cannot use the streaming summarize/ask job
+        // flow. Registered route: service-worker sends
+        // { target: "offscreen", action: "generate-text" } for the
+        // WebLLM/Transformers providers.
         case "generate-text": {
+          const payload =
+            message.payload && typeof message.payload === "object"
+              ? message.payload
+              : {};
           const { prompt, model, provider, language, translationEngine } =
-            message.payload;
+            payload;
+          if (typeof prompt !== "string" || !prompt.trim()) {
+            sendResponse({ error: "generate-text requires a prompt" });
+            break;
+          }
           const qLanguage = await resolveEffectiveLanguage("", language);
           const translateFn = opusTranslateFor(translationEngine);
           const text =

@@ -45,8 +45,13 @@ function copyStaticPlugin(targetBrowser) {
         recursive: true,
       });
 
+      // content/highlight.js is a bundled Vite entry (it imports the
+      // passage matcher from lib/), so skip the raw source file here and
+      // keep the bundled output that already landed at dist/content/.
       cpSync(resolve(__dirname, "content"), resolve(dist, "content"), {
         recursive: true,
+        filter: (src) =>
+          !src.replace(/\\/g, "/").endsWith("content/highlight.js"),
       });
 
       cpSync(resolve(__dirname, "rules"), resolve(dist, "rules"), {
@@ -91,6 +96,10 @@ export default defineConfig(() => {
       __dirname,
       "background/service-worker.js",
     ),
+    // Bundled so content/highlight.js can import the passage matcher from
+    // lib/ instead of duplicating it; output lands at content/highlight.js,
+    // the same path ui/app.js injects via chrome.scripting.executeScript.
+    "content/highlight": resolve(__dirname, "content/highlight.js"),
     "pdf.worker": resolve(
       __dirname,
       "node_modules/pdfjs-dist/build/pdf.worker.mjs",
