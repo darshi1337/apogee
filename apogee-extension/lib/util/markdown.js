@@ -60,6 +60,29 @@ export function isLinkifiableHref(href, { allowAlwaysHosts = true } = {}) {
 }
 
 /**
+ * Resolve a clicked href against the page URL and allow-list the protocol.
+ * Returns the absolute http(s) URL to navigate to, or null when the href is
+ * missing, unparseable, relative-to-a-non-http(s)-base, or a dangerous
+ * scheme (javascript:, data:, ...). The URL parser normalizes case and
+ * strips leading C0 controls/whitespace, so obfuscated variants like
+ * `JaVaScRiPt:` or `"  javascript:..."` are rejected too. Used by the
+ * summary click handler so navigation can never outrun the sanitizer (#266).
+ */
+export function resolveNavigableHttpUrl(href, base) {
+  if (typeof href !== "string" || href === "") return null;
+  let resolved;
+  try {
+    resolved = new URL(href, base);
+  } catch {
+    return null;
+  }
+  if (resolved.protocol !== "http:" && resolved.protocol !== "https:") {
+    return null;
+  }
+  return resolved.href;
+}
+
+/**
  * Reject hrefs that could break out of the href="..." attribute or use a
  * dangerous scheme. `href` here is the escaped-form match (entities intact),
  * so a literal quote would appear as &quot; — reject those outright and only

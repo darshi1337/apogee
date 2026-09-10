@@ -15,11 +15,12 @@ test("summary links allow only http(s) protocols (#266)", () => {
   assert.ok(summaryLinkHandler, "summary link click handler must exist");
   assert.match(
     summaryLinkHandler,
-    /new URL\(url, window\.location\.href\)\.protocol/,
+    /resolveNavigableHttpUrl\(\s*link\.getAttribute\("href"\),\s*window\.location\.href,?\s*\)/,
+    "handler must resolve the href through the http(s) allowlist",
   );
   assert.match(
     summaryLinkHandler,
-    /protocol !== "http:" && protocol !== "https:"/,
-    "summary links must reject javascript:, data:, and other non-http(s) protocols",
+    /if\s*\(\s*!url\s*\)\s*return;/,
+    "summary links must bail on javascript:, data:, and other non-http(s) hrefs",
   );
 });
