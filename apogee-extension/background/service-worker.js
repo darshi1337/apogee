@@ -198,6 +198,89 @@ function registerStreamJob(streamId, jobData) {
   scheduleStreamCleanup(streamId);
 }
 
+// Summaries that finished generating but could not be persisted (e.g. storage
+// quota). Kept in memory so the text survives for a retry even when every
+// storage write is rejecting. Bounded so a quota-stuck browser cannot grow it
+// without limit; entries are dropped oldest-first.
+export const pendingFinalizeRetries = new Map();
+const MAX_PENDING_FINALIZE_RETRIES = 10;
+
+export function preservePendingFinalize({ finalize, model, title, url, text }) {
+  const jobId = finalize?.jobId || finalize?.cacheKey || `${Date.now()}`;
+  if (pendingFinalizeRetries.has(jobId)) {
+    pendingFinalizeRetries.delete(jobId);
+  }
+  while (pendingFinalizeRetries.size >= MAX_PENDING_FINALIZE_RETRIES) {
+    const oldest = pendingFinalizeRetries.keys().next().value;
+    pendingFinalizeRetries.delete(oldest);
+  }
+  pendingFinalizeRetries.set(jobId, {
+    finalize,
+    model,
+    title,
+    url,
+    text,
+    savedAt: Date.now(),
+  });
+  return jobId;
+}
+
+export function takePendingFinalize(jobId) {
+  const entry = pendingFinalizeRetries.get(jobId);
+  if (entry) pendingFinalizeRetries.delete(jobId);
+  return entry || null;
+}
+
+export const FINALIZE_FAILED_MESSAGE =
+  "Couldn't save this summary (storage unavailable). The text above is preserved — try summarizing again.";
+
+function notifyFinalizeFailure({ finalize, error, streamId }) {
+  console.error("Failed to finalize summary:", error);
+  const jobId = finalize?.jobId || null;
+  const promptsCacheKey = finalize?.promptsCacheKey || null;
+  const stream = streamId ? activeStreams.get(streamId) : null;
+  if (stream) {
+    try {
+      broadcastToStream(stream, {
+        type: "error",
+        error: FINALIZE_FAILED_MESSAGE,
+        userFacing: true,
+        finalizeFailed: true,
+        jobId,
+        promptsCacheKey,
+      });
+    } catch {}
+  }
+  try {
+    chrome.runtime
+      .sendMessage({
+        type: "finalize-failed",
+        jobId,
+        promptsCacheKey,
+        error: FINALIZE_FAILED_MESSAGE,
+      })
+      .catch(() => {});
+  } catch {}
+  if (finalize?.notifyOnFinish) {
+    try {
+      notifyJobFailed(new UserFacingError(FINALIZE_FAILED_MESSAGE));
+    } catch {}
+  } else if (!stream) {
+    // No popup stream to show the banner and no completion notification
+    // requested: the notification is the only user-visible surface left.
+    // Background-initiated summaries always set notifyOnFinish, so this only
+    // fires for popup flows whose stream already went away.
+    try {
+      chrome.runtime
+        .sendMessage({
+          type: "model-progress",
+          progress: { progress: 0, text: FINALIZE_FAILED_MESSAGE },
+        })
+        .catch(() => {});
+    } catch {}
+  }
+}
+
 async function recordPopupSummaryStream(payload, streamId) {
   const finalize = payload?.finalize;
   if (!finalize?.jobId || finalize.tabId == null) return;
@@ -499,7 +582,14 @@ function createBufferedStream(streamId, { finalize, model, title, url }) {
     broadcastToStream(stream, msg);
     scheduleStreamCleanup(streamId);
     if (msg.type === "done") {
-      finalizeSummaryJob({ finalize, model, title, url, text: stream.text });
+      finalizeSummaryJob({
+        finalize,
+        model,
+        title,
+        url,
+        text: stream.text,
+        streamId,
+      }).catch((err) => console.error("Failed to finalize summary:", err));
     }
   };
 
@@ -1289,8 +1379,8 @@ async function runSuggestQuestionsJob(payload) {
   pendingSuggestKeys.add(promptsCacheKey);
   startKeepAlive();
 
+  let questions = [];
   try {
-    let questions = [];
     try {
       if (providerType === PROVIDERS.LLAMACPP) {
         const { llamaHost, llamaApiKey } = await getSettings();
@@ -1342,8 +1432,14 @@ async function runSuggestQuestionsJob(payload) {
     }
 
     // Generating the questions takes its own trip through the model, so the setting gets one more look before this write too.
-    if (persist && (await shouldPersist(persistUrl || url))) {
-      await chrome.storage.local.set({ [promptsCacheKey]: questions });
+    // A quota-full disk must not take down finalize: keep the in-memory
+    // questions for the popup even when the cache write rejects.
+    try {
+      if (persist && (await shouldPersist(persistUrl || url))) {
+        await chrome.storage.local.set({ [promptsCacheKey]: questions });
+      }
+    } catch (err) {
+      console.error("Failed to cache suggested questions:", err);
     }
     chrome.runtime
       .sendMessage({
@@ -1352,13 +1448,31 @@ async function runSuggestQuestionsJob(payload) {
         questions,
       })
       .catch(() => {});
+  } catch (err) {
+    console.error("Suggest-questions job failed:", err);
+    try {
+      chrome.runtime
+        .sendMessage({
+          type: "suggested-prompts-ready",
+          promptsCacheKey,
+          questions,
+        })
+        .catch(() => {});
+    } catch {}
   } finally {
     pendingSuggestKeys.delete(promptsCacheKey);
   }
 }
 
-async function finalizeSummaryJob({ finalize, model, title, url, text }) {
-  if (!finalize) return;
+export async function finalizeSummaryJob({
+  finalize,
+  model,
+  title,
+  url,
+  text,
+  streamId = null,
+}) {
+  if (!finalize) return { ok: true, persisted: false };
   // stream-finished text arrives via extension messaging and fans out into
   // cache/history/view-state: bound it at the trust boundary before use.
   if (typeof text === "string" && text.length > MAX_FINALIZE_TEXT_CHARS) {
@@ -1383,49 +1497,56 @@ async function finalizeSummaryJob({ finalize, model, title, url, text }) {
     translationEngine,
   } = finalize;
 
-  // `persist` is what was true when the job started. The write only happens if it is still true now, so turning history off mid-generation also excludes the summary that is running.
-  const persisted =
-    persist &&
-    (await persistSummaryIfAllowed(
-      persistUrl || url,
-      cacheKey,
-      promptsCacheKey,
-      text,
-      title,
-    ));
-
-  if (persisted || isSelection) {
-    await saveViewStateIfJobMatches(
-      tabId,
-      jobId,
-      {
-        view: "summaryView",
-        subview: "summary",
-        url: persistUrl || url,
-        streamId: null,
-        summaryText: text,
+  try {
+    // `persist` is what was true when the job started. The write only happens if it is still true now, so turning history off mid-generation also excludes the summary that is running.
+    const persisted =
+      persist &&
+      (await persistSummaryIfAllowed(
+        persistUrl || url,
+        cacheKey,
         promptsCacheKey,
-        summaryLanguage: language,
-        translationEngine,
-      },
-      "summarizing",
-    );
-  }
-  runSuggestQuestionsJob({
-    promptsCacheKey,
-    persist: persisted,
-    persistUrl: persistUrl || url,
-    providerType,
-    host,
-    title,
-    url,
-    summary: text,
-    model,
-    language,
-    translationEngine,
-  });
-  if (notifyOnFinish) {
-    notifyJobComplete({ title: sensitive ? "" : title, tabId, windowId });
+        text,
+        title,
+      ));
+
+    if (persisted || isSelection) {
+      await saveViewStateIfJobMatches(
+        tabId,
+        jobId,
+        {
+          view: "summaryView",
+          subview: "summary",
+          url: persistUrl || url,
+          streamId: null,
+          summaryText: text,
+          promptsCacheKey,
+          summaryLanguage: language,
+          translationEngine,
+        },
+        "summarizing",
+      );
+    }
+    runSuggestQuestionsJob({
+      promptsCacheKey,
+      persist: persisted,
+      persistUrl: persistUrl || url,
+      providerType,
+      host,
+      title,
+      url,
+      summary: text,
+      model,
+      language,
+      translationEngine,
+    }).catch((err) => console.error("Suggest-questions job failed:", err));
+    if (notifyOnFinish) {
+      notifyJobComplete({ title: sensitive ? "" : title, tabId, windowId });
+    }
+    return { ok: true, persisted: !!persisted };
+  } catch (err) {
+    preservePendingFinalize({ finalize, model, title, url, text });
+    notifyFinalizeFailure({ finalize, title, error: err, streamId });
+    return { ok: false, error: err };
   }
 }
 
@@ -1721,35 +1842,60 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.error) return false;
     (async () => {
       const streamId = message.streamId;
-      const registeredJob = streamId
-        ? registeredStreamJobs.get(streamId)
-        : null;
-      if (streamId) {
-        registeredStreamJobs.delete(streamId);
+      const fallbackTitle = message.title;
+      const fallbackUrl = message.url;
+      const fallbackText = message.text;
+      try {
+        const registeredJob = streamId
+          ? registeredStreamJobs.get(streamId)
+          : null;
+        if (streamId) {
+          registeredStreamJobs.delete(streamId);
+        }
+
+        const trustedFinalize =
+          registeredJob?.finalize ||
+          (message.finalize
+            ? await buildTrustedFinalize({
+                url: message.url,
+                title: message.title,
+                model: message.model,
+                finalize: message.finalize,
+              })
+            : null);
+        const model = registeredJob?.model || message.model;
+        const title = registeredJob?.title || message.title;
+        const url = registeredJob?.url || message.url;
+
+        await finalizeSummaryJob({
+          finalize: trustedFinalize,
+          model,
+          title,
+          url,
+          text: message.text,
+          streamId,
+        });
+      } catch (err) {
+        // buildTrustedFinalize can throw (e.g. storage read failure) before
+        // finalizeSummaryJob ever runs; preserve the text here so the same
+        // quota failure does not silently drop the finished summary.
+        try {
+          preservePendingFinalize({
+            finalize: message.finalize || null,
+            model: message.model,
+            title: fallbackTitle,
+            url: fallbackUrl,
+            text: fallbackText,
+          });
+        } catch {}
+        notifyFinalizeFailure({
+          finalize: message.finalize || null,
+          title: fallbackTitle,
+          error: err,
+          streamId,
+        });
       }
-
-      const trustedFinalize =
-        registeredJob?.finalize ||
-        (message.finalize
-          ? await buildTrustedFinalize({
-              url: message.url,
-              title: message.title,
-              model: message.model,
-              finalize: message.finalize,
-            })
-          : null);
-      const model = registeredJob?.model || message.model;
-      const title = registeredJob?.title || message.title;
-      const url = registeredJob?.url || message.url;
-
-      await finalizeSummaryJob({
-        finalize: trustedFinalize,
-        model,
-        title,
-        url,
-        text: message.text,
-      });
-    })();
+    })().catch((err) => console.error("stream-finished handler failed:", err));
     return false;
   }
 
@@ -1985,7 +2131,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             ...(promptsCacheKey ? { promptsCacheKey } : {}),
             providerType: getProviderType(settings),
             host: settings.ollamaHost,
-          });
+          }).catch((err) =>
+            console.error("Suggest-questions job failed:", err),
+          );
           sendResponse({ started: true });
           break;
         }
