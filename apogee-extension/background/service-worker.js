@@ -11,7 +11,7 @@ import {
   checkHealth as llamaCheckHealth,
   DEFAULT_CONTEXT_TOKENS as LLAMACPP_DEFAULT_CONTEXT_TOKENS,
 } from "../lib/engines/llamaCppClient.js";
-import { getMaxChunkChars } from "../lib/engines/modelLimits.js";
+import { getMaxChunkChars, getMaxChunks } from "../lib/engines/modelLimits.js";
 import {
   tokensForChunk,
   isWarmedUp,
@@ -27,9 +27,12 @@ import {
   buildAnswerPrompt,
   buildSuggestQuestionsPrompt,
   buildMultiTabSummaryPrompt,
+  buildExtractNotesPrompt,
+  buildSynthesisPrompt,
   withCustomInstructions,
 } from "../lib/summarize/prompts.js";
 import { truncateForPrompt } from "../lib/summarize/chunk.js";
+import { mapReduceStream } from "../lib/summarize/mapReduce.js";
 import { parseSuggestedQuestions } from "../lib/summarize/questions.js";
 import { extractPdfText } from "../lib/extract/pdfExtract.js";
 import {
@@ -2140,20 +2143,45 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onInstalled) {
 }
 setupContextMenus();
 
-export async function summarizeMultiTab(tabsToSummarize) {
+export async function summarizeMultiTab(tabsToSummarize, opts = {}) {
+  const signal = opts?.signal;
+  if (signal?.aborted) return null;
+
+  const settings = await getSettings();
+  const providerType = getProviderType(settings);
+  const model = getModelForSettings(settings);
+
+  // Bound the total input to the model's chunk budget so N tabs x M chars
+  // cannot build an unbounded prompt. Each tab gets an equal share of the
+  // map-reduce budget (maxChunks * maxChunkChars).
+  const maxChunkChars = getMaxChunkChars(model);
+  const maxChunks = getMaxChunks(model);
+  const totalBudget = Math.max(maxChunks * maxChunkChars, 1000);
+  const tabCount = Math.max(1, (tabsToSummarize || []).length);
+  const perTabBudget = Math.max(
+    1000,
+    Math.floor(totalBudget / Math.min(tabCount, 32)),
+  );
+
   const extractedResults = [];
-  for (const tab of tabsToSummarize) {
+  for (const tab of tabsToSummarize || []) {
+    if (signal?.aborted) return null;
     try {
       if (!tab?.url) continue;
       let pageData = await extractFromActiveTab(tab);
       if (pageData?.isPdf) {
         pageData.content = await extractPdfContent(tab);
       }
-      if (pageData && pageData.content && pageData.content.trim()) {
+      const raw = (pageData?.content || "").trim();
+      if (pageData && raw) {
+        const content =
+          raw.length > perTabBudget
+            ? `${raw.slice(0, perTabBudget).trim()}\n\n[...content truncated...]`
+            : raw;
         extractedResults.push({
           title: pageData.title || tab.title || "Untitled Tab",
           url: tab.url,
-          content: pageData.content.trim(),
+          content,
           type: pageData.type || "article",
         });
       }
@@ -2162,15 +2190,17 @@ export async function summarizeMultiTab(tabsToSummarize) {
     }
   }
 
-  if (extractedResults.length === 0) {
-    if (typeof chrome !== "undefined" && chrome.notifications) {
-      chrome.notifications.create("apogee-multitab-error", {
-        type: "basic",
-        iconUrl:
-          chrome.runtime.getURL("assets/icon.png") || "assets/icon-48.png",
-        title: "Apogee",
-        message: "Could not extract content from the selected tab(s).",
-      });
+  if (extractedResults.length === 0 || signal?.aborted) {
+    if (extractedResults.length === 0) {
+      if (typeof chrome !== "undefined" && chrome.notifications) {
+        chrome.notifications.create("apogee-multitab-error", {
+          type: "basic",
+          iconUrl:
+            chrome.runtime.getURL("assets/icon.png") || "assets/icon-48.png",
+          title: "Apogee",
+          message: "Could not extract content from the selected tab(s).",
+        });
+      }
     }
     return null;
   }
@@ -2185,19 +2215,39 @@ export async function summarizeMultiTab(tabsToSummarize) {
     });
   }
 
-  const settings = await getSettings();
   const title = `Multi-Tab Summary (${extractedResults.length} tabs)`;
   const url = tabsToSummarize[0]?.url || extractedResults[0].url;
+
+  // Persist gate: a multi-tab synthesis mixes every tab's content into one
+  // stored summary, so one private tab (or "Don't save") poisons the whole
+  // result. Skip view-state persistence unless every URL is persistable.
+  // saveViewState() would additionally scrub on the owner URL, but that alone
+  // cannot see the other tabs' hosts.
+  let persistAllowed = settings.saveHistory !== false;
+  if (persistAllowed) {
+    const urlsToCheck = [url, ...extractedResults.map((r) => r.url)];
+    for (const u of urlsToCheck) {
+      if (signal?.aborted) return null;
+      if (await isPrivateUrl(u, settings)) {
+        persistAllowed = false;
+        break;
+      }
+    }
+  }
 
   const prompt = withCustomInstructions(
     buildMultiTabSummaryPrompt(extractedResults, settings.responseFormat),
     settings.customInstructions,
   );
 
-  const providerType = getProviderType(settings);
-  const model = getModelForSettings(settings);
+  // Language detection only needs a bounded sample; the previous join() held
+  // every tab's full text in a second copy.
+  const langSample = extractedResults
+    .map((r) => (r.content || "").slice(0, 2000))
+    .join("\n")
+    .slice(0, 8000);
   const qLanguage = await resolveEffectiveLanguage(
-    extractedResults.map((r) => r.content).join("\n"),
+    langSample,
     settings.summaryLanguage,
   );
   const translateFn =
@@ -2205,41 +2255,131 @@ export async function summarizeMultiTab(tabsToSummarize) {
       ? makeOpusTranslateFn(() => {})
       : undefined;
 
+  // Combined document preserves tab attribution across chunk boundaries, so
+  // the map-reduce path covers every tab instead of truncating to one prompt.
+  const combinedText = extractedResults
+    .map((t, i) => `--- TAB ${i + 1}: ${t.title} (${t.url}) ---\n${t.content}`)
+    .join("\n\n");
+
+  async function collectStream(generator) {
+    let out = "";
+    for await (const token of generator) {
+      if (signal?.aborted) return out;
+      out += token;
+    }
+    return out;
+  }
+
+  function multiTabBuilders() {
+    return {
+      buildSingle: () => prompt,
+      buildMap: (chunk, i, total) =>
+        buildExtractNotesPrompt(title, chunk, i, total),
+      buildReduce: (partials) =>
+        withCustomInstructions(
+          buildSynthesisPrompt(
+            title,
+            url,
+            partials.join("\n"),
+            settings.responseFormat,
+          ),
+          settings.customInstructions,
+        ),
+    };
+  }
+
   let summaryResult;
   if (providerType === PROVIDERS.LOCAL) {
     const validHost = validateLoopbackHost(
       settings.ollamaHost,
       OLLAMA_PROVIDER.label,
     );
-    const chat = (p, opts) => chatStream(validHost, model, p, opts);
-    summaryResult = await generateInTargetLanguage(chat, prompt, qLanguage, {
-      translateFn,
-    });
+    // mapReduceStream calls chatStreamFn(host, model, prompt, opts); pass
+    // the raw client and merge the outer cancel signal so per-chunk calls
+    // abort with the multi-tab job.
+    const ollamaChat = (host, modelArg, promptArg, streamOpts) =>
+      chatStream(host, modelArg, promptArg, {
+        ...streamOpts,
+        signal: streamOpts?.signal ?? signal,
+      });
+    summaryResult = await collectStream(
+      mapReduceStream(
+        {
+          text: combinedText,
+          model,
+          host: validHost,
+          signal,
+          language: qLanguage,
+        },
+        {
+          chunkTextFn: chunkBySections,
+          chatStreamFn: ollamaChat,
+          translateFn,
+        },
+        multiTabBuilders(),
+      ),
+    );
   } else if (providerType === PROVIDERS.LLAMACPP) {
     const validHost = validateLoopbackHost(
       settings.llamaHost,
       LLAMACPP_PROVIDER.label,
     );
-    const chat = (p, opts) =>
-      llamaChatStream(validHost, model, p, {
-        ...opts,
+    const llamaChat = (host, modelArg, promptArg, streamOpts) =>
+      llamaChatStream(host, modelArg, promptArg, {
+        ...streamOpts,
+        signal: streamOpts?.signal ?? signal,
         apiKey: settings.llamaApiKey,
       });
-    summaryResult = await generateInTargetLanguage(chat, prompt, qLanguage, {
-      translateFn,
-    });
+    summaryResult = await collectStream(
+      mapReduceStream(
+        {
+          text: combinedText,
+          model,
+          host: validHost,
+          signal,
+          language: qLanguage,
+        },
+        {
+          chunkTextFn: chunkBySections,
+          chatStreamFn: llamaChat,
+          translateFn,
+        },
+        multiTabBuilders(),
+      ),
+    );
   } else if (providerType === PROVIDERS.TRANSFORMERS && !hasOffscreenAPI) {
     summaryResult = await withTransformersEngine(model, null, async (eng) => {
-      const chat = (p, opts) =>
-        transformersChatStream(eng, p, { system: opts?.system });
-      return generateInTargetLanguage(chat, prompt, qLanguage, { translateFn });
+      const transformersChat = (_host, _model, promptArg, streamOpts) =>
+        transformersChatStream(eng, promptArg, {
+          system: streamOpts?.system,
+        });
+      return collectStream(
+        mapReduceStream(
+          {
+            text: combinedText,
+            model,
+            host: null,
+            signal,
+            language: qLanguage,
+          },
+          {
+            chunkTextFn: chunkBySections,
+            chatStreamFn: transformersChat,
+            translateFn,
+          },
+          multiTabBuilders(),
+        ),
+      );
     });
   } else {
     // WebLLM/Transformers run inside the offscreen document. Multi-tab uses
     // the single-shot "generate-text" route there (handled in
     // offscreen/offscreen.js) because there is one synthesized prompt rather
-    // than a per-tab stream.
+    // than a per-tab stream. The prompt above is already bounded to the
+    // model budget via perTabBudget.
+    if (signal?.aborted) return null;
     await ensureOffscreenDocument();
+    if (signal?.aborted) return null;
     const response = await chrome.runtime.sendMessage({
       target: "offscreen",
       action: "generate-text",
@@ -2252,9 +2392,12 @@ export async function summarizeMultiTab(tabsToSummarize) {
         translationEngine: settings.translationEngine,
       },
     });
+    if (signal?.aborted) return null;
     if (response?.error) throw new Error(response.error);
     summaryResult = response?.text || "";
   }
+
+  if (signal?.aborted) return null;
 
   const pageData = {
     type: "multi-tab",
@@ -2268,8 +2411,11 @@ export async function summarizeMultiTab(tabsToSummarize) {
   // multi-tab result must live under the owning tab's numeric id. Keying by
   // URL string used to create unreachable `popupViewState:https://...` keys
   // that leaked raw URLs into key names and were never cleaned on tab close.
+  // Skipped entirely when any tab is private or history is off (see
+  // persistAllowed above); viewState eviction (50 entries, FIFO) and
+  // tabs.onRemoved reaping handle the rest.
   const ownerTabId = tabsToSummarize.find((t) => Number.isInteger(t?.id))?.id;
-  if (ownerTabId != null) {
+  if (ownerTabId != null && persistAllowed && !signal?.aborted) {
     await saveViewState(ownerTabId, {
       view: "summaryView",
       subview: "summary",
