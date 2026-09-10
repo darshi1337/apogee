@@ -233,3 +233,216 @@ test("summarizeMultiTab handles WebLLM provider by messaging offscreen generate-
   );
   assert.strictEqual(result.summary, "- Synthesized WebLLM bullet summary.");
 });
+
+async function setupLocalLoopbackStub(captured) {
+  chrome.scripting = {
+    executeScript: async () => [
+      { result: chrome.runtime.getManifest().version },
+    ],
+  };
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    if (url.toString().includes("11434")) {
+      const body = JSON.parse(options.body);
+      captured.push(body.prompt || body.messages?.[0]?.content || "");
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(
+            new TextEncoder().encode(
+              JSON.stringify({
+                message: { role: "assistant", content: "- Stub summary.\n" },
+                done: true,
+              }) + "\n",
+            ),
+          );
+          controller.close();
+        },
+      });
+      return new Response(stream, { status: 200 });
+    }
+    return originalFetch(url, options);
+  };
+  return () => {
+    globalThis.fetch = originalFetch;
+  };
+}
+
+function stubTabContentByUrl(entries) {
+  chrome.scripting = {
+    executeScript: async () => [
+      { result: chrome.runtime.getManifest().version },
+    ],
+  };
+  chrome.tabs.sendMessage = async (tabId, _msg) => entries[tabId];
+}
+
+test("summarizeMultiTab skips view-state persistence when a tab is on a private host", async () => {
+  await chrome.storage.local.set({
+    settings: {
+      provider: PROVIDERS.LOCAL,
+      localModel: "qwen3:8b",
+      ollamaHost: "http://127.0.0.1:11434",
+      responseFormat: "bullets",
+      summaryLanguage: "auto",
+      saveHistory: true,
+      privateHosts: "myclinic.org",
+    },
+  });
+  stubTabContentByUrl({
+    41: { content: "Public article text", title: "Public", type: "article" },
+    42: { content: "Private lab results", title: "Results", type: "article" },
+  });
+  const requested = [];
+  const restore = await setupLocalLoopbackStub(requested);
+  try {
+    const result = await summarizeMultiTab([
+      { id: 41, url: "https://example.com/public", title: "Public" },
+      { id: 42, url: "https://portal.myclinic.org/results", title: "Results" },
+    ]);
+    assert.ok(result);
+    const stored = await chrome.storage.local.get("popupViewState:41");
+    assert.strictEqual(stored["popupViewState:41"], undefined);
+  } finally {
+    restore();
+  }
+});
+
+test("summarizeMultiTab skips view-state persistence when history is off", async () => {
+  await chrome.storage.local.set({
+    settings: {
+      provider: PROVIDERS.LOCAL,
+      localModel: "qwen3:8b",
+      ollamaHost: "http://127.0.0.1:11434",
+      responseFormat: "bullets",
+      summaryLanguage: "auto",
+      saveHistory: false,
+    },
+  });
+  stubTabContentByUrl({
+    43: {
+      content: "Ordinary article text",
+      title: "Ordinary",
+      type: "article",
+    },
+  });
+  const requested = [];
+  const restore = await setupLocalLoopbackStub(requested);
+  try {
+    const result = await summarizeMultiTab([
+      { id: 43, url: "https://example.com/ordinary", title: "Ordinary" },
+    ]);
+    assert.ok(result);
+    const stored = await chrome.storage.local.get("popupViewState:43");
+    assert.strictEqual(stored["popupViewState:43"], undefined);
+  } finally {
+    restore();
+  }
+});
+
+test("summarizeMultiTab persists under the numeric owner id and never under a URL key", async () => {
+  await chrome.storage.local.set({
+    settings: {
+      provider: PROVIDERS.LOCAL,
+      localModel: "qwen3:8b",
+      ollamaHost: "http://127.0.0.1:11434",
+      responseFormat: "bullets",
+      summaryLanguage: "auto",
+      saveHistory: true,
+      privateHosts: "",
+    },
+  });
+  stubTabContentByUrl({
+    44: { content: "First tab text", title: "First", type: "article" },
+    45: { content: "Second tab text", title: "Second", type: "article" },
+  });
+  const requested = [];
+  const restore = await setupLocalLoopbackStub(requested);
+  try {
+    const result = await summarizeMultiTab([
+      { id: 44, url: "https://example.com/first", title: "First" },
+      { id: 45, url: "https://example.com/second", title: "Second" },
+    ]);
+    assert.ok(result);
+    const stored = await chrome.storage.local.get("popupViewState:44");
+    assert.ok(stored["popupViewState:44"]);
+    assert.match(stored["popupViewState:44"].summaryText, /Stub summary/);
+    const all = await chrome.storage.local.get(null);
+    const urlKeyed = Object.keys(all).filter((k) =>
+      k.startsWith("popupViewState:https:"),
+    );
+    assert.deepStrictEqual(urlKeyed, []);
+    // No raw URL may leak into a storage key: URL-keyed entries always
+    // contain the scheme separator, numeric-id keys never do.
+    const rawLeak = Object.keys(all).some((k) => k.includes("://"));
+    assert.strictEqual(rawLeak, false);
+  } finally {
+    restore();
+  }
+});
+
+test("summarizeMultiTab bounds per-tab content to the model budget", async () => {
+  await chrome.storage.local.set({
+    settings: {
+      provider: PROVIDERS.LOCAL,
+      localModel: "qwen3:8b",
+      ollamaHost: "http://127.0.0.1:11434",
+      responseFormat: "bullets",
+      summaryLanguage: "auto",
+      saveHistory: false,
+    },
+  });
+  const big = "x".repeat(400_000);
+  stubTabContentByUrl({
+    46: { content: big, title: "Big A", type: "article" },
+    47: { content: big, title: "Big B", type: "article" },
+    48: { content: big, title: "Big C", type: "article" },
+  });
+  const requested = [];
+  const restore = await setupLocalLoopbackStub(requested);
+  try {
+    const result = await summarizeMultiTab([
+      { id: 46, url: "https://example.com/a", title: "A" },
+      { id: 47, url: "https://example.com/b", title: "B" },
+      { id: 48, url: "https://example.com/c", title: "C" },
+    ]);
+    assert.ok(result);
+    assert.ok(requested.length >= 1);
+    // 3 x 400k raw would be 1.2M chars; the per-tab share of the
+    // 12-chunk qwen budget (~1.05M total) must truncate each tab, and the
+    // combined text is mapped in bounded chunks rather than one prompt.
+    const allPrompts = requested.join("\n");
+    assert.match(allPrompts, /\[\.\.\.content truncated\.\.\.\]/);
+    const totalSent = requested.reduce((n, p) => n + p.length, 0);
+    assert.ok(
+      totalSent < 400_000 * 3 + requested.length * 2000,
+      `prompts should be bounded, got ${totalSent}`,
+    );
+  } finally {
+    restore();
+  }
+});
+
+test("summarizeMultiTab returns null without persisting when already aborted", async () => {
+  await chrome.storage.local.set({
+    settings: {
+      provider: PROVIDERS.LOCAL,
+      localModel: "qwen3:8b",
+      ollamaHost: "http://127.0.0.1:11434",
+      responseFormat: "bullets",
+      summaryLanguage: "auto",
+      saveHistory: true,
+    },
+  });
+  stubTabContentByUrl({
+    49: { content: "Will not run", title: "Aborted", type: "article" },
+  });
+  const controller = new AbortController();
+  controller.abort();
+  const result = await summarizeMultiTab(
+    [{ id: 49, url: "https://example.com/aborted", title: "Aborted" }],
+    { signal: controller.signal },
+  );
+  assert.strictEqual(result, null);
+  const stored = await chrome.storage.local.get("popupViewState:49");
+  assert.strictEqual(stored["popupViewState:49"], undefined);
+});
