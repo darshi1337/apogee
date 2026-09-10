@@ -121,6 +121,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Multi-tab view-state shape, subtitle caps, model allow-list, rag key ([1bc2052](https://github.com/darshi1337/apogee/commit/1bc2052896b0a3eb7747647046597143bfd5ceb5))
 - Exact hostname match in bilibili subtitle test mock ([22ca001](https://github.com/darshi1337/apogee/commit/22ca00161b9cdf4aab951eb0925ec21a855b1d03))
 - Bump addons-linter, guard dist from vulnerable dev-only packages ([6927d8a](https://github.com/darshi1337/apogee/commit/6927d8ad45316c0ed302becd2e538f13a25f8f63))
+- Gate multi-tab persist on private hosts, bound prompt to model budget, add cancel signal ([7266c2e](https://github.com/darshi1337/apogee/commit/7266c2e95f591b09eaadc81ec24c482f165c2fde))
+- Check for URL-shaped storage keys instead of substring match ([7c25ae2](https://github.com/darshi1337/apogee/commit/7c25ae28b8b4df86e6921d35b64b5b21b57ecd27))
 
 ### Security
 
