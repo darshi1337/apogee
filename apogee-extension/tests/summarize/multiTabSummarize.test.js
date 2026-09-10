@@ -371,7 +371,9 @@ test("summarizeMultiTab persists under the numeric owner id and never under a UR
       k.startsWith("popupViewState:https:"),
     );
     assert.deepStrictEqual(urlKeyed, []);
-    const rawLeak = Object.keys(all).some((k) => k.includes("example.com"));
+    // No raw URL may leak into a storage key: URL-keyed entries always
+    // contain the scheme separator, numeric-id keys never do.
+    const rawLeak = Object.keys(all).some((k) => k.includes("://"));
     assert.strictEqual(rawLeak, false);
   } finally {
     restore();
