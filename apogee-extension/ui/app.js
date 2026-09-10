@@ -2953,6 +2953,16 @@ summaryText?.addEventListener("click", (event) => {
   if (!link || !summaryText.contains(link)) return;
   event.preventDefault();
   event.stopImmediatePropagation();
+
+  const url = link.getAttribute("href");
+  let protocol;
+  try {
+    protocol = new URL(url, window.location.href).protocol;
+  } catch {
+    return;
+  }
+  if (protocol !== "http:" && protocol !== "https:") return;
+
   const tabId = activeTabId;
   if (tabId != null) {
     chrome.tabs.update(tabId, { url: link.href, active: true });
