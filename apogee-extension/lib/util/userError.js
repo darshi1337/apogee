@@ -67,3 +67,27 @@ export function toUserMessage(err) {
   }
   return GENERIC_FALLBACK;
 }
+
+const MAX_NOTIFICATION_LEN = 120;
+const SHORT_SUFFIX = " Open Apogee for details.";
+
+/**
+ * Formats a notification body message. If the combined message and standard suffix
+ * exceeds 120 characters, truncates the message and appends a short call-to-action.
+ *
+ * @param {string} rawMessage - The base error or status message.
+ * @param {string} [suffix=" Click to see what this means."] - The standard action suffix.
+ * @returns {string} The safely capped notification body text.
+ */
+export function formatNotificationMessage(
+  rawMessage,
+  suffix = " Click to see what this means.",
+) {
+  const full = `${rawMessage}${suffix}`;
+  if (full.length <= MAX_NOTIFICATION_LEN) {
+    return full;
+  }
+  const maxRawLen = MAX_NOTIFICATION_LEN - SHORT_SUFFIX.length - 3;
+  const truncatedRaw = rawMessage.slice(0, maxRawLen).trimEnd() + "...";
+  return `${truncatedRaw}${SHORT_SUFFIX}`;
+}
