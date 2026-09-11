@@ -76,6 +76,9 @@ import {
 } from "../lib/extract/pageExtraction.js";
 import {
   assertUploadSizeOk,
+  MAX_EXTRACTED_TEXT_CHARS,
+  readTextHead,
+  truncateExtractedText,
   truncatePastedText,
 } from "../lib/extract/fileLimits.js";
 import {
@@ -2402,45 +2405,78 @@ const fileUploadInput = document.getElementById("fileUploadInput");
 
 async function summarizeFile(file) {
   // Same ceiling as the tab-PDF path, checked before any read so an
-  // oversized file never becomes several in-memory copies (arrayBuffer +
-  // base64 + binary string) on the way in.
+  // oversized file never enters memory (#184). The PDF branch below parses
+  // straight from bytes (#267): the old arrayBuffer -> binary string ->
+  // base64 -> decode round-trip held ~3x the file concurrently.
   const lowerName = file.name.toLowerCase();
-  assertUploadSizeOk(
-    file.size,
-    lowerName.endsWith(".pdf")
-      ? "PDF"
-      : lowerName.endsWith(".docx")
-        ? "DOCX file"
-        : "file",
-  );
+  const label = lowerName.endsWith(".pdf")
+    ? "PDF"
+    : lowerName.endsWith(".docx")
+      ? "DOCX file"
+      : "file";
+  assertUploadSizeOk(file.size, label);
   let text;
+  let truncationNotice = "";
   if (lowerName.endsWith(".pdf")) {
-    const arrayBuffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
-    let binary = "";
-    const chunkSize = 0x8000;
-    for (let i = 0; i < bytes.byteLength; i += chunkSize) {
-      binary += String.fromCharCode.apply(
-        null,
-        bytes.subarray(i, i + chunkSize),
-      );
+    let arrayBuffer = await file.arrayBuffer();
+    try {
+      // file.size can be missing or wrong; re-check the actual bytes.
+      assertUploadSizeOk(arrayBuffer.byteLength, "PDF");
+      const { extractPdfTextFromBytes } =
+        await import("../lib/extract/pdfExtract.js");
+      let bytes = new Uint8Array(arrayBuffer);
+      try {
+        // maxChars stops page parsing early with a user-visible note, so a
+        // pathological expansion never becomes a multi-MB string in the popup.
+        const result = await extractPdfTextFromBytes(bytes, {
+          maxChars: MAX_EXTRACTED_TEXT_CHARS,
+          label: "PDF",
+        });
+        text = result.text;
+        if (result.truncated) {
+          truncationNotice = `PDF content exceeded the text limit and was truncated to the first ${MAX_EXTRACTED_TEXT_CHARS} characters.`;
+        }
+      } finally {
+        // Intentional release: drop the view so the buffer can GC early.
+        bytes = null;
+      }
+    } finally {
+      // eslint-disable-next-line no-useless-assignment
+      arrayBuffer = null;
     }
-    const base64 = btoa(binary);
-    const { extractPdfText } = await import("../lib/extract/pdfExtract.js");
-    text = await extractPdfText(base64);
   } else if (lowerName.endsWith(".docx")) {
-    const { extractDocxText } = await import("../lib/extract/docxExtract.js");
-    text = await extractDocxText(await file.arrayBuffer());
+    let arrayBuffer = await file.arrayBuffer();
+    try {
+      assertUploadSizeOk(arrayBuffer.byteLength, "DOCX file");
+      const { extractDocxText } = await import("../lib/extract/docxExtract.js");
+      const capped = truncateExtractedText(
+        await extractDocxText(arrayBuffer),
+        "DOCX file",
+      );
+      text = capped.text;
+      if (capped.truncated) {
+        truncationNotice = `DOCX content exceeded the text limit and was truncated to the first ${MAX_EXTRACTED_TEXT_CHARS} characters.`;
+      }
+    } finally {
+      // Intentional release: drop the buffer so it can GC before summarize.
+      // eslint-disable-next-line no-useless-assignment
+      arrayBuffer = null;
+    }
   } else {
-    // Plain-text branch (txt/md/json/html): file.size bounds the upload but
-    // the post-read string was unbounded, so cap it before it fans out (#211).
+    // Plain-text branch (txt/md/json/html): stream only the head of the file
+    // so a 50 MB upload never materializes as a 50 MB string (#267).
     // summarizeCustomContent re-applies the same cap as a choke point.
-    text = truncatePastedText(await file.text()).text;
+    const head = await readTextHead(file);
+    text = head.text;
+    if (head.truncated) {
+      truncationNotice = `File content exceeded the text limit and was truncated to the first ${MAX_EXTRACTED_TEXT_CHARS} characters.`;
+    }
   }
 
   if (!text || !text.trim()) {
     throw new Error("The file contains no readable text.");
   }
+  if (truncationNotice) announce(truncationNotice);
   await summarizeCustomContent(file.name, text.trim());
 }
 
