@@ -126,6 +126,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Check for URL-shaped storage keys instead of substring match ([7c25ae2](https://github.com/darshi1337/apogee/commit/7c25ae28b8b4df86e6921d35b64b5b21b57ecd27))
 - Validate summary link protocols ([6c70c08](https://github.com/darshi1337/apogee/commit/6c70c08df47821940c9dc21b0bcca7017b1d53da))
 - Testable http(s) allowlist helper for summary link navigation ([a9dfefd](https://github.com/darshi1337/apogee/commit/a9dfefd66d4b1f99f8e52b2753c073baceb2508f))
+- Cap notification message length to prevent truncation (#252) ([02e49fb](https://github.com/darshi1337/apogee/commit/02e49fbd24d29832f57e1b3f7d3406cf9846d9e1))
+- Address review nits for notification cap (#252) ([c5fc538](https://github.com/darshi1337/apogee/commit/c5fc53804125d12aa108ad0a26b40ff9e6d1b6f2))
 
 ### Security
 
