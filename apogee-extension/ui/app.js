@@ -86,6 +86,7 @@ import { ensurePermissionsForUrl } from "../lib/util/permissions.js";
 import {
   setLinkifyOriginFromUrl,
   setMarkdownHtml,
+  resolveNavigableHttpUrl,
 } from "../lib/util/markdown.js";
 import { icon, ICONS } from "./icons.js";
 import {
@@ -2953,12 +2954,19 @@ summaryText?.addEventListener("click", (event) => {
   if (!link || !summaryText.contains(link)) return;
   event.preventDefault();
   event.stopImmediatePropagation();
+
+  const url = resolveNavigableHttpUrl(
+    link.getAttribute("href"),
+    window.location.href,
+  );
+  if (!url) return;
+
   const tabId = activeTabId;
   if (tabId != null) {
-    chrome.tabs.update(tabId, { url: link.href, active: true });
+    chrome.tabs.update(tabId, { url, active: true });
     closeTransientSurface();
   } else {
-    chrome.tabs.create({ url: link.href });
+    chrome.tabs.create({ url });
   }
 });
 

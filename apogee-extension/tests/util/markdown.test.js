@@ -6,6 +6,7 @@ import {
   isSafeMarkdownHref,
   renderMarkdown,
   renderStoredSummaryMarkdown,
+  resolveNavigableHttpUrl,
   sanitizeMarkdownHtml,
   setLinkifyOriginFromUrl,
   setLinkifyPageHostForTests,
@@ -172,4 +173,50 @@ test("isSafeMarkdownHref rejects encoded breakouts and non-http schemes (#187)",
   assert.strictEqual(isSafeMarkdownHref("https://x/a b"), false);
   assert.strictEqual(isSafeMarkdownHref("https://x/<script>"), false);
   assert.strictEqual(isSafeMarkdownHref("not a url"), false);
+});
+
+test("resolveNavigableHttpUrl rejects javascript:/data: hrefs before navigation (#266)", () => {
+  const page = "https://example.com/article";
+  for (const href of [
+    "javascript:alert(1)",
+    "JaVaScRiPt:alert(1)",
+    "  javascript:alert(1)",
+    "java\tscript:alert(1)",
+    "data:text/html,<script>alert(1)</script>",
+    "DATA:text/html,hi",
+    "vbscript:msgbox(1)",
+    "blob:https://example.com/uuid",
+    "file:///etc/passwd",
+  ]) {
+    assert.strictEqual(
+      resolveNavigableHttpUrl(href, page),
+      null,
+      `must not navigate: ${JSON.stringify(href)}`,
+    );
+  }
+});
+
+test("resolveNavigableHttpUrl allows http(s) and resolves same-page links (#266)", () => {
+  const page = "https://example.com/article";
+  assert.strictEqual(
+    resolveNavigableHttpUrl("https://other.example/x", page),
+    "https://other.example/x",
+  );
+  assert.strictEqual(
+    resolveNavigableHttpUrl("http://other.example/x", page),
+    "http://other.example/x",
+  );
+  assert.strictEqual(
+    resolveNavigableHttpUrl("/docs/y", page),
+    "https://example.com/docs/y",
+  );
+  // A non-http(s) base (e.g. the extension popup page) cannot bless a
+  // relative href into a navigation.
+  assert.strictEqual(
+    resolveNavigableHttpUrl("/docs/y", "chrome-extension://id/popup.html"),
+    null,
+  );
+  assert.strictEqual(resolveNavigableHttpUrl("", page), null);
+  assert.strictEqual(resolveNavigableHttpUrl(null, page), null);
+  assert.strictEqual(resolveNavigableHttpUrl("https://", page), null);
 });
