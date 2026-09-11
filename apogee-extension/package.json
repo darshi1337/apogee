@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@huggingface/transformers": "4.2.0",
-    "@mlc-ai/web-llm": "0.2.84",
+    "@mlc-ai/web-llm": "0.2.85",
     "pdfjs-dist": "^6.3.289"
   },
   "devDependencies": {
