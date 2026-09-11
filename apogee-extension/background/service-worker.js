@@ -20,7 +20,11 @@ import {
 } from "../lib/util/throughput.js";
 import { chunkBySections } from "../lib/summarize/sections.js";
 import { errorHelpUrl } from "../lib/util/errorHelp.js";
-import { toUserMessage, UserFacingError } from "../lib/util/userError.js";
+import {
+  toUserMessage,
+  UserFacingError,
+  formatNotificationMessage,
+} from "../lib/util/userError.js";
 import { hasHostPermissions } from "../lib/util/permissions.js";
 import { ensureLoopbackCorsRule } from "../lib/util/loopbackCors.js";
 import {
@@ -1104,7 +1108,10 @@ function notifyJobFailed(err) {
     type: "basic",
     iconUrl: chrome.runtime.getURL("assets/icon-96.png"),
     title: "Summarize failed",
-    message: `${message} Click to see what this means.`,
+    message: formatNotificationMessage(
+      message,
+      " Click to see what this means.",
+    ),
   });
 }
 
@@ -1556,11 +1563,12 @@ function notifyJobComplete({ title, tabId, windowId }) {
   if (typeof chrome.notifications === "undefined") return;
   const notificationId = `apogee-summary-${crypto.randomUUID()}`;
   notificationTargets.set(notificationId, { tabId, windowId });
+  const rawMsg = title ? `"${title}" is ready to view.` : "Click to view it.";
   chrome.notifications.create(notificationId, {
     type: "basic",
     iconUrl: chrome.runtime.getURL("assets/icon-96.png"),
     title: "Summary ready",
-    message: title ? `"${title}" is ready to view.` : "Click to view it.",
+    message: formatNotificationMessage(rawMsg, ""),
   });
 }
 
