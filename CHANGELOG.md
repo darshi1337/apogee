@@ -124,6 +124,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Await finalize path, preserve text and surface error on storage failure ([9496893](https://github.com/darshi1337/apogee/commit/949689392b7e4e90f19fe0d442ce5acab46ccc4e))
 - Gate multi-tab persist on private hosts, bound prompt to model budget, add cancel signal ([7266c2e](https://github.com/darshi1337/apogee/commit/7266c2e95f591b09eaadc81ec24c482f165c2fde))
 - Check for URL-shaped storage keys instead of substring match ([7c25ae2](https://github.com/darshi1337/apogee/commit/7c25ae28b8b4df86e6921d35b64b5b21b57ecd27))
+- Validate summary link protocols ([6c70c08](https://github.com/darshi1337/apogee/commit/6c70c08df47821940c9dc21b0bcca7017b1d53da))
+- Testable http(s) allowlist helper for summary link navigation ([a9dfefd](https://github.com/darshi1337/apogee/commit/a9dfefd66d4b1f99f8e52b2753c073baceb2508f))
 
 ### Security
 
