@@ -26,7 +26,7 @@ WebLLM runs compact open weights straight on your graphics card through WebGPU. 
 
 ## Transformers.js WebAssembly Models
 
-Transformers.js runs ONNX models on CPU through WebAssembly. On Firefox, where WebExtensions lack offscreen document WebGPU support, Transformers.js runs straight in the background page and is the default provider. It is also an opt-in provider on Chromium browsers for machines without WebGPU.
+Transformers.js runs ONNX models on CPU through WebAssembly. On Firefox, where WebExtensions lack offscreen document WebGPU support, Transformers.js runs straight in the background page. It is the default provider there. It is also an opt-in provider on Chromium browsers for machines without WebGPU.
 
 | Model | Download Size | Best Suited For | Technical Notes |
 | --- | --- | --- | --- |
@@ -34,11 +34,11 @@ Transformers.js runs ONNX models on CPU through WebAssembly. On Firefox, where W
 | Qwen 2.5 0.5B | ~480 MB | Multilingual CPU summarization | Compact multilingual use on WASM |
 | Llama 3.2 1B | ~1.2 GB | Deeper reasoning on modern CPUs | Suited for faster desktop CPUs |
 
-Transformers.js context windows are capped at 4096 tokens to keep generation fast on CPU. The WASM runtime ships bundled straight inside the extension package without loading code from outside CDNs.
+Transformers.js caps context windows at 4096 tokens to keep generation fast on CPU. The WASM runtime ships bundled straight inside the extension package without loading code from outside CDNs.
 
 ## Local Ollama Recommended Models
 
-When Local Ollama mode is picked, Apogee queries your local Ollama server over loopback HTTP (`http://127.0.0.1:11434`) and fills your model dropdown from your pulled models on its own.
+After you pick Local Ollama mode, Apogee queries your local Ollama server over loopback HTTP. The address is `http://127.0.0.1:11434`. It fills your model dropdown from your pulled models on its own.
 
 | Model | Model Size | Recommended Pull Command | Primary Strengths |
 | --- | --- | --- | --- |
@@ -49,7 +49,7 @@ When Local Ollama mode is picked, Apogee queries your local Ollama server over l
 
 ## Local llama.cpp Models
 
-When Local llama.cpp mode is picked, Apogee talks to your own `llama-server` over loopback HTTP (`http://127.0.0.1:8080`). Unlike Ollama it serves one model at a time, the GGUF you launched it with, so Apogee reads the name from the server instead of showing a list. See the [Local llama.cpp Guide](LLAMACPP.md) for setup.
+After you pick Local llama.cpp mode, Apogee talks to your own `llama-server` over loopback HTTP. The address is `http://127.0.0.1:8080`. Unlike Ollama it serves one model at a time: the GGUF you launched it with. Apogee reads the name from the server instead of showing a list. See the [Local llama.cpp Guide](LLAMACPP.md) for setup.
 
 | Model | Model Size | Recommended Start Command | Primary Strengths |
 | --- | --- | --- | --- |
@@ -62,22 +62,30 @@ When Local llama.cpp mode is picked, Apogee talks to your own `llama-server` ove
 
 Apogee adjusts page chunking based on your active model context window limit:
 
-- **Compact Context Models**: Smaller models with 2048 or 4096 token context windows use smaller text chunks with hierarchical map-reduce to build final summaries. When an input makes more chunks than the model `getMaxChunks` budget (4 for Transformers.js, 12 for Ollama), each chunk is mapped to a partial and partials are tree-folded in groups of `fanIn` until fewer than `maxChunks` remain before the final reduce. This keeps full coverage instead of dropping text. The `{ stage: "truncated" }` progress event only fires when a custom `selectChunksFn` is given. If not, overflow is handled by the tree.
-- **Servers That Report Their Own Window**: `llama-server` takes its context window from its `-c` launch flag instead of from the model, so the same GGUF can serve 4096 tokens or 32768 with the same name. Apogee asks the server (`/props`, falling back to `/v1/models`) and sizes chunks to what it reports, instead of guessing a window from the model name.
-- **Large Context Models**: Models with large context windows (such as Ollama models with 32k or 128k tokens) get larger text chunks, cutting processing passes and speeding up responses on long pages.
-- **OOM Resilience**: Map and reduce steps catch `out of memory` / `allocation failed` errors, emit `{ stage: "oom_fallback" }`, and fall back to already-collected partials (or joined intermediates for a final-reduce OOM) so a memory-limited device still returns coverage of each chunk instead of failing.
+- **Compact Context Models**: Smaller models with 2048 or 4096 token context windows use smaller text chunks with hierarchical map-reduce to build final summaries. When an input makes more chunks than the model budget, each chunk maps to a partial. The budget lives in `getMaxChunks` (4 for Transformers.js, 12 for Ollama). Partials tree-fold in groups of `fanIn` until fewer than `maxChunks` remain before the final reduce.
+
+  This keeps full coverage instead of dropping text. The `{ stage: "truncated" }` progress event fires only with a custom `selectChunksFn`. Without one, the tree handles overflow.
+
+- **Servers That Report Their Own Window**: `llama-server` takes its context window from its `-c` launch flag instead of from the model. The same GGUF serves 4096 tokens or 32768 with the same name. Apogee asks the server (`/props`, falling back to `/v1/models`). It sizes chunks to what the server reports, instead of guessing a window from the model name.
+
+- **Large Context Models**: Models with large context windows (such as Ollama models with 32k or 128k tokens) get larger text chunks. Fewer processing passes speed up responses on long pages.
+
+- **OOM Resilience**: Map and reduce steps catch `out of memory` / `allocation failed` errors. They emit `{ stage: "oom_fallback" }`. They fall back to already-collected partials (or joined intermediates for a final-reduce OOM). A memory-limited device still returns coverage of each chunk instead of failing.
 
 ## Performance Benchmarks
 
 ### WebLLM GPU Performance
 
 - **Generation Speed**: About 30 to 50 tokens per second based on GPU hardware.
-- **Cold Load Time**: About 1 to 3 seconds once weights are cached locally.
+- **Cold Load Time**: About 1 to 3 seconds with cached weights.
 - **First Run Download**: About 1 to 3 minutes based on network speed for model weight caching.
 
 ### Local Ollama Performance (Apple M2 Metal Acceleration)
 
 - **Generation Speed**: About 73 tokens per second on `gemma3:4b`.
+
 - **Cold Load Time**: About 0.25 seconds.
+
 - **Short Page Summary**: About 1 to 1.5 seconds end to end.
+
 - **Long Document Summary (40,000 characters)**: First summary bullets in about 2 seconds, full run in about 12 seconds.

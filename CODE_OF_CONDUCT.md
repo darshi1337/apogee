@@ -8,15 +8,15 @@ We agree to act and speak in ways that make our community open, welcoming, diver
 
 ## Our Standards
 
-Here’s what we expect:
+Here is what we expect:
 
 - Be kind and understanding to others.
 - Respect different opinions and experiences.
 - Give feedback politely and accept it well.
 - Take responsibility for your actions and apologize when you make mistakes, learning from them.
-- Think about what's best for the whole community.
+- Think about what is best for the whole community.
 
-Here’s what we don’t allow:
+Here is what we do not allow:
 
 - Using sexual language or images, or making unwanted advances.
 - Trolling, insulting, or attacking people personally or politically.
@@ -26,13 +26,13 @@ Here’s what we don’t allow:
 
 ## Enforcement Responsibilities
 
-Community leaders are responsible for following these standards and taking action when needed. They can remove, edit, or reject contributions if they aren't aligned with this Code of Conduct. They’ll explain their decisions clearly.
+Community leaders are responsible for following these standards and taking action when needed. They can remove, edit, or reject contributions if they are not aligned with this Code of Conduct. They will explain their decisions clearly.
 
-Community leaders have the right to do this: remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to this Code of Conduct.
+Community leaders have the right to do this. They can remove, edit, or reject contributions that are not aligned to this Code of Conduct. This includes comments, commits, code, wiki edits, and issues.
 
 ## Scope
 
-This Code of Conduct applies everywhere in our community. It also applies when someone representing our community is speaking publicly – like using an official email address, posting on social media, or at events.
+This Code of Conduct applies everywhere in our community. It also applies when someone speaks for our community in public. For example, the person uses an official email address, posts on social media, or joins an event.
 
 ## Enforcement
 
@@ -44,25 +44,25 @@ Community leaders must respect the privacy of anyone reporting an issue.
 
 ## Enforcement Guidelines
 
-Here’s how we handle problems:
+Here is how we handle problems:
 
 ### 1. Correction
 
-**Problem:** Using inappropriate language or behavior that isn't welcome in our community.
+**Problem:** Using inappropriate language or behavior that is not welcome in our community.
 
-**Action:** A private warning from community leaders, explaining what was wrong and why it wasn’t okay. They might ask for a public apology.
+**Action:** A private warning from community leaders, explaining what was wrong and why it was not okay. They might ask for a public apology.
 
 ### 2. Warning
 
 **Problem:** A single incident or series of actions that break the rules.
 
-**Action:** A warning with consequences. You won't interact with those involved, including asking community leaders for help. This could mean no interaction in our community spaces or on social media. Breaking these terms may lead to a temporary or permanent ban.
+**Action:** A warning with consequences. You will not interact with those involved, including asking community leaders for help. This could mean no interaction in our community spaces or on social media. Breaking these terms may lead to a temporary or permanent ban.
 
 ### 3. Temporary Ban
 
 **Problem:** Serious behavior that breaks the rules, like continuing inappropriate actions.
 
-**Action:** A ban from interacting with the community for a set time. You won’t talk to anyone involved or ask community leaders for help during this time. Breaking these terms may lead to a permanent ban.
+**Action:** A ban from interacting with the community for a set time. You will not talk to anyone involved or ask community leaders for help during this time. Breaking these terms may lead to a permanent ban.
 
 ### 4. Permanent Ban
 
@@ -72,7 +72,7 @@ Here’s how we handle problems:
 
 ## Attribution
 
-This Code of Conduct is based on the [Contributor Covenant][homepage], version 2.1, available at https://www.contributor-covenant.org/version/2/1/code_of_conduct.html.
+This Code of Conduct is based on the [Contributor Covenant][homepage], version 2.1. Find it at https://www.contributor-covenant.org/version/2/1/code_of_conduct.html.
 
 Our guidelines were inspired by [Mozilla's code of conduct enforcement ladder][mozilla].
 

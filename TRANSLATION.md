@@ -1,17 +1,22 @@
 # Apogee Translation Architecture and Reference
 
-Apogee can make summaries, answers to questions, and suggested questions in a language different from the original page. You choose the output language under Settings, then Summary language. The normal setting is English (summaries will be in English no matter what language the original page was). “Same as article” keeps the original page’s language. There are 32 languages you can use.
+Apogee can make summaries, answers to questions, and suggested questions in a language different from the original page. You choose the output language under Settings, then Summary language. The normal setting is English. “Same as article” keeps the language of the original page. Summaries stay in English no matter the language of the original page. There are 32 languages you can use.
 
 ## Translation Engines
 
-There are two translation engines used:
+Apogee uses two translation engines:
 
-- **Opus-MT (default)**: This is a model from Helsinki-NLP. It makes summaries in English, then translates them using a special tool. It keeps the structure of the text (like bullet points and links) and works best for languages that aren’t as common. Each model is small (~80 MB) and downloaded when you first use it, then saved for later. If Opus-MT doesn't understand a language automatically, it uses another engine.
-- **LLM (opt-in)**: This engine translates while it writes. It tries to make the summary in the target language directly. It checks the language carefully and only does an extra translation step if needed. It’s always available, but smaller models might be weaker when translating languages that are far from English.
+- **Opus-MT (default)**: This is a model from Helsinki-NLP. It makes summaries in English, then translates them with a special tool. It keeps the structure of the text (like bullet points and links). It works best for less common languages.
+
+  Each model is small (~80 MB). Apogee downloads it on first use, then saves it. If Opus-MT does not handle a language on its own, it uses another engine.
+
+- **LLM (opt-in)**: This engine translates while it writes. It makes the summary in the target language directly. It checks the language carefully. It adds an extra translation step only if needed.
+
+  It is always available. Smaller models translate less well between distant languages.
 
 ## Complete 32-Language Matrix
 
-Opus-MT is mainly for English, so it uses different levels for each language. Here's a table showing how it translates from English to other languages:
+Opus-MT starts from English, so it covers languages at different levels. This table shows how it translates from English to other languages:
 
 | Target Language | Opus-MT Model (English-to-Target) | Tier        | Recommended Engine |
 | :--------------- | :---------------------------------- | :---------- | :------------------ |
@@ -50,6 +55,8 @@ Opus-MT is mainly for English, so it uses different levels for each language. He
 
 ## Understanding Translation Tiers and Directions
 
-- **Dedicated model**: This is a small, single-pair model (`opus-mt-en-<code>`). It’s the best quality level. It works well for languages like Spanish, French, German, etc. Opus is the default because it keeps the structure of the text (like bullet points and links) better.
-- **Grouped model**: This uses a multilingual model (`opus-mt-en-mul`) with a special code to tell it what language to use. It's good for languages that aren’t as common.
-- **No Opus model**: Slovak, Korean, Traditional Chinese, Hindi, Vietnamese, and Thai don’t have an English-to-target Opus-MT path. So, they always use the LLM engine (Opus falls back to the LLM anyway).
+- **Dedicated model**: This is a small, single-pair model (`opus-mt-en-<code>`). It is the best quality level. It works well for languages like Spanish, French, German, etc. Opus stays the default because it keeps text structure (like bullet points and links) better.
+
+- **Grouped model**: This uses a multilingual model (`opus-mt-en-mul`) with a special code for the target language. It suits less common languages.
+
+- **No Opus model**: Slovak, Korean, Traditional Chinese, Hindi, Vietnamese, and Thai have no English-to-target Opus-MT path. They always use the LLM engine (Opus falls back to the LLM anyway).

@@ -19,7 +19,7 @@
 - [ ] No new outbound network calls
 - [ ] Adds/changes a network call (described above, docs updated)
 
-<!-- Permissions and network behaviour are described in four places that must
+<!-- Permissions and network behaviour appear in four places that must
      agree: apogee-extension/manifest.json, README.md (Privacy & Permissions),
      PRIVACY.md, and STORE-LISTING.md (permission justifications). A claim in
      one and not the others is what store reviewers catch. -->
