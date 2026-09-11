@@ -91,4 +91,3 @@ export function formatNotificationMessage(
   const truncatedRaw = rawMessage.slice(0, maxRawLen).trimEnd() + "...";
   return `${truncatedRaw}${SHORT_SUFFIX}`;
 }
-

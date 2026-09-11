@@ -84,3 +84,25 @@ test("boundary condition: message 121 chars total gets truncated", () => {
   );
   assert.ok(formatted.length <= 120);
 });
+
+test("long message truncates raw to cap with exact 120 char total", () => {
+  const rawMessage = "y".repeat(200);
+  const formatted = formatNotificationMessage(rawMessage);
+  assert.strictEqual(
+    formatted,
+    "y".repeat(92) + "... Open Apogee for details.",
+  );
+  assert.strictEqual(formatted.length, 120);
+});
+
+test("success path with empty suffix keeps short message untouched", () => {
+  const formatted = formatNotificationMessage("Click to view it.", "");
+  assert.strictEqual(formatted, "Click to view it.");
+});
+
+test("success path with empty suffix truncates long title", () => {
+  const rawMessage = `"${"t".repeat(150)}" is ready to view.`;
+  const formatted = formatNotificationMessage(rawMessage, "");
+  assert.ok(formatted.length <= 120);
+  assert.ok(formatted.endsWith("... Open Apogee for details."));
+});
