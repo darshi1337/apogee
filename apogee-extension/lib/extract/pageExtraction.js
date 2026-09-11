@@ -127,12 +127,25 @@ export async function extractPdfContent(tab) {
             `for in-extension processing.`,
         );
       }
-      let binary = "";
-      const CHUNK = 0x8000;
+      let base64 = "";
+      // Encode slice-by-slice (#267): a single binary string for the whole
+      // file would sit next to the bytes and the base64 output (~3x the PDF
+      // in memory). The slice size stays a multiple of 3 so each slice maps
+      // to whole base64 quanta and boundary bytes are never corrupted.
+      const CHUNK = 0x9000;
       for (let i = 0; i < bytes.length; i += CHUNK) {
-        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+        const slice = bytes.subarray(i, i + CHUNK);
+        let binary = "";
+        const STEP = 0x8000;
+        for (let j = 0; j < slice.length; j += STEP) {
+          binary += String.fromCharCode.apply(
+            null,
+            slice.subarray(j, j + STEP),
+          );
+        }
+        base64 += btoa(binary);
       }
-      return btoa(binary);
+      return base64;
     },
     args: [MAX_UPLOAD_FILE_BYTES],
   });

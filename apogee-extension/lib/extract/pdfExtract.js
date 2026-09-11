@@ -1,5 +1,5 @@
 import { UserFacingError } from "../util/userError.js";
-import { MAX_PDF_TEXT_CHARS } from "./fileLimits.js";
+import { MAX_PDF_TEXT_CHARS, truncateExtractedText } from "./fileLimits.js";
 
 class PdfExtractionError extends UserFacingError {}
 
@@ -16,15 +16,33 @@ async function getPdfjs() {
 }
 
 function base64ToBytes(base64) {
-  const binary = atob(base64);
+  let binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
+  // Intentional release: drop the transient string before the heavy parse.
+  // eslint-disable-next-line no-useless-assignment
+  binary = null;
   return bytes;
 }
 
-export async function extractPdfText(pdfBase64) {
+/**
+ * Parse PDF text straight from bytes (#267). The popup upload path used to
+ * hold arrayBuffer + binary string + base64 concurrently and then decode the
+ * base64 back to bytes inside pdf.js — ~3x the file in memory. Callers that
+ * already have bytes use this and skip both transient strings entirely.
+ *
+ * options.maxChars bounds the *expanded* text: once a page pushes past it,
+ * parsing stops early (remaining pages are never read) and the result carries
+ * the user-visible truncation note. The MAX_PDF_TEXT_CHARS backstop still
+ * throws on pathological inflation. Defaults preserve the legacy behavior
+ * (service-worker tab path), which caps only via the backstop.
+ */
+export async function extractPdfTextFromBytes(
+  bytes,
+  { maxChars = Infinity, label = "PDF" } = {},
+) {
   const {
     getDocument,
     InvalidPDFException,
@@ -33,7 +51,7 @@ export async function extractPdfText(pdfBase64) {
   } = await getPdfjs();
 
   const loadingTask = getDocument({
-    data: base64ToBytes(pdfBase64),
+    data: bytes,
     isEvalSupported: false,
     useSystemFonts: true,
     verbosity: VerbosityLevel.ERRORS,
@@ -54,6 +72,7 @@ export async function extractPdfText(pdfBase64) {
 
   try {
     let text = "";
+    let truncated = false;
     for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
       const page = await doc.getPage(pageNum);
       const content = await page.getTextContent();
@@ -64,11 +83,21 @@ export async function extractPdfText(pdfBase64) {
       }
       addition += "\n";
       text = appendPdfText(text, addition);
+      if (text.length > maxChars) {
+        text = truncateExtractedText(text, label).text;
+        truncated = true;
+        break;
+      }
     }
-    return text;
+    return { text, truncated };
   } finally {
     await loadingTask.destroy();
   }
+}
+
+export async function extractPdfText(pdfBase64) {
+  const { text } = await extractPdfTextFromBytes(base64ToBytes(pdfBase64));
+  return text;
 }
 
 /**
