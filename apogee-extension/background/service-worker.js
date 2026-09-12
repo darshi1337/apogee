@@ -810,85 +810,93 @@ async function startTransformersStream(
   const { customInstructions } = await getSettings();
 
   try {
-    await withTransformersEngine(model, onProgress, async (eng) => {
-      if (action === "summarize") {
-        const effectiveLanguage = await resolveEffectiveLanguage(
-          content,
-          language,
-        );
-        const generator = summarizeText(
-          {
-            text: content,
-            title,
-            url,
-            mode,
-            type,
-            model,
-            language: effectiveLanguage,
-            customInstructions,
-            isSelection,
-            signal: stream.controller.signal,
-          },
-          {
-            translateFn,
-            chatStreamFn: async function* (_host, _model, prompt, opts) {
-              let count = 0;
-              for await (const token of transformersChatStream(eng, prompt, {
-                system: opts?.system,
-              })) {
-                if (stream.cancelled) return;
-                count++;
-                if (count % 24 === 0) {
-                  onProgress({
-                    progress: 0,
-                    text: `${longNote}${stageLabel} (${count} words)`,
-                  });
+    await withTransformersEngine(
+      model,
+      onProgress,
+      async (eng) => {
+        if (action === "summarize") {
+          const effectiveLanguage = await resolveEffectiveLanguage(
+            content,
+            language,
+          );
+          const generator = summarizeText(
+            {
+              text: content,
+              title,
+              url,
+              mode,
+              type,
+              model,
+              language: effectiveLanguage,
+              customInstructions,
+              isSelection,
+              signal: stream.controller.signal,
+            },
+            {
+              translateFn,
+              chatStreamFn: async function* (_host, _model, prompt, opts) {
+                let count = 0;
+                for await (const token of transformersChatStream(eng, prompt, {
+                  system: opts?.system,
+                })) {
+                  if (stream.cancelled) return;
+                  count++;
+                  if (count % 24 === 0) {
+                    onProgress({
+                      progress: 0,
+                      text: `${longNote}${stageLabel} (${count} words)`,
+                    });
+                  }
+                  yield token;
                 }
-                yield token;
-              }
+              },
+              onProgress: (p) => {
+                if (p.stage === "truncated") {
+                  longNote = "Long page - summarizing the key parts. ";
+                  onProgress({ progress: 0, text: longNote.trim() });
+                  return;
+                }
+                if (p.stage === "reduce") stageLabel = "Merging summary...";
+                else if (p.stage === "translate") stageLabel = "Translating...";
+                else
+                  stageLabel = `Summarizing part ${p.index + 1} of ${p.total}...`;
+                onProgress({ progress: 0, text: longNote + stageLabel });
+              },
             },
-            onProgress: (p) => {
-              if (p.stage === "truncated") {
-                longNote = "Long page - summarizing the key parts. ";
-                onProgress({ progress: 0, text: longNote.trim() });
-                return;
-              }
-              if (p.stage === "reduce") stageLabel = "Merging summary...";
-              else if (p.stage === "translate") stageLabel = "Translating...";
-              else
-                stageLabel = `Summarizing part ${p.index + 1} of ${p.total}...`;
-              onProgress({ progress: 0, text: longNote + stageLabel });
+          );
+          for await (const token of generator) {
+            emitChunk(token);
+          }
+        } else if (action === "ask") {
+          const relevantContent = await getRelevantAskContent(
+            content,
+            question,
+          );
+          const prompt = withCustomInstructions(
+            buildAnswerPrompt(title, url, relevantContent, question),
+            customInstructions,
+          );
+          const chat = (p, opts) =>
+            transformersChatStream(eng, p, { system: opts?.system });
+          const askLanguage = await resolveEffectiveLanguage(content, language);
+          for await (const token of streamInTargetLanguage(
+            chat,
+            prompt,
+            askLanguage,
+            {
+              signal: stream.controller.signal,
+              translateFn,
             },
-          },
-        );
-        for await (const token of generator) {
-          emitChunk(token);
+          )) {
+            if (stream.cancelled) break;
+            emitChunk(token);
+          }
+        } else {
+          throw new Error(`Unknown transformers-stream action: ${action}`);
         }
-      } else if (action === "ask") {
-        const relevantContent = await getRelevantAskContent(content, question);
-        const prompt = withCustomInstructions(
-          buildAnswerPrompt(title, url, relevantContent, question),
-          customInstructions,
-        );
-        const chat = (p, opts) =>
-          transformersChatStream(eng, p, { system: opts?.system });
-        const askLanguage = await resolveEffectiveLanguage(content, language);
-        for await (const token of streamInTargetLanguage(
-          chat,
-          prompt,
-          askLanguage,
-          {
-            signal: stream.controller.signal,
-            translateFn,
-          },
-        )) {
-          if (stream.cancelled) break;
-          emitChunk(token);
-        }
-      } else {
-        throw new Error(`Unknown transformers-stream action: ${action}`);
-      }
-    });
+      },
+      { signal: stream.controller.signal },
+    );
     finish({ type: "done" });
   } catch (err) {
     finish({
