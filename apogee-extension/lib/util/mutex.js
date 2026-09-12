@@ -87,6 +87,9 @@ export function createLock() {
       };
 
       if (timeout !== undefined) {
+        // No unref here: callers await this timer, so it must keep the event
+        // loop alive until it fires. (Unref would let the loop drain with the
+        // acquire still pending, cancelling the waiter.)
         waiter.timer = setTimeout(() => {
           if (waiter.settled) return;
           waiter.settled = true;
@@ -98,7 +101,6 @@ export function createLock() {
             ),
           );
         }, timeout);
-        if (waiter.timer.unref) waiter.timer.unref();
       }
 
       if (signal) {
