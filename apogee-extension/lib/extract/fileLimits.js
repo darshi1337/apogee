@@ -96,6 +96,60 @@ export function truncateExtractedText(text, label = "file") {
   return { text: `${head}\n\n${note}`, truncated: true };
 }
 
+// SW/offscreen ingress hardening (#269). summarize/ask/retrieve-context
+// payloads cross extension messaging unbounded today; only the UI-side
+// pasted cap and the 1 MB finalize backstop bound them, while stream.text
+// accumulates pre-cap and the map-every-chunk path turns a giant hostile
+// page into many sequential model calls. Content past this ceiling is
+// rejected with a UserFacingError at the trust boundary; title/url/question
+// reuse the prompt-fencing ceilings so one set of numbers guards both.
+export const MAX_INGRESS_CONTENT_CHARS = MAX_FINALIZE_TEXT_CHARS;
+export const MAX_INGRESS_TITLE_CHARS = 500;
+export const MAX_INGRESS_URL_CHARS = 2000;
+export const MAX_INGRESS_QUESTION_CHARS = 2000;
+export const MAX_INGRESS_PROMPT_CHARS = MAX_FINALIZE_TEXT_CHARS;
+
+// Absolute map-stage ceiling (#269). getMaxChunks bounds the reduce budget
+// per model, but the no-selector fallback keeps every chunk, so a 1 MB
+// hostile page is still dozens of sequential model calls. Capping mapped
+// chunks bounds total calls regardless of ingress size.
+export const MAX_ABSOLUTE_MAP_CHUNKS = 64;
+
+// Live stream-text ceiling (#269). finalizeSummaryJob caps at write time,
+// but stream.text grows with every token before that. Stop accumulating
+// past the same 1 MB so a runaway model cannot bloat SW/offscreen memory.
+export const MAX_STREAM_TEXT_CHARS = MAX_FINALIZE_TEXT_CHARS;
+
+function ingressLength(value) {
+  return typeof value === "string" ? value.length : 0;
+}
+
+export function assertIngressPayloadOk(payload = {}) {
+  const { content, question, query, title, url, summary, prompt } = payload;
+  const checks = [
+    [content, MAX_INGRESS_CONTENT_CHARS, "content"],
+    [question, MAX_INGRESS_QUESTION_CHARS, "question"],
+    [query, MAX_INGRESS_QUESTION_CHARS, "question"],
+    [title, MAX_INGRESS_TITLE_CHARS, "title"],
+    [url, MAX_INGRESS_URL_CHARS, "URL"],
+    [summary, MAX_INGRESS_CONTENT_CHARS, "summary"],
+    [prompt, MAX_INGRESS_PROMPT_CHARS, "prompt"],
+  ];
+  for (const [value, max, label] of checks) {
+    if (ingressLength(value) > max) {
+      throw new UserFacingError(
+        `This ${label} exceeds the ${max.toLocaleString()} character limit for in-extension processing. Try a shorter document.`,
+      );
+    }
+  }
+}
+
+export function appendStreamTextCapped(current, addition) {
+  const text = `${current || ""}${addition || ""}`;
+  if (text.length <= MAX_STREAM_TEXT_CHARS) return { text, truncated: false };
+  return { text: text.slice(0, MAX_STREAM_TEXT_CHARS), truncated: true };
+}
+
 // Slice size for incremental base64 encoding below. Must stay a multiple of 3
 // so each slice encodes to a whole number of base64 quanta and slices can be
 // encoded independently without corrupting boundary bytes.

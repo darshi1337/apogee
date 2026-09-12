@@ -25,6 +25,10 @@ import {
 import { initDebugLogging } from "../lib/util/log.js";
 import { broadcastToStream } from "../lib/util/streamBroadcast.js";
 import {
+  appendStreamTextCapped,
+  assertIngressPayloadOk,
+} from "../lib/extract/fileLimits.js";
+import {
   tokensForChunk,
   isWarmedUp,
   tokensPerSecond,
@@ -567,7 +571,9 @@ async function runStream(streamId, pending, stream) {
   const emit = (msg) => {
     if (stream.cancelled) return;
     if (msg.type === "chunk") {
-      stream.text += msg.text || "";
+      // Bound live accumulation pre-cap (#269): keep the head, drop the tail.
+      const capped = appendStreamTextCapped(stream.text, msg.text || "");
+      stream.text = capped.text;
       if (stream.firstTokenTime == null) {
         stream.firstTokenTime = performance.now();
       }
@@ -794,6 +800,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       switch (message.action) {
         case "summarize":
         case "ask": {
+          assertIngressPayloadOk(message.payload || {});
           const streamId = message.streamId;
           const stream = {
             text: "",
@@ -843,6 +850,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "retrieve-context": {
+          assertIngressPayloadOk(message.payload || {});
           const { content, question } = message.payload;
           const relevantContent = await retrieveRelevantContent({
             content,
@@ -853,6 +861,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "find-passage": {
+          assertIngressPayloadOk(message.payload || {});
           const { content, query } = message.payload;
           const passage = await findBestPassage({ content, query });
           sendResponse({ passage });
@@ -860,6 +869,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "suggest-questions": {
+          assertIngressPayloadOk(message.payload || {});
           const {
             title,
             url,
@@ -919,6 +929,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             sendResponse({ error: "generate-text requires a prompt" });
             break;
           }
+          assertIngressPayloadOk({ prompt });
           const qLanguage = await resolveEffectiveLanguage("", language);
           const translateFn = opusTranslateFor(translationEngine);
           const text =

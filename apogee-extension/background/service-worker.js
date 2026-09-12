@@ -44,6 +44,8 @@ import {
   MAX_BILIBILI_SUBTITLE_SEGMENTS,
   MAX_FINALIZE_TEXT_CHARS,
   MAX_UPLOAD_FILE_BYTES,
+  appendStreamTextCapped,
+  assertIngressPayloadOk,
 } from "../lib/extract/fileLimits.js";
 import {
   recordPageAccessEvent,
@@ -599,10 +601,17 @@ function createBufferedStream(streamId, { finalize, model, title, url }) {
 
   const emitChunk = (text) => {
     if (!text || stream.cancelled) return;
-    stream.text += text;
+    // Bound live accumulation pre-cap (#269): finalize caps at write time,
+    // but stream.text grows with every token before that. Keep the head and
+    // drop the tail so a runaway model cannot bloat SW memory.
+    const capped = appendStreamTextCapped(stream.text, text);
+    const accepted = capped.text.length - stream.text.length;
+    stream.text = capped.text;
     if (stream.firstTokenTime == null)
       stream.firstTokenTime = performance.now();
-    stream.tokenCount += tokensForChunk(text);
+    stream.tokenCount += tokensForChunk(
+      accepted > 0 ? text.slice(0, accepted) : "",
+    );
     broadcastToStream(stream, { type: "chunk", text });
     const elapsedMs = performance.now() - stream.firstTokenTime;
     if (isWarmedUp(stream.tokenCount, elapsedMs)) {
@@ -642,6 +651,20 @@ async function startLocalHttpStream(
     title,
     url,
   });
+
+  // Ingress bound (#269): payloads arrive via extension messaging unbounded;
+  // reject oversize with a UserFacingError before chunking fans out into
+  // sequential model calls.
+  try {
+    assertIngressPayloadOk({ content, question, title, url });
+  } catch (err) {
+    finish({
+      type: "error",
+      error: err.message,
+      userFacing: !!err?.isUserFacing,
+    });
+    return;
+  }
 
   let validHost;
   try {
@@ -790,6 +813,17 @@ async function startTransformersStream(
     title,
     url,
   });
+
+  try {
+    assertIngressPayloadOk({ content, question, title, url });
+  } catch (err) {
+    finish({
+      type: "error",
+      error: err.message,
+      userFacing: !!err?.isUserFacing,
+    });
+    return;
+  }
 
   const onProgress = (progress) => {
     chrome.runtime
@@ -1920,6 +1954,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       switch (message.action) {
         case "summarize":
         case "ask": {
+          assertIngressPayloadOk(message.payload || {});
           await ensureOffscreenDocument();
 
           const streamId = nextStreamId("webllm");
@@ -1947,6 +1982,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "ollama-stream": {
+          assertIngressPayloadOk(message.payload || {});
           const streamId = nextStreamId("ollama");
           const settings = await getSettings();
           const trustedFinalize =
@@ -1965,6 +2001,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "llamacpp-stream": {
+          assertIngressPayloadOk(message.payload || {});
           const streamId = nextStreamId("llamacpp");
           const settings = await getSettings();
           const trustedFinalize =
@@ -2044,6 +2081,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "transformers-stream": {
+          assertIngressPayloadOk(message.payload || {});
           const streamId = nextStreamId("transformers");
           const settings = await getSettings();
           const trustedFinalize =
@@ -2167,6 +2205,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "find-passage": {
+          assertIngressPayloadOk(message.payload || {});
           if (!hasOffscreenAPI) {
             try {
               const { content, query } = message.payload || {};
@@ -2188,6 +2227,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "retrieve-context": {
+          assertIngressPayloadOk(message.payload || {});
           if (!hasOffscreenAPI) {
             try {
               const { content, question } = message.payload || {};

@@ -1,5 +1,6 @@
 import { cleanText } from "./cleaner.js";
 import { getMaxChunkChars, getMaxChunks } from "../engines/modelLimits.js";
+import { MAX_ABSOLUTE_MAP_CHUNKS } from "../extract/fileLimits.js";
 import { streamInTargetLanguage } from "../language/languageOutput.js";
 
 const OOM_PATTERN =
@@ -155,6 +156,18 @@ export async function* mapReduceStream(
   const maxChunks = getMaxChunks(model);
   if (chunks.length > maxChunks) {
     chunks = choosePartialChunks(chunks, maxChunks, selectChunksFn, onProgress);
+  }
+  // Absolute map-stage ceiling (#269). The no-selector fallback keeps every
+  // chunk, so a hostile 1 MB page is still dozens of sequential model calls
+  // even after the per-model budget above. Hard-cap mapped chunks so total
+  // calls stay bounded regardless of ingress size.
+  if (chunks.length > MAX_ABSOLUTE_MAP_CHUNKS) {
+    onProgress?.({
+      stage: "truncated",
+      kept: MAX_ABSOLUTE_MAP_CHUNKS,
+      total: chunks.length,
+    });
+    chunks = chunks.slice(0, MAX_ABSOLUTE_MAP_CHUNKS);
   }
   if (signal?.aborted) return;
 
