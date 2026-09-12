@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Apogee",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "AI browser assistant for articles, videos, emails and more. Runs in-browser via WebGPU, WebAssembly, and Ollama.",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -16,7 +16,10 @@
     "notifications",
     "declarativeNetRequestWithHostAccess"
   ],
-  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
   "optional_host_permissions": [
     "*://*.bilibili.com/*",
     "*://*.hdslb.com/*",
@@ -55,7 +58,9 @@
   },
   "background": {
     "service_worker": "background/service-worker.js",
-    "scripts": ["background/service-worker.js"],
+    "scripts": [
+      "background/service-worker.js"
+    ],
     "type": "module"
   },
   "icons": {
@@ -76,7 +81,9 @@
       "id": "apogee@darshi.dev",
       "strict_min_version": "140.0",
       "data_collection_permissions": {
-        "required": ["none"],
+        "required": [
+          "none"
+        ],
         "optional": []
       }
     }
