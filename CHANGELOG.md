@@ -129,6 +129,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Stop triple-buffering 50MB file uploads, cap expanded text ([6611734](https://github.com/darshi1337/apogee/commit/66117343e962c0c232d48607b27fb17d25f4b67e))
 - Cap notification message length to prevent truncation (#252) ([02e49fb](https://github.com/darshi1337/apogee/commit/02e49fbd24d29832f57e1b3f7d3406cf9846d9e1))
 - Address review nits for notification cap (#252) ([c5fc538](https://github.com/darshi1337/apogee/commit/c5fc53804125d12aa108ad0a26b40ff9e6d1b6f2))
+- Per-engine inference locks with timeout, keep healthy engine on transient error (#268) ([6d81524](https://github.com/darshi1337/apogee/commit/6d81524ef7df3a21edb95c3a4419504e5d2aa805))
+- Keep lock-timeout timer referenced so waiters are never cancelled ([d1d4635](https://github.com/darshi1337/apogee/commit/d1d46354c721d7a50914a16cd5a2a41753fe155a))
 
 ### Security
 
