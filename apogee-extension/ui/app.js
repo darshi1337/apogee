@@ -805,6 +805,31 @@ async function getPageData(tab) {
 }
 
 let modelProgressHideTimer = null;
+let lastMirroredProgressLabel = null;
+
+// Mirrors model-download progress into the summarizing/answer loading
+// indicator. A first-time WebLLM fetch is multi-GB and takes minutes: with
+// only the generic spinner the view reads as stuck, while the work finishes
+// headless (reopening later shows the done summary). Only touches the
+// loading state: once real tokens arrive the stream renderer owns the
+// element, and the guard below leaves it alone.
+function mirrorModelProgressIntoLoading(p) {
+  const label =
+    typeof p.progress === "number"
+      ? `${p.text || "Downloading model..."} (${Math.round(p.progress * 100)}%)`
+      : p.text;
+  if (!label || label === lastMirroredProgressLabel) return;
+  if (
+    activeSummarizeStreamId &&
+    summaryText?.querySelector(".apogee-loading")
+  ) {
+    lastMirroredProgressLabel = label;
+    setLoadingIndicator(summaryText, label);
+  } else if (activeAskStreamId && answerBox?.querySelector(".apogee-loading")) {
+    lastMirroredProgressLabel = label;
+    setLoadingIndicator(answerBox, label);
+  }
+}
 
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (sender?.id !== chrome.runtime.id) return;
@@ -818,6 +843,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     clearTimeout(modelProgressHideTimer);
     modelProgress?.classList.remove("hidden");
     modelProgressText.textContent = p.text || "Loading model...";
+    mirrorModelProgressIntoLoading(p);
     if (typeof p.progress === "number") {
       const pct = Math.round(p.progress * 100);
       modelProgressPercent.textContent = `${pct}%`;
@@ -1343,6 +1369,7 @@ resummarizeBtn?.addEventListener("click", () => summarizeActivePage());
 
 function showCancelSummarizeButton(streamId) {
   activeSummarizeStreamId = streamId;
+  lastMirroredProgressLabel = null;
   cancelSummarizeBtn.textContent = "Cancel";
   cancelSummarizeBtn.disabled = false;
   cancelSummarizeBtn.classList.remove("hidden");
@@ -1350,6 +1377,7 @@ function showCancelSummarizeButton(streamId) {
 
 function hideCancelSummarizeButton() {
   activeSummarizeStreamId = null;
+  lastMirroredProgressLabel = null;
   cancelSummarizeBtn.classList.add("hidden");
   modelProgress?.classList.add("hidden");
 }
@@ -1467,6 +1495,7 @@ function showAnswerContext(question) {
 
 function showCancelAskButton(streamId) {
   activeAskStreamId = streamId;
+  lastMirroredProgressLabel = null;
   cancelAskBtn.textContent = "Cancel";
   cancelAskBtn.disabled = false;
   cancelAskBtn.classList.remove("hidden");
@@ -1474,6 +1503,7 @@ function showCancelAskButton(streamId) {
 
 function hideCancelAskButton() {
   activeAskStreamId = null;
+  lastMirroredProgressLabel = null;
   cancelAskBtn.classList.add("hidden");
   modelProgress?.classList.add("hidden");
 }
