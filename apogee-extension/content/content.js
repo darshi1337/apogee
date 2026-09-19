@@ -26,84 +26,41 @@ async function extractPageContent() {
     };
   }
 
-  if (isHost("youtube.com") || isHost("youtu.be")) {
-    const data = await tryExtractor(extractYoutube);
+  // Host-gated extractors, tried in order. A null return falls through
+  // to the next entry instead of aborting dispatch.
+  const hostedExtractors = [
+    [["youtube.com", "youtu.be"], extractYoutube],
+    [["bilibili.com"], extractBilibili],
+    [["mail.google.com"], extractGmail],
+    [["news.ycombinator.com"], extractHackerNews],
+    [["reddit.com"], extractReddit],
+    [["lobste.rs"], extractLobsters],
+    [["github.com"], extractGitHub],
+    [["gitlab.com"], extractGitLab],
+    [["wikipedia.org"], extractWikipedia],
+    [["arxiv.org"], extractArxiv],
+  ];
+
+  for (const [domains, extractor] of hostedExtractors) {
+    if (domains.some(isHost)) {
+      const data = await tryExtractor(extractor);
+      if (data) return { ...data, isPdf: false };
+    }
+  }
+
+  // Probing extractors detect their pages by content, not by host.
+  const probingExtractors = [
+    extractStackOverflow,
+    extractMastodon,
+    extractLemmy,
+    extractDiscourse,
+    extractDevto,
+    extractBluesky,
+  ];
+
+  for (const extractor of probingExtractors) {
+    const data = await tryExtractor(extractor);
     if (data) return { ...data, isPdf: false };
-  }
-
-  if (isHost("bilibili.com")) {
-    const data = await tryExtractor(extractBilibili);
-    if (data) return { ...data, isPdf: false };
-  }
-
-  if (isHost("mail.google.com")) {
-    const data = await tryExtractor(extractGmail);
-    if (data) return { ...data, isPdf: false };
-  }
-
-  if (isHost("news.ycombinator.com")) {
-    const data = await tryExtractor(extractHackerNews);
-    if (data) return { ...data, isPdf: false };
-  }
-
-  if (isHost("reddit.com")) {
-    const data = await tryExtractor(extractReddit);
-    if (data) return { ...data, isPdf: false };
-  }
-
-  if (isHost("lobste.rs")) {
-    const data = await tryExtractor(extractLobsters);
-    if (data) return { ...data, isPdf: false };
-  }
-
-  if (isHost("github.com")) {
-    const data = await tryExtractor(extractGitHub);
-    if (data) return { ...data, isPdf: false };
-  }
-
-  if (isHost("gitlab.com")) {
-    const data = await tryExtractor(extractGitLab);
-    if (data) return { ...data, isPdf: false };
-  }
-
-  if (isHost("wikipedia.org")) {
-    const data = await tryExtractor(extractWikipedia);
-    if (data) return { ...data, isPdf: false };
-  }
-
-  if (isHost("arxiv.org")) {
-    const data = await tryExtractor(extractArxiv);
-    if (data) return { ...data, isPdf: false };
-  }
-
-  const stackOverflowData = await tryExtractor(extractStackOverflow);
-  if (stackOverflowData) {
-    return { ...stackOverflowData, isPdf: false };
-  }
-
-  const mastodonData = await tryExtractor(extractMastodon);
-  if (mastodonData) {
-    return { ...mastodonData, isPdf: false };
-  }
-
-  const lemmyData = await tryExtractor(extractLemmy);
-  if (lemmyData) {
-    return { ...lemmyData, isPdf: false };
-  }
-
-  const discourseData = await tryExtractor(extractDiscourse);
-  if (discourseData) {
-    return { ...discourseData, isPdf: false };
-  }
-
-  const devtoData = await tryExtractor(extractDevto);
-  if (devtoData) {
-    return { ...devtoData, isPdf: false };
-  }
-
-  const blueskyData = await tryExtractor(extractBluesky);
-  if (blueskyData) {
-    return { ...blueskyData, isPdf: false };
   }
 
   const data = extractGeneric();
