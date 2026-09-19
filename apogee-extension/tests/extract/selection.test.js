@@ -53,6 +53,28 @@ test("activateSelectionCapture injects script with timeout parameter", async () 
   }
 });
 
+test("activateSelectionCapture defaults to SELECTION_CAPTURE_TIMEOUT_MS", async () => {
+  let executed = null;
+  globalThis.chrome = {
+    scripting: {
+      executeScript: async (options) => {
+        executed = options;
+      },
+    },
+  };
+
+  try {
+    const success = await activateSelectionCapture({ id: 123 });
+    assert.strictEqual(success, true);
+    assert.deepStrictEqual(executed.args, [
+      MIN_SELECTION_LENGTH,
+      SELECTION_CAPTURE_TIMEOUT_MS,
+    ]);
+  } finally {
+    delete globalThis.chrome;
+  }
+});
+
 test("injected capture function auto-tears-down on timeout and clears guard", async () => {
   let injectedOptions = null;
   globalThis.chrome = {
