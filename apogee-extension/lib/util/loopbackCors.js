@@ -15,7 +15,7 @@
 
 export const LOOPBACK_CORS_STATIC_RULE_ID = 1;
 
-export const LOOPBACK_CORS_SESSION_RULE_ID = 1;
+const LOOPBACK_CORS_SESSION_RULE_ID = 1;
 
 // Literal for chrome.tabs.TAB_ID_NONE so the rule builder works without the tabs permission.
 export const TAB_ID_NONE = -1;

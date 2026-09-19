@@ -44,26 +44,55 @@ function resolveWasmThreads(label) {
 
 const acquireLock = createLock();
 
-async function loadPipeline(modelId, modelInfo, onProgress) {
+// Shared WASM backend setup for both the text engine and the translator:
+// same threads, paths, and binary — only the debug label differs.
+async function configureWasmBackend(label) {
   const { pipeline, env } = await getTransformers();
   debugLog("[transformers] library loaded, preparing WASM backend");
-  env.backends.onnx.wasm.numThreads = resolveWasmThreads("text-gen");
+  env.backends.onnx.wasm.numThreads = resolveWasmThreads(label);
   env.backends.onnx.wasm.wasmPaths = { wasm: ortWasmUrl() };
   env.backends.onnx.wasm.wasmBinary = await ortWasmBinary();
   debugLog("[transformers] WASM binary ready, building pipeline");
+  return pipeline;
+}
+
+// Best-effort disposal shared by every engine/translator teardown path.
+// Never throws: sync throws become rejections via await, and rejections are
+// swallowed — disposal must not break the replace/retry flow around it.
+async function disposeSafely(handle) {
+  if (!handle) return;
+  try {
+    await handle.dispose();
+  } catch {
+    // Safe fallback: ignore disposal errors during cleanup
+  }
+}
+
+// Shared download-progress reporter for pipeline loads — same shape, only
+// the leading text differs ("Downloading model" vs "Downloading translation
+// model").
+function reportDownloadProgress(onProgress, prefix) {
+  return (p) => {
+    if (p.status !== "progress") return;
+    onProgress?.({
+      progress: p.progress / 100,
+      text: `${prefix}... ${Math.round(p.progress)}%`,
+    });
+  };
+}
+
+async function loadPipeline(modelId, modelInfo, onProgress) {
+  const pipeline = await configureWasmBackend("text-gen");
 
   for (let attempt = 1; ; attempt++) {
     try {
       return await pipeline("text-generation", modelInfo.id, {
         dtype: modelInfo.dtype,
         device: "wasm",
-        progress_callback: (p) => {
-          if (p.status !== "progress") return;
-          onProgress?.({
-            progress: p.progress / 100,
-            text: `Downloading model... ${Math.round(p.progress)}%`,
-          });
-        },
+        progress_callback: reportDownloadProgress(
+          onProgress,
+          "Downloading model",
+        ),
       });
     } catch (err) {
       debugLog(
@@ -85,11 +114,7 @@ async function ensureEngine(modelId, onProgress) {
   }
 
   if (engine) {
-    try {
-      await engine.dispose();
-    } catch {
-      // Safe fallback: ignore disposal errors when replacing an existing engine
-    }
+    await disposeSafely(engine);
     engine = null;
     currentModelId = null;
   }
@@ -120,12 +145,7 @@ async function ensureEngine(modelId, onProgress) {
 
 function resetEngineState() {
   if (engine) {
-    const stale = engine;
-    try {
-      Promise.resolve(stale.dispose()).catch(() => {});
-    } catch {
-      // Safe fallback: best-effort cleanup of stale model engine
-    }
+    void disposeSafely(engine);
   }
   engine = null;
   currentModelId = null;
@@ -171,7 +191,7 @@ let translator = null;
 let translatorModelId = null;
 const acquireTranslatorLock = createLock();
 
-export const TRANSLATOR_IDLE_MS = 60 * 1000;
+const TRANSLATOR_IDLE_MS = 60 * 1000;
 let translatorIdleTimer = null;
 
 function cancelTranslatorIdleDispose() {
@@ -194,14 +214,9 @@ function scheduleTranslatorIdleDispose() {
 export function disposeTranslatorNow() {
   cancelTranslatorIdleDispose();
   if (translator) {
-    const stale = translator;
+    void disposeSafely(translator);
     translator = null;
     translatorModelId = null;
-    try {
-      Promise.resolve(stale.dispose()).catch(() => {});
-    } catch {
-      // Safe fallback: best-effort cleanup of idle translator
-    }
     return true;
   }
   translatorModelId = null;
@@ -224,28 +239,18 @@ export function __setTranslatorForTest(t, modelId) {
 async function ensureTranslator(modelId, onProgress) {
   if (translator && translatorModelId === modelId) return translator;
   if (translator) {
-    try {
-      await translator.dispose();
-    } catch {
-      // Safe fallback: ignore disposal errors when replacing translator engine
-    }
+    await disposeSafely(translator);
     translator = null;
     translatorModelId = null;
   }
-  const { pipeline, env } = await getTransformers();
-  env.backends.onnx.wasm.numThreads = resolveWasmThreads("translator");
-  env.backends.onnx.wasm.wasmPaths = { wasm: ortWasmUrl() };
-  env.backends.onnx.wasm.wasmBinary = await ortWasmBinary();
+  const pipeline = await configureWasmBackend("translator");
   translator = await pipeline("translation", modelId, {
     dtype: "q8",
     device: "wasm",
-    progress_callback: (p) => {
-      if (p.status !== "progress") return;
-      onProgress?.({
-        progress: p.progress / 100,
-        text: `Downloading translation model... ${Math.round(p.progress)}%`,
-      });
-    },
+    progress_callback: reportDownloadProgress(
+      onProgress,
+      "Downloading translation model",
+    ),
   });
   translatorModelId = modelId;
   return translator;
@@ -263,11 +268,7 @@ export async function withTranslator(modelId, onProgress, fn, options = {}) {
       t = await ensureTranslator(modelId, onProgress);
     } catch (err) {
       if (translator) {
-        try {
-          Promise.resolve(translator.dispose()).catch(() => {});
-        } catch {
-          // Safe fallback: best-effort cleanup of failed translator
-        }
+        void disposeSafely(translator);
       }
       translator = null;
       translatorModelId = null;
@@ -279,11 +280,7 @@ export async function withTranslator(modelId, onProgress, fn, options = {}) {
       // Same rule as the text engine: transient translation failures keep the
       // cached translator; only corrupting errors drop it.
       if (isEngineCorruptingError(err)) {
-        try {
-          Promise.resolve(translator.dispose()).catch(() => {});
-        } catch {
-          // Safe fallback: best-effort cleanup of failed translator
-        }
+        void disposeSafely(translator);
         translator = null;
         translatorModelId = null;
       }

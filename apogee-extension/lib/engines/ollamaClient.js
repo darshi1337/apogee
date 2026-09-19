@@ -1,8 +1,26 @@
 import { UserFacingError } from "../util/userError.js";
-import { createConnectionError } from "../util/connectionError.js";
 import { ensureLoopbackCorsRuleSoon } from "../util/loopbackCors.js";
+import { stripTrailingSlashes } from "../util/ollamaHost.js";
+import {
+  buildChatMessages,
+  postChatRequest,
+  pumpChatBody,
+} from "./httpChatStream.js";
 
 class OllamaError extends UserFacingError {}
+
+function parseHttpError(detail, status, model) {
+  let message = detail;
+  try {
+    const parsed = JSON.parse(detail);
+    if (parsed?.error) message = parsed.error;
+  } catch {
+    // Safe fallback: ignore JSON parse error if response body is plain text
+  }
+  return new OllamaError(
+    `Ollama returned an error for model '${model}': ${message || status}`,
+  );
+}
 
 export async function* chatStream(
   host,
@@ -10,128 +28,63 @@ export async function* chatStream(
   prompt,
   { signal, keepAlive = "5m", system, onFinalStats } = {},
 ) {
-  // Scope the loopback Origin-strip to this extension's own (non-tab) requests before the first byte goes out.
-  // Time-boxed so a slow declarativeNetRequest handshake cannot stall the first request into a fake connection failure.
-  await ensureLoopbackCorsRuleSoon();
-  const messages = system
-    ? [
-        { role: "system", content: system },
-        { role: "user", content: prompt },
-      ]
-    : [{ role: "user", content: prompt }];
-  let response;
-  try {
-    response = await fetch(`${host.replace(/\/+$/, "")}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: true,
-        think: false,
-        keep_alive: keepAlive,
-      }),
-      signal,
-    });
-  } catch (err) {
-    if (err?.name === "AbortError")
-      throw new OllamaError("Generation was cancelled.");
-    throw createConnectionError(OllamaError, "Ollama", host, err);
-  }
+  const messages = buildChatMessages(system, prompt);
+  const response = await postChatRequest({
+    url: `${stripTrailingSlashes(host)}/api/chat`,
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: true,
+      think: false,
+      keep_alive: keepAlive,
+    }),
+    headers: { "Content-Type": "application/json" },
+    signal,
+    ErrorClass: OllamaError,
+    label: "Ollama",
+    errorHost: host,
+    parseHttpError: (detail, status) => parseHttpError(detail, status, model),
+  });
 
-  if (!response.ok) {
-    let detail = "";
-    try {
-      detail = await response.text();
-    } catch {
-      // Safe fallback: ignore body read error when inspecting response error detail
-    }
-    let message = detail;
-    try {
-      const parsed = JSON.parse(detail);
-      if (parsed?.error) message = parsed.error;
-    } catch {
-      // Safe fallback: ignore JSON parse error if response body is plain text
-    }
-    throw new OllamaError(
-      `Ollama returned an error for model '${model}': ${message || response.status}`,
-    );
-  }
-
-  if (!response.body) return;
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      let newlineIndex;
-      while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
-        const line = buffer.slice(0, newlineIndex).trim();
-        buffer = buffer.slice(newlineIndex + 1);
-        if (!line) continue;
-        const parsed = JSON.parse(line);
-        if (parsed.error) {
-          throw new OllamaError(
-            `Ollama returned an error for model '${model}': ${parsed.error}`,
-          );
-        }
-        const text = parsed.message?.content;
-        if (text) yield text;
-        if (parsed.eval_count != null && parsed.eval_duration != null) {
-          onFinalStats?.({
-            tokens: parsed.eval_count,
-            durationMs: parsed.eval_duration / 1e6,
-          });
-        }
-      }
-    }
-    const trailing = buffer.trim();
-    if (trailing) {
-      const parsed = JSON.parse(trailing);
-      const text = parsed.message?.content;
-      if (text) yield text;
-      if (parsed.eval_count != null && parsed.eval_duration != null) {
-        onFinalStats?.({
-          tokens: parsed.eval_count,
-          durationMs: parsed.eval_duration / 1e6,
-        });
-      }
-    }
-  } catch (err) {
-    if (err instanceof OllamaError) throw err;
-    if (err?.name === "AbortError" || signal?.aborted) {
-      throw new OllamaError("Generation was cancelled.");
-    }
-    if (err instanceof SyntaxError) {
+  const onBlock = (block) => {
+    const line = block.trim();
+    if (!line) return { texts: [] };
+    const parsed = JSON.parse(line);
+    if (parsed.error) {
       throw new OllamaError(
-        `Ollama sent a malformed response for model '${model}': ${err.message}`,
+        `Ollama returned an error for model '${model}': ${parsed.error}`,
       );
     }
-    throw createConnectionError(OllamaError, "Ollama", host, err);
-  } finally {
-    try {
-      await reader.cancel();
-    } catch {
-      // Safe fallback: best-effort reader cancellation
+    const texts = [];
+    const text = parsed.message?.content;
+    if (text) texts.push(text);
+    if (parsed.eval_count != null && parsed.eval_duration != null) {
+      onFinalStats?.({
+        tokens: parsed.eval_count,
+        durationMs: parsed.eval_duration / 1e6,
+      });
     }
-    try {
-      reader.releaseLock();
-    } catch {
-      // Safe fallback: best-effort release of reader lock
-    }
-  }
+    return { texts };
+  };
+
+  yield* pumpChatBody(response, {
+    delimiter: "\n",
+    onBlock,
+    signal,
+    ErrorClass: OllamaError,
+    label: "Ollama",
+    errorHost: host,
+    mapSyntaxError: (err) =>
+      new OllamaError(
+        `Ollama sent a malformed response for model '${model}': ${err.message}`,
+      ),
+  });
 }
 
 export async function checkHealth(host, timeoutMs = 3000) {
   await ensureLoopbackCorsRuleSoon();
   try {
-    const response = await fetch(`${host.replace(/\/+$/, "")}/api/tags`, {
+    const response = await fetch(`${stripTrailingSlashes(host)}/api/tags`, {
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) return { connected: false, models: [] };

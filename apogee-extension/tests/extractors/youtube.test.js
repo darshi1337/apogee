@@ -23,7 +23,11 @@ function createMockScriptHtml(ytPlayerResponse) {
 
 test("isAllowedCaptionUrl allows valid youtube.com and googlevideo.com https URLs", () => {
   const { isAllowedCaptionUrl } = loadExtractors({
-    files: ["extractors/youtube.js"],
+    files: [
+      "extractors/thread.js",
+      "extractors/video.js",
+      "extractors/youtube.js",
+    ],
     url: YOUTUBE_URL,
     html: "<!doctype html><html><body></body></html>",
   });
@@ -50,7 +54,11 @@ test("isAllowedCaptionUrl allows valid youtube.com and googlevideo.com https URL
 
 test("isAllowedCaptionUrl refuses non-https and untrusted domain URLs", () => {
   const { isAllowedCaptionUrl } = loadExtractors({
-    files: ["extractors/youtube.js"],
+    files: [
+      "extractors/thread.js",
+      "extractors/video.js",
+      "extractors/youtube.js",
+    ],
     url: YOUTUBE_URL,
     html: "<!doctype html><html><body></body></html>",
   });
@@ -117,7 +125,11 @@ test("fetchTranscript refuses caption track pointing at non-YouTube host", async
   };
 
   const { fetchTranscript } = loadExtractors({
-    files: ["extractors/youtube.js"],
+    files: [
+      "extractors/thread.js",
+      "extractors/video.js",
+      "extractors/youtube.js",
+    ],
     url: YOUTUBE_URL,
     html: "<!doctype html><html><body></body></html>",
     fetch: fetchStub,
@@ -160,7 +172,11 @@ test("fetchTranscript successfully fetches and parses XML transcript from allowe
   };
 
   const { fetchTranscript } = loadExtractors({
-    files: ["extractors/youtube.js"],
+    files: [
+      "extractors/thread.js",
+      "extractors/video.js",
+      "extractors/youtube.js",
+    ],
     url: YOUTUBE_URL,
     html: "<!doctype html><html><body></body></html>",
     fetch: fetchStub,
@@ -203,7 +219,11 @@ test("fetchTranscript successfully fetches and parses JSON transcript from allow
   };
 
   const { fetchTranscript } = loadExtractors({
-    files: ["extractors/youtube.js"],
+    files: [
+      "extractors/thread.js",
+      "extractors/video.js",
+      "extractors/youtube.js",
+    ],
     url: YOUTUBE_URL,
     html: "<!doctype html><html><body></body></html>",
     fetch: fetchStub,
@@ -255,7 +275,11 @@ test("extractYoutube full extraction flow with playerResponse script element", a
   const html = createMockScriptHtml(ytPlayerResponse);
 
   const { extractYoutube } = loadExtractors({
-    files: ["extractors/youtube.js"],
+    files: [
+      "extractors/thread.js",
+      "extractors/video.js",
+      "extractors/youtube.js",
+    ],
     url: YOUTUBE_URL,
     html,
     fetch: fetchStub,

@@ -32,7 +32,7 @@ export function setLinkifyPageHostForTests(host) {
   linkifyPageHost = host;
 }
 
-export function normalizeLinkHost(host) {
+function normalizeLinkHost(host) {
   const h = String(host || "")
     .toLowerCase()
     .replace(/^(www\.|m\.)/, "");
@@ -47,7 +47,7 @@ export function setLinkifyOriginFromUrl(url) {
   }
 }
 
-export function isLinkifiableHref(href, { allowAlwaysHosts = true } = {}) {
+function isLinkifiableHref(href, { allowAlwaysHosts = true } = {}) {
   let host;
   try {
     host = normalizeLinkHost(new URL(href).hostname);
@@ -109,10 +109,7 @@ export function isSafeMarkdownHref(href) {
   return true;
 }
 
-export function extractMarkdownLinks(
-  escapedText,
-  { allowAlwaysHosts = true } = {},
-) {
+function extractMarkdownLinks(escapedText, { allowAlwaysHosts = true } = {}) {
   const links = [];
   const cleanText = String(escapedText).replace(LINK_TOKEN_STRIP_RE, "");
   const text = cleanText.replace(
@@ -132,7 +129,7 @@ export function extractMarkdownLinks(
   return { text, links };
 }
 
-export function renderInline(escapedText, { allowAlwaysHosts = true } = {}) {
+function renderInline(escapedText, { allowAlwaysHosts = true } = {}) {
   const { text, links } = extractMarkdownLinks(escapedText, {
     allowAlwaysHosts,
   });

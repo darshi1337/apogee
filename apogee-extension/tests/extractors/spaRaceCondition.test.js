@@ -24,7 +24,7 @@ test("extractGmail handles unmounted/detached message elements gracefully", () =
   `;
 
   const context = loadExtractors({
-    files: ["extractors/gmail.js"],
+    files: ["extractors/thread.js", "extractors/gmail.js"],
     url: "https://mail.google.com/mail/u/0/#inbox/FMfcgx",
     html,
   });

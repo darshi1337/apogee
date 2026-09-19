@@ -1218,10 +1218,14 @@ function showSummarizingContext() {
   setTokensPerSecBadge(tokensPerSecBadgeSummary, null);
 }
 
+function setBadgeLabel(el, label) {
+  if (!el) return;
+  el.textContent = label || "";
+  el.classList.toggle("hidden", !label);
+}
+
 function setTimeSavedBadgeLabel(label) {
-  if (!timeSavedBadge) return;
-  timeSavedBadge.textContent = label || "";
-  timeSavedBadge.classList.toggle("hidden", !label);
+  setBadgeLabel(timeSavedBadge, label);
 }
 
 function updateTimeSavedBadge(pageData, summaryText) {
@@ -1247,10 +1251,7 @@ async function getTimeSavedInputsForTab(tab, state) {
 }
 
 function setTokensPerSecBadge(el, rate) {
-  if (!el) return;
-  const label = rate != null ? formatTokensPerSecond(rate) : null;
-  el.textContent = label || "";
-  el.classList.toggle("hidden", !label);
+  setBadgeLabel(el, rate != null ? formatTokensPerSecond(rate) : null);
 }
 
 function setSummaryCopyButtonsVisible(hasText) {
@@ -1342,17 +1343,32 @@ copyAnswerBtn?.addEventListener("click", () =>
 );
 resummarizeBtn?.addEventListener("click", () => summarizeActivePage());
 
+// Shared cancel-button state for the summarize/ask streams: same label,
+// enable, and visibility shape — only the button and its active-stream slot
+// differ.
+function setCancelButton(btn, show, streamId, setActiveId) {
+  setActiveId?.(show ? streamId : null);
+  if (show) {
+    btn.textContent = "Cancel";
+    btn.disabled = false;
+    btn.classList.remove("hidden");
+  } else {
+    btn.classList.add("hidden");
+    modelProgress?.classList.add("hidden");
+  }
+}
+
 function showCancelSummarizeButton(streamId) {
-  activeSummarizeStreamId = streamId;
-  cancelSummarizeBtn.textContent = "Cancel";
-  cancelSummarizeBtn.disabled = false;
-  cancelSummarizeBtn.classList.remove("hidden");
+  setCancelButton(
+    cancelSummarizeBtn,
+    true,
+    streamId,
+    (id) => (activeSummarizeStreamId = id),
+  );
 }
 
 function hideCancelSummarizeButton() {
-  activeSummarizeStreamId = null;
-  cancelSummarizeBtn.classList.add("hidden");
-  modelProgress?.classList.add("hidden");
+  setCancelButton(cancelSummarizeBtn, false);
 }
 
 function helpLink(message) {
@@ -1365,13 +1381,18 @@ function helpLink(message) {
   return link;
 }
 
+// Shared alert-role + ERROR.md help link both error renderers apply.
+function attachErrorAlert(target, message) {
+  target.setAttribute("role", "alert");
+  target.appendChild(helpLink(message));
+}
+
 // Every failure the user can see goes through here, so each one gets the alert role, the error styling, and a link into ERROR.md.
 function renderError(target, message) {
   const p = document.createElement("p");
-  p.setAttribute("role", "alert");
   p.className = "error-message";
   p.textContent = message;
-  p.appendChild(helpLink(message));
+  attachErrorAlert(p, message);
 
   target.textContent = "";
   target.appendChild(p);
@@ -1380,9 +1401,8 @@ function renderError(target, message) {
 // Same link, for the one-line status spans in Settings that have no room for a paragraph.
 function renderStatusError(target, message) {
   if (!target) return;
-  target.setAttribute("role", "alert");
   target.textContent = `${message} `;
-  target.appendChild(helpLink(message));
+  attachErrorAlert(target, message);
 }
 
 function renderSummaryError(error) {
@@ -1467,16 +1487,16 @@ function showAnswerContext(question) {
 }
 
 function showCancelAskButton(streamId) {
-  activeAskStreamId = streamId;
-  cancelAskBtn.textContent = "Cancel";
-  cancelAskBtn.disabled = false;
-  cancelAskBtn.classList.remove("hidden");
+  setCancelButton(
+    cancelAskBtn,
+    true,
+    streamId,
+    (id) => (activeAskStreamId = id),
+  );
 }
 
 function hideCancelAskButton() {
-  activeAskStreamId = null;
-  cancelAskBtn.classList.add("hidden");
-  modelProgress?.classList.add("hidden");
+  setCancelButton(cancelAskBtn, false);
 }
 
 function returnToAskAfterCancel(tabId) {
@@ -2319,17 +2339,16 @@ summarizeSelectionBtn?.addEventListener("click", async () => {
   }
 });
 
-settingsBtn?.addEventListener("click", () => {
-  settingsEntryView = "homeView";
-  showOnlyView("settingsView");
-  saveViewState(activeTabId, { view: "settingsView" });
-});
+function bindSettingsButton(btn, entryView) {
+  btn?.addEventListener("click", () => {
+    settingsEntryView = entryView;
+    showOnlyView("settingsView");
+    saveViewState(activeTabId, { view: "settingsView" });
+  });
+}
 
-settingsBtn2?.addEventListener("click", () => {
-  settingsEntryView = "summaryView";
-  showOnlyView("settingsView");
-  saveViewState(activeTabId, { view: "settingsView" });
-});
+bindSettingsButton(settingsBtn, "homeView");
+bindSettingsButton(settingsBtn2, "summaryView");
 
 openSidePanelBtns.forEach((button) =>
   button.addEventListener("click", async () => {

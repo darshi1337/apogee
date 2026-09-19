@@ -7,7 +7,7 @@ const URL_THREAD = "https://mail.google.com/mail/u/0/#inbox/FMfcgz123456";
 
 test("extractGmail pulls every message in an open thread", () => {
   const { extractGmail } = loadExtractors({
-    files: ["extractors/gmail.js"],
+    files: ["extractors/thread.js", "extractors/gmail.js"],
     url: URL_THREAD,
     fixture: "gmail-thread.html",
   });
@@ -31,7 +31,7 @@ test("extractGmail pulls every message in an open thread", () => {
 
 test("extractGmail returns empty content when no thread is open", () => {
   const { extractGmail } = loadExtractors({
-    files: ["extractors/gmail.js"],
+    files: ["extractors/thread.js", "extractors/gmail.js"],
     url: URL_INBOX,
     html: '<!doctype html><html><head><title>Inbox - Gmail</title></head><body><div class="ain"></div></body></html>',
   });
@@ -58,7 +58,7 @@ test("extractGmail sanitizes sender email field against prompt injection", () =>
 </html>`;
 
   const { extractGmail } = loadExtractors({
-    files: ["extractors/gmail.js"],
+    files: ["extractors/thread.js", "extractors/gmail.js"],
     url: URL_THREAD,
     html: injectionHtml,
   });

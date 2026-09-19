@@ -54,15 +54,7 @@ export const MAX_BILIBILI_SUBTITLE_CHARS = 500 * 1024;
 export const MAX_PASTED_CHARS = 100 * 1024;
 
 export function truncatePastedText(text) {
-  const clean = (text || "").trim();
-  if (clean.length <= MAX_PASTED_CHARS)
-    return { text: clean, truncated: false };
-  return {
-    text:
-      `${clean.slice(0, MAX_PASTED_CHARS).trim()}\n\n` +
-      `[...pasted content truncated to the first ${MAX_PASTED_CHARS} characters...]`,
-    truncated: true,
-  };
+  return truncateWithNote((text || "").trim(), MAX_PASTED_CHARS, "pasted");
 }
 
 // Expanded-text working ceiling (#267). PDF/DOCX extraction inflates a 50 MB
@@ -82,18 +74,19 @@ function sliceOnCharBoundary(text, maxLength) {
   return head;
 }
 
-export function truncateExtractedText(text, label = "file") {
-  const clean = (text || "").trim();
-  if (clean.length <= MAX_EXTRACTED_TEXT_CHARS)
-    return { text: clean, truncated: false };
-  const note =
-    `[...${label} content truncated to the first ` +
-    `${MAX_EXTRACTED_TEXT_CHARS} characters...]`;
-  const head = sliceOnCharBoundary(
-    clean,
-    MAX_EXTRACTED_TEXT_CHARS - note.length - 2,
-  ).trimEnd();
+// Shared core for the user-visible truncation helpers: same
+// { text, truncated } shape and the same labeled-note convention, only the
+// ceiling and label differ. The head reserves room for the note so output
+// never exceeds maxChars, and the cut respects surrogate pairs.
+function truncateWithNote(clean, maxChars, label) {
+  if (clean.length <= maxChars) return { text: clean, truncated: false };
+  const note = `[...${label} content truncated to the first ${maxChars} characters...]`;
+  const head = sliceOnCharBoundary(clean, maxChars - note.length - 2).trimEnd();
   return { text: `${head}\n\n${note}`, truncated: true };
+}
+
+export function truncateExtractedText(text, label = "file") {
+  return truncateWithNote((text || "").trim(), MAX_EXTRACTED_TEXT_CHARS, label);
 }
 
 // Absolute map-stage ceiling (#269). getMaxChunks bounds the reduce budget
@@ -181,8 +174,5 @@ export async function readTextHead(file, maxChars = MAX_PASTED_CHARS) {
     } catch {}
   }
   if (!truncated) return truncatePastedText(text);
-  const clean = text.trim();
-  const note = `[...file content truncated to the first ${maxChars} characters...]`;
-  const head = sliceOnCharBoundary(clean, maxChars - note.length - 2).trimEnd();
-  return { text: `${head}\n\n${note}`, truncated: true };
+  return truncateWithNote(text.trim(), maxChars, "file");
 }

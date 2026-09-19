@@ -2,7 +2,7 @@ import { isSensitiveUrl } from "../storage/pageCache.js";
 
 let enabled = false;
 
-export function setDebugLogging(on) {
+function setDebugLogging(on) {
   enabled = on === true;
 }
 

@@ -1,15 +1,18 @@
-/**
- * Checks whether the extension currently has granted host permissions for the specified origins.
- * @param {string[]} origins List of origin match patterns (e.g. ["*://*.bilibili.com/*"])
- * @returns {Promise<boolean>}
- */
-export async function hasHostPermissions(origins) {
-  if (typeof chrome === "undefined" || !chrome.permissions?.contains) {
+// Shared chrome.permissions call core for the check/request pair below:
+// same guard, same callback-to-promise shape, only the API method differs.
+// Fail closed throughout: without the permissions API there is no prompt to
+// grant, so callers must treat access as denied rather than assuming the
+// gated fetch is allowed.
+async function queryPermissionsApi(method, origins) {
+  if (
+    typeof chrome === "undefined" ||
+    typeof chrome.permissions?.[method] !== "function"
+  ) {
     return false;
   }
   try {
     return await new Promise((resolve) => {
-      chrome.permissions.contains({ origins }, (result) => {
+      chrome.permissions[method]({ origins }, (result) => {
         resolve(Boolean(result));
       });
     });
@@ -19,26 +22,21 @@ export async function hasHostPermissions(origins) {
 }
 
 /**
+ * Checks whether the extension currently has granted host permissions for the specified origins.
+ * @param {string[]} origins List of origin match patterns (e.g. ["*://*.bilibili.com/*"])
+ * @returns {Promise<boolean>}
+ */
+export async function hasHostPermissions(origins) {
+  return queryPermissionsApi("contains", origins);
+}
+
+/**
  * Requests host permissions on demand for the specified origins.
  * @param {string[]} origins List of origin match patterns
  * @returns {Promise<boolean>}
  */
 export async function requestHostPermissions(origins) {
-  if (typeof chrome === "undefined" || !chrome.permissions?.request) {
-    // Fail closed like hasHostPermissions: without the permissions API there
-    // is no prompt to grant, so callers must treat access as denied rather
-    // than assuming the gated fetch is allowed.
-    return false;
-  }
-  try {
-    return await new Promise((resolve) => {
-      chrome.permissions.request({ origins }, (granted) => {
-        resolve(Boolean(granted));
-      });
-    });
-  } catch {
-    return false;
-  }
+  return queryPermissionsApi("request", origins);
 }
 
 /**

@@ -1,6 +1,11 @@
 import { UserFacingError } from "../util/userError.js";
-import { createConnectionError } from "../util/connectionError.js";
 import { ensureLoopbackCorsRuleSoon } from "../util/loopbackCors.js";
+import { stripTrailingSlashes } from "../util/ollamaHost.js";
+import {
+  buildChatMessages,
+  postChatRequest,
+  pumpChatBody,
+} from "./httpChatStream.js";
 
 class LlamaCppError extends UserFacingError {}
 
@@ -109,102 +114,47 @@ export async function* chatStream(
   prompt,
   { signal, system, apiKey, onFinalStats } = {},
 ) {
-  const messages = system
-    ? [
-        { role: "system", content: system },
-        { role: "user", content: prompt },
-      ]
-    : [{ role: "user", content: prompt }];
+  const messages = buildChatMessages(system, prompt);
 
-  const base = host.replace(/\/+$/, "");
+  const base = stripTrailingSlashes(host);
 
-  // Scope the loopback Origin-strip to this extension's own (non-tab) requests before the first byte goes out.
-  // Time-boxed so a slow declarativeNetRequest handshake cannot stall the first request into a fake connection failure.
-  await ensureLoopbackCorsRuleSoon();
+  const response = await postChatRequest({
+    url: `${base}/v1/chat/completions`,
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: true,
+      stream_options: { include_usage: true },
+    }),
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(apiKey),
+    },
+    signal,
+    ErrorClass: LlamaCppError,
+    label: "llama.cpp",
+    errorHost: base,
+    parseHttpError: (body, status) => httpError(body, status, model),
+  });
 
-  let response;
-  try {
-    response = await fetch(`${base}/v1/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...authHeaders(apiKey),
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: true,
-        stream_options: { include_usage: true },
-      }),
-      signal,
-    });
-  } catch (err) {
-    if (err?.name === "AbortError")
-      throw new LlamaCppError("Generation was cancelled.");
-    throw createConnectionError(LlamaCppError, "llama.cpp", base, err);
-  }
+  // `data: [DONE]` arrives with no trailing blank line, so the final event is still sitting in the buffer once the reader finishes. Without the shared trailing flush the sentinel is never read. ollamaClient.js flushes its last NDJSON line for the same reason.
+  const onBlock = (block) => {
+    const { tokens, done: finished } = readEventBlock(
+      block,
+      model,
+      onFinalStats,
+    );
+    return { texts: tokens, finished };
+  };
 
-  if (!response.ok) {
-    let body = "";
-    try {
-      body = await response.text();
-    } catch {
-      // Safe fallback: ignore body text read error
-    }
-    throw httpError(body, response.status, model);
-  }
-
-  if (!response.body) return;
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      let boundary;
-      while ((boundary = buffer.indexOf("\n\n")) !== -1) {
-        const block = buffer.slice(0, boundary);
-        buffer = buffer.slice(boundary + 2);
-        const { tokens, done: finished } = readEventBlock(
-          block,
-          model,
-          onFinalStats,
-        );
-        yield* tokens;
-        if (finished) return;
-      }
-    }
-
-    // `data: [DONE]` arrives with no trailing blank line, so the final event is still sitting in the buffer once the reader finishes. Without this flush the sentinel is never read. ollamaClient.js flushes its last NDJSON line for the same reason.
-    const trailing = buffer.trim();
-    if (trailing) {
-      const { tokens } = readEventBlock(trailing, model, onFinalStats);
-      yield* tokens;
-    }
-  } catch (err) {
-    if (err instanceof LlamaCppError) throw err;
-    if (err?.name === "AbortError" || signal?.aborted) {
-      throw new LlamaCppError("Generation was cancelled.");
-    }
-    throw createConnectionError(LlamaCppError, "llama.cpp", base, err);
-  } finally {
-    // Breaking out of the loop early, which is what cancelling a summary does, resumes this generator with a return completion: that skips the catch but still runs this. cancel() is what tells the body to stop and lets the connection go; releaseLock() then leaves no locked stream behind.
-    try {
-      await reader.cancel();
-    } catch {
-      // Safe fallback: best-effort reader cancellation
-    }
-    try {
-      reader.releaseLock();
-    } catch {
-      // Safe fallback: best-effort release of reader lock
-    }
-  }
+  yield* pumpChatBody(response, {
+    delimiter: "\n\n",
+    onBlock,
+    signal,
+    ErrorClass: LlamaCppError,
+    label: "llama.cpp",
+    errorHost: base,
+  });
 }
 
 async function getJson(url, timeoutMs, apiKey) {
@@ -245,7 +195,7 @@ function positiveInt(value) {
  */
 export async function checkHealth(host, timeoutMs = 3000, apiKey = "") {
   await ensureLoopbackCorsRuleSoon();
-  const base = host.replace(/\/+$/, "");
+  const base = stripTrailingSlashes(host);
   const disconnected = { connected: false, models: [], contextTokens: null };
 
   let health;

@@ -14,11 +14,6 @@ const STACKEXCHANGE_HOSTS = [
   "stackapps.com",
 ];
 
-function soText(el) {
-  if (!el) return "";
-  return (el.innerText || el.textContent || "").trim();
-}
-
 function isStackExchangeHost() {
   const host = location.hostname.toLowerCase();
   return STACKEXCHANGE_HOSTS.some(
@@ -40,7 +35,7 @@ function soScore(root) {
     const n = parseInt(attr, 10);
     if (!isNaN(n)) return n;
   }
-  const n = parseInt(soText(vote), 10);
+  const n = parseInt(elText(vote), 10);
   return isNaN(n) ? undefined : n;
 }
 
@@ -48,7 +43,7 @@ function soAuthor(root) {
   const el =
     root.querySelector(".post-signature.owner .user-details a") ||
     root.querySelector(".user-details a");
-  return soText(el) || "anon";
+  return elAuthor(el);
 }
 
 function soBody(root) {
@@ -56,7 +51,7 @@ function soBody(root) {
     root.querySelector(".js-post-body") ||
     root.querySelector(".s-prose") ||
     root.querySelector(".post-text");
-  return soText(el);
+  return elText(el);
 }
 
 function soIsAccepted(answerEl) {
@@ -69,15 +64,11 @@ function soIsAccepted(answerEl) {
 function soComments(root) {
   if (!root || (typeof root.isConnected !== "undefined" && !root.isConnected))
     return [];
-  const comments = Array.from(
-    root.querySelectorAll?.("li.comment, .comment") || [],
-  ).filter(
-    (el) => el && (typeof el.isConnected === "undefined" || el.isConnected),
-  );
+  const comments = liveEls(root.querySelectorAll?.("li.comment, .comment"));
   return comments.map((el) => ({
-    author: soText(el.querySelector?.(".comment-user")) || "anon",
+    author: elAuthor(el.querySelector?.(".comment-user")),
     text: threadTruncate(
-      soText(el.querySelector?.(".comment-copy")),
+      elText(el.querySelector?.(".comment-copy")),
       SO_MAX_COMMENT_CHARS,
     ),
   }));
@@ -103,15 +94,14 @@ function extractStackOverflow() {
     document.querySelector("#question-header h1 a") ||
     document.querySelector("h1 a.question-hyperlink") ||
     document.querySelector("a.question-hyperlink");
-  const title = (soText(titleEl) || document.title).trim();
+  const title = (elText(titleEl) || document.title).trim();
   const questionText = soBody(questionEl);
   if (!title || !questionText) return null;
 
-  const tags = Array.from(
+  const tags = liveEls(
     questionEl.querySelectorAll(".post-taglist a.post-tag, a.post-tag"),
   )
-    .filter((t) => t && (typeof t.isConnected === "undefined" || t.isConnected))
-    .map((t) => soText(t))
+    .map((t) => elText(t))
     .filter(Boolean);
   const score = soScore(questionEl);
   const author = soAuthor(questionEl);
@@ -119,10 +109,8 @@ function extractStackOverflow() {
     .filter((c) => c.text)
     .slice(0, SO_MAX_QUESTION_COMMENTS);
 
-  const answerElements = Array.from(
+  const answerElements = liveEls(
     document.querySelectorAll("#answers .answer, .answer"),
-  ).filter(
-    (el) => el && (typeof el.isConnected === "undefined" || el.isConnected),
   );
 
   const answers = soSelectAnswers(
@@ -158,32 +146,23 @@ function extractStackOverflow() {
   const nodes = buildThreadNodes(items);
   const formatted = selectThreadComments(nodes, (n) => n.text, items.length);
 
-  let content = `Stack Overflow question\n\nTitle: ${title}\n`;
-  if (tags.length) content += `Tags: ${tags.join(", ")}\n`;
   const meta = [
     typeof score === "number" && `score ${score}`,
     author && `by ${author}`,
   ]
     .filter(Boolean)
     .join(" | ");
-  if (meta) content += `${meta}\n`;
-  content += `\nPost:\n${questionText}\n`;
 
-  if (questionComments.length) {
-    content += `\nQuestion comments:\n`;
-    for (const c of questionComments) {
-      content += `- ${c.author}: ${c.text}\n`;
-    }
-  }
-
-  content += formatted.length
-    ? `\n${THREAD_COMMENTS_HEADER}\n${formatThreadComments(formatted)}\n`
-    : `\n(No comments yet.)\n`;
-
-  return {
-    type: "stackoverflow",
+  return renderThreadPage({
+    label: "Stack Overflow question",
+    heading: title,
     title,
-    url: location.href,
-    content: content.trim(),
-  };
+    headLines: [tags.length && `Tags: ${tags.join(", ")}`, meta],
+    post: questionText,
+    afterPost: questionComments.length
+      ? `Question comments:\n${questionComments.map((c) => `- ${c.author}: ${c.text}`).join("\n")}`
+      : "",
+    comments: formatted,
+    type: "stackoverflow",
+  });
 }

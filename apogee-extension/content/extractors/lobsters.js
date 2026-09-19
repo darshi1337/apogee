@@ -23,26 +23,18 @@ function lobstersCommentDepth(li) {
 }
 
 function lobstersCommentItems(commentElements) {
-  const elements = Array.from(commentElements).filter(
-    (li) => li && (typeof li.isConnected === "undefined" || li.isConnected),
-  );
-  return elements.map((li) => {
+  return liveEls(commentElements).map((li) => {
     const bodyEl = li.querySelector?.(".comment_text");
     const authorEl = li.querySelector?.(".byline a.u-author, .byline a.user");
     const scoreEl = li.querySelector?.(".score");
-    const scoreText =
-      scoreEl?.innerText?.trim() || scoreEl?.textContent?.trim() || "";
+    const scoreText = elText(scoreEl);
     const scoreVal = scoreText ? parseInt(scoreText, 10) : NaN;
 
     return {
       depth: lobstersCommentDepth(li),
-      author:
-        authorEl?.innerText?.trim() || authorEl?.textContent?.trim() || "anon",
+      author: elAuthor(authorEl),
       text: bodyEl
-        ? threadTruncate(
-            bodyEl.innerText?.trim() || bodyEl.textContent?.trim() || "",
-            LOBSTERS_MAX_COMMENT_CHARS,
-          )
+        ? threadTruncate(elText(bodyEl), LOBSTERS_MAX_COMMENT_CHARS)
         : "",
       score: isNaN(scoreVal) ? undefined : scoreVal,
     };
@@ -68,42 +60,31 @@ function extractLobsters() {
   const linkHref = titleEl?.getAttribute("href") || "";
   const isExternalLink =
     /^https?:/i.test(linkHref) && !linkHref.includes("lobste.rs");
-  const domain = document.querySelector(".domain")?.innerText?.trim() || "";
+  const domain = elText(document.querySelector(".domain"));
 
-  const points =
-    document.querySelector(".story .score")?.innerText?.trim() || "";
-  const author =
-    document.querySelector(".story .byline a.u-author")?.innerText?.trim() ||
-    "";
+  const points = elText(document.querySelector(".story .score"));
+  const author = elText(document.querySelector(".story .byline a.u-author"));
 
-  const storyText =
-    document.querySelector(".story_text")?.innerText?.trim() || "";
+  const storyText = elText(document.querySelector(".story_text"));
 
-  const commentLis = Array.from(
+  const commentLis = liveEls(
     document.querySelectorAll("ol.comments > li.comment, li.comment"),
-  ).filter(
-    (li) => li && (typeof li.isConnected === "undefined" || li.isConnected),
   );
   const nodes = buildThreadNodes(lobstersCommentItems(commentLis));
   const eligible = (n) => n.text && n.depth <= LOBSTERS_MAX_DEPTH;
   const comments = selectThreadComments(nodes, eligible, LOBSTERS_MAX_COMMENTS);
 
-  let content = `Lobste.rs discussion\n\nTitle: ${title}\n`;
-  if (isExternalLink) content += `Links to: ${domain || linkHref}\n`;
   const meta = [points && `${points} points`, author && `by ${author}`]
     .filter(Boolean)
     .join(" | ");
-  if (meta) content += `${meta}\n`;
-  if (storyText) content += `\nPost:\n${storyText}\n`;
 
-  content += comments.length
-    ? `\n${THREAD_COMMENTS_HEADER}\n${formatThreadComments(comments)}\n`
-    : `\n(No comments yet.)\n`;
-
-  return {
-    type: "lobsters",
+  return renderThreadPage({
+    label: "Lobste.rs discussion",
+    heading: title,
     title,
-    url: location.href,
-    content: content.trim(),
-  };
+    headLines: [isExternalLink && `Links to: ${domain || linkHref}`, meta],
+    post: storyText,
+    comments,
+    type: "lobsters",
+  });
 }

@@ -13,11 +13,12 @@ import {
 } from "../lib/engines/llamaCppClient.js";
 import { getMaxChunkChars, getMaxChunks } from "../lib/engines/modelLimits.js";
 import {
-  tokensForChunk,
-  isWarmedUp,
-  tokensPerSecond,
-  finalTokensPerSecond,
-} from "../lib/util/throughput.js";
+  appendChunkToState,
+  createStreamState,
+  finishStateWithStats,
+  replayStreamToPort,
+  warmedStatsForState,
+} from "../lib/util/streamState.js";
 import { chunkBySections } from "../lib/summarize/sections.js";
 import { errorHelpUrl } from "../lib/util/errorHelp.js";
 import {
@@ -44,7 +45,6 @@ import {
   MAX_BILIBILI_SUBTITLE_SEGMENTS,
   MAX_FINALIZE_TEXT_CHARS,
   MAX_UPLOAD_FILE_BYTES,
-  appendStreamTextCapped,
 } from "../lib/extract/fileLimits.js";
 import {
   recordPageAccessEvent,
@@ -587,36 +587,17 @@ async function getRelevantAskContent(content, question) {
 }
 
 function createBufferedStream(streamId, { finalize, model, title, url }) {
-  const stream = {
-    text: "",
-    done: false,
-    error: null,
+  const stream = createStreamState({
     errorUserFacing: false,
-    cancelled: false,
-    subscribers: new Set(),
     controller: new AbortController(),
-    tokenCount: 0,
-    firstTokenTime: null,
-    tokensPerSec: null,
-  };
+  });
   activeStreams.set(streamId, stream);
   startKeepAlive();
 
   const finish = (msg) => {
     if (stream.cancelled) return;
     if (msg.type === "done") {
-      stream.done = true;
-      const elapsedMs =
-        stream.firstTokenTime != null
-          ? performance.now() - stream.firstTokenTime
-          : 0;
-      stream.tokensPerSec =
-        finalTokensPerSecond({
-          serverStats: msg.serverStats ?? null,
-          tokenCount: stream.tokenCount,
-          elapsedMs,
-        }) || null;
-      msg = { ...msg, tokensPerSec: stream.tokensPerSec };
+      msg = finishStateWithStats(stream, msg);
     }
     if (msg.type === "error") {
       stream.error = msg.error;
@@ -638,26 +619,10 @@ function createBufferedStream(streamId, { finalize, model, title, url }) {
   };
 
   const emitChunk = (text) => {
-    if (!text || stream.cancelled) return;
-    // Bound live accumulation pre-cap (#269): finalize caps at write time,
-    // but stream.text grows with every token before that. Keep the head and
-    // drop the tail so a runaway model cannot bloat SW memory.
-    const capped = appendStreamTextCapped(stream.text, text);
-    const accepted = capped.text.length - stream.text.length;
-    stream.text = capped.text;
-    if (stream.firstTokenTime == null)
-      stream.firstTokenTime = performance.now();
-    stream.tokenCount += tokensForChunk(
-      accepted > 0 ? text.slice(0, accepted) : "",
-    );
+    if (!appendChunkToState(stream, text)) return;
     broadcastToStream(stream, { type: "chunk", text });
-    const elapsedMs = performance.now() - stream.firstTokenTime;
-    if (isWarmedUp(stream.tokenCount, elapsedMs)) {
-      broadcastToStream(stream, {
-        type: "stats",
-        tokensPerSec: tokensPerSecond(stream.tokenCount, elapsedMs),
-      });
-    }
+    const stats = warmedStatsForState(stream);
+    if (stats) broadcastToStream(stream, stats);
   };
 
   return { stream, finish, emitChunk };
@@ -956,24 +921,35 @@ async function startTransformersStream(
   }
 }
 
+// Shared tail for the local suggestion generators: prompt, language,
+// translator, generate, parse. Callers differ only in how they talk to their
+// engine (the `chat` closure).
+async function generateQuestionsFromChat(
+  chat,
+  { title, url, summary, language, translationEngine },
+) {
+  const prompt = buildSuggestQuestionsPrompt(title, url, summary);
+  const qLanguage = await resolveEffectiveLanguage(summary, language);
+  const translateFn =
+    translationEngine === TRANSLATION_ENGINES.OPUS
+      ? makeOpusTranslateFn(() => {})
+      : undefined;
+  const text = await generateInTargetLanguage(chat, prompt, qLanguage, {
+    translateFn,
+  });
+  return parseSuggestedQuestions(text);
+}
+
 async function generateTransformersSuggestions(
   model,
   { title, url, summary, language, translationEngine },
 ) {
-  return withTransformersEngine(model, null, async (eng) => {
-    const prompt = buildSuggestQuestionsPrompt(title, url, summary);
-    const chat = (p, opts) =>
-      transformersChatStream(eng, p, { system: opts?.system });
-    const qLanguage = await resolveEffectiveLanguage(summary, language);
-    const translateFn =
-      translationEngine === TRANSLATION_ENGINES.OPUS
-        ? makeOpusTranslateFn(() => {})
-        : undefined;
-    const text = await generateInTargetLanguage(chat, prompt, qLanguage, {
-      translateFn,
-    });
-    return parseSuggestedQuestions(text);
-  });
+  return withTransformersEngine(model, null, async (eng) =>
+    generateQuestionsFromChat(
+      (p, opts) => transformersChatStream(eng, p, { system: opts?.system }),
+      { title, url, summary, language, translationEngine },
+    ),
+  );
 }
 
 export async function runBackgroundSummarize(
@@ -1396,18 +1372,10 @@ async function generateLocalSuggestions(
   apiKey = "",
 ) {
   const validHost = validateLoopbackHost(host, client.label);
-  const prompt = buildSuggestQuestionsPrompt(title, url, summary);
-  const chat = (p, opts) =>
-    client.chatStream(validHost, model, p, { ...opts, apiKey });
-  const qLanguage = await resolveEffectiveLanguage(summary, language);
-  const translateFn =
-    translationEngine === TRANSLATION_ENGINES.OPUS
-      ? makeOpusTranslateFn(() => {})
-      : undefined;
-  const text = await generateInTargetLanguage(chat, prompt, qLanguage, {
-    translateFn,
-  });
-  return parseSuggestedQuestions(text);
+  return generateQuestionsFromChat(
+    (p, opts) => client.chatStream(validHost, model, p, { ...opts, apiKey }),
+    { title, url, summary, language, translationEngine },
+  );
 }
 
 const pendingSuggestKeys = new Set();
@@ -1779,41 +1747,9 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onConnect?.addListener) {
     }
 
     stream.subscribers.add(popupPort);
-    if (stream.text) {
-      try {
-        popupPort.postMessage({ type: "chunk", text: stream.text });
-      } catch {}
-    }
-    if (stream.cancelled) {
-      try {
-        popupPort.postMessage({ type: "cancelled" });
-      } catch {}
-    } else if (stream.error) {
-      try {
-        popupPort.postMessage({
-          type: "error",
-          error: stream.error,
-          userFacing: stream.errorUserFacing,
-        });
-      } catch {}
-    } else if (stream.done) {
-      try {
-        popupPort.postMessage({
-          type: "done",
-          tokensPerSec: stream.tokensPerSec,
-        });
-      } catch {}
-    } else if (stream.firstTokenTime != null) {
-      const elapsedMs = performance.now() - stream.firstTokenTime;
-      if (isWarmedUp(stream.tokenCount, elapsedMs)) {
-        try {
-          popupPort.postMessage({
-            type: "stats",
-            tokensPerSec: tokensPerSecond(stream.tokenCount, elapsedMs),
-          });
-        } catch {}
-      }
-    }
+    replayStreamToPort(stream, popupPort, {
+      userFacing: stream.errorUserFacing,
+    });
 
     popupPort.onDisconnect.addListener(() => {
       stream.subscribers.delete(popupPort);
@@ -2341,7 +2277,7 @@ const SUMMARIZE_CONTEXT_MENU_ID = "apogee-summarize";
 const SUMMARIZE_SELECTION_CONTEXT_MENU_ID = "apogee-summarize-selection";
 const SUMMARIZE_TABS_CONTEXT_MENU_ID = "apogee-summarize-tabs";
 
-export function setupContextMenus() {
+function setupContextMenus() {
   if (typeof chrome === "undefined" || !chrome.contextMenus) return;
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({

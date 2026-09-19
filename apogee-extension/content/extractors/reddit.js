@@ -77,22 +77,17 @@ async function extractReddit() {
   const eligible = (n) => n.text && n.depth <= REDDIT_MAX_DEPTH;
   const comments = selectThreadComments(nodes, eligible, REDDIT_MAX_COMMENTS);
 
-  let content = `Reddit discussion\n\nTitle: ${title}\n`;
   const meta = [subreddit, author, score, numComments, flair]
     .filter(Boolean)
     .join(" | ");
-  if (meta) content += `${meta}\n`;
-  if (externalUrl) content += `Links to: ${externalUrl}\n`;
-  if (selftext) content += `\nPost:\n${selftext}\n`;
 
-  content += comments.length
-    ? `\n${THREAD_COMMENTS_HEADER}\n${formatThreadComments(comments)}\n`
-    : `\n(No comments yet.)\n`;
-
-  return {
-    type: "reddit",
+  return renderThreadPage({
+    label: "Reddit discussion",
+    heading: title,
     title,
-    url: location.href,
-    content: content.trim(),
-  };
+    headLines: [meta, externalUrl && `Links to: ${externalUrl}`],
+    post: selftext,
+    comments,
+    type: "reddit",
+  });
 }

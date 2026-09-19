@@ -24,13 +24,13 @@ import {
 } from "../lib/engines/transformersEngine.js";
 import { initDebugLogging } from "../lib/util/log.js";
 import { broadcastToStream } from "../lib/util/streamBroadcast.js";
-import { appendStreamTextCapped } from "../lib/extract/fileLimits.js";
 import {
-  tokensForChunk,
-  isWarmedUp,
-  tokensPerSecond,
-  finalTokensPerSecond,
-} from "../lib/util/throughput.js";
+  appendChunkToState,
+  createStreamState,
+  finishStateWithStats,
+  replayStreamToPort,
+  warmedStatsForState,
+} from "../lib/util/streamState.js";
 
 initDebugLogging();
 
@@ -349,6 +349,17 @@ function transformersChatFn(eng) {
     transformersChatStream(eng, prompt, { system });
 }
 
+// Provider dispatch shared by the single-shot offscreen routes: run fn with
+// a chat closure for whichever engine the job names.
+async function withProviderEngine(provider, model, fn) {
+  if (provider === "transformers") {
+    return withTransformersEngine(model, null, (eng) =>
+      fn(transformersChatFn(eng)),
+    );
+  }
+  return withEngine(model, (eng) => fn(webllmChatFn(eng)));
+}
+
 async function streamCompletion(
   eng,
   prompt,
@@ -390,22 +401,9 @@ function opusTranslateFor(translationEngine) {
 async function runSummarize(eng, pending, emit, signal) {
   let serverStats = null;
   async function* webllmChatStream(_host, _model, prompt, opts) {
-    const messages = opts?.system
-      ? [
-          { role: "system", content: opts.system },
-          { role: "user", content: prompt },
-        ]
-      : [{ role: "user", content: prompt }];
-    const completion = await eng.chat.completions.create({
-      messages,
-      stream: true,
-      stream_options: { include_usage: true },
-      temperature: 0.3,
-      max_tokens: 2048,
-    });
-    yield* drainWebLLMStream(eng, completion, signal, (s) => {
+    yield* webllmChatFn(eng, (s) => {
       serverStats = s;
-    });
+    })(prompt, { signal, system: opts?.system });
   }
 
   const onProgress = (p) => {
@@ -570,41 +568,19 @@ async function runStream(streamId, pending, stream) {
   const emit = (msg) => {
     if (stream.cancelled) return;
     if (msg.type === "chunk") {
-      // Bound live accumulation pre-cap (#269): keep the head, drop the tail.
-      const capped = appendStreamTextCapped(stream.text, msg.text || "");
-      stream.text = capped.text;
-      if (stream.firstTokenTime == null) {
-        stream.firstTokenTime = performance.now();
-      }
-      stream.tokenCount += tokensForChunk(msg.text);
+      if (!appendChunkToState(stream, msg.text || "")) return;
     }
     if (msg.type === "done") {
-      stream.done = true;
-      const elapsedMs =
-        stream.firstTokenTime != null
-          ? performance.now() - stream.firstTokenTime
-          : 0;
-      stream.tokensPerSec =
-        finalTokensPerSecond({
-          serverStats: msg.serverStats ?? null,
-          tokenCount: stream.tokenCount,
-          elapsedMs,
-        }) || null;
-      msg = { ...msg, tokensPerSec: stream.tokensPerSec };
+      msg = finishStateWithStats(stream, msg);
     }
     if (msg.type === "error") {
       stream.error = msg.error;
       stream.done = true;
     }
     broadcastToStream(stream, msg);
-    if (msg.type === "chunk" && stream.firstTokenTime != null) {
-      const elapsedMs = performance.now() - stream.firstTokenTime;
-      if (isWarmedUp(stream.tokenCount, elapsedMs)) {
-        broadcastToStream(stream, {
-          type: "stats",
-          tokensPerSec: tokensPerSecond(stream.tokenCount, elapsedMs),
-        });
-      }
+    if (msg.type === "chunk") {
+      const stats = warmedStatsForState(stream);
+      if (stats) broadcastToStream(stream, stats);
     }
 
     if (
@@ -749,34 +725,7 @@ chrome.runtime.onConnect.addListener((port) => {
   }
 
   stream.subscribers.add(port);
-  if (stream.text) {
-    try {
-      port.postMessage({ type: "chunk", text: stream.text });
-    } catch {}
-  }
-  if (stream.cancelled) {
-    try {
-      port.postMessage({ type: "cancelled" });
-    } catch {}
-  } else if (stream.error) {
-    try {
-      port.postMessage({ type: "error", error: stream.error });
-    } catch {}
-  } else if (stream.done) {
-    try {
-      port.postMessage({ type: "done", tokensPerSec: stream.tokensPerSec });
-    } catch {}
-  } else if (stream.firstTokenTime != null) {
-    const elapsedMs = performance.now() - stream.firstTokenTime;
-    if (isWarmedUp(stream.tokenCount, elapsedMs)) {
-      try {
-        port.postMessage({
-          type: "stats",
-          tokensPerSec: tokensPerSecond(stream.tokenCount, elapsedMs),
-        });
-      } catch {}
-    }
-  }
+  replayStreamToPort(stream, port);
 
   port.onDisconnect.addListener(() => {
     stream.subscribers.delete(port);
@@ -800,16 +749,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case "summarize":
         case "ask": {
           const streamId = message.streamId;
-          const stream = {
-            text: "",
-            done: false,
-            error: null,
-            cancelled: false,
-            subscribers: new Set(),
-            tokenCount: 0,
-            firstTokenTime: null,
-            tokensPerSec: null,
-          };
+          const stream = createStreamState();
           streams.set(streamId, stream);
           sendResponse({ streamId });
           runStream(
@@ -882,26 +822,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           );
           const qLanguage = await resolveEffectiveLanguage(summary, language);
           const translateFn = opusTranslateFor(translationEngine);
-          const questions =
-            provider === "transformers"
-              ? await withTransformersEngine(model, null, async (eng) => {
-                  const text = await generateInTargetLanguage(
-                    transformersChatFn(eng),
-                    prompt,
-                    qLanguage,
-                    { translateFn },
-                  );
-                  return parseSuggestedQuestions(text);
-                })
-              : await withEngine(model, async (eng) => {
-                  const text = await generateInTargetLanguage(
-                    webllmChatFn(eng),
-                    prompt,
-                    qLanguage,
-                    { translateFn },
-                  );
-                  return parseSuggestedQuestions(text);
-                });
+          const questions = await withProviderEngine(
+            provider,
+            model,
+            async (chat) => {
+              const text = await generateInTargetLanguage(
+                chat,
+                prompt,
+                qLanguage,
+                { translateFn },
+              );
+              return parseSuggestedQuestions(text);
+            },
+          );
 
           sendResponse({ questions });
           break;
@@ -926,24 +859,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
           const qLanguage = await resolveEffectiveLanguage("", language);
           const translateFn = opusTranslateFor(translationEngine);
-          const text =
-            provider === "transformers"
-              ? await withTransformersEngine(model, null, async (eng) => {
-                  return generateInTargetLanguage(
-                    transformersChatFn(eng),
-                    prompt,
-                    qLanguage,
-                    { translateFn },
-                  );
-                })
-              : await withEngine(model, async (eng) => {
-                  return generateInTargetLanguage(
-                    webllmChatFn(eng),
-                    prompt,
-                    qLanguage,
-                    { translateFn },
-                  );
-                });
+          const text = await withProviderEngine(
+            provider,
+            model,
+            async (chat) => {
+              return generateInTargetLanguage(chat, prompt, qLanguage, {
+                translateFn,
+              });
+            },
+          );
           sendResponse({ text });
           break;
         }

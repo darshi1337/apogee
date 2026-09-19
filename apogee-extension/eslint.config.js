@@ -83,11 +83,26 @@ export default [
         {
           argsIgnorePattern: "^_",
           varsIgnorePattern:
-            "^(threadTruncate|buildThreadNodes|selectThreadComments|formatThreadComments|THREAD_COMMENTS_HEADER)$",
+            "^(threadTruncate|buildThreadNodes|selectThreadComments|formatThreadComments|THREAD_COMMENTS_HEADER|elText|elAuthor|liveEls|renderThreadPage|truncateKeepLines|collectForgeComments|renderForgePage)$",
         },
       ],
     },
   },
+  {
+    files: ["content/extractors/video.js"],
+    rules: {
+      "no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern:
+            "^(extractBalancedJsonText|formatVideoTimestamp|markTranscriptSegments|truncateVideoDescription)$",
+        },
+      ],
+    },
+  },
+  // Every site extractor runs in the shared content-script scope behind
+  // thread.js/video.js, so all of them may use the shared helpers.
   {
     files: [
       "content/extractors/hackernews.js",
@@ -101,6 +116,9 @@ export default [
       "content/extractors/discourse.js",
       "content/extractors/devto.js",
       "content/extractors/bluesky.js",
+      "content/extractors/gmail.js",
+      "content/extractors/youtube.js",
+      "content/extractors/bilibili.js",
     ],
     languageOptions: {
       globals: {
@@ -109,6 +127,17 @@ export default [
         selectThreadComments: "readonly",
         formatThreadComments: "readonly",
         THREAD_COMMENTS_HEADER: "readonly",
+        elText: "readonly",
+        elAuthor: "readonly",
+        liveEls: "readonly",
+        renderThreadPage: "readonly",
+        truncateKeepLines: "readonly",
+        collectForgeComments: "readonly",
+        renderForgePage: "readonly",
+        extractBalancedJsonText: "readonly",
+        formatVideoTimestamp: "readonly",
+        markTranscriptSegments: "readonly",
+        truncateVideoDescription: "readonly",
       },
     },
   },

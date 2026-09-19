@@ -1,3 +1,5 @@
+import { baseCode } from "./detectLanguage.js";
+
 const EN_MUL_TOKEN = {
   es: "spa",
   fr: "fra",
@@ -80,8 +82,7 @@ export function resolveOpusModel(src, tgt) {
   // base code and case-insensitively: detection yields variants like "en"
   // while settings may carry "en-US", and loading a model to translate a
   // language into itself is pure waste.
-  const base = (code) => String(code).toLowerCase().split("-")[0];
-  if (base(src) === base(tgt)) return null;
+  if (baseCode(src) === baseCode(tgt)) return null;
 
   if (src === "en") {
     if (DIRECT_EN_TO.has(tgt)) {

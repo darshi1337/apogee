@@ -1,31 +1,3 @@
-function extractBalancedObject(text, openIndex) {
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  for (let i = openIndex; i < text.length; i++) {
-    const ch = text[i];
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-      } else if (ch === "\\") {
-        escaped = true;
-      } else if (ch === '"') {
-        inString = false;
-      }
-      continue;
-    }
-    if (ch === '"') {
-      inString = true;
-    } else if (ch === "{") {
-      depth++;
-    } else if (ch === "}") {
-      depth--;
-      if (depth === 0) return text.slice(openIndex, i + 1);
-    }
-  }
-  return null;
-}
-
 function getPlayerResponse() {
   const currentVideoId = new URLSearchParams(location.search).get("v");
   for (const script of document.querySelectorAll("script")) {
@@ -35,7 +7,7 @@ function getPlayerResponse() {
     if (!assign) continue;
     const openIndex = text.indexOf("{", assign.index + assign[0].length);
     if (openIndex === -1) continue;
-    const json = extractBalancedObject(text, openIndex);
+    const json = extractBalancedJsonText(text, openIndex);
     if (!json) continue;
     try {
       const parsed = JSON.parse(json);
@@ -141,16 +113,6 @@ function inAnyRange(t, ranges) {
   return ranges.some(([start, end]) => t >= start && t <= end);
 }
 
-function formatTimestamp(totalSeconds) {
-  const s = Math.max(0, Math.floor(totalSeconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  const mm = h > 0 ? String(m).padStart(2, "0") : String(m);
-  const ss = String(sec).padStart(2, "0");
-  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
-}
-
 const TIMESTAMP_MARKER_INTERVAL_SECONDS = 20;
 
 const SPONSOR_TRIGGERS = [
@@ -203,17 +165,11 @@ async function buildCleanTranscript(segments, videoId) {
     ? segments.filter((seg) => !inAnyRange(seg.start, ranges))
     : heuristicStripSponsors(segments);
 
-  let lastMarked = -Infinity;
-  const parts = [];
-  for (const seg of kept) {
-    if (seg.start - lastMarked >= TIMESTAMP_MARKER_INTERVAL_SECONDS) {
-      parts.push(`[${formatTimestamp(seg.start)}]`);
-      lastMarked = seg.start;
-    }
-    parts.push(seg.text);
-  }
-
-  return parts.join(" ").replace(/\s+/g, " ").trim();
+  return markTranscriptSegments(
+    kept,
+    formatVideoTimestamp,
+    TIMESTAMP_MARKER_INTERVAL_SECONDS,
+  );
 }
 
 function parseTranscript(raw) {
@@ -357,20 +313,16 @@ async function extractYoutube() {
     ? `${Math.round(durationSeconds / 60)} min`
     : "";
 
-  const commentEls = Array.from(
+  const commentEls = liveEls(
     document.querySelectorAll("#content-text.ytd-comment-renderer"),
-  ).filter(
-    (el) => el && (typeof el.isConnected === "undefined" || el.isConnected),
   );
   const comments = commentEls
     .slice(0, 25)
-    .map((el) => (el?.innerText || el?.textContent || "").trim())
+    .map((el) => elText(el))
     .filter(Boolean);
 
   const infoEl = document.querySelector("#info-strings");
-  const info = infoEl
-    ? (infoEl.innerText || infoEl.textContent || "").trim()
-    : "";
+  const info = elText(infoEl);
 
   const videoId =
     videoDetails?.videoId ||
@@ -379,10 +331,10 @@ async function extractYoutube() {
   const transcriptSegments = await fetchTranscript(playerResponse);
   const transcript = await buildCleanTranscript(transcriptSegments, videoId);
 
-  let cleanedDescription = cleanDescription(description);
-  if (transcript && cleanedDescription.length > 500) {
-    cleanedDescription = `${cleanedDescription.slice(0, 500).trim()}…`;
-  }
+  const cleanedDescription = truncateVideoDescription(
+    cleanDescription(description),
+    transcript,
+  );
 
   const lastAvailableSeconds = transcriptSegments.length
     ? transcriptSegments[transcriptSegments.length - 1].start
@@ -398,11 +350,11 @@ async function extractYoutube() {
     : [];
   if (chapters.length) {
     content += `\nChapters:\n${chapters
-      .map((c) => `- [${formatTimestamp(c.start)}] ${c.title}`)
+      .map((c) => `- [${formatVideoTimestamp(c.start)}] ${c.title}`)
       .join("\n")}\n`;
   }
   content += transcript
-    ? `\nLast transcript timestamp: ${formatTimestamp(lastAvailableSeconds)} (${Math.floor(lastAvailableSeconds)}s)\n\nTranscript:\n${transcript}\n`
+    ? `\nLast transcript timestamp: ${formatVideoTimestamp(lastAvailableSeconds)} (${Math.floor(lastAvailableSeconds)}s)\n\nTranscript:\n${transcript}\n`
     : "\n(No transcript/captions available for this video.)\n";
   if (comments.length > 0) {
     content += `\nTop Comments:\n${comments.map((c) => `- ${c}`).join("\n")}\n`;

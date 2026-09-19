@@ -5,11 +5,12 @@ import { loadExtractors } from "./helpers/extractorHarness.js";
 // Mirrors the file list `lib/extract/pageExtraction.js` injects, so the dispatcher sees the same global scope it does in a real tab.
 const INJECTED_FILES = [
   "Readability.js",
+  "extractors/thread.js",
   "extractors/generic.js",
+  "extractors/video.js",
   "extractors/youtube.js",
   "extractors/bilibili.js",
   "extractors/gmail.js",
-  "extractors/thread.js",
   "extractors/hackernews.js",
   "extractors/reddit.js",
   "extractors/lobsters.js",

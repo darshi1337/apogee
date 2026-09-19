@@ -93,11 +93,12 @@ async function injectExtractors(tabId, expectedVersion) {
     target: { tabId },
     files: [
       "/content/Readability.js",
+      "/content/extractors/thread.js",
       "/content/extractors/generic.js",
+      "/content/extractors/video.js",
       "/content/extractors/youtube.js",
       "/content/extractors/bilibili.js",
       "/content/extractors/gmail.js",
-      "/content/extractors/thread.js",
       "/content/extractors/hackernews.js",
       "/content/extractors/reddit.js",
       "/content/extractors/lobsters.js",
