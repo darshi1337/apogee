@@ -120,6 +120,8 @@ Each permission and feature serves this one purpose: on-device summarization and
 
 **scripting** On user action, Apogee injects a content script into the active tab. It pulls the readable text of the page (article body, YouTube transcript, or PDF text) to summarize. It scrolls to the source passage of a summary line and highlights it. It runs only on the tab the user started it on.
 
+**tabs** Apogee sees which tab is active so the persistent side panel re-renders when the user switches tabs. It reads only the active tab id, URL, and title. It reads no browsing history and tracks no other tabs.
+
 **storage** Stores the user local settings. They cover the picked AI provider and model, the summary format, and other prefs. They stay between sessions. This data stays on the device. It never leaves.
 
 **offscreen** On Chromium, the extension service worker cannot reach WebGPU. Apogee uses an offscreen document to run the in-browser AI model outside any visible tab. It runs WebLLM on WebGPU, or Transformers.js on WebAssembly. Summarization runs in the background with no dedicated page.

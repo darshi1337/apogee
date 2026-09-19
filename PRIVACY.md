@@ -64,15 +64,15 @@ PDF text extraction runs fully client-side with `pdf.js`, bundled straight into 
 
 The popup parses DOCX files picked or dropped into it locally from their ZIP/XML structure. No document-conversion service or heavy parser dep takes part. Apogee also reads text, Markdown, JSON, and HTML files locally, plus pasted text. Picked files cap at 50 MB.
 
-  Pasted or plain-text input caps at 100,000 characters. A note tells you when truncation happens. These inputs go only to the picked on-device engine or the clearly set loopback Ollama/llama.cpp server.
+Pasted or plain-text input caps at 100,000 characters. A note tells you when truncation happens. These inputs go only to the picked on-device engine or the clearly set loopback Ollama/llama.cpp server.
 
 ## Local Ollama Connection Architecture
 
 To reach Ollama, Apogee strips the `Origin` header from loopback requests. It targets `localhost`, `127.0.0.1`, and the IPv6 loopback `[::1]` with a `declarativeNetRequest` rule. The rule stays scoped to those loopback hosts. Ollama then accepts them with no `OLLAMA_ORIGINS` env var setup. Where the browser supports session-scoped rules, the rule applies at runtime to requests from no tab at all.
 
-  Those are the background fetches of the extension itself. A page you have open from a local dev server keeps its `Origin` header. The CSRF guards of your other local services stay intact. The bundled static rule stays as a fallback for runtimes without session-rule support.
+Those are the background fetches of the extension itself. A page you have open from a local dev server keeps its `Origin` header. The CSRF guards of your other local services stay intact. The bundled static rule stays as a fallback for runtimes without session-rule support.
 
-  It also leaves out `localhost`, `127.0.0.1`, and `[::1]` as initiators. This is a local on-device request path, not a data path to any third party. Ollama itself binds to `127.0.0.1` by default. No host on your network reaches it.
+It also leaves out `localhost`, `127.0.0.1`, and `[::1]` as initiators. This is a local on-device request path, not a data path to any third party. Ollama itself binds to `127.0.0.1` by default. No host on your network reaches it.
 
 ## Telemetry and Analytics Policy
 
@@ -115,6 +115,8 @@ Apogee asks for a tight set of browser permissions to enforce security sandboxes
   The popup reads local files and pasted text only after you pick or give them there.
 
 - **`storage`**: It holds your prefs plus the local cache stated above.
+
+- **`tabs`**: It lets the side panel see which tab is active so it re-renders on tab switches. It reads only the active tab id, URL, and title. It reads no browsing history.
 
 - **`unlimitedStorage`**: It lifts the default quota on `chrome.storage.local`. Cached summaries and page text survive normal storage pressure. It grants access to nothing beyond that cache.
 
