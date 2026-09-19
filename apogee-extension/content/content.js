@@ -1,5 +1,4 @@
 async function extractPageContent() {
-  const url = window.location.href.toLowerCase();
   const host = window.location.hostname.toLowerCase();
   const pathname = window.location.pathname.toLowerCase();
 
@@ -8,15 +7,17 @@ async function extractPageContent() {
   const tryExtractor = async (extractor) => {
     try {
       return await extractor();
-    } catch {
+    } catch (error) {
+      console.warn(
+        "Apogee extractor failed, falling back:",
+        extractor?.name,
+        error,
+      );
       return null;
     }
   };
 
-  if (
-    pathname.endsWith(".pdf") ||
-    document.contentType === "application/pdf"
-  ) {
+  if (pathname.endsWith(".pdf") || document.contentType === "application/pdf") {
     return {
       title: document.title,
       url: window.location.href,

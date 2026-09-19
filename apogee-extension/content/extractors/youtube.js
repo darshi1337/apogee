@@ -327,6 +327,9 @@ async function extractYoutube() {
   const videoId =
     videoDetails?.videoId ||
     new URLSearchParams(location.search).get("v") ||
+    (location.hostname.toLowerCase().endsWith("youtu.be")
+      ? location.pathname.split("/").filter(Boolean)[0] || ""
+      : "") ||
     "";
   const transcriptSegments = await fetchTranscript(playerResponse);
   const transcript = await buildCleanTranscript(transcriptSegments, videoId);
