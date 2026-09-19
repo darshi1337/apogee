@@ -145,6 +145,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Cover happy-path capture and bound re-entry timer ([820b794](https://github.com/darshi1337/apogee/commit/820b7941903e218de3ef7579b0a4b96388cf4918))
 - Restore eager setup plus onStartup, use shared IDs ([898c81b](https://github.com/darshi1337/apogee/commit/898c81b838543705d601ce45446324bb72e75f84))
 - Handle extractor failures and URL variants (#309) ([842c5d7](https://github.com/darshi1337/apogee/commit/842c5d7a84c208809b5ff8bce7d2ca7e1acfad56))
+- Bump adm-zip override to 0.6.1 for GHSA-7q85-xj36-vmfc ([6821665](https://github.com/darshi1337/apogee/commit/6821665916ad7c04b3e9eb0ec944af27a0bdd053))
 
 ### Security
 
