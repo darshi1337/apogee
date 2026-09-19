@@ -1,10 +1,22 @@
 async function extractPageContent() {
   const url = window.location.href.toLowerCase();
   const host = window.location.hostname.toLowerCase();
+  const pathname = window.location.pathname.toLowerCase();
 
   const isHost = (domain) => host === domain || host.endsWith(`.${domain}`);
 
-  if (url.endsWith(".pdf") || document.contentType === "application/pdf") {
+  const tryExtractor = async (extractor) => {
+    try {
+      return await extractor();
+    } catch {
+      return null;
+    }
+  };
+
+  if (
+    pathname.endsWith(".pdf") ||
+    document.contentType === "application/pdf"
+  ) {
     return {
       title: document.title,
       url: window.location.href,
@@ -13,73 +25,85 @@ async function extractPageContent() {
     };
   }
 
-  if (isHost("youtube.com")) {
-    const data = await extractYoutube();
-    return { ...data, isPdf: false };
+  if (isHost("youtube.com") || isHost("youtu.be")) {
+    const data = await tryExtractor(extractYoutube);
+    if (data) return { ...data, isPdf: false };
   }
 
   if (isHost("bilibili.com")) {
-    const data = await extractBilibili();
+    const data = await tryExtractor(extractBilibili);
     if (data) return { ...data, isPdf: false };
   }
 
   if (isHost("mail.google.com")) {
-    const data = extractGmail();
-    return { ...data, isPdf: false };
+    const data = await tryExtractor(extractGmail);
+    if (data) return { ...data, isPdf: false };
   }
 
   if (isHost("news.ycombinator.com")) {
-    const data = extractHackerNews();
+    const data = await tryExtractor(extractHackerNews);
     if (data) return { ...data, isPdf: false };
   }
 
   if (isHost("reddit.com")) {
-    const data = await extractReddit();
+    const data = await tryExtractor(extractReddit);
     if (data) return { ...data, isPdf: false };
   }
 
   if (isHost("lobste.rs")) {
-    const data = extractLobsters();
+    const data = await tryExtractor(extractLobsters);
     if (data) return { ...data, isPdf: false };
   }
 
   if (isHost("github.com")) {
-    const data = await extractGitHub();
+    const data = await tryExtractor(extractGitHub);
     if (data) return { ...data, isPdf: false };
   }
 
   if (isHost("gitlab.com")) {
-    const data = await extractGitLab();
+    const data = await tryExtractor(extractGitLab);
     if (data) return { ...data, isPdf: false };
   }
 
   if (isHost("wikipedia.org")) {
-    const data = extractWikipedia();
+    const data = await tryExtractor(extractWikipedia);
     if (data) return { ...data, isPdf: false };
   }
 
   if (isHost("arxiv.org")) {
-    const data = extractArxiv();
+    const data = await tryExtractor(extractArxiv);
     if (data) return { ...data, isPdf: false };
   }
 
-  const stackOverflowData = extractStackOverflow();
-  if (stackOverflowData) return { ...stackOverflowData, isPdf: false };
+  const stackOverflowData = await tryExtractor(extractStackOverflow);
+  if (stackOverflowData) {
+    return { ...stackOverflowData, isPdf: false };
+  }
 
-  const mastodonData = extractMastodon();
-  if (mastodonData) return { ...mastodonData, isPdf: false };
+  const mastodonData = await tryExtractor(extractMastodon);
+  if (mastodonData) {
+    return { ...mastodonData, isPdf: false };
+  }
 
-  const lemmyData = extractLemmy();
-  if (lemmyData) return { ...lemmyData, isPdf: false };
+  const lemmyData = await tryExtractor(extractLemmy);
+  if (lemmyData) {
+    return { ...lemmyData, isPdf: false };
+  }
 
-  const discourseData = extractDiscourse();
-  if (discourseData) return { ...discourseData, isPdf: false };
+  const discourseData = await tryExtractor(extractDiscourse);
+  if (discourseData) {
+    return { ...discourseData, isPdf: false };
+  }
 
-  const devtoData = extractDevto();
-  if (devtoData) return { ...devtoData, isPdf: false };
+  const devtoData = await tryExtractor(extractDevto);
+  if (devtoData) {
+    return { ...devtoData, isPdf: false };
+  }
 
-  const blueskyData = await extractBluesky();
-  if (blueskyData) return { ...blueskyData, isPdf: false };
+  const blueskyData = await tryExtractor(extractBluesky);
+  if (blueskyData) {
+    return { ...blueskyData, isPdf: false };
+  }
 
   const data = extractGeneric();
   return { ...data, isPdf: false };

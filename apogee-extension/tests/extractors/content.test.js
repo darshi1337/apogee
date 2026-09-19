@@ -111,3 +111,96 @@ test("the real YouTube host is routed to the YouTube extractor", async () => {
   assert.strictEqual(result.title, "Extracted Video Title");
   assert.strictEqual(result.isPdf, false);
 });
+
+test("short YouTube URLs are routed to the YouTube extractor", async () => {
+  const html = `<!doctype html>
+<html>
+  <head><title>Test Video</title></head>
+  <body>
+    <script>
+      var ytInitialPlayerResponse = ${JSON.stringify({
+        videoDetails: {
+          title: "Short URL Video",
+          author: "Creator",
+        },
+      })};
+    </script>
+  </body>
+</html>`;
+
+  const { extractPageContent } = loadExtractors({
+    files: INJECTED_FILES,
+    url: "https://youtu.be/dQw4w9WgXcQ",
+    html,
+    fetch: async () => ({ ok: true, text: async () => "" }),
+    chrome: {
+      runtime: {
+        sendMessage: async () => ({ segments: [] }),
+        onMessage: { addListener: () => {} },
+      },
+    },
+  });
+
+  const result = await extractPageContent();
+
+  assert.strictEqual(result.type, "youtube");
+  assert.strictEqual(result.title, "Short URL Video");
+  assert.strictEqual(result.isPdf, false);
+});
+
+test("PDF URLs with query strings use the PDF path", async () => {
+  const url = "https://example.com/document.pdf?download=1";
+
+  const { extractPageContent } = loadExtractors({
+    files: INJECTED_FILES,
+    url,
+    html: `<!doctype html>
+<html>
+  <head><title>Document</title></head>
+  <body>
+    <p>PDF content</p>
+  </body>
+</html>`,
+  });
+
+  const result = await extractPageContent();
+
+  assert.strictEqual(result.isPdf, true);
+  assert.strictEqual(result.url, url);
+  assert.strictEqual(result.title, "Document");
+  assert.strictEqual(result.content, null);
+});
+
+test("a throwing site extractor falls back to the generic extractor", async () => {
+  const context = loadExtractors({
+    files: INJECTED_FILES,
+    url: "https://www.youtube.com/watch?v=test",
+    html: `<!doctype html>
+<html>
+  <head><title>Generic Test Page</title></head>
+  <body>
+    <main>
+      <h1>Generic Test Page</h1>
+      <p>This should be handled by the generic extractor.</p>
+    </main>
+  </body>
+</html>`,
+    fetch: async () => ({ ok: true, text: async () => "" }),
+    chrome: {
+      runtime: {
+        sendMessage: async () => ({ segments: [] }),
+        onMessage: { addListener: () => {} },
+      },
+    },
+  });
+
+  context.extractYoutube = () => {
+    throw new Error("simulated extractor failure");
+  };
+
+  const result = await context.extractPageContent();
+
+  assert.notStrictEqual(result.type, "youtube");
+  assert.strictEqual(result.isPdf, false);
+  assert.strictEqual(result.title, "Generic Test Page");
+});
