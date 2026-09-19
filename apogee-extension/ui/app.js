@@ -806,19 +806,30 @@ async function getPageData(tab) {
 
 let modelProgressHideTimer = null;
 let lastMirroredProgressLabel = null;
+let loadingVerb = null;
 
-// Mirrors model-download progress into the summarizing/answer loading
-// indicator. A first-time WebLLM fetch is multi-GB and takes minutes: with
-// only the generic spinner the view reads as stuck, while the work finishes
-// headless (reopening later shows the done summary). Only touches the
-// loading state: once real tokens arrive the stream renderer owns the
-// element, and the guard below leaves it alone.
-function mirrorModelProgressIntoLoading(p) {
-  const label =
-    typeof p.progress === "number"
-      ? `${p.text || "Downloading model..."} (${Math.round(p.progress * 100)}%)`
-      : p.text;
-  if (!label || label === lastMirroredProgressLabel) return;
+// Starts the summarizing spinner with a fresh verb and remembers it, so
+// download progress can decorate the verb ("Distilling (42%)") instead of
+// replacing it with raw engine text.
+function setSummarizeLoading() {
+  loadingVerb = randomSummarizeVerb();
+  setLoadingIndicator(summaryText, loadingVerb);
+}
+
+// Decorates the spinner verb with download progress ("Distilling (42%)").
+// A first-time WebLLM fetch is multi-GB and takes minutes: with only the
+// bare verb the view reads as stuck, while the work finishes headless
+// (reopening later shows the done summary). Only download reports (which
+// carry a modelId) mirror here: phase notes like "Merging summary..." leave
+// the verb alone, and once real tokens arrive the stream renderer owns the
+// element, guarded by the loading-state check below.
+function mirrorModelProgressIntoLoading(p, modelId) {
+  if (modelId == null) return;
+  if (typeof p.progress !== "number") return;
+  const pct = Math.round(p.progress * 100);
+  const verb = loadingVerb || "Loading";
+  const label = `${verb} (${pct}%)`;
+  if (label === lastMirroredProgressLabel) return;
   if (
     activeSummarizeStreamId &&
     summaryText?.querySelector(".apogee-loading")
@@ -843,7 +854,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     clearTimeout(modelProgressHideTimer);
     modelProgress?.classList.remove("hidden");
     modelProgressText.textContent = p.text || "Loading model...";
-    mirrorModelProgressIntoLoading(p);
+    mirrorModelProgressIntoLoading(p, message.modelId);
     if (typeof p.progress === "number") {
       const pct = Math.round(p.progress * 100);
       modelProgressPercent.textContent = `${pct}%`;
@@ -1378,6 +1389,7 @@ function showCancelSummarizeButton(streamId) {
 function hideCancelSummarizeButton() {
   activeSummarizeStreamId = null;
   lastMirroredProgressLabel = null;
+  loadingVerb = null;
   cancelSummarizeBtn.classList.add("hidden");
   modelProgress?.classList.add("hidden");
 }
@@ -1489,6 +1501,7 @@ function showAnswerContext(question) {
   sendBtn.classList.add("hidden");
   answerBox.classList.remove("hidden");
   copyAnswerBtn.classList.add("hidden");
+  loadingVerb = "Thinking";
   setLoadingIndicator(answerBox, "Thinking");
   setTokensPerSecBadge(tokensPerSecBadgeAsk, null);
 }
@@ -1504,6 +1517,7 @@ function showCancelAskButton(streamId) {
 function hideCancelAskButton() {
   activeAskStreamId = null;
   lastMirroredProgressLabel = null;
+  loadingVerb = null;
   cancelAskBtn.classList.add("hidden");
   modelProgress?.classList.add("hidden");
 }
@@ -1591,7 +1605,7 @@ async function summarizeActivePage() {
   homeView.classList.add("hidden");
   summaryView.classList.remove("hidden");
   showSummarizingContext();
-  setLoadingIndicator(summaryText, randomSummarizeVerb());
+  setSummarizeLoading();
 
   const jobId = `summary-${crypto.randomUUID()}`;
   try {
@@ -1692,7 +1706,7 @@ async function summarizeActivePage() {
         }
       }
       pageData.content = pdfContent;
-      setLoadingIndicator(summaryText, randomSummarizeVerb());
+      setSummarizeLoading();
       ({ streamId, stream } = await provider.summarize({
         title: pageData.title,
         url: pageData.url,
@@ -2090,7 +2104,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           if (state.subview === "summarizing") {
             showOnlyView("summaryView");
             showSummarizingContext();
-            setLoadingIndicator(summaryText, randomSummarizeVerb());
+            setSummarizeLoading();
             showCancelSummarizeButton(state.streamId);
             let resumeFromCompletedState = false;
             try {
@@ -2380,7 +2394,7 @@ async function summarizeCustomContent(title, content, url = "") {
   currentPageData = { type: "article", content };
   showOnlyView("summaryView");
   showSummarizingContext();
-  setLoadingIndicator(summaryText, randomSummarizeVerb());
+  setSummarizeLoading();
 
   const jobId = `summary-${crypto.randomUUID()}`;
   try {
