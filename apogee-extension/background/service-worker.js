@@ -45,7 +45,6 @@ import {
   MAX_FINALIZE_TEXT_CHARS,
   MAX_UPLOAD_FILE_BYTES,
   appendStreamTextCapped,
-  assertIngressPayloadOk,
 } from "../lib/extract/fileLimits.js";
 import {
   recordPageAccessEvent,
@@ -653,20 +652,8 @@ async function startLocalHttpStream(
     url,
   });
 
-  // Ingress bound (#269): payloads arrive via extension messaging unbounded;
-  // reject oversize with a UserFacingError before chunking fans out into
-  // sequential model calls.
-  try {
-    assertIngressPayloadOk({ content, question, title, url });
-  } catch (err) {
-    finish({
-      type: "error",
-      error: err.message,
-      userFacing: !!err?.isUserFacing,
-    });
-    return;
-  }
-
+  // Ingress bound removed: long pages flow to the chunker, which bounds
+  // model calls via MAX_ABSOLUTE_MAP_CHUNKS.
   let validHost;
   try {
     validHost = validateLoopbackHost(host, client.label);
@@ -814,17 +801,6 @@ async function startTransformersStream(
     title,
     url,
   });
-
-  try {
-    assertIngressPayloadOk({ content, question, title, url });
-  } catch (err) {
-    finish({
-      type: "error",
-      error: err.message,
-      userFacing: !!err?.isUserFacing,
-    });
-    return;
-  }
 
   const onProgress = (progress) => {
     chrome.runtime
@@ -1950,7 +1926,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       switch (message.action) {
         case "summarize":
         case "ask": {
-          assertIngressPayloadOk(message.payload || {});
           await ensureOffscreenDocument();
 
           const streamId = nextStreamId("webllm");
@@ -1978,7 +1953,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "ollama-stream": {
-          assertIngressPayloadOk(message.payload || {});
           const streamId = nextStreamId("ollama");
           const settings = await getSettings();
           const trustedFinalize =
@@ -1997,7 +1971,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "llamacpp-stream": {
-          assertIngressPayloadOk(message.payload || {});
           const streamId = nextStreamId("llamacpp");
           const settings = await getSettings();
           const trustedFinalize =
@@ -2077,7 +2050,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "transformers-stream": {
-          assertIngressPayloadOk(message.payload || {});
           const streamId = nextStreamId("transformers");
           const settings = await getSettings();
           const trustedFinalize =
@@ -2201,7 +2173,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "find-passage": {
-          assertIngressPayloadOk(message.payload || {});
           if (!hasOffscreenAPI) {
             try {
               const { content, query } = message.payload || {};
@@ -2223,7 +2194,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "retrieve-context": {
-          assertIngressPayloadOk(message.payload || {});
           if (!hasOffscreenAPI) {
             try {
               const { content, question } = message.payload || {};

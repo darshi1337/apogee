@@ -24,10 +24,7 @@ import {
 } from "../lib/engines/transformersEngine.js";
 import { initDebugLogging } from "../lib/util/log.js";
 import { broadcastToStream } from "../lib/util/streamBroadcast.js";
-import {
-  appendStreamTextCapped,
-  assertIngressPayloadOk,
-} from "../lib/extract/fileLimits.js";
+import { appendStreamTextCapped } from "../lib/extract/fileLimits.js";
 import {
   tokensForChunk,
   isWarmedUp,
@@ -111,9 +108,11 @@ let loadingModelId = null;
 const acquireLock = createLock();
 
 // Bound the wait for the WebLLM engine so one stalled model download does
-// not head-of-line-block every later stream forever. Downloads resume from
-// cache, so failing fast with a clear message beats hanging.
-const ENGINE_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
+// not head-of-line-block every later stream forever. First-time downloads
+// are multi-GB and take many minutes, so the bound is generous (20 min).
+// Downloads resume from cache, so failing fast with a clear message beats
+// hanging.
+const ENGINE_LOCK_TIMEOUT_MS = 20 * 60 * 1000;
 
 function isCorruptingEngineError(err) {
   return /out of memory|\boom\b|buffer allocation|gpubuffer|allocation failed|memory limit|disposed|destroyed|context (was )?lost/i.test(
@@ -800,7 +799,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       switch (message.action) {
         case "summarize":
         case "ask": {
-          assertIngressPayloadOk(message.payload || {});
           const streamId = message.streamId;
           const stream = {
             text: "",
@@ -850,7 +848,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "retrieve-context": {
-          assertIngressPayloadOk(message.payload || {});
           const { content, question } = message.payload;
           const relevantContent = await retrieveRelevantContent({
             content,
@@ -861,7 +858,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "find-passage": {
-          assertIngressPayloadOk(message.payload || {});
           const { content, query } = message.payload;
           const passage = await findBestPassage({ content, query });
           sendResponse({ passage });
@@ -869,7 +865,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "suggest-questions": {
-          assertIngressPayloadOk(message.payload || {});
           const {
             title,
             url,
@@ -929,7 +924,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             sendResponse({ error: "generate-text requires a prompt" });
             break;
           }
-          assertIngressPayloadOk({ prompt });
           const qLanguage = await resolveEffectiveLanguage("", language);
           const translateFn = opusTranslateFor(translationEngine);
           const text =

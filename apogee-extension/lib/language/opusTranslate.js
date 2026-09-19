@@ -75,7 +75,13 @@ function directCode(lang) {
 }
 
 export function resolveOpusModel(src, tgt) {
-  if (!src || !tgt || src === tgt) return null;
+  if (!src || !tgt) return null;
+  // No translator when source and target are the same language, compared by
+  // base code and case-insensitively: detection yields variants like "en"
+  // while settings may carry "en-US", and loading a model to translate a
+  // language into itself is pure waste.
+  const base = (code) => String(code).toLowerCase().split("-")[0];
+  if (base(src) === base(tgt)) return null;
 
   if (src === "en") {
     if (DIRECT_EN_TO.has(tgt)) {
