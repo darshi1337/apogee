@@ -29,28 +29,8 @@ export function formatSummaryAsMarkdown({
   parts.push(summary || "");
   return parts.join("\n\n").trim() + "\n";
 }
-export function formatSummaryAsJSON({
-  title,
-  url,
-  model,
-  format,
-  language,
-  summary,
-  suggestedQuestions = [],
-}) {
-  return JSON.stringify(
-    normalizeSummaryItem({
-      title,
-      url,
-      model,
-      format,
-      language,
-      summary,
-      suggestedQuestions,
-    }),
-    null,
-    2,
-  );
+export function formatSummaryAsJSON(item) {
+  return JSON.stringify(normalizeSummaryItem(item), null, 2);
 }
 
 // Shared shape for single and bulk JSON exports so the two stay

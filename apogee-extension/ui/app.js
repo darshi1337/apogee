@@ -994,6 +994,22 @@ function firstLineOf(text) {
     .replace(/^\d+[.)]\s+/, "");
 }
 
+// Build a normalized export item from a past summary cache entry and stored questions.
+function pastSummaryToExportItem(entry, text, stored = {}) {
+  const { format, language, model } = parseSummaryCacheKey(entry.s);
+  const suggestedQuestions =
+    entry?.p && Array.isArray(stored[entry.p]) ? stored[entry.p] : [];
+  return {
+    title: entry.t || "",
+    url: "",
+    model,
+    format,
+    language,
+    summary: text,
+    suggestedQuestions,
+  };
+}
+
 async function loadPastSummaries() {
   const { cacheOrder = [] } = await chrome.storage.local.get("cacheOrder");
   if (cacheOrder.length === 0) {
@@ -1080,21 +1096,9 @@ async function loadPastSummaries() {
     copyJsonBtn.addEventListener("click", async (e) => {
       e.stopPropagation();
       try {
-        const { format, language, model } = parseSummaryCacheKey(entry.s);
         const stored = entry.p ? await chrome.storage.local.get(entry.p) : {};
-        const suggestedQuestions = Array.isArray(stored?.[entry.p])
-          ? stored[entry.p]
-          : [];
         copyToClipboard(
-          formatSummaryAsJSON({
-            title: entry.t || "",
-            url: "",
-            model,
-            format,
-            language,
-            summary: text,
-            suggestedQuestions,
-          }),
+          formatSummaryAsJSON(pastSummaryToExportItem(entry, text, stored)),
           copyJsonBtn,
         );
       } catch (err) {
@@ -1283,7 +1287,7 @@ async function copyToClipboard(text, btn) {
 }
 
 // Shared download step for the single and bulk JSON exports.
-function downloadTextFile({ filename, text, mimeType }) {
+function downloadTextFile({ filename, text, mimeType = "application/json" }) {
   const blob = new Blob([text], { type: mimeType });
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -1309,25 +1313,13 @@ exportAllJsonBtn?.addEventListener("click", async () => {
     for (const entry of cacheOrder) {
       const text = entry?.s ? stored[entry.s] : "";
       if (!text) continue;
-      const { format, language, model } = parseSummaryCacheKey(entry.s);
-      const suggestedQuestions =
-        entry?.p && Array.isArray(stored[entry.p]) ? stored[entry.p] : [];
-      items.push({
-        title: entry.t || "",
-        url: "",
-        model,
-        format,
-        language,
-        summary: text,
-        suggestedQuestions,
-      });
+      items.push(pastSummaryToExportItem(entry, text, stored));
     }
     if (items.length === 0) return;
 
     downloadTextFile({
       filename: "apogee-summaries.json",
       text: formatSummariesBulkAsJSON(items),
-      mimeType: "application/json",
     });
   } catch (err) {
     console.error("Export all summaries error:", err);
@@ -1366,7 +1358,6 @@ exportJsonBtn?.addEventListener("click", async () => {
   downloadTextFile({
     filename: `${safeExportFilename(title)}.json`,
     text: json,
-    mimeType: "application/json",
   });
 });
 
