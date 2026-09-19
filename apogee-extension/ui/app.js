@@ -91,7 +91,7 @@ import {
   setLinkifyOriginFromUrl,
   setMarkdownHtml,
   resolveNavigableHttpUrl,
-  stripLeadingSummaryHeading,
+  cleanModelOutput,
 } from "../lib/util/markdown.js";
 import { icon, ICONS } from "./icons.js";
 import {
@@ -1493,16 +1493,32 @@ cancelAskBtn?.addEventListener("click", () => {
 
 async function streamGeneratorIntoElement(generator, element) {
   let fullText = "";
-  let started = false;
+  // Coalesce per-token markdown re-renders onto animation frames: local
+  // models emit tokens faster than a full innerHTML re-parse per token can
+  // keep up with, which janks (or freezes) the popup mid-stream. The final
+  // render below still runs synchronously so the DOM always matches the
+  // returned text, even if a scheduled frame never fires.
+  let renderScheduled = false;
+  const scheduleRender = () => {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    const run = () => {
+      renderScheduled = false;
+      setMarkdownHtml(element, cleanModelOutput(fullText));
+    };
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(run);
+    } else {
+      setTimeout(run, 16);
+    }
+  };
   for await (const chunk of generator) {
     fullText += chunk;
-    const visible = stripLeadingSummaryHeading(fullText.trimStart());
-    if (!started && visible === "") continue;
-    started = true;
-    setMarkdownHtml(element, visible);
+    if (fullText.trimStart() !== "") scheduleRender();
   }
-  setMarkdownHtml(element, stripLeadingSummaryHeading(fullText.trimStart()));
-  return stripLeadingSummaryHeading(fullText.trimStart());
+  const finalText = cleanModelOutput(fullText);
+  setMarkdownHtml(element, finalText);
+  return finalText;
 }
 
 async function consumeSummaryStream(stream, { tab, promptsCacheKey, jobId }) {
@@ -1746,10 +1762,10 @@ async function consumeAnswerStream(stream, { tab, question }) {
     }
     answerBox.textContent = fullText.trimStart();
   }
-  if (started) setMarkdownHtml(answerBox, fullText.trimStart());
+  if (started) setMarkdownHtml(answerBox, cleanModelOutput(fullText));
   else renderError(answerBox, EMPTY_ANSWER_MESSAGE);
 
-  currentAnswerText = fullText;
+  currentAnswerText = cleanModelOutput(fullText);
   copyAnswerBtn.classList.toggle("hidden", !started);
   announce(started ? "Answer ready." : EMPTY_ANSWER_MESSAGE);
 
@@ -2165,7 +2181,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (state.subview === "answer" && state.question) {
               showOnlyView("summaryView");
               showAnswerContext(state.question);
-              currentAnswerText = state.answerText || "";
+              currentAnswerText = cleanModelOutput(state.answerText || "");
               if (currentAnswerText.trim()) {
                 setMarkdownHtml(answerBox, currentAnswerText);
               } else {
@@ -2184,17 +2200,12 @@ document.addEventListener("DOMContentLoaded", async () => {
               return;
             }
             if (state.subview === "summary" && state.summaryText) {
-              currentSummaryText = stripLeadingSummaryHeading(
-                state.summaryText,
-              );
+              currentSummaryText = cleanModelOutput(state.summaryText);
               currentSummaryLanguage =
                 state.summaryLanguage ?? settings.summaryLanguage;
               currentTranslationEngine =
                 state.translationEngine ?? settings.translationEngine;
-              setMarkdownHtml(
-                summaryText,
-                stripLeadingSummaryHeading(state.summaryText),
-              );
+              setMarkdownHtml(summaryText, cleanModelOutput(state.summaryText));
               makeSummaryPassagesFocusable();
               setSummaryCopyButtonsVisible(!!state.summaryText.trim());
               updateResummarizeHint(settings);
@@ -2252,13 +2263,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (stale()) return;
 
         if (cached[cacheKey]) {
-          currentSummaryText = stripLeadingSummaryHeading(cached[cacheKey]);
+          currentSummaryText = cleanModelOutput(cached[cacheKey]);
           currentSummaryLanguage = settings.summaryLanguage;
           currentTranslationEngine = settings.translationEngine;
-          setMarkdownHtml(
-            summaryText,
-            stripLeadingSummaryHeading(cached[cacheKey]),
-          );
+          setMarkdownHtml(summaryText, cleanModelOutput(cached[cacheKey]));
           makeSummaryPassagesFocusable();
           setSummaryCopyButtonsVisible(!!cached[cacheKey].trim());
           updateResummarizeHint(settings);

@@ -208,7 +208,7 @@ export function renderMarkdown(source, { stored = false } = {}) {
   const allowAlwaysHosts = !stored;
   const inline = (escapedText) =>
     renderInline(escapedText, { allowAlwaysHosts });
-  const lines = escapeHtml(source ?? "")
+  const lines = escapeHtml(stripEchoedFences(source ?? ""))
     .replace(/\uE000/g, "")
     .split(/\r?\n/);
   let html = "";
@@ -268,6 +268,24 @@ export function stripLeadingSummaryHeading(text) {
     /^\s*(?:#{1,6}\s*|\*\*)?summary(?::|\*\*)?[ \t]*(?:\n|$)/i,
     "",
   );
+}
+
+// Small local models sometimes echo the prompt's prompt-injection fences
+// (<<<APOGEE_CONTENT ... APOGEE_CONTENT>>>) into their answer. Those markers
+// are input delimiters only and must never display. Strip any occurrence so
+// the card shows only the summary itself.
+export function stripEchoedFences(text) {
+  return String(text ?? "")
+    .replaceAll("<<<APOGEE_CONTENT", "")
+    .replaceAll("APOGEE_CONTENT>>>", "");
+}
+
+// Combined model-output cleanup: fence echo first (it may precede a
+// redundant heading), then the leading "Summary" heading. Preserves the
+// previous trimStart-then-strip contract used by callers.
+export function cleanModelOutput(text) {
+  const noFence = stripEchoedFences(String(text ?? "").trimStart()).trimStart();
+  return stripLeadingSummaryHeading(noFence);
 }
 
 export function renderStoredSummaryMarkdown(text) {

@@ -389,6 +389,27 @@ function isOffscreenStream(streamId) {
 
 const activeStreams = new Map();
 
+// WebLLM / Transformers jobs run in the offscreen document, so they have no
+// entry in activeStreams above. Without explicit tracking the keep-alive
+// below sees no work in flight, the worker sleeps ~30s into a multi-minute
+// local generation, and the relay ports die: the popup freezes on its
+// spinner while the offscreen job keeps running to completion (the full
+// text only appears when the popup reopens and reads the saved view state).
+// Entries live only while a popup is relayed to an offscreen stream; the
+// headless finish path (stream-finished) needs no keep-alive because its
+// message wakes the worker on arrival.
+export const offscreenRelayInflight = new Set();
+
+export function trackOffscreenRelay(streamId) {
+  if (!streamId) return;
+  offscreenRelayInflight.add(streamId);
+  startKeepAlive();
+}
+
+export function untrackOffscreenRelay(streamId) {
+  offscreenRelayInflight.delete(streamId);
+}
+
 const STREAM_CLEANUP_PREFIX = "stream-cleanup:";
 const STREAM_CLEANUP_MINUTES = 2;
 function scheduleStreamCleanup(streamId) {
@@ -400,10 +421,11 @@ function scheduleStreamCleanup(streamId) {
 const KEEPALIVE_MS = 20000;
 let keepAliveTimer = null;
 
-function hasWorkInFlight() {
+export function hasWorkInFlight() {
   for (const stream of activeStreams.values()) {
     if (!stream.done) return true;
   }
+  if (offscreenRelayInflight.size > 0) return true;
   return pendingSuggestKeys.size > 0;
 }
 
@@ -419,9 +441,16 @@ function startKeepAlive() {
       chrome.runtime.getPlatformInfo(() => void chrome.runtime.lastError);
     } catch {}
   }, KEEPALIVE_MS);
+  // Node test runners hold the event loop for active intervals; browsers
+  // return a number here so this is a no-op in the real worker.
+  if (keepAliveTimer.unref) keepAliveTimer.unref();
 }
 
 function relayToOffscreenStream(popupPort, streamId) {
+  // A live viewer exists, so this offscreen job is work in flight: keep the
+  // worker awake until the relay ends, otherwise it sleeps mid-generation
+  // and the popup stalls on its spinner.
+  trackOffscreenRelay(streamId);
   const offscreenPort = chrome.runtime.connect({
     name: `offscreen-stream-${streamId}`,
   });
@@ -429,13 +458,21 @@ function relayToOffscreenStream(popupPort, streamId) {
   let terminal = false;
 
   offscreenPort.onMessage.addListener((msg) => {
-    if (msg.type === "done" || msg.type === "error") terminal = true;
+    if (
+      msg.type === "done" ||
+      msg.type === "error" ||
+      msg.type === "cancelled"
+    ) {
+      terminal = true;
+      untrackOffscreenRelay(streamId);
+    }
     try {
       popupPort.postMessage(msg);
     } catch {}
   });
 
   offscreenPort.onDisconnect.addListener(() => {
+    untrackOffscreenRelay(streamId);
     if (!terminal) {
       try {
         popupPort.postMessage({
@@ -450,6 +487,7 @@ function relayToOffscreenStream(popupPort, streamId) {
   });
 
   popupPort.onDisconnect.addListener(() => {
+    untrackOffscreenRelay(streamId);
     try {
       offscreenPort.disconnect();
     } catch {}
@@ -1867,6 +1905,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const fallbackTitle = message.title;
       const fallbackUrl = message.url;
       const fallbackText = message.text;
+      // Safety net for the relay tracking above: a finished job is never
+      // work in flight, even if its relay ports vanished without firing
+      // their disconnect handlers.
+      untrackOffscreenRelay(streamId);
       try {
         const registeredJob = streamId
           ? registeredStreamJobs.get(streamId)
