@@ -48,6 +48,13 @@ export function validateLoopbackUrl(
   return url.toString().replace(/\/+$/, "");
 }
 
+// The engine clients accept raw settings hosts, so they strip trailing
+// slashes at the call site: otherwise a slash rides into `${host}/api/...`
+// and produces a 404 that looks like the server is down.
+export function stripTrailingSlashes(host) {
+  return String(host ?? "").replace(/\/+$/, "");
+}
+
 export function validateOllamaHost(host) {
   return validateLoopbackUrl(host, {
     label: "Ollama",

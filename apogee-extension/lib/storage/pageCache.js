@@ -32,6 +32,20 @@ function translationEngineKey(translationEngine = TRANSLATION_ENGINES.OPUS) {
     : TRANSLATION_ENGINES.LLM;
 }
 
+// Shared core for the summary/prompts cache keys: identical segments, only
+// the leading prefix differs.
+async function makeCacheKey(
+  prefix,
+  url,
+  fmt,
+  model,
+  lang,
+  customInstructions,
+  translationEngine,
+) {
+  return `${prefix}:${fmt}:${lang}:${model}:${translationEngineKey(translationEngine)}:${await hashUrl(url)}${await instructionsSuffix(customInstructions)}`;
+}
+
 export async function getSummaryCacheKey(
   url,
   fmt,
@@ -40,7 +54,15 @@ export async function getSummaryCacheKey(
   customInstructions = "",
   translationEngine = TRANSLATION_ENGINES.OPUS,
 ) {
-  return `summary:${fmt}:${lang}:${model}:${translationEngineKey(translationEngine)}:${await hashUrl(url)}${await instructionsSuffix(customInstructions)}`;
+  return makeCacheKey(
+    "summary",
+    url,
+    fmt,
+    model,
+    lang,
+    customInstructions,
+    translationEngine,
+  );
 }
 
 // Inverse of getSummaryCacheKey for display/export: pulls the response
@@ -74,7 +96,15 @@ export async function getPromptsCacheKey(
   customInstructions = "",
   translationEngine = TRANSLATION_ENGINES.OPUS,
 ) {
-  return `suggested-prompts:${fmt}:${lang}:${model}:${translationEngineKey(translationEngine)}:${await hashUrl(url)}${await instructionsSuffix(customInstructions)}`;
+  return makeCacheKey(
+    "suggested-prompts",
+    url,
+    fmt,
+    model,
+    lang,
+    customInstructions,
+    translationEngine,
+  );
 }
 export async function getContentCacheKey(url) {
   return `content:${await hashUrl(url)}`;
@@ -201,24 +231,28 @@ export function isCachedPageKey(key) {
   );
 }
 
-/**
- * Delete every cached summary, suggested-prompts list, and page content entry,
- * along with the two order indexes. Settings are left alone.
- *
- * This takes the same lock the writers do. Without it, a summary finishing at
- * the same moment would re-add its entry to a `cacheOrder` it read before the
- * wipe, leaving the list pointing at a key that no longer exists.
- */
-export async function clearCachedPages() {
-  const release = await acquireIndexLock();
+// Shared wipe core for clearCachedPages/clearAllViewStates: read everything,
+// remove the keys matching the predicate, return the count — under the
+// caller's writer lock, so a concurrent write cannot resurrect entries into
+// an index read before the wipe.
+export async function clearKeysByPredicate(acquireLock, isKey) {
+  const release = await acquireLock();
   try {
     const all = await chrome.storage.local.get(null);
-    const keys = Object.keys(all).filter(isCachedPageKey);
+    const keys = Object.keys(all).filter(isKey);
     if (keys.length > 0) await chrome.storage.local.remove(keys);
     return keys.length;
   } finally {
     release();
   }
+}
+
+/**
+ * Delete every cached summary, suggested-prompts list, and page content entry,
+ * along with the two order indexes. Settings are left alone.
+ */
+export async function clearCachedPages() {
+  return clearKeysByPredicate(acquireIndexLock, isCachedPageKey);
 }
 
 const SENSITIVE_HOST_PATTERNS = [

@@ -3,15 +3,11 @@ const GH_MAX_COMMENT_CHARS = 4000;
 const GH_MAX_README_CHARS = 12000;
 const GH_MAX_DIFF_CHARS = 30000;
 
-function ghTruncate(text, max) {
-  return threadTruncate(text, max, { preserveLines: true });
-}
-
 function ghReadme() {
   const el =
     document.querySelector("#readme article.markdown-body") ||
     document.querySelector("#readme .markdown-body");
-  return el ? el.innerText.trim() : "";
+  return elText(el);
 }
 
 function ghConversation() {
@@ -25,29 +21,18 @@ function ghConversation() {
     blocks = Array.from(document.querySelectorAll(".markdown-body"));
   }
 
-  const out = [];
-  const seen = new Set();
-  for (const block of blocks) {
-    if (
-      !block ||
-      (typeof block.isConnected !== "undefined" && !block.isConnected)
-    )
-      continue;
-    if (out.length >= GH_MAX_COMMENTS) break;
-    const bodyEl =
-      block.querySelector?.(".comment-body, .markdown-body") || block;
-    const text = (bodyEl?.innerText || bodyEl?.textContent || "").trim();
-    if (!text || seen.has(text)) continue;
-    seen.add(text);
-    const author =
-      block
-        .querySelector?.(
+  return collectForgeComments(blocks, {
+    maxComments: GH_MAX_COMMENTS,
+    maxChars: GH_MAX_COMMENT_CHARS,
+    getBodyText: (block) =>
+      elText(block.querySelector?.(".comment-body, .markdown-body") || block),
+    getAuthor: (block) =>
+      elText(
+        block.querySelector?.(
           '.author, a[data-testid="avatar-link"], .ActionListItem-label',
-        )
-        ?.innerText?.trim() || "";
-    out.push({ author, text: ghTruncate(text, GH_MAX_COMMENT_CHARS) });
-  }
-  return out;
+        ),
+      ),
+  });
 }
 
 function ghDomDiff() {
@@ -74,7 +59,7 @@ function ghDomDiff() {
     lines.push(`${marker} ${text.replace(/^[+-]\s?/, "")}`);
   }
   if (!lines.length) return "";
-  return ghTruncate(lines.join("\n"), GH_MAX_DIFF_CHARS);
+  return truncateKeepLines(lines.join("\n"), GH_MAX_DIFF_CHARS);
 }
 
 async function extractGitHub() {
@@ -88,46 +73,27 @@ async function extractGitHub() {
   if (isPull || isIssue) {
     const kind = isPull ? "pull request" : "issue";
     const title =
-      document
-        .querySelector(
+      elText(
+        document.querySelector(
           '.js-issue-title, bdi.js-issue-title, [data-testid="issue-title"]',
-        )
-        ?.innerText.trim() ||
-      document.querySelector("h1")?.innerText.trim() ||
+        ),
+      ) ||
+      elText(document.querySelector("h1")) ||
       document.title;
-    const state =
-      document
-        .querySelector('.State, [data-testid="header-state"]')
-        ?.innerText.trim() || "";
+    const state = elText(
+      document.querySelector('.State, [data-testid="header-state"]'),
+    );
     const comments = ghConversation();
 
-    let content = `GitHub ${kind} in ${repoSlug} (#${number})\n\nTitle: ${title}\n`;
-    if (state) content += `State: ${state}\n`;
-
-    if (comments.length) {
-      const [first, ...rest] = comments;
-      content += `\nDescription${first.author ? ` (by ${first.author})` : ""}:\n${first.text}\n`;
-      if (rest.length) {
-        content += `\nComments:\n`;
-        for (const c of rest) {
-          content += `- ${c.author ? `${c.author}: ` : ""}${c.text}\n`;
-        }
-      }
-    }
-
-    if (isPull) {
-      const diff = ghDomDiff();
-      content += diff
-        ? `\nCode changes (unified diff):\n${diff}\n`
-        : `\n(Diff unavailable.)\n`;
-    }
-
-    return {
-      type: "github",
+    return renderForgePage({
+      label: `GitHub ${kind} in ${repoSlug} (#${number})`,
       title,
-      url: location.href,
-      content: content.trim(),
-    };
+      state,
+      comments,
+      commentsHeader: "Comments",
+      diff: isPull ? ghDomDiff() : null,
+      type: "github",
+    });
   }
 
   if (parts.length === 2) {
@@ -138,13 +104,13 @@ async function extractGitHub() {
         .querySelector('meta[property="og:description"]')
         ?.content?.trim() || "";
     const topics = Array.from(document.querySelectorAll("a.topic-tag"))
-      .map((t) => t.innerText.trim())
+      .map((t) => elText(t))
       .filter(Boolean);
 
     let content = `GitHub repository: ${repoSlug}\n`;
     if (description) content += `\nDescription: ${description}\n`;
     if (topics.length) content += `Topics: ${topics.join(", ")}\n`;
-    content += `\nREADME:\n${ghTruncate(readme, GH_MAX_README_CHARS)}\n`;
+    content += `\nREADME:\n${truncateKeepLines(readme, GH_MAX_README_CHARS)}\n`;
 
     return {
       type: "github",

@@ -32,7 +32,7 @@ export function setLinkifyPageHostForTests(host) {
   linkifyPageHost = host;
 }
 
-export function normalizeLinkHost(host) {
+function normalizeLinkHost(host) {
   const h = String(host || "")
     .toLowerCase()
     .replace(/^(www\.|m\.)/, "");
@@ -47,7 +47,7 @@ export function setLinkifyOriginFromUrl(url) {
   }
 }
 
-export function isLinkifiableHref(href, { allowAlwaysHosts = true } = {}) {
+function isLinkifiableHref(href, { allowAlwaysHosts = true } = {}) {
   let host;
   try {
     host = normalizeLinkHost(new URL(href).hostname);
@@ -109,10 +109,7 @@ export function isSafeMarkdownHref(href) {
   return true;
 }
 
-export function extractMarkdownLinks(
-  escapedText,
-  { allowAlwaysHosts = true } = {},
-) {
+function extractMarkdownLinks(escapedText, { allowAlwaysHosts = true } = {}) {
   const links = [];
   const cleanText = String(escapedText).replace(LINK_TOKEN_STRIP_RE, "");
   const text = cleanText.replace(
@@ -132,7 +129,7 @@ export function extractMarkdownLinks(
   return { text, links };
 }
 
-export function renderInline(escapedText, { allowAlwaysHosts = true } = {}) {
+function renderInline(escapedText, { allowAlwaysHosts = true } = {}) {
   const { text, links } = extractMarkdownLinks(escapedText, {
     allowAlwaysHosts,
   });
@@ -208,7 +205,7 @@ export function renderMarkdown(source, { stored = false } = {}) {
   const allowAlwaysHosts = !stored;
   const inline = (escapedText) =>
     renderInline(escapedText, { allowAlwaysHosts });
-  const lines = escapeHtml(source ?? "")
+  const lines = escapeHtml(stripEchoedFences(source ?? ""))
     .replace(/\uE000/g, "")
     .split(/\r?\n/);
   let html = "";
@@ -256,6 +253,36 @@ export function renderMarkdown(source, { stored = false } = {}) {
   }
   closeList();
   return sanitizeMarkdownHtml(html);
+}
+
+// Small local models often disobey the prompt's "no heading" rule and open
+// with a "Summary" heading (## Summary, **Summary**, Summary:). The card
+// already carries the "Summarize this page" title, so that first line is
+// redundant. Only a complete leading heading line is dropped: body text
+// that merely starts with the word (e.g. "Summary of findings...") is kept.
+export function stripLeadingSummaryHeading(text) {
+  return String(text ?? "").replace(
+    /^\s*(?:#{1,6}\s*|\*\*)?summary(?::|\*\*)?[ \t]*(?:\n|$)/i,
+    "",
+  );
+}
+
+// Small local models sometimes echo the prompt's prompt-injection fences
+// (<<<APOGEE_CONTENT ... APOGEE_CONTENT>>>) into their answer. Those markers
+// are input delimiters only and must never display. Strip any occurrence so
+// the card shows only the summary itself.
+export function stripEchoedFences(text) {
+  return String(text ?? "")
+    .replaceAll("<<<APOGEE_CONTENT", "")
+    .replaceAll("APOGEE_CONTENT>>>", "");
+}
+
+// Combined model-output cleanup: fence echo first (it may precede a
+// redundant heading), then the leading "Summary" heading. Preserves the
+// previous trimStart-then-strip contract used by callers.
+export function cleanModelOutput(text) {
+  const noFence = stripEchoedFences(String(text ?? "").trimStart()).trimStart();
+  return stripLeadingSummaryHeading(noFence);
 }
 
 export function renderStoredSummaryMarkdown(text) {

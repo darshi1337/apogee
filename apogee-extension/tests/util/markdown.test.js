@@ -10,6 +10,7 @@ import {
   sanitizeMarkdownHtml,
   setLinkifyOriginFromUrl,
   setLinkifyPageHostForTests,
+  stripLeadingSummaryHeading,
 } from "../../lib/util/markdown.js";
 
 function resetLinkify() {
@@ -242,4 +243,39 @@ test("resolveNavigableHttpUrl allows http(s) and resolves same-page links (#266)
   assert.strictEqual(resolveNavigableHttpUrl("", page), null);
   assert.strictEqual(resolveNavigableHttpUrl(null, page), null);
   assert.strictEqual(resolveNavigableHttpUrl("https://", page), null);
+});
+
+test("stripLeadingSummaryHeading drops a redundant model-emitted heading", () => {
+  assert.strictEqual(
+    stripLeadingSummaryHeading("## Summary\nNeanderthals made fat."),
+    "Neanderthals made fat.",
+  );
+  assert.strictEqual(
+    stripLeadingSummaryHeading("**Summary**\nNeanderthals made fat."),
+    "Neanderthals made fat.",
+  );
+  assert.strictEqual(
+    stripLeadingSummaryHeading("Summary:\nNeanderthals made fat."),
+    "Neanderthals made fat.",
+  );
+  assert.strictEqual(
+    stripLeadingSummaryHeading("Summary\nNeanderthals made fat."),
+    "Neanderthals made fat.",
+  );
+  assert.strictEqual(
+    stripLeadingSummaryHeading("\n\n# Summary\nNeanderthals made fat."),
+    "Neanderthals made fat.",
+  );
+});
+
+test("stripLeadingSummaryHeading keeps body text starting with the word", () => {
+  assert.strictEqual(
+    stripLeadingSummaryHeading("Summary of findings shows planning."),
+    "Summary of findings shows planning.",
+  );
+  assert.strictEqual(
+    stripLeadingSummaryHeading("- First point\n- Second point"),
+    "- First point\n- Second point",
+  );
+  assert.strictEqual(stripLeadingSummaryHeading(""), "");
 });

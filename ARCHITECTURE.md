@@ -42,7 +42,7 @@ Videos (YouTube and Bilibili) get their own path. Apogee pulls the timestamped t
 
 Each entry is a clickable link that jumps the video to that moment. When a video description defines real chapters, the summary follows those chapters instead. Apogee strips sponsor reads and self-promotion from YouTube transcripts first (see the SponsorBlock lookup in PRIVACY.md).
 
-Social threads get dedicated extractors, so long discussions survive Readability. Reddit, Hacker News, Lobsters, Bluesky, and Mastodon parse titles, authors, scores, and reply trees into Markdown. Lemmy, Discourse, Stack Overflow, and GitHub do the same.
+Social threads get dedicated extractors, so long discussions survive Readability. Reddit, Hacker News, Lobsters, Bluesky, and Mastodon parse titles, authors, scores, and reply trees into Markdown. Lemmy, Discourse, Stack Overflow, GitHub, GitLab, and Dev.to do the same. The thread extractors share one helper module (`thread.js`), and the video extractors share another (`video.js`).
 
 Bluesky (`bsky.app`) starts with the public AT Protocol endpoint (no auth, fully nested thread). The endpoint address is `https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread`. It falls back to DOM parsing when offline. The fallback caps at 80 posts and depth 8.
 
@@ -64,7 +64,7 @@ The diagram below shows how parts interact on your local device and marks the on
 flowchart TD
     subgraph device["Your Device"]
         subgraph page["Active Tab"]
-            EX["Extractors injected on demand<br/>Readability, YouTube, Bilibili, Wikipedia,<br/>Gmail, Reddit, HN, GitHub, Lobsters, arXiv,<br/>Mastodon, Stack Overflow, Lemmy, Discourse, Bluesky"]
+            EX["Extractors injected on demand<br/>Readability, YouTube, Bilibili, Wikipedia,<br/>Gmail, Reddit, HN, GitHub, GitLab, Lobsters, arXiv,<br/>Mastodon, Stack Overflow, Lemmy, Discourse, Bluesky, Dev.to"]
             HL["Highlight overlay<br/>scrolls to source text"]
         end
 

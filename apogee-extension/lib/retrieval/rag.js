@@ -81,6 +81,20 @@ export async function selectSalientChunks(
   }
 }
 
+// Shared query-scored chunk list for the question-answering paths: one
+// embedding round for the cached index, one for the query, then a dot score
+// per chunk. Callers differ only in how they pick from the scored list.
+async function scoreChunksAgainstQuery(clean, query, embedTextsFn) {
+  const index = await getOrBuildIndex(clean, embedTextsFn);
+  const [queryEmbedding] = await embedTextsFn([query]);
+  const scored = index.chunks.map((chunk, i) => ({
+    chunk,
+    index: i,
+    score: dot(queryEmbedding, index.embeddings[i]),
+  }));
+  return { index, queryEmbedding, scored };
+}
+
 export async function retrieveRelevantContent(
   {
     content,
@@ -94,15 +108,13 @@ export async function retrieveRelevantContent(
   if (clean.length <= maxContextChars) return clean;
 
   try {
-    const index = await getOrBuildIndex(clean, embedTextsFn);
+    const { index, scored } = await scoreChunksAgainstQuery(
+      clean,
+      question,
+      embedTextsFn,
+    );
     if (index.chunks.length <= 1) return clean.slice(0, maxContextChars);
 
-    const [questionEmbedding] = await embedTextsFn([question]);
-    const scored = index.chunks.map((chunk, i) => ({
-      chunk,
-      index: i,
-      score: dot(questionEmbedding, index.embeddings[i]),
-    }));
     scored.sort((a, b) => b.score - a.score);
 
     const picked = [];
@@ -147,16 +159,16 @@ export async function findBestPassage(
   if (!clean || !query) return null;
 
   try {
-    const index = await getOrBuildIndex(clean, embedTextsFn);
+    const { index, queryEmbedding, scored } = await scoreChunksAgainstQuery(
+      clean,
+      query,
+      embedTextsFn,
+    );
     if (index.chunks.length === 0) return null;
 
-    const [queryEmbedding] = await embedTextsFn([query]);
     let best = null;
-    for (let i = 0; i < index.chunks.length; i++) {
-      const score = dot(queryEmbedding, index.embeddings[i]);
-      if (!best || score > best.score) {
-        best = { chunk: index.chunks[i], score };
-      }
+    for (const candidate of scored) {
+      if (!best || candidate.score > best.score) best = candidate;
     }
 
     let passage = best.chunk;

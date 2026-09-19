@@ -52,6 +52,13 @@ test("resolveOpusModel handles X->en (direct or mul-en catch-all) and no-op/fore
   assert.strictEqual(resolveOpusModel("es", "de"), null);
 });
 
+test("resolveOpusModel never loads a translator for the same language", () => {
+  assert.strictEqual(resolveOpusModel("en", "en"), null);
+  assert.strictEqual(resolveOpusModel("en", "en-US"), null);
+  assert.strictEqual(resolveOpusModel("EN", "en"), null);
+  assert.strictEqual(resolveOpusModel("de", "de-AT"), null);
+});
+
 test("splitTranslatablePrefix peels off bullets and timestamp-link prefixes", () => {
   assert.deepStrictEqual(splitTranslatablePrefix("- Hello world"), {
     prefix: "- ",

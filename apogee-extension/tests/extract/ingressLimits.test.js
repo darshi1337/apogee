@@ -3,58 +3,10 @@ import assert from "node:assert/strict";
 
 import {
   MAX_ABSOLUTE_MAP_CHUNKS,
-  MAX_INGRESS_CONTENT_CHARS,
-  MAX_INGRESS_PROMPT_CHARS,
-  MAX_INGRESS_QUESTION_CHARS,
-  MAX_INGRESS_TITLE_CHARS,
-  MAX_INGRESS_URL_CHARS,
   MAX_STREAM_TEXT_CHARS,
   appendStreamTextCapped,
-  assertIngressPayloadOk,
 } from "../../lib/extract/fileLimits.js";
 import { mapReduceStream } from "../../lib/summarize/mapReduce.js";
-
-test("ingress ceilings reuse the prompt-fencing and finalize backstops (#269)", () => {
-  assert.equal(MAX_INGRESS_TITLE_CHARS, 500);
-  assert.equal(MAX_INGRESS_URL_CHARS, 2000);
-  assert.equal(MAX_INGRESS_QUESTION_CHARS, 2000);
-  assert.equal(MAX_INGRESS_CONTENT_CHARS, 1024 * 1024);
-  assert.equal(MAX_INGRESS_PROMPT_CHARS, 1024 * 1024);
-  assert.equal(MAX_STREAM_TEXT_CHARS, 1024 * 1024);
-  assert.equal(MAX_ABSOLUTE_MAP_CHUNKS, 64);
-});
-
-test("assertIngressPayloadOk passes payloads at the ceiling (#269)", () => {
-  assertIngressPayloadOk({
-    content: "x".repeat(MAX_INGRESS_CONTENT_CHARS),
-    question: "q".repeat(MAX_INGRESS_QUESTION_CHARS),
-    title: "t".repeat(MAX_INGRESS_TITLE_CHARS),
-    url: "u".repeat(MAX_INGRESS_URL_CHARS),
-  });
-  assertIngressPayloadOk({});
-  assertIngressPayloadOk({ content: undefined, question: null });
-});
-
-test("assertIngressPayloadOk rejects oversize fields with UserFacingError (#269)", () => {
-  for (const payload of [
-    { content: "x".repeat(MAX_INGRESS_CONTENT_CHARS + 1) },
-    { question: "q".repeat(MAX_INGRESS_QUESTION_CHARS + 1) },
-    { query: "q".repeat(MAX_INGRESS_QUESTION_CHARS + 1) },
-    { title: "t".repeat(MAX_INGRESS_TITLE_CHARS + 1) },
-    { url: "u".repeat(MAX_INGRESS_URL_CHARS + 1) },
-    { summary: "s".repeat(MAX_INGRESS_CONTENT_CHARS + 1) },
-    { prompt: "p".repeat(MAX_INGRESS_PROMPT_CHARS + 1) },
-  ]) {
-    assert.throws(
-      () => assertIngressPayloadOk(payload),
-      (err) => {
-        assert.equal(err.isUserFacing, true);
-        assert.match(err.message, /character limit/);
-        return true;
-      },
-    );
-  }
-});
 
 test("appendStreamTextCapped bounds live accumulation pre-cap (#269)", () => {
   const small = appendStreamTextCapped("hello ", "world");

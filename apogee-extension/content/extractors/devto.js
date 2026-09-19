@@ -16,11 +16,6 @@ const DEVTO_NON_ARTICLE_PATHS = [
   /^\/videos?/,
 ];
 
-function devtoText(el) {
-  if (!el) return "";
-  return (el.innerText || el.textContent || "").trim();
-}
-
 function isDevtoHost() {
   const host = location.hostname.toLowerCase();
   return host === "dev.to" || host.endsWith(".dev.to");
@@ -47,23 +42,19 @@ function devtoCommentDepth(node) {
 }
 
 function devtoCommentItems(nodes) {
-  return Array.from(nodes)
-    .filter(
-      (el) => el && (typeof el.isConnected === "undefined" || el.isConnected),
-    )
-    .map((el) => {
-      const bodyEl = el.querySelector?.(".comment__body");
-      const authorEl =
-        el.querySelector?.(".js-comment-username") ||
-        el.querySelector?.(".comment__header a");
-      return {
-        depth: devtoCommentDepth(el),
-        author: devtoText(authorEl) || "anon",
-        text: bodyEl
-          ? threadTruncate(devtoText(bodyEl), DEVTO_MAX_COMMENT_CHARS)
-          : "",
-      };
-    });
+  return liveEls(nodes).map((el) => {
+    const bodyEl = el.querySelector?.(".comment__body");
+    const authorEl =
+      el.querySelector?.(".js-comment-username") ||
+      el.querySelector?.(".comment__header a");
+    return {
+      depth: devtoCommentDepth(el),
+      author: elAuthor(authorEl),
+      text: bodyEl
+        ? threadTruncate(elText(bodyEl), DEVTO_MAX_COMMENT_CHARS)
+        : "",
+    };
+  });
 }
 
 function extractDevto() {
@@ -77,27 +68,27 @@ function extractDevto() {
   const titleEl =
     document.querySelector("#main-title h1") ||
     document.querySelector("h1.fs-3xl");
-  const title = devtoText(titleEl) || document.title.trim();
-  const body = devtoText(bodyEl);
+  const title = elText(titleEl) || document.title.trim();
+  const body = elText(bodyEl);
   if (!title || !body) return null;
 
   const authorEl =
     document.querySelector(
       "#main-title .crayons-article__header__meta a.crayons-link",
     ) || document.querySelector(".crayons-article__header__meta a[href^='/']");
-  const author = devtoText(authorEl) || "anon";
+  const author = elAuthor(authorEl);
 
   const dateEl = document.querySelector(
     "#main-title time, .crayons-article__header__meta time",
   );
-  const date = dateEl?.getAttribute("datetime") || devtoText(dateEl);
+  const date = dateEl?.getAttribute("datetime") || elText(dateEl);
 
   const tags = Array.from(
     document.querySelectorAll(
       "#main-title .crayons-tag, .crayons-article__header .crayons-tag",
     ),
   )
-    .map((t) => devtoText(t).replace(/^#/, ""))
+    .map((t) => elText(t).replace(/^#/, ""))
     .filter(Boolean);
 
   const commentNodes = document.querySelectorAll(
@@ -107,19 +98,17 @@ function extractDevto() {
   const eligible = (n) => n.text && n.depth <= DEVTO_MAX_DEPTH;
   const comments = selectThreadComments(nodes, eligible, DEVTO_MAX_COMMENTS);
 
-  let content = `DEV Community article\n\nTitle: ${title}\nAuthor: ${author}\n`;
-  if (date) content += `Posted: ${date}\n`;
-  if (tags.length) content += `Tags: ${tags.join(", ")}\n`;
-  content += `\nPost:\n${body}\n`;
-
-  content += comments.length
-    ? `\n${THREAD_COMMENTS_HEADER}\n${formatThreadComments(comments)}\n`
-    : `\n(No comments yet.)\n`;
-
-  return {
-    type: "devto",
+  return renderThreadPage({
+    label: "DEV Community article",
+    heading: title,
     title,
-    url: location.href,
-    content: content.trim(),
-  };
+    headLines: [
+      `Author: ${author}`,
+      date && `Posted: ${date}`,
+      tags.length && `Tags: ${tags.join(", ")}`,
+    ],
+    post: body,
+    comments,
+    type: "devto",
+  });
 }

@@ -6,6 +6,8 @@ import {
   requestHostPermissions,
   getOptionalOriginsForUrl,
   ensurePermissionsForUrl,
+  siteOriginsForUrl,
+  requestSiteAccess,
 } from "../../lib/util/permissions.js";
 
 test("hasHostPermissions returns false when chrome.permissions is undefined (#209)", async () => {
@@ -182,6 +184,91 @@ test("ensurePermissionsForUrl fails closed when the permissions API is absent (#
       "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     );
     assert.strictEqual(result, false);
+  } finally {
+    globalThis.chrome = originalChrome;
+  }
+});
+
+test("siteOriginsForUrl scopes one pattern per web host", () => {
+  assert.deepStrictEqual(siteOriginsForUrl("https://github.com/a/b"), [
+    "*://github.com/*",
+  ]);
+  assert.deepStrictEqual(siteOriginsForUrl("http://example.com:8080/x"), [
+    "*://example.com/*",
+  ]);
+  assert.deepStrictEqual(siteOriginsForUrl("about:addons"), []);
+  assert.deepStrictEqual(siteOriginsForUrl(""), []);
+  assert.deepStrictEqual(siteOriginsForUrl(null), []);
+});
+
+test("requestSiteAccess returns true when already granted (no prompt)", async () => {
+  const originalChrome = globalThis.chrome;
+  let requested = false;
+  globalThis.chrome = {
+    permissions: {
+      contains({ origins }, callback) {
+        callback(origins.includes("*://github.com/*"));
+      },
+      request(_req, callback) {
+        requested = true;
+        callback(true);
+      },
+    },
+  };
+  try {
+    assert.strictEqual(await requestSiteAccess("https://github.com/a/b"), true);
+    assert.strictEqual(requested, false);
+  } finally {
+    globalThis.chrome = originalChrome;
+  }
+});
+
+test("requestSiteAccess prompts once for the single site", async () => {
+  const originalChrome = globalThis.chrome;
+  let requestedOrigins = null;
+  globalThis.chrome = {
+    permissions: {
+      contains(_req, callback) {
+        callback(false);
+      },
+      request({ origins }, callback) {
+        requestedOrigins = origins;
+        callback(true);
+      },
+    },
+  };
+  try {
+    assert.strictEqual(await requestSiteAccess("https://github.com/a/b"), true);
+    assert.deepStrictEqual(requestedOrigins, ["*://github.com/*"]);
+  } finally {
+    globalThis.chrome = originalChrome;
+  }
+});
+
+test("requestSiteAccess fails closed without a URL or API", async () => {
+  const originalChrome = globalThis.chrome;
+  globalThis.chrome = {
+    permissions: {
+      contains(_req, callback) {
+        callback(false);
+      },
+      request(_req, callback) {
+        callback(false);
+      },
+    },
+  };
+  try {
+    assert.strictEqual(await requestSiteAccess("about:addons"), false);
+    assert.strictEqual(await requestSiteAccess(null), false);
+  } finally {
+    globalThis.chrome = originalChrome;
+  }
+  delete globalThis.chrome;
+  try {
+    assert.strictEqual(
+      await requestSiteAccess("https://github.com/a/b"),
+      false,
+    );
   } finally {
     globalThis.chrome = originalChrome;
   }

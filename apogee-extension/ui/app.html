@@ -24,10 +24,6 @@
               data-i18n-alt="apogeeLogo"
             />
             <span class="brand-name">apogee</span>
-            <div id="homeExtractorChip" class="extractor-chip hidden">
-              <span id="homeExtractorIcon" class="ico"></span>
-              <span id="homeExtractorLabel"></span>
-            </div>
           </div>
 
           <div
@@ -162,7 +158,11 @@
           </div>
 
           <div id="webgpuWarning" class="webgpu-warning hidden">
-            <span class="warning-icon">⚠️</span>
+            <span
+              class="warning-icon ico"
+              data-ico="alert"
+              aria-hidden="true"
+            ></span>
             <span
               ><span data-i18n="webgpuUnsupportedLead"
                 >WebGPU is not supported in this browser. Use</span
@@ -222,10 +222,6 @@
               data-i18n-alt="apogeeLogo"
             />
             <span class="brand-name">apogee</span>
-            <div id="summaryExtractorChip" class="extractor-chip hidden">
-              <span id="summaryExtractorIcon" class="ico"></span>
-              <span id="summaryExtractorLabel"></span>
-            </div>
           </div>
 
           <div
@@ -347,10 +343,13 @@
                 Clear
               </button>
             </div>
-            <p class="debug-logs-warning" data-i18n="logsPrivacyWarning">
-              ⚠️ These logs may contain details about the page you were viewing.
-              Review before pasting into a public issue.
-            </p>
+            <div class="debug-logs-warning">
+              <span class="ico" data-ico="shield" aria-hidden="true"></span>
+              <p data-i18n="logsPrivacyWarning">
+                These logs may contain details about the page you were viewing.
+                Review before pasting into a public issue.
+              </p>
+            </div>
             <div
               id="debugLogsContent"
               class="debug-logs-content"
@@ -362,7 +361,19 @@
 
           <section id="summaryCard" class="summary-card">
             <div class="card-header-row">
-              <h2 data-i18n="summarizeThisPageHeading">Summarize this page</h2>
+              <div class="card-title-group">
+                <h2 data-i18n="summarizeThisPageHeading">
+                  Summarize this page
+                </h2>
+                <div
+                  id="summaryExtractorChip"
+                  class="extractor-chip hidden"
+                  tabindex="0"
+                >
+                  <span id="summaryExtractorIcon" class="ico"></span>
+                  <span id="summaryExtractorLabel"></span>
+                </div>
+              </div>
 
               <div class="card-header-actions">
                 <button
@@ -438,7 +449,7 @@
                     data-ico="refresh"
                     aria-hidden="true"
                   ></span>
-                  <span data-i18n="resummarizeThisPage">Resummarize</span>
+                  <span data-i18n="resummarizeShort">Resummarize</span>
                 </button>
 
                 <button

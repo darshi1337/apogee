@@ -1,36 +1,6 @@
-function biliExtractBalancedObject(text, openIndex) {
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  for (let i = openIndex; i < text.length; i++) {
-    const ch = text[i];
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-      } else if (ch === "\\") {
-        escaped = true;
-      } else if (ch === '"') {
-        inString = false;
-      }
-      continue;
-    }
-    if (ch === '"') {
-      inString = true;
-    } else if (ch === "{") {
-      depth++;
-    } else if (ch === "}") {
-      depth--;
-      if (depth === 0) return text.slice(openIndex, i + 1);
-    }
-  }
-  return null;
-}
-
 function getBiliInitialState() {
   const path = location.pathname.toLowerCase();
-  const scripts = Array.from(document.querySelectorAll("script")).filter(
-    (s) => s && (typeof s.isConnected === "undefined" || s.isConnected),
-  );
+  const scripts = liveEls(document.querySelectorAll("script"));
   for (const script of scripts) {
     const text = script?.textContent || "";
     if (!text || !text.includes("__INITIAL_STATE__")) continue;
@@ -38,7 +8,7 @@ function getBiliInitialState() {
     if (!assign) continue;
     const openIndex = text.indexOf("{", assign.index + assign[0].length);
     if (openIndex === -1) continue;
-    const json = biliExtractBalancedObject(text, openIndex);
+    const json = extractBalancedJsonText(text, openIndex);
     if (!json) continue;
     try {
       const parsed = JSON.parse(json);
@@ -55,30 +25,15 @@ function getBiliInitialState() {
   return null;
 }
 
-function biliFormatTimestamp(totalSeconds) {
-  const s = Math.max(0, Math.floor(totalSeconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  const mm = h > 0 ? String(m).padStart(2, "0") : String(m);
-  const ss = String(sec).padStart(2, "0");
-  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
-}
-
 const BILI_TIMESTAMP_MARKER_INTERVAL_SECONDS = 20;
 
 function buildBiliTranscript(segments) {
   if (!segments.length) return "";
-  let lastMarked = -Infinity;
-  const parts = [];
-  for (const seg of segments) {
-    if (seg.start - lastMarked >= BILI_TIMESTAMP_MARKER_INTERVAL_SECONDS) {
-      parts.push(`[${biliFormatTimestamp(seg.start)}]`);
-      lastMarked = seg.start;
-    }
-    parts.push(seg.text);
-  }
-  return parts.join(" ").replace(/\s+/g, " ").trim();
+  return markTranscriptSegments(
+    segments,
+    formatVideoTimestamp,
+    BILI_TIMESTAMP_MARKER_INTERVAL_SECONDS,
+  );
 }
 
 function cleanBiliDescription(description) {
@@ -139,17 +94,17 @@ async function extractBilibili() {
     ? segments[segments.length - 1].start
     : 0;
 
-  let cleanedDescription = cleanBiliDescription(description);
-  if (transcript && cleanedDescription.length > 500) {
-    cleanedDescription = `${cleanedDescription.slice(0, 500).trim()}…`;
-  }
+  const cleanedDescription = truncateVideoDescription(
+    cleanBiliDescription(description),
+    transcript,
+  );
 
   let content = `Video Title:\n${title}\n`;
   if (channel) content += `\nUploader: ${channel}\n`;
   if (duration) content += `\nDuration: ${duration}\n`;
   if (cleanedDescription) content += `\nDescription:\n${cleanedDescription}\n`;
   content += transcript
-    ? `\nLast transcript timestamp: ${biliFormatTimestamp(lastAvailableSeconds)} (${Math.floor(lastAvailableSeconds)}s)\n\nTranscript:\n${transcript}\n`
+    ? `\nLast transcript timestamp: ${formatVideoTimestamp(lastAvailableSeconds)} (${Math.floor(lastAvailableSeconds)}s)\n\nTranscript:\n${transcript}\n`
     : "\n(No subtitles/captions available for this video.)\n";
 
   return {

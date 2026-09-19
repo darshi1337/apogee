@@ -16,11 +16,6 @@ const HN_FADE_CLASSES = [
   "cdd",
 ];
 
-function hnCommentText(el) {
-  const visible = el.innerText.trim();
-  return visible || (el.textContent || "").trim();
-}
-
 function hnDownvotes(commtextEl) {
   for (let i = HN_FADE_CLASSES.length - 1; i >= 1; i--) {
     if (commtextEl.classList.contains(HN_FADE_CLASSES[i])) return i;
@@ -39,19 +34,13 @@ function hnCommentDepth(row) {
 }
 
 function hnCommentItems(rows) {
-  const elements = Array.from(rows).filter(
-    (row) => row && (typeof row.isConnected === "undefined" || row.isConnected),
-  );
-  return elements.map((row) => {
+  return liveEls(rows).map((row) => {
     const bodyEl = row.querySelector?.(".commtext");
     const authorEl = row.querySelector?.(".hnuser");
     return {
       depth: hnCommentDepth(row),
-      author:
-        authorEl?.innerText?.trim() || authorEl?.textContent?.trim() || "anon",
-      text: bodyEl
-        ? threadTruncate(hnCommentText(bodyEl), HN_MAX_COMMENT_CHARS)
-        : "",
+      author: elAuthor(authorEl),
+      text: bodyEl ? threadTruncate(elText(bodyEl), HN_MAX_COMMENT_CHARS) : "",
       downvotes: bodyEl ? hnDownvotes(bodyEl) : 0,
     };
   });
@@ -75,40 +64,31 @@ function extractHackerNews() {
   const linkHref =
     fatitem.querySelector(".titleline a")?.getAttribute("href") || "";
   const isExternalLink = /^https?:/i.test(linkHref);
-  const domain = fatitem.querySelector(".sitestr")?.innerText?.trim() || "";
+  const domain = elText(fatitem.querySelector(".sitestr"));
 
-  const points = fatitem.querySelector(".score")?.innerText?.trim() || "";
-  const author = fatitem.querySelector(".hnuser")?.innerText?.trim() || "";
-  const age = fatitem.querySelector(".age")?.innerText?.trim() || "";
+  const points = elText(fatitem.querySelector(".score"));
+  const author = elText(fatitem.querySelector(".hnuser"));
+  const age = elText(fatitem.querySelector(".age"));
 
-  const storyText = fatitem.querySelector(".toptext")?.innerText?.trim() || "";
+  const storyText = elText(fatitem.querySelector(".toptext"));
 
-  const commentRows = Array.from(
-    document.querySelectorAll("tr.athing.comtr"),
-  ).filter(
-    (row) => row && (typeof row.isConnected === "undefined" || row.isConnected),
-  );
+  const commentRows = liveEls(document.querySelectorAll("tr.athing.comtr"));
   const nodes = buildThreadNodes(hnCommentItems(commentRows));
   const eligible = (n) =>
     n.text && n.downvotes <= HN_DOWNVOTE_LIMIT && n.depth <= HN_MAX_DEPTH;
   const comments = selectThreadComments(nodes, eligible, HN_MAX_COMMENTS);
 
-  let content = `Hacker News discussion\n\nTitle: ${title}\n`;
-  if (isExternalLink) content += `Links to: ${domain || linkHref}\n`;
   const meta = [points, author && `by ${author}`, age]
     .filter(Boolean)
     .join(" | ");
-  if (meta) content += `${meta}\n`;
-  if (storyText) content += `\nPost:\n${storyText}\n`;
 
-  content += comments.length
-    ? `\n${THREAD_COMMENTS_HEADER}\n${formatThreadComments(comments)}\n`
-    : `\n(No comments yet.)\n`;
-
-  return {
-    type: "hackernews",
+  return renderThreadPage({
+    label: "Hacker News discussion",
+    heading: title,
     title,
-    url: location.href,
-    content: content.trim(),
-  };
+    headLines: [isExternalLink && `Links to: ${domain || linkHref}`, meta],
+    post: storyText,
+    comments,
+    type: "hackernews",
+  });
 }

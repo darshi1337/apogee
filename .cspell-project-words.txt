@@ -8,6 +8,8 @@ bsky
 bvid
 chunker
 crowdsourced
+devto
+Devto
 ggml
 gguf
 GGUF

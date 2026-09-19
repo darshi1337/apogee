@@ -116,7 +116,7 @@
   },
   "clear": { "message": "Clear", "description": "Clear debug logs button" },
   "logsPrivacyWarning": {
-    "message": "⚠️ These logs may contain details about the page you were viewing. Review before pasting into a public issue.",
+    "message": "These logs may contain details about the page you were viewing. Review before pasting into a public issue.",
     "description": "Debug logs privacy warning"
   },
   "noLogsYet": {
@@ -145,7 +145,11 @@
   },
   "resummarizeThisPage": {
     "message": "Resummarize this page",
-    "description": "Resummarize button label"
+    "description": "Resummarize button tooltip"
+  },
+  "resummarizeShort": {
+    "message": "Resummarize",
+    "description": "Resummarize button visible label"
   },
   "cancel": { "message": "Cancel", "description": "Cancel button" },
   "suggestedPrompts": {

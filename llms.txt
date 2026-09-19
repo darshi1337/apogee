@@ -14,7 +14,7 @@ Apogee is an offline-first, private browser extension for Chrome, Edge, and Fire
 
 - `apogee-extension/lib/engines/llamaCppClient.js`: SSE streaming client and health/context detection for a local `llama-server`.
 
-- `apogee-extension/content/extractors/`: Site-specific article and video text extractors. Covered sites: YouTube, Bilibili, Wikipedia, Gmail, Reddit, Hacker News, GitHub, Lobsters, arXiv, Mastodon, Stack Overflow, Lemmy, Discourse, Bluesky.
+- `apogee-extension/content/extractors/`: Site-specific article and video text extractors. Covered sites: YouTube, Bilibili, Wikipedia, Gmail, Reddit, Hacker News, GitHub, GitLab, Lobsters, arXiv, Mastodon, Stack Overflow, Lemmy, Discourse, Bluesky, Dev.to. Shared helpers: `thread.js` (discussion pages, loads first), `video.js` (video pages).
 
 - `apogee-extension/lib/extract/`: Extraction router and local file parsing (`pageExtraction.js`, `selection.js`, `pdfExtract.js`, `docxExtract.js`).
 

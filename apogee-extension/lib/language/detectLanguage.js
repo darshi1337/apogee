@@ -1,6 +1,6 @@
 import { resolveLanguageName } from "../summarize/prompts.js";
 
-function baseCode(code) {
+export function baseCode(code) {
   return (code || "").toLowerCase().split("-")[0];
 }
 

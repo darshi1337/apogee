@@ -13,11 +13,12 @@ import {
 } from "../lib/engines/llamaCppClient.js";
 import { getMaxChunkChars, getMaxChunks } from "../lib/engines/modelLimits.js";
 import {
-  tokensForChunk,
-  isWarmedUp,
-  tokensPerSecond,
-  finalTokensPerSecond,
-} from "../lib/util/throughput.js";
+  appendChunkToState,
+  createStreamState,
+  finishStateWithStats,
+  replayStreamToPort,
+  warmedStatsForState,
+} from "../lib/util/streamState.js";
 import { chunkBySections } from "../lib/summarize/sections.js";
 import { errorHelpUrl } from "../lib/util/errorHelp.js";
 import {
@@ -44,8 +45,6 @@ import {
   MAX_BILIBILI_SUBTITLE_SEGMENTS,
   MAX_FINALIZE_TEXT_CHARS,
   MAX_UPLOAD_FILE_BYTES,
-  appendStreamTextCapped,
-  assertIngressPayloadOk,
 } from "../lib/extract/fileLimits.js";
 import {
   recordPageAccessEvent,
@@ -390,6 +389,27 @@ function isOffscreenStream(streamId) {
 
 const activeStreams = new Map();
 
+// WebLLM / Transformers jobs run in the offscreen document, so they have no
+// entry in activeStreams above. Without explicit tracking the keep-alive
+// below sees no work in flight, the worker sleeps ~30s into a multi-minute
+// local generation, and the relay ports die: the popup freezes on its
+// spinner while the offscreen job keeps running to completion (the full
+// text only appears when the popup reopens and reads the saved view state).
+// Entries live only while a popup is relayed to an offscreen stream; the
+// headless finish path (stream-finished) needs no keep-alive because its
+// message wakes the worker on arrival.
+export const offscreenRelayInflight = new Set();
+
+export function trackOffscreenRelay(streamId) {
+  if (!streamId) return;
+  offscreenRelayInflight.add(streamId);
+  startKeepAlive();
+}
+
+export function untrackOffscreenRelay(streamId) {
+  offscreenRelayInflight.delete(streamId);
+}
+
 const STREAM_CLEANUP_PREFIX = "stream-cleanup:";
 const STREAM_CLEANUP_MINUTES = 2;
 function scheduleStreamCleanup(streamId) {
@@ -401,10 +421,11 @@ function scheduleStreamCleanup(streamId) {
 const KEEPALIVE_MS = 20000;
 let keepAliveTimer = null;
 
-function hasWorkInFlight() {
+export function hasWorkInFlight() {
   for (const stream of activeStreams.values()) {
     if (!stream.done) return true;
   }
+  if (offscreenRelayInflight.size > 0) return true;
   return pendingSuggestKeys.size > 0;
 }
 
@@ -420,9 +441,16 @@ function startKeepAlive() {
       chrome.runtime.getPlatformInfo(() => void chrome.runtime.lastError);
     } catch {}
   }, KEEPALIVE_MS);
+  // Node test runners hold the event loop for active intervals; browsers
+  // return a number here so this is a no-op in the real worker.
+  if (keepAliveTimer.unref) keepAliveTimer.unref();
 }
 
 function relayToOffscreenStream(popupPort, streamId) {
+  // A live viewer exists, so this offscreen job is work in flight: keep the
+  // worker awake until the relay ends, otherwise it sleeps mid-generation
+  // and the popup stalls on its spinner.
+  trackOffscreenRelay(streamId);
   const offscreenPort = chrome.runtime.connect({
     name: `offscreen-stream-${streamId}`,
   });
@@ -430,13 +458,21 @@ function relayToOffscreenStream(popupPort, streamId) {
   let terminal = false;
 
   offscreenPort.onMessage.addListener((msg) => {
-    if (msg.type === "done" || msg.type === "error") terminal = true;
+    if (
+      msg.type === "done" ||
+      msg.type === "error" ||
+      msg.type === "cancelled"
+    ) {
+      terminal = true;
+      untrackOffscreenRelay(streamId);
+    }
     try {
       popupPort.postMessage(msg);
     } catch {}
   });
 
   offscreenPort.onDisconnect.addListener(() => {
+    untrackOffscreenRelay(streamId);
     if (!terminal) {
       try {
         popupPort.postMessage({
@@ -451,6 +487,7 @@ function relayToOffscreenStream(popupPort, streamId) {
   });
 
   popupPort.onDisconnect.addListener(() => {
+    untrackOffscreenRelay(streamId);
     try {
       offscreenPort.disconnect();
     } catch {}
@@ -550,36 +587,17 @@ async function getRelevantAskContent(content, question) {
 }
 
 function createBufferedStream(streamId, { finalize, model, title, url }) {
-  const stream = {
-    text: "",
-    done: false,
-    error: null,
+  const stream = createStreamState({
     errorUserFacing: false,
-    cancelled: false,
-    subscribers: new Set(),
     controller: new AbortController(),
-    tokenCount: 0,
-    firstTokenTime: null,
-    tokensPerSec: null,
-  };
+  });
   activeStreams.set(streamId, stream);
   startKeepAlive();
 
   const finish = (msg) => {
     if (stream.cancelled) return;
     if (msg.type === "done") {
-      stream.done = true;
-      const elapsedMs =
-        stream.firstTokenTime != null
-          ? performance.now() - stream.firstTokenTime
-          : 0;
-      stream.tokensPerSec =
-        finalTokensPerSecond({
-          serverStats: msg.serverStats ?? null,
-          tokenCount: stream.tokenCount,
-          elapsedMs,
-        }) || null;
-      msg = { ...msg, tokensPerSec: stream.tokensPerSec };
+      msg = finishStateWithStats(stream, msg);
     }
     if (msg.type === "error") {
       stream.error = msg.error;
@@ -601,26 +619,10 @@ function createBufferedStream(streamId, { finalize, model, title, url }) {
   };
 
   const emitChunk = (text) => {
-    if (!text || stream.cancelled) return;
-    // Bound live accumulation pre-cap (#269): finalize caps at write time,
-    // but stream.text grows with every token before that. Keep the head and
-    // drop the tail so a runaway model cannot bloat SW memory.
-    const capped = appendStreamTextCapped(stream.text, text);
-    const accepted = capped.text.length - stream.text.length;
-    stream.text = capped.text;
-    if (stream.firstTokenTime == null)
-      stream.firstTokenTime = performance.now();
-    stream.tokenCount += tokensForChunk(
-      accepted > 0 ? text.slice(0, accepted) : "",
-    );
+    if (!appendChunkToState(stream, text)) return;
     broadcastToStream(stream, { type: "chunk", text });
-    const elapsedMs = performance.now() - stream.firstTokenTime;
-    if (isWarmedUp(stream.tokenCount, elapsedMs)) {
-      broadcastToStream(stream, {
-        type: "stats",
-        tokensPerSec: tokensPerSecond(stream.tokenCount, elapsedMs),
-      });
-    }
+    const stats = warmedStatsForState(stream);
+    if (stats) broadcastToStream(stream, stats);
   };
 
   return { stream, finish, emitChunk };
@@ -653,20 +655,8 @@ async function startLocalHttpStream(
     url,
   });
 
-  // Ingress bound (#269): payloads arrive via extension messaging unbounded;
-  // reject oversize with a UserFacingError before chunking fans out into
-  // sequential model calls.
-  try {
-    assertIngressPayloadOk({ content, question, title, url });
-  } catch (err) {
-    finish({
-      type: "error",
-      error: err.message,
-      userFacing: !!err?.isUserFacing,
-    });
-    return;
-  }
-
+  // Ingress bound removed: long pages flow to the chunker, which bounds
+  // model calls via MAX_ABSOLUTE_MAP_CHUNKS.
   let validHost;
   try {
     validHost = validateLoopbackHost(host, client.label);
@@ -815,17 +805,6 @@ async function startTransformersStream(
     url,
   });
 
-  try {
-    assertIngressPayloadOk({ content, question, title, url });
-  } catch (err) {
-    finish({
-      type: "error",
-      error: err.message,
-      userFacing: !!err?.isUserFacing,
-    });
-    return;
-  }
-
   const onProgress = (progress) => {
     chrome.runtime
       .sendMessage({ type: "model-progress", progress, modelId: model })
@@ -942,24 +921,35 @@ async function startTransformersStream(
   }
 }
 
+// Shared tail for the local suggestion generators: prompt, language,
+// translator, generate, parse. Callers differ only in how they talk to their
+// engine (the `chat` closure).
+async function generateQuestionsFromChat(
+  chat,
+  { title, url, summary, language, translationEngine },
+) {
+  const prompt = buildSuggestQuestionsPrompt(title, url, summary);
+  const qLanguage = await resolveEffectiveLanguage(summary, language);
+  const translateFn =
+    translationEngine === TRANSLATION_ENGINES.OPUS
+      ? makeOpusTranslateFn(() => {})
+      : undefined;
+  const text = await generateInTargetLanguage(chat, prompt, qLanguage, {
+    translateFn,
+  });
+  return parseSuggestedQuestions(text);
+}
+
 async function generateTransformersSuggestions(
   model,
   { title, url, summary, language, translationEngine },
 ) {
-  return withTransformersEngine(model, null, async (eng) => {
-    const prompt = buildSuggestQuestionsPrompt(title, url, summary);
-    const chat = (p, opts) =>
-      transformersChatStream(eng, p, { system: opts?.system });
-    const qLanguage = await resolveEffectiveLanguage(summary, language);
-    const translateFn =
-      translationEngine === TRANSLATION_ENGINES.OPUS
-        ? makeOpusTranslateFn(() => {})
-        : undefined;
-    const text = await generateInTargetLanguage(chat, prompt, qLanguage, {
-      translateFn,
-    });
-    return parseSuggestedQuestions(text);
-  });
+  return withTransformersEngine(model, null, async (eng) =>
+    generateQuestionsFromChat(
+      (p, opts) => transformersChatStream(eng, p, { system: opts?.system }),
+      { title, url, summary, language, translationEngine },
+    ),
+  );
 }
 
 export async function runBackgroundSummarize(
@@ -1191,6 +1181,23 @@ if (typeof chrome !== "undefined" && chrome.tabs?.onRemoved?.addListener) {
   });
 }
 
+// Tell open side panels to re-render for the newly active tab. The panel
+// document re-queries its own window's active tab on receipt, so the
+// broadcast is safe across windows.
+function notifySidePanelsOfTabSwitch() {
+  for (const port of sidePanelPorts.values()) {
+    try {
+      port.postMessage({ type: "side-panel-active-tab-changed" });
+    } catch {}
+  }
+}
+
+if (typeof chrome !== "undefined" && chrome.tabs?.onActivated?.addListener) {
+  chrome.tabs.onActivated.addListener(() => {
+    notifySidePanelsOfTabSwitch();
+  });
+}
+
 // One-time purge of legacy URL-keyed view states on install/startup.
 if (typeof chrome !== "undefined" && chrome.runtime?.onStartup?.addListener) {
   chrome.runtime.onStartup.addListener(() => {
@@ -1365,18 +1372,10 @@ async function generateLocalSuggestions(
   apiKey = "",
 ) {
   const validHost = validateLoopbackHost(host, client.label);
-  const prompt = buildSuggestQuestionsPrompt(title, url, summary);
-  const chat = (p, opts) =>
-    client.chatStream(validHost, model, p, { ...opts, apiKey });
-  const qLanguage = await resolveEffectiveLanguage(summary, language);
-  const translateFn =
-    translationEngine === TRANSLATION_ENGINES.OPUS
-      ? makeOpusTranslateFn(() => {})
-      : undefined;
-  const text = await generateInTargetLanguage(chat, prompt, qLanguage, {
-    translateFn,
-  });
-  return parseSuggestedQuestions(text);
+  return generateQuestionsFromChat(
+    (p, opts) => client.chatStream(validHost, model, p, { ...opts, apiKey }),
+    { title, url, summary, language, translationEngine },
+  );
 }
 
 const pendingSuggestKeys = new Set();
@@ -1671,6 +1670,10 @@ if (typeof chrome !== "undefined" && chrome.alarms?.onAlarm?.addListener) {
 }
 
 const activeSidePanelTabs = new Set();
+// Retained port handles so the worker can push tab-switch signals to open
+// side panels (the panel document itself does not reliably observe
+// tabs.onActivated, so it cannot refresh on its own).
+const sidePanelPorts = new Map();
 
 if (typeof chrome !== "undefined" && chrome.runtime?.onConnect?.addListener) {
   chrome.runtime.onConnect.addListener((port) => {
@@ -1695,8 +1698,12 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onConnect?.addListener) {
       const tabId = parseInt(port.name.replace("side-panel-tab-", ""), 10);
       if (!isNaN(tabId)) {
         activeSidePanelTabs.add(tabId);
+        sidePanelPorts.set(tabId, port);
         port.onDisconnect.addListener(() => {
           activeSidePanelTabs.delete(tabId);
+          if (sidePanelPorts.get(tabId) === port) {
+            sidePanelPorts.delete(tabId);
+          }
         });
       }
       return;
@@ -1740,41 +1747,9 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onConnect?.addListener) {
     }
 
     stream.subscribers.add(popupPort);
-    if (stream.text) {
-      try {
-        popupPort.postMessage({ type: "chunk", text: stream.text });
-      } catch {}
-    }
-    if (stream.cancelled) {
-      try {
-        popupPort.postMessage({ type: "cancelled" });
-      } catch {}
-    } else if (stream.error) {
-      try {
-        popupPort.postMessage({
-          type: "error",
-          error: stream.error,
-          userFacing: stream.errorUserFacing,
-        });
-      } catch {}
-    } else if (stream.done) {
-      try {
-        popupPort.postMessage({
-          type: "done",
-          tokensPerSec: stream.tokensPerSec,
-        });
-      } catch {}
-    } else if (stream.firstTokenTime != null) {
-      const elapsedMs = performance.now() - stream.firstTokenTime;
-      if (isWarmedUp(stream.tokenCount, elapsedMs)) {
-        try {
-          popupPort.postMessage({
-            type: "stats",
-            tokensPerSec: tokensPerSecond(stream.tokenCount, elapsedMs),
-          });
-        } catch {}
-      }
-    }
+    replayStreamToPort(stream, popupPort, {
+      userFacing: stream.errorUserFacing,
+    });
 
     popupPort.onDisconnect.addListener(() => {
       stream.subscribers.delete(popupPort);
@@ -1866,6 +1841,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const fallbackTitle = message.title;
       const fallbackUrl = message.url;
       const fallbackText = message.text;
+      // Safety net for the relay tracking above: a finished job is never
+      // work in flight, even if its relay ports vanished without firing
+      // their disconnect handlers.
+      untrackOffscreenRelay(streamId);
       try {
         const registeredJob = streamId
           ? registeredStreamJobs.get(streamId)
@@ -1925,7 +1904,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       switch (message.action) {
         case "summarize":
         case "ask": {
-          assertIngressPayloadOk(message.payload || {});
           await ensureOffscreenDocument();
 
           const streamId = nextStreamId("webllm");
@@ -1953,7 +1931,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "ollama-stream": {
-          assertIngressPayloadOk(message.payload || {});
           const streamId = nextStreamId("ollama");
           const settings = await getSettings();
           const trustedFinalize =
@@ -1972,7 +1949,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "llamacpp-stream": {
-          assertIngressPayloadOk(message.payload || {});
           const streamId = nextStreamId("llamacpp");
           const settings = await getSettings();
           const trustedFinalize =
@@ -2052,7 +2028,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "transformers-stream": {
-          assertIngressPayloadOk(message.payload || {});
           const streamId = nextStreamId("transformers");
           const settings = await getSettings();
           const trustedFinalize =
@@ -2176,7 +2151,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "find-passage": {
-          assertIngressPayloadOk(message.payload || {});
           if (!hasOffscreenAPI) {
             try {
               const { content, query } = message.payload || {};
@@ -2198,7 +2172,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case "retrieve-context": {
-          assertIngressPayloadOk(message.payload || {});
           if (!hasOffscreenAPI) {
             try {
               const { content, question } = message.payload || {};
@@ -2304,7 +2277,7 @@ const SUMMARIZE_CONTEXT_MENU_ID = "apogee-summarize";
 const SUMMARIZE_SELECTION_CONTEXT_MENU_ID = "apogee-summarize-selection";
 const SUMMARIZE_TABS_CONTEXT_MENU_ID = "apogee-summarize-tabs";
 
-export function setupContextMenus() {
+function setupContextMenus() {
   if (typeof chrome === "undefined" || !chrome.contextMenus) return;
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({

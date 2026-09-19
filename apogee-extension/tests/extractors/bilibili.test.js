@@ -2,7 +2,11 @@ import test from "node:test";
 import assert from "node:assert";
 import { loadExtractors } from "./helpers/extractorHarness.js";
 
-const FILES = ["extractors/bilibili.js"];
+const FILES = [
+  "extractors/thread.js",
+  "extractors/video.js",
+  "extractors/bilibili.js",
+];
 const VIDEO_URL = "https://www.bilibili.com/video/BV1xx411c7mD";
 
 function biliInitialStateScript(videoData, extras = {}) {

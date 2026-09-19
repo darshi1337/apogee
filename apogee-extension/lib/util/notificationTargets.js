@@ -1,5 +1,5 @@
-export const NOTIFICATION_TARGET_TTL_MS = 60 * 60 * 1000; // 1 hour
-export const MAX_NOTIFICATION_TARGETS = 50;
+const NOTIFICATION_TARGET_TTL_MS = 60 * 60 * 1000; // 1 hour
+const MAX_NOTIFICATION_TARGETS = 50;
 
 export class NotificationTargetManager {
   constructor({

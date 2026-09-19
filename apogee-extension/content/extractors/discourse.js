@@ -42,21 +42,17 @@ function extractDiscourse() {
   const titleEl = document.querySelector(
     "a.fancy-title, .fancy-title, #topic-title h1 a, #topic-title h1",
   );
-  const titleText =
-    titleEl?.innerText?.trim() || titleEl?.textContent?.trim() || "";
+  const titleText = elText(titleEl);
 
   if (!titleText) return null;
 
   const categoryEl = document.querySelector(".topic-category, .badge-wrapper");
-  const categoryText =
-    categoryEl?.innerText?.trim() || categoryEl?.textContent?.trim() || "";
+  const categoryText = elText(categoryEl);
 
-  const postElements = Array.from(
+  const postElements = liveEls(
     document.querySelectorAll(
       ".post-stream .topic-post, #main-outlet .topic-post, article.boxed, div[id^='post_']",
     ),
-  ).filter(
-    (el) => el && (typeof el.isConnected === "undefined" || el.isConnected),
   );
 
   if (postElements.length === 0) return null;
@@ -65,66 +61,54 @@ function extractDiscourse() {
   const opAuthorEl = opEl?.querySelector?.(
     ".username, .names .username, [itemprop='author'], .creator",
   );
-  const opAuthor =
-    opAuthorEl?.innerText?.trim() || opAuthorEl?.textContent?.trim() || "anon";
+  const opAuthor = elAuthor(opAuthorEl);
 
   const opBodyEl = opEl?.querySelector?.(".cooked, .post-body, .topic-body");
-  const opText = opBodyEl
-    ? (opBodyEl.innerText || opBodyEl.textContent || "").trim()
-    : "";
+  const opText = elText(opBodyEl);
 
   const replyElements = postElements.slice(1);
 
-  const commentItems = replyElements
-    .filter(
-      (el) => el && (typeof el.isConnected === "undefined" || el.isConnected),
-    )
-    .map((el) => {
-      const authorEl = el.querySelector?.(
-        ".username, .names .username, [itemprop='author'], .creator",
-      );
-      const bodyEl = el.querySelector?.(".cooked, .post-body, .topic-body");
-      const likesEl = el.querySelector?.(
-        ".like-count, .post-retort, .actions .likes",
-      );
+  const commentItems = liveEls(replyElements).map((el) => {
+    const authorEl = el.querySelector?.(
+      ".username, .names .username, [itemprop='author'], .creator",
+    );
+    const bodyEl = el.querySelector?.(".cooked, .post-body, .topic-body");
+    const likesEl = el.querySelector?.(
+      ".like-count, .post-retort, .actions .likes",
+    );
 
-      const authorName =
-        authorEl?.innerText?.trim() || authorEl?.textContent?.trim() || "anon";
-      const rawText = bodyEl
-        ? bodyEl.innerText?.trim() || bodyEl.textContent?.trim() || ""
-        : "";
+    const authorName = elAuthor(authorEl);
+    const rawText = elText(bodyEl);
 
-      const likesText =
-        likesEl?.innerText?.trim() || likesEl?.textContent?.trim() || "";
-      const parsedScore = parseInt(likesText.replace(/[^0-9-]/g, ""), 10);
-      const score = isNaN(parsedScore) ? undefined : parsedScore;
+    const likesText = elText(likesEl);
+    const parsedScore = parseInt(likesText.replace(/[^0-9-]/g, ""), 10);
+    const score = isNaN(parsedScore) ? undefined : parsedScore;
 
-      return {
-        depth: 0,
-        author: authorName,
-        text: threadTruncate(rawText, DISCOURSE_MAX_POST_CHARS),
-        score,
-      };
-    });
+    return {
+      depth: 0,
+      author: authorName,
+      text: threadTruncate(rawText, DISCOURSE_MAX_POST_CHARS),
+      score,
+    };
+  });
 
   const nodes = buildThreadNodes(commentItems);
   const eligible = (n) => n.text;
   const comments = selectThreadComments(nodes, eligible, DISCOURSE_MAX_POSTS);
 
-  let content = `Discourse topic\n\nTitle: ${titleText}\nAuthor: ${opAuthor}\n`;
-  if (categoryText) content += `Category: ${categoryText}\n`;
-  if (opText) content += `\nPost:\n${opText}\n`;
-
-  content += comments.length
-    ? `\n${THREAD_COMMENTS_HEADER}\n${formatThreadComments(comments)}\n`
-    : `\n(No replies yet.)\n`;
-
-  return {
-    type: "discourse",
+  return renderThreadPage({
+    label: "Discourse topic",
+    heading: titleText,
     title: `Discourse: ${titleText}`,
-    url: location.href,
-    content: content.trim(),
-  };
+    headLines: [
+      `Author: ${opAuthor}`,
+      categoryText && `Category: ${categoryText}`,
+    ],
+    post: opText,
+    comments,
+    type: "discourse",
+    emptyNote: "(No replies yet.)",
+  });
 }
 
 true;

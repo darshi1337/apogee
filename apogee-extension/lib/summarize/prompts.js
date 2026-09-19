@@ -41,7 +41,7 @@ export function buildTranslatePrompt(text, language) {
 export const START_FENCE = "<<<APOGEE_CONTENT";
 export const END_FENCE = "APOGEE_CONTENT>>>";
 
-export function fenceContent(content) {
+function fenceContent(content) {
   const safe = (content || "")
     .replaceAll(START_FENCE, "")
     .replaceAll(END_FENCE, "");
@@ -89,16 +89,22 @@ function sanitizePromptField(value, maxChars) {
   return trimmed.length > maxChars ? trimmed.slice(0, maxChars) : trimmed;
 }
 
+// Shared wrapper for fenced metadata fields: same sanitize-then-fence shape,
+// only the length cap differs per field.
+function fenceField(value, maxChars) {
+  return `${START_FENCE}\n${sanitizePromptField(value, maxChars)}\n${END_FENCE}`;
+}
+
 export function fenceTitle(title) {
-  return `${START_FENCE}\n${sanitizePromptField(title, TITLE_MAX_CHARS)}\n${END_FENCE}`;
+  return fenceField(title, TITLE_MAX_CHARS);
 }
 
 export function fenceUrl(url) {
-  return `${START_FENCE}\n${sanitizePromptField(url, URL_MAX_CHARS)}\n${END_FENCE}`;
+  return fenceField(url, URL_MAX_CHARS);
 }
 
 export function fenceQuestion(question) {
-  return `${START_FENCE}\n${sanitizePromptField(question, QUESTION_MAX_CHARS)}\n${END_FENCE}`;
+  return fenceField(question, QUESTION_MAX_CHARS);
 }
 
 const INJECTION_RULE =

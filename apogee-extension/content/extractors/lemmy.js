@@ -57,12 +57,10 @@ function lemmyCommentItems(commentElements, mainPostEl) {
       "[data-test='comment-score'], .comment-score, .vote-count, .score",
     );
 
-    const authorName = authorEl?.innerText?.trim() || "anon";
-    const rawText = bodyEl
-      ? bodyEl.innerText?.trim() || bodyEl.textContent?.trim() || ""
-      : "";
+    const authorName = elAuthor(authorEl);
+    const rawText = elText(bodyEl);
 
-    const scoreText = scoreEl?.innerText?.trim() || "";
+    const scoreText = elText(scoreEl);
     const parsedScore = parseInt(scoreText.replace(/[^0-9-]/g, ""), 10);
     const score = isNaN(parsedScore) ? undefined : parsedScore;
 
@@ -97,32 +95,29 @@ function extractLemmy() {
   const titleEl = document.querySelector(
     "[data-test='post-title'], h1.post-title, .post-title, #post h1, h1",
   );
-  const titleText =
-    titleEl?.innerText?.trim() || titleEl?.textContent?.trim() || "";
+  const titleText = elText(titleEl);
 
   if (!titleText) return null;
 
   const authorEl = mainPost?.querySelector(
     "[data-test='post-author'], .person-name, a.person-name, .post-meta .author, .author",
   );
-  const authorName = authorEl?.innerText?.trim() || "anon";
+  const authorName = elAuthor(authorEl);
 
   const communityEl = mainPost?.querySelector(
     "[data-test='post-community'], .community-name, a.community-name, .post-meta .community",
   );
-  const communityName = communityEl?.innerText?.trim() || "";
+  const communityName = elText(communityEl);
 
   const bodyEl = mainPost?.querySelector(
     "[data-test='post-body'], .post-body, .post-content, #post .markdown-content, .markdown-content",
   );
-  const postText = bodyEl
-    ? (bodyEl.innerText || bodyEl.textContent || "").trim()
-    : "";
+  const postText = elText(bodyEl);
 
   const scoreEl = mainPost?.querySelector(
     "[data-test='post-score'], .post-meta .score, .vote-count, .score",
   );
-  const scoreText = scoreEl?.innerText?.trim() || "";
+  const scoreText = elText(scoreEl);
 
   const linkEl = mainPost?.querySelector(
     "[data-test='post-link'], a.post-title-link, .post-link",
@@ -138,34 +133,29 @@ function extractLemmy() {
     );
   }
 
-  const commentElements = candidateComments.filter((el) => {
-    if (!el || (typeof el.isConnected !== "undefined" && !el.isConnected))
-      return false;
-    if (mainPost && (el === mainPost || (mainPost?.contains?.(el) ?? false)))
-      return false;
-    return true;
-  });
+  const commentElements = liveEls(candidateComments).filter(
+    (el) =>
+      !(mainPost && (el === mainPost || (mainPost?.contains?.(el) ?? false))),
+  );
 
   const nodes = buildThreadNodes(lemmyCommentItems(commentElements, mainPost));
   const eligible = (n) => n.text && n.depth <= LEMMY_MAX_DEPTH;
   const comments = selectThreadComments(nodes, eligible, LEMMY_MAX_COMMENTS);
 
-  let content = `Lemmy post\n\nTitle: ${titleText}\nAuthor: ${authorName}\n`;
-  if (communityName) content += `Community: ${communityName}\n`;
-  if (scoreText) content += `Score: ${scoreText}\n`;
-  if (externalUrl) content += `Link: ${externalUrl}\n`;
-  if (postText) content += `\nPost:\n${postText}\n`;
-
-  content += comments.length
-    ? `\n${THREAD_COMMENTS_HEADER}\n${formatThreadComments(comments)}\n`
-    : `\n(No comments yet.)\n`;
-
-  return {
-    type: "lemmy",
+  return renderThreadPage({
+    label: "Lemmy post",
+    heading: titleText,
     title: `Lemmy: ${titleText}`,
-    url: location.href,
-    content: content.trim(),
-  };
+    headLines: [
+      `Author: ${authorName}`,
+      communityName && `Community: ${communityName}`,
+      scoreText && `Score: ${scoreText}`,
+      externalUrl && `Link: ${externalUrl}`,
+    ],
+    post: postText,
+    comments,
+    type: "lemmy",
+  });
 }
 
 true;

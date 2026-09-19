@@ -2,10 +2,6 @@ const GL_MAX_COMMENTS = 40;
 const GL_MAX_COMMENT_CHARS = 4000;
 const GL_MAX_DIFF_CHARS = 30000;
 
-function glTruncate(text, max) {
-  return threadTruncate(text, max, { preserveLines: true });
-}
-
 function glComments() {
   const selectors = [
     '[data-testid="note-body"]',
@@ -14,27 +10,22 @@ function glComments() {
     ".md-area",
     ".markdown-area",
   ];
-  const seen = new Set();
-  const out = [];
-  for (const selector of selectors) {
-    for (const body of document.querySelectorAll(selector)) {
-      const text = (body?.innerText || body?.textContent || "").trim();
-      if (!text || seen.has(text)) continue;
-      seen.add(text);
-      const container = body.closest?.(
-        '.note, .discussion-note, [data-testid="note"]',
-      );
-      const author =
-        container
+  const blocks = selectors.flatMap((selector) =>
+    Array.from(document.querySelectorAll(selector)),
+  );
+  return collectForgeComments(blocks, {
+    maxComments: GL_MAX_COMMENTS,
+    maxChars: GL_MAX_COMMENT_CHARS,
+    getBodyText: (body) => elText(body),
+    getAuthor: (body) =>
+      elText(
+        body
+          .closest?.('.note, .discussion-note, [data-testid="note"]')
           ?.querySelector?.(
             '.author, .note-header a, [data-testid="author-link"]',
-          )
-          ?.innerText?.trim() || "";
-      out.push({ author, text: glTruncate(text, GL_MAX_COMMENT_CHARS) });
-      if (out.length >= GL_MAX_COMMENTS) return out;
-    }
-  }
-  return out;
+          ),
+      ),
+  });
 }
 
 function glDiff() {
@@ -63,7 +54,9 @@ function glDiff() {
     if (marker !== "+" && marker !== "-") continue;
     lines.push(`${marker} ${text.replace(/^[+-]\s?/, "")}`);
   }
-  return lines.length ? glTruncate(lines.join("\n"), GL_MAX_DIFF_CHARS) : "";
+  return lines.length
+    ? truncateKeepLines(lines.join("\n"), GL_MAX_DIFF_CHARS)
+    : "";
 }
 
 async function extractGitLab() {
@@ -81,37 +74,23 @@ async function extractGitLab() {
   const number = isMR ? parts[mrIndex + 1] : parts[issueIndex + 1];
   const project = parts.slice(0, isMR ? mrIndex - 1 : issueIndex - 1).join("/");
   const title =
-    document
-      .querySelector('[data-testid="issuable-title"]')
-      ?.innerText?.trim() ||
-    document.querySelector(".title.page-title, h1")?.innerText?.trim() ||
+    elText(document.querySelector('[data-testid="issuable-title"]')) ||
+    elText(document.querySelector(".title.page-title, h1")) ||
     document.title;
-  const state =
-    document
-      .querySelector('[data-testid="issuable-state"]')
-      ?.innerText?.trim() || "";
+  const state = elText(
+    document.querySelector('[data-testid="issuable-state"]'),
+  );
   const comments = glComments();
 
   // GitLab numbers merge requests with `!` and issues with `#`.
   const ref = `${isMR ? "!" : "#"}${number}`;
-  let content = `GitLab ${kind} in ${project} (${ref})\n\nTitle: ${title}\n`;
-  if (state) content += `State: ${state}\n`;
-  if (comments.length) {
-    const [first, ...rest] = comments;
-    content += `\nDescription${first.author ? ` (by ${first.author})` : ""}:\n${first.text}\n`;
-    if (rest.length) {
-      content += `\nDiscussion:\n`;
-      for (const comment of rest) {
-        content += `- ${comment.author ? `${comment.author}: ` : ""}${comment.text}\n`;
-      }
-    }
-  }
-  if (isMR) {
-    const diff = glDiff();
-    content += diff
-      ? `\nCode changes (unified diff):\n${diff}\n`
-      : `\n(Diff unavailable.)\n`;
-  }
-
-  return { type: "gitlab", title, url: location.href, content: content.trim() };
+  return renderForgePage({
+    label: `GitLab ${kind} in ${project} (${ref})`,
+    title,
+    state,
+    comments,
+    commentsHeader: "Discussion",
+    diff: isMR ? glDiff() : null,
+    type: "gitlab",
+  });
 }

@@ -30,6 +30,8 @@ Read the one closest to what you build:
 | `thread.test.js` | Testing shared code straight, with no site extractor |
 | `wikipedia.test.js` | Trimming a page down, and returning `null` to fall through |
 | `bluesky.test.js` | API-first thread fetch with `fetch` stub and DOM fallback, depth and char caps |
+| `devto.test.js` | Article title, author, date, tags, body, and threaded comments |
+| `gitlab.test.js` | Merge requests and issues with DOM-only diffs, no network fetch |
 | `youtube.test.js` | Caption URL security checks, transcript parsing, and `chrome` stubbing |
 
 ## Writing a test
@@ -50,7 +52,7 @@ const result = extractHackerNews();
 
 Options:
 
-- **`files`** - paths under `content/`, in the same order `lib/extract/pageExtraction.js` injects them. Order matters: `thread.js` states helpers the discussion extractors call, so it goes first.
+- **`files`** - paths under `content/`, in the same order `lib/extract/pageExtraction.js` injects them. Order matters: `thread.js` holds the helpers the discussion extractors call, so it goes first. `video.js` holds the video helpers, so it goes before `youtube.js` and `bilibili.js`.
 
 - **`url`** - what the extractor sees as `location`. Most extractors branch on the path. `extractHackerNews` stops unless it sees `/item`. Use a realistic URL for the page your fixture came from.
 

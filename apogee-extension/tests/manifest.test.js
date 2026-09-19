@@ -63,20 +63,15 @@ test("manifest.json permissions enforce local-first privacy boundary", () => {
     "Manifest must declare activeTab permission",
   );
 
-  // Enforce no <all_urls> standing host permissions
-  assert.strictEqual(
-    hostPermissions.includes("<all_urls>"),
-    false,
-    "Standing host_permissions must not contain <all_urls>",
-  );
-
-  // Enforce standing host permissions restricted to local loopback
+  // Standing host permissions: loopback for local models plus all-sites
+  // read access so persistent surfaces (side panel) survive tab switches.
   hostPermissions.forEach((host) => {
     assert.ok(
       host.startsWith("http://127.0.0.1") ||
         host.startsWith("http://localhost") ||
-        host.startsWith("http://[::1]"),
-      `Standing host permission ${host} must be restricted to loopback addresses`,
+        host.startsWith("http://[::1]") ||
+        host === "*://*/*",
+      `Standing host permission ${host} must be loopback or all-sites`,
     );
   });
 
@@ -106,6 +101,7 @@ test("manifest permissions exactly match the documented set (#182)", () => {
       "activeTab",
       "scripting",
       "storage",
+      "tabs",
       "unlimitedStorage",
       "offscreen",
       "sidePanel",
@@ -179,8 +175,13 @@ test("declared network egress matches the documented allow-list (#180)", () => {
 
   assert.deepStrictEqual(
     new Set(manifest.host_permissions || []),
-    new Set(["http://127.0.0.1/*", "http://localhost/*", "http://[::1]/*"]),
-    "standing host_permissions must stay loopback-only",
+    new Set([
+      "*://*/*",
+      "http://127.0.0.1/*",
+      "http://localhost/*",
+      "http://[::1]/*",
+    ]),
+    "standing host_permissions must stay loopback plus all-sites",
   );
   assert.deepStrictEqual(
     new Set(manifest.optional_host_permissions || []),

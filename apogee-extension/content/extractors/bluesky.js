@@ -67,15 +67,21 @@ function blueskyBuildContent({ opAuthor, opText, opLikes, items }) {
   const eligible = (n) => n.text && n.depth <= BLUESKY_MAX_DEPTH;
   const comments = selectThreadComments(nodes, eligible, BLUESKY_MAX_POSTS);
 
-  let content = `Bluesky discussion\n\nTitle: Post by ${opAuthor}\nAuthor: ${opAuthor}\n`;
-  if (typeof opLikes === "number") content += `Engagement: ${opLikes} likes\n`;
-  if (opText) content += `\nPost:\n${opText}\n`;
-
-  content += comments.length
-    ? `\n${THREAD_COMMENTS_HEADER}\n${formatThreadComments(comments)}\n`
-    : `\n(No replies yet.)\n`;
-
-  return content.trim();
+  // Callers set their own `Bluesky post by ...` title; only the page text is
+  // shared here, so the render result's title slot goes unused.
+  return renderThreadPage({
+    label: "Bluesky discussion",
+    heading: `Post by ${opAuthor}`,
+    title: "",
+    headLines: [
+      `Author: ${opAuthor}`,
+      typeof opLikes === "number" && `Engagement: ${opLikes} likes`,
+    ],
+    post: opText,
+    comments,
+    type: "bluesky",
+    emptyNote: "(No replies yet.)",
+  }).content;
 }
 
 function blueskyParsePostNode(post) {
@@ -209,7 +215,7 @@ function isBlueskyPage() {
 function blueskyReadBody(el) {
   const bodyEl = el.querySelector('[data-testid="richTextText"]');
   if (!bodyEl) return "";
-  return (bodyEl.innerText || bodyEl.textContent || "").trim();
+  return elText(bodyEl);
 }
 
 function blueskyReadAuthor(el) {
@@ -218,7 +224,7 @@ function blueskyReadAuthor(el) {
     '[data-testid="feedItem-byline"] a, [data-testid="authorDisplayName"]',
   );
   for (const cand of nameCandidates) {
-    const text = (cand.innerText || cand.textContent || "").trim();
+    const text = elText(cand);
     if (text) {
       // Strip leading "@" if the selector only returned the handle.
       if (text.startsWith("@")) return text;
@@ -227,9 +233,7 @@ function blueskyReadAuthor(el) {
   }
   // Fall back to the entire byline.
   const byline = el.querySelector('[data-testid="feedItem-byline"]');
-  const bylineText = byline
-    ? (byline.innerText || byline.textContent || "").trim()
-    : "";
+  const bylineText = byline ? elText(byline) : "";
   return bylineText || "anon";
 }
 

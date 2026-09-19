@@ -74,7 +74,7 @@ The Apogee extension code lives in `apogee-extension/`. Below is what each folde
 
 ### 1. `content/` (Tab Context Extractor Scripts)
 
-- **What it holds**: `content.js` (main injection script). `Readability.js` (bundled article parser from Mozilla). Site-specific extractors live in `content/extractors/`. They cover `youtube.js`, `bilibili.js`, `wikipedia.js`, `reddit.js`, `gmail.js`, `hackernews.js`, `github.js`, and `lobsters.js`. They also cover `arxiv.js`, `mastodon.js`, `stackoverflow.js`, `lemmy.js`, `discourse.js`, and `bluesky.js`.
+- **What it holds**: `content.js` (main injection script). `Readability.js` (bundled article parser from Mozilla). Site-specific extractors live in `content/extractors/`. They cover `youtube.js`, `bilibili.js`, `wikipedia.js`, `reddit.js`, `gmail.js`, `hackernews.js`, `github.js`, and `lobsters.js`. They also cover `arxiv.js`, `mastodon.js`, `stackoverflow.js`, `lemmy.js`, `discourse.js`, `bluesky.js`, `devto.js`, and `gitlab.js`. Shared helpers live in `thread.js` (page text, reply trees, page render) and `video.js` (timestamps, transcripts). `thread.js` loads first, so every extractor can call its helpers.
 
 - **How to contribute**: Add a new extractor file in `content/extractors/` that reads DOM nodes cleanly without touching global window scope. Register your extractor in `lib/extract/pageExtraction.js`. Add a static HTML test fixture in `tests/extractors/fixtures/`. Add unit test cases in `tests/extractors/`.
 

@@ -54,15 +54,7 @@ export const MAX_BILIBILI_SUBTITLE_CHARS = 500 * 1024;
 export const MAX_PASTED_CHARS = 100 * 1024;
 
 export function truncatePastedText(text) {
-  const clean = (text || "").trim();
-  if (clean.length <= MAX_PASTED_CHARS)
-    return { text: clean, truncated: false };
-  return {
-    text:
-      `${clean.slice(0, MAX_PASTED_CHARS).trim()}\n\n` +
-      `[...pasted content truncated to the first ${MAX_PASTED_CHARS} characters...]`,
-    truncated: true,
-  };
+  return truncateWithNote((text || "").trim(), MAX_PASTED_CHARS, "pasted");
 }
 
 // Expanded-text working ceiling (#267). PDF/DOCX extraction inflates a 50 MB
@@ -82,67 +74,31 @@ function sliceOnCharBoundary(text, maxLength) {
   return head;
 }
 
-export function truncateExtractedText(text, label = "file") {
-  const clean = (text || "").trim();
-  if (clean.length <= MAX_EXTRACTED_TEXT_CHARS)
-    return { text: clean, truncated: false };
-  const note =
-    `[...${label} content truncated to the first ` +
-    `${MAX_EXTRACTED_TEXT_CHARS} characters...]`;
-  const head = sliceOnCharBoundary(
-    clean,
-    MAX_EXTRACTED_TEXT_CHARS - note.length - 2,
-  ).trimEnd();
+// Shared core for the user-visible truncation helpers: same
+// { text, truncated } shape and the same labeled-note convention, only the
+// ceiling and label differ. The head reserves room for the note so output
+// never exceeds maxChars, and the cut respects surrogate pairs.
+function truncateWithNote(clean, maxChars, label) {
+  if (clean.length <= maxChars) return { text: clean, truncated: false };
+  const note = `[...${label} content truncated to the first ${maxChars} characters...]`;
+  const head = sliceOnCharBoundary(clean, maxChars - note.length - 2).trimEnd();
   return { text: `${head}\n\n${note}`, truncated: true };
 }
 
-// SW/offscreen ingress hardening (#269). summarize/ask/retrieve-context
-// payloads cross extension messaging unbounded today; only the UI-side
-// pasted cap and the 1 MB finalize backstop bound them, while stream.text
-// accumulates pre-cap and the map-every-chunk path turns a giant hostile
-// page into many sequential model calls. Content past this ceiling is
-// rejected with a UserFacingError at the trust boundary; title/url/question
-// reuse the prompt-fencing ceilings so one set of numbers guards both.
-export const MAX_INGRESS_CONTENT_CHARS = MAX_FINALIZE_TEXT_CHARS;
-export const MAX_INGRESS_TITLE_CHARS = 500;
-export const MAX_INGRESS_URL_CHARS = 2000;
-export const MAX_INGRESS_QUESTION_CHARS = 2000;
-export const MAX_INGRESS_PROMPT_CHARS = MAX_FINALIZE_TEXT_CHARS;
+export function truncateExtractedText(text, label = "file") {
+  return truncateWithNote((text || "").trim(), MAX_EXTRACTED_TEXT_CHARS, label);
+}
 
 // Absolute map-stage ceiling (#269). getMaxChunks bounds the reduce budget
-// per model, but the no-selector fallback keeps every chunk, so a 1 MB
-// hostile page is still dozens of sequential model calls. Capping mapped
-// chunks bounds total calls regardless of ingress size.
+// per model, but the no-selector fallback keeps every chunk, so a very long
+// page is still dozens of sequential model calls. Capping mapped chunks
+// bounds total calls regardless of ingress size.
 export const MAX_ABSOLUTE_MAP_CHUNKS = 64;
 
 // Live stream-text ceiling (#269). finalizeSummaryJob caps at write time,
 // but stream.text grows with every token before that. Stop accumulating
 // past the same 1 MB so a runaway model cannot bloat SW/offscreen memory.
 export const MAX_STREAM_TEXT_CHARS = MAX_FINALIZE_TEXT_CHARS;
-
-function ingressLength(value) {
-  return typeof value === "string" ? value.length : 0;
-}
-
-export function assertIngressPayloadOk(payload = {}) {
-  const { content, question, query, title, url, summary, prompt } = payload;
-  const checks = [
-    [content, MAX_INGRESS_CONTENT_CHARS, "content"],
-    [question, MAX_INGRESS_QUESTION_CHARS, "question"],
-    [query, MAX_INGRESS_QUESTION_CHARS, "question"],
-    [title, MAX_INGRESS_TITLE_CHARS, "title"],
-    [url, MAX_INGRESS_URL_CHARS, "URL"],
-    [summary, MAX_INGRESS_CONTENT_CHARS, "summary"],
-    [prompt, MAX_INGRESS_PROMPT_CHARS, "prompt"],
-  ];
-  for (const [value, max, label] of checks) {
-    if (ingressLength(value) > max) {
-      throw new UserFacingError(
-        `This ${label} exceeds the ${max.toLocaleString()} character limit for in-extension processing. Try a shorter document.`,
-      );
-    }
-  }
-}
 
 export function appendStreamTextCapped(current, addition) {
   const text = `${current || ""}${addition || ""}`;
@@ -218,8 +174,5 @@ export async function readTextHead(file, maxChars = MAX_PASTED_CHARS) {
     } catch {}
   }
   if (!truncated) return truncatePastedText(text);
-  const clean = text.trim();
-  const note = `[...file content truncated to the first ${maxChars} characters...]`;
-  const head = sliceOnCharBoundary(clean, maxChars - note.length - 2).trimEnd();
-  return { text: `${head}\n\n${note}`, truncated: true };
+  return truncateWithNote(text.trim(), maxChars, "file");
 }
