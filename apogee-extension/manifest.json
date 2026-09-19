@@ -9,6 +9,7 @@
     "activeTab",
     "scripting",
     "storage",
+    "tabs",
     "unlimitedStorage",
     "offscreen",
     "sidePanel",
@@ -18,6 +19,7 @@
     "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [
+    "*://*/*",
     "http://127.0.0.1/*",
     "http://localhost/*",
     "http://[::1]/*"

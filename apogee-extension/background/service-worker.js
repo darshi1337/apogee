@@ -1191,6 +1191,23 @@ if (typeof chrome !== "undefined" && chrome.tabs?.onRemoved?.addListener) {
   });
 }
 
+// Tell open side panels to re-render for the newly active tab. The panel
+// document re-queries its own window's active tab on receipt, so the
+// broadcast is safe across windows.
+function notifySidePanelsOfTabSwitch() {
+  for (const port of sidePanelPorts.values()) {
+    try {
+      port.postMessage({ type: "side-panel-active-tab-changed" });
+    } catch {}
+  }
+}
+
+if (typeof chrome !== "undefined" && chrome.tabs?.onActivated?.addListener) {
+  chrome.tabs.onActivated.addListener(() => {
+    notifySidePanelsOfTabSwitch();
+  });
+}
+
 // One-time purge of legacy URL-keyed view states on install/startup.
 if (typeof chrome !== "undefined" && chrome.runtime?.onStartup?.addListener) {
   chrome.runtime.onStartup.addListener(() => {
@@ -1671,6 +1688,10 @@ if (typeof chrome !== "undefined" && chrome.alarms?.onAlarm?.addListener) {
 }
 
 const activeSidePanelTabs = new Set();
+// Retained port handles so the worker can push tab-switch signals to open
+// side panels (the panel document itself does not reliably observe
+// tabs.onActivated, so it cannot refresh on its own).
+const sidePanelPorts = new Map();
 
 if (typeof chrome !== "undefined" && chrome.runtime?.onConnect?.addListener) {
   chrome.runtime.onConnect.addListener((port) => {
@@ -1695,8 +1716,12 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onConnect?.addListener) {
       const tabId = parseInt(port.name.replace("side-panel-tab-", ""), 10);
       if (!isNaN(tabId)) {
         activeSidePanelTabs.add(tabId);
+        sidePanelPorts.set(tabId, port);
         port.onDisconnect.addListener(() => {
           activeSidePanelTabs.delete(tabId);
+          if (sidePanelPorts.get(tabId) === port) {
+            sidePanelPorts.delete(tabId);
+          }
         });
       }
       return;

@@ -42,7 +42,7 @@
   --input-border: rgba(255, 255, 255, 0.14);
   --input-focus-border: #8886ff;
   --input-focus-glow: rgba(136, 134, 255, 0.15);
-  --input-placeholder: #7a7a86;
+  --input-placeholder: #9a9aa6;
   --badge-bg: rgba(136, 134, 255, 0.18);
   --badge-text: #a6a4ff;
   --tag-bg: rgba(136, 134, 255, 0.12);
@@ -61,7 +61,6 @@
   --send-btn-bg: #5855ff;
   --send-btn-hover-bg: #f0f0f2;
   --send-btn-text: #ffffff;
-  --send-btn-hover-text: #161616;
 }
 
 .theme-light {
@@ -86,7 +85,7 @@
   --input-border: #e6e6e6;
   --input-focus-border: #5855ff;
   --input-focus-glow: rgba(88, 85, 255, 0.12);
-  --input-placeholder: #9aa0aa;
+  --input-placeholder: #61616c;
   --badge-bg: rgba(88, 85, 255, 0.1);
   --badge-text: #5855ff;
   --tag-bg: rgba(88, 85, 255, 0.06);
@@ -105,7 +104,6 @@
   --send-btn-bg: #5855ff;
   --send-btn-hover-bg: #161616;
   --send-btn-text: #ffffff;
-  --send-btn-hover-text: #161616;
 }
 
 * {
@@ -245,9 +243,37 @@ body {
   height: 12px;
 }
 
+/* Icon-only chip: the source name survives as a hover/focus tooltip. */
+.extractor-chip {
+  position: relative;
+}
+
+.extractor-chip:hover::after,
+.extractor-chip:focus-visible::after {
+  content: attr(data-label);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-hover-border);
+  color: var(--text-main);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.extractor-chip:focus-visible {
+  outline: 2px solid var(--input-focus-border);
+  outline-offset: 1px;
+}
+
 .header-actions {
   display: flex;
-  gap: 8px;
+  gap: 14px;
 }
 
 .icon-btn {
@@ -268,9 +294,43 @@ body {
   border-color: var(--btn-hover-border);
   transform: translateY(-1px);
 }
-
 .icon-btn:active {
   transform: translateY(0) scale(0.95);
+}
+
+/* Small icon-only buttons keep their 26-30px visual size but expose a
+   44px minimum hit area via an invisible overlay (R-03), so header,
+   card, and chat controls stay usable by touch without growing the UI. */
+.icon-btn,
+.send-btn,
+.copy-btn,
+.delete-btn,
+.prompts-toggle {
+  position: relative;
+}
+
+.icon-btn::after,
+.send-btn::after,
+.copy-btn::after,
+.delete-btn::after,
+.prompts-toggle::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+}
+
+/* 26-28px controls need a larger overlay to reach the same 44px bar. */
+.send-btn::after {
+  inset: -8px;
+}
+
+.copy-btn::after,
+.delete-btn::after {
+  inset: -9px;
+}
+
+.prompts-toggle::after {
+  inset: -10px;
 }
 
 .ico {
@@ -437,6 +497,8 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 
 .input-dialog textarea:focus {
   border-color: var(--input-focus-border);
+  outline: 2px solid var(--input-focus-border);
+  outline-offset: 1px;
 }
 
 .input-dialog-actions {
@@ -590,10 +652,17 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
   margin-bottom: 16px;
 }
 
-.card-header-actions {
+.card-title-group {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+}
+
+.card-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
 }
 
 .time-saved-badge,
@@ -735,6 +804,7 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
   padding: 6px 14px;
   border: 1px solid var(--btn-border);
   background: var(--btn-bg);
+  white-space: nowrap;
   color: var(--text-secondary);
   font-family: var(--font-body);
   font-size: 12px;
@@ -938,8 +1008,8 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 
 .past-summaries-filter:focus {
   border-color: var(--input-focus-border);
-  outline: 1px solid var(--input-focus-border);
-  outline-offset: -2px;
+  outline: 2px solid var(--input-focus-border);
+  outline-offset: 1px;
 }
 
 .past-summaries-empty {
@@ -1098,7 +1168,7 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 .past-summary-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 18px;
   flex-shrink: 0;
 }
 
@@ -1141,7 +1211,7 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 .chat-header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 18px;
 }
 
 .copy-btn,
@@ -1229,8 +1299,8 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 .chat-box textarea:focus {
   background: var(--input-bg);
   border-color: var(--input-focus-border);
-  outline: 1px solid var(--input-focus-border);
-  outline-offset: -2px;
+  outline: 2px solid var(--input-focus-border);
+  outline-offset: 1px;
 }
 
 .answer-box {
@@ -1429,6 +1499,8 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 .settings-field input:focus {
   border-color: var(--input-focus-border);
   background: var(--input-bg);
+  outline: 2px solid var(--input-focus-border);
+  outline-offset: 1px;
 }
 
 .settings-hint {
@@ -1455,6 +1527,8 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 
 .settings-select:focus {
   border-color: var(--input-focus-border);
+  outline: 2px solid var(--input-focus-border);
+  outline-offset: 1px;
 }
 
 .settings-textarea {
@@ -1475,6 +1549,8 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 
 .settings-textarea:focus {
   border-color: var(--input-focus-border);
+  outline: 2px solid var(--input-focus-border);
+  outline-offset: 1px;
 }
 
 .settings-textarea::placeholder {
@@ -1607,13 +1683,13 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 }
 
 .made-with-link {
-  color: var(--accent);
+  color: var(--text-main);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 .made-with-link:hover {
-  color: var(--text-main);
+  color: var(--accent);
 }
 
 .made-with .ico svg {
@@ -1811,6 +1887,11 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
   font-size: 14px;
 }
 
+.webgpu-warning .warning-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
 .model-progress {
   margin: 16px 16px 0;
   padding: 13px 14px;
@@ -1965,6 +2046,22 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
   font-size: 10px;
   line-height: 1.4;
   color: #f59e0b;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.debug-logs-warning .ico {
+  flex-shrink: 0;
+}
+
+.debug-logs-warning .ico svg {
+  width: 12px;
+  height: 12px;
+}
+
+.debug-logs-warning p {
+  margin: 0;
 }
 
 .debug-logs-content {

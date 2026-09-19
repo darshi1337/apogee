@@ -22,9 +22,10 @@ export const TAB_ID_NONE = -1;
 
 // Loopback hosts covered by the Origin-strip rule. Kept in sync with the
 // shared validator in ollamaHost.js: 127.0.0.1, localhost, and the IPv6
-// loopback [::1] (listed with and without brackets - runtimes differ on which
-// form they match against - so an IPv6 Ollama gets the same CORS treatment).
-export const LOOPBACK_HOSTS = ["localhost", "127.0.0.1", "[::1]", "::1"];
+// loopback [::1]. Bracketed form only: URL hostnames parse bracketed, both
+// runtimes' declarativeNetRequest match that form, and Firefox rejects a
+// bare "::1" domain outright (invalid ruleset at load).
+export const LOOPBACK_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
 
 export function buildLoopbackCorsSessionRule() {
   return {

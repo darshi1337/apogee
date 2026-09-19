@@ -73,6 +73,7 @@ import { searchPastSummaries } from "../lib/retrieval/pastSummariesSearch.js";
 import {
   extractFromActiveTab,
   extractPdfContent,
+  ensureTabUrl,
 } from "../lib/extract/pageExtraction.js";
 import {
   assertUploadSizeOk,
@@ -125,8 +126,36 @@ function connectSidePanelPort(tabId) {
     sidePanelPort = chrome.runtime.connect({
       name: `side-panel-tab-${tabId}`,
     });
+    try {
+      sidePanelPort.onMessage?.addListener((message) => {
+        if (message?.type === "side-panel-active-tab-changed") {
+          refreshSidePanelForActiveTab();
+        }
+      });
+    } catch {}
   } catch (err) {
     console.error("Failed to connect side-panel port:", err);
+  }
+}
+
+// Re-renders the panel for this window's active tab. Runs from
+// tabs.onActivated and from the service worker broadcast, which fires
+// even when the panel document misses the tab event itself.
+async function refreshSidePanelForActiveTab() {
+  if (!isSidePanelSurface) return;
+  try {
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    if (!tab) return;
+    connectSidePanelPort(tab.id);
+    const settings = await getSettings();
+    if (typeof restoreTabViewFn === "function") {
+      await restoreTabViewFn(tab, settings);
+    }
+  } catch (err) {
+    console.error("Side-panel tab restore failed:", err);
   }
 }
 
@@ -140,10 +169,8 @@ if (isSidePanelSurface) {
     }
   });
   if (typeof chrome.tabs?.onActivated === "function") {
-    chrome.tabs.onActivated.addListener((activeInfo) => {
-      if (activeInfo?.tabId) {
-        connectSidePanelPort(activeInfo.tabId);
-      }
+    chrome.tabs.onActivated.addListener(() => {
+      refreshSidePanelForActiveTab();
     });
   }
 }
@@ -346,6 +373,14 @@ let activeAskStreamId = null;
 let settingsEntryView = "homeView";
 
 let activeTabId = null;
+
+// Bumps on every side-panel tab restore so an in-flight restore for a
+// previous tab stands down instead of painting stale content.
+let tabViewEpoch = 0;
+
+// Handle for the per-tab restore below; the tab-switch listener only
+// runs on user action, long after this assignment executes.
+let restoreTabViewFn = null;
 
 let currentPromptsCacheKey = null;
 
@@ -702,24 +737,22 @@ const EXTRACTOR_INFO = {
 function updateExtractorChip(pageData) {
   const type = pageData?.isPdf ? "pdf" : pageData?.type;
   const info = EXTRACTOR_INFO[type];
-  const chips = [
-    {
-      chip: document.getElementById("homeExtractorChip"),
-      iconEl: document.getElementById("homeExtractorIcon"),
-      labelEl: document.getElementById("homeExtractorLabel"),
-    },
-    {
-      chip: document.getElementById("summaryExtractorChip"),
-      iconEl: document.getElementById("summaryExtractorIcon"),
-      labelEl: document.getElementById("summaryExtractorLabel"),
-    },
-  ];
+  const summaryChip = {
+    chip: document.getElementById("summaryExtractorChip"),
+    iconEl: document.getElementById("summaryExtractorIcon"),
+    labelEl: document.getElementById("summaryExtractorLabel"),
+  };
+  const chips = [summaryChip];
 
   for (const { chip, iconEl, labelEl } of chips) {
     if (!chip) continue;
     if (info) {
       if (iconEl) iconEl.innerHTML = ICONS[info.icon] || "";
-      if (labelEl) labelEl.textContent = info.label;
+      // Icon-only chip: keep the label accessible but don't render text.
+      if (labelEl) labelEl.classList.add("hidden");
+      chip.setAttribute("title", info.label);
+      chip.setAttribute("aria-label", info.label);
+      chip.dataset.label = info.label;
       chip.classList.remove("hidden");
     } else {
       chip.classList.add("hidden");
@@ -728,6 +761,9 @@ function updateExtractorChip(pageData) {
 }
 
 async function getPageData(tab) {
+  // Firefox sidebar panels do not always see tab.url; resolve it from the
+  // tab itself so cache, permissions, and persistence use the real address.
+  await ensureTabUrl(tab);
   if (
     currentPageData &&
     currentPageData.url === tab.url &&
@@ -1533,6 +1569,7 @@ async function summarizeActivePage() {
       active: true,
       currentWindow: true,
     });
+    await ensureTabUrl(tab);
     await saveViewState(tab.id, {
       view: "summaryView",
       subview: "summarizing",
@@ -1970,10 +2007,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       active: true,
       currentWindow: true,
     });
-    activeTabId = tab?.id;
-    if (tab?.url) {
-      setLinkifyOriginFromUrl(tab.url);
-    }
+    await restoreTabView(tab, settings);
 
     const sidePanelOpen = await isSidePanelOpenForTab(tab?.id);
     if (
@@ -1989,226 +2023,260 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     }
 
-    let state = await loadViewState(tab.id);
-
-    if (state?.isSelection && state.selectionText) {
-      currentPageData = {
-        title: tab.title || "Selected text",
-        url: tab.url,
-        content: state.selectionText,
-        type: "selection",
-        isPdf: false,
-      };
-      updateExtractorChip(currentPageData);
-    }
-
-    if (state && state.urlHash === (await hashUrl(tab.url)) && state.streamId) {
-      currentSummaryLanguage =
-        state.summaryLanguage ?? settings.summaryLanguage;
-      currentTranslationEngine =
-        state.translationEngine ?? settings.translationEngine;
-      if (state.subview === "summarizing") {
-        showOnlyView("summaryView");
-        showSummarizingContext();
-        setLoadingIndicator(summaryText, randomSummarizeVerb());
-        showCancelSummarizeButton(state.streamId);
-        let resumeFromCompletedState = false;
-        try {
-          await getPageData(tab);
-          await consumeSummaryStream(
-            attachToStream(state.streamId, {
-              onStats: (rate) =>
-                setTokensPerSecBadge(tokensPerSecBadgeSummary, rate),
-            }),
-            {
-              tab,
-              promptsCacheKey: state.promptsCacheKey,
-              jobId: state.jobId,
-            },
-          );
-        } catch (error) {
-          if (error instanceof StreamCancelledError) {
-            await returnHomeAfterCancel(tab.id, state.jobId);
-          } else {
-            const completedState = await loadViewState(tab.id);
-            if (
-              state.jobId &&
-              completedState?.jobId === state.jobId &&
-              completedState.subview === "summary" &&
-              !completedState.streamId &&
-              completedState.summaryText
-            ) {
-              state = completedState;
-              resumeFromCompletedState = true;
-            } else {
-              renderSummaryError(error);
-              if (state.jobId) {
-                await saveViewStateIfJobMatches(
-                  tab.id,
-                  state.jobId,
-                  { streamId: null },
-                  "summarizing",
-                );
-              } else {
-                await saveViewState(tab.id, { streamId: null });
-              }
-            }
-          }
-        } finally {
-          hideCancelSummarizeButton();
-        }
-        if (!resumeFromCompletedState) return;
+    // Unsummarized tabs fall through to home; summarized tabs re-render
+    // their saved summary plus suggested prompts.
+    async function restoreTabView(tab, settings) {
+      const epoch = ++tabViewEpoch;
+      const stale = () => epoch !== tabViewEpoch;
+      activeTabId = tab?.id;
+      await ensureTabUrl(tab);
+      if (tab?.url) {
+        setLinkifyOriginFromUrl(tab.url);
       }
+      try {
+        let state = await loadViewState(tab.id);
+        if (stale()) return;
 
-      if (state.subview === "answer") {
-        showOnlyView("summaryView");
-        showAnswerContext(state.question || "");
-        showCancelAskButton(state.streamId);
-        try {
-          await consumeAnswerStream(
-            attachToStream(state.streamId, {
-              onStats: (rate) =>
-                setTokensPerSecBadge(tokensPerSecBadgeAsk, rate),
-            }),
-            {
-              tab,
-              question: state.question || "",
-            },
-          );
-        } catch (error) {
-          if (error instanceof StreamCancelledError) {
-            returnToAskAfterCancel(tab.id);
-          } else {
-            console.error(error);
-            renderError(answerBox, toUserMessage(error));
-            await saveViewState(tab.id, { streamId: null });
-          }
-        } finally {
-          hideCancelAskButton();
+        if (state?.isSelection && state.selectionText) {
+          currentPageData = {
+            title: tab.title || "Selected text",
+            url: tab.url,
+            content: state.selectionText,
+            type: "selection",
+            isPdf: false,
+          };
+          updateExtractorChip(currentPageData);
         }
-        return;
-      }
-    }
 
-    if (state && state.urlHash === (await hashUrl(tab.url))) {
-      if (state.view === "settingsView") {
-        showOnlyView("settingsView");
-        return;
-      }
-      if (state.view === "contactView") {
-        showOnlyView("contactView");
-        return;
-      }
-      if (state.view === "summaryView") {
-        if (state.subview === "answer" && state.question) {
-          showOnlyView("summaryView");
-          showAnswerContext(state.question);
-          currentAnswerText = state.answerText || "";
-          if (currentAnswerText.trim()) {
-            setMarkdownHtml(answerBox, currentAnswerText);
-          } else {
-            renderError(answerBox, EMPTY_ANSWER_MESSAGE);
-          }
-          copyAnswerBtn.classList.toggle("hidden", !currentAnswerText.trim());
-          return;
-        }
-        if (state.subview === "ask") {
-          showOnlyView("summaryView");
-          showAskContext();
-          questionInput.focus();
-          return;
-        }
-        if (state.subview === "summary" && state.summaryText) {
-          currentSummaryText = state.summaryText;
+        if (
+          state &&
+          state.urlHash === (await hashUrl(tab.url)) &&
+          state.streamId
+        ) {
           currentSummaryLanguage =
             state.summaryLanguage ?? settings.summaryLanguage;
           currentTranslationEngine =
             state.translationEngine ?? settings.translationEngine;
-          setMarkdownHtml(summaryText, state.summaryText);
+          if (state.subview === "summarizing") {
+            showOnlyView("summaryView");
+            showSummarizingContext();
+            setLoadingIndicator(summaryText, randomSummarizeVerb());
+            showCancelSummarizeButton(state.streamId);
+            let resumeFromCompletedState = false;
+            try {
+              await getPageData(tab);
+              await consumeSummaryStream(
+                attachToStream(state.streamId, {
+                  onStats: (rate) =>
+                    setTokensPerSecBadge(tokensPerSecBadgeSummary, rate),
+                }),
+                {
+                  tab,
+                  promptsCacheKey: state.promptsCacheKey,
+                  jobId: state.jobId,
+                },
+              );
+            } catch (error) {
+              if (error instanceof StreamCancelledError) {
+                if (!stale()) await returnHomeAfterCancel(tab.id, state.jobId);
+              } else {
+                const completedState = await loadViewState(tab.id);
+                if (
+                  state.jobId &&
+                  completedState?.jobId === state.jobId &&
+                  completedState.subview === "summary" &&
+                  !completedState.streamId &&
+                  completedState.summaryText
+                ) {
+                  state = completedState;
+                  resumeFromCompletedState = true;
+                } else {
+                  if (!stale()) renderSummaryError(error);
+                  if (state.jobId) {
+                    await saveViewStateIfJobMatches(
+                      tab.id,
+                      state.jobId,
+                      { streamId: null },
+                      "summarizing",
+                    );
+                  } else {
+                    await saveViewState(tab.id, { streamId: null });
+                  }
+                }
+              }
+            } finally {
+              if (!stale()) hideCancelSummarizeButton();
+            }
+            if (stale()) return;
+            if (!resumeFromCompletedState) return;
+          }
+
+          if (state.subview === "answer") {
+            showOnlyView("summaryView");
+            showAnswerContext(state.question || "");
+            showCancelAskButton(state.streamId);
+            try {
+              await consumeAnswerStream(
+                attachToStream(state.streamId, {
+                  onStats: (rate) =>
+                    setTokensPerSecBadge(tokensPerSecBadgeAsk, rate),
+                }),
+                {
+                  tab,
+                  question: state.question || "",
+                },
+              );
+            } catch (error) {
+              if (error instanceof StreamCancelledError) {
+                if (!stale()) returnToAskAfterCancel(tab.id);
+              } else {
+                console.error(error);
+                if (!stale()) renderError(answerBox, toUserMessage(error));
+                await saveViewState(tab.id, { streamId: null });
+              }
+            } finally {
+              if (!stale()) hideCancelAskButton();
+            }
+            return;
+          }
+        }
+
+        if (state && state.urlHash === (await hashUrl(tab.url))) {
+          if (stale()) return;
+          if (state.view === "settingsView") {
+            showOnlyView("settingsView");
+            return;
+          }
+          if (state.view === "contactView") {
+            showOnlyView("contactView");
+            return;
+          }
+          if (state.view === "summaryView") {
+            if (state.subview === "answer" && state.question) {
+              showOnlyView("summaryView");
+              showAnswerContext(state.question);
+              currentAnswerText = state.answerText || "";
+              if (currentAnswerText.trim()) {
+                setMarkdownHtml(answerBox, currentAnswerText);
+              } else {
+                renderError(answerBox, EMPTY_ANSWER_MESSAGE);
+              }
+              copyAnswerBtn.classList.toggle(
+                "hidden",
+                !currentAnswerText.trim(),
+              );
+              return;
+            }
+            if (state.subview === "ask") {
+              showOnlyView("summaryView");
+              showAskContext();
+              questionInput.focus();
+              return;
+            }
+            if (state.subview === "summary" && state.summaryText) {
+              currentSummaryText = state.summaryText;
+              currentSummaryLanguage =
+                state.summaryLanguage ?? settings.summaryLanguage;
+              currentTranslationEngine =
+                state.translationEngine ?? settings.translationEngine;
+              setMarkdownHtml(summaryText, state.summaryText);
+              makeSummaryPassagesFocusable();
+              setSummaryCopyButtonsVisible(!!state.summaryText.trim());
+              updateResummarizeHint(settings);
+              showTimeSavedFromInputs(
+                await getTimeSavedInputsForTab(tab, state),
+                state.summaryText,
+              );
+              showOnlyView("summaryView");
+              const selPromptsKey = state.promptsCacheKey;
+              const stored = selPromptsKey
+                ? await chrome.storage.local.get(selPromptsKey)
+                : {};
+              if (selPromptsKey && stored[selPromptsKey] !== undefined) {
+                showSummaryContext(stored[selPromptsKey]);
+              } else {
+                showSummaryContext([]);
+                setSuggestedQuestionsLoading();
+                startSuggestedQuestionsBg(
+                  selPromptsKey,
+                  {
+                    title: tab.title || "",
+                    url: tab.url,
+                    summary: state.summaryText,
+                  },
+                  settings,
+                  false,
+                );
+              }
+              return;
+            }
+          }
+        }
+
+        const model = getModelForSettings(settings);
+        const cacheKey = await getSummaryCacheKey(
+          tab.url,
+          settings.responseFormat,
+          model,
+          settings.summaryLanguage,
+          settings.customInstructions,
+          settings.translationEngine,
+        );
+        const promptsCacheKey = await getPromptsCacheKey(
+          tab.url,
+          settings.responseFormat,
+          model,
+          settings.summaryLanguage,
+          settings.customInstructions,
+          settings.translationEngine,
+        );
+        const cached = await chrome.storage.local.get([
+          cacheKey,
+          promptsCacheKey,
+        ]);
+        if (stale()) return;
+
+        if (cached[cacheKey]) {
+          currentSummaryText = cached[cacheKey];
+          currentSummaryLanguage = settings.summaryLanguage;
+          currentTranslationEngine = settings.translationEngine;
+          setMarkdownHtml(summaryText, cached[cacheKey]);
           makeSummaryPassagesFocusable();
-          setSummaryCopyButtonsVisible(!!state.summaryText.trim());
+          setSummaryCopyButtonsVisible(!!cached[cacheKey].trim());
           updateResummarizeHint(settings);
-          showTimeSavedFromInputs(
-            await getTimeSavedInputsForTab(tab, state),
-            state.summaryText,
-          );
+          const badgeInputs =
+            state && state.urlHash === (await hashUrl(tab.url))
+              ? await getTimeSavedInputsForTab(tab, state)
+              : null;
+          showTimeSavedFromInputs(badgeInputs, cached[cacheKey]);
           showOnlyView("summaryView");
-          const selPromptsKey = state.promptsCacheKey;
-          const stored = selPromptsKey
-            ? await chrome.storage.local.get(selPromptsKey)
-            : {};
-          if (selPromptsKey && stored[selPromptsKey] !== undefined) {
-            showSummaryContext(stored[selPromptsKey]);
+          if (cached[promptsCacheKey] !== undefined) {
+            showSummaryContext(cached[promptsCacheKey]);
           } else {
             showSummaryContext([]);
             setSuggestedQuestionsLoading();
             startSuggestedQuestionsBg(
-              selPromptsKey,
+              promptsCacheKey,
               {
                 title: tab.title || "",
                 url: tab.url,
-                summary: state.summaryText,
+                summary: cached[cacheKey],
               },
               settings,
-              false,
+              await shouldPersist(tab.url),
             );
           }
           return;
         }
+      } catch (error) {
+        console.error(error);
       }
+      if (!stale()) showOnlyView("homeView");
     }
-
-    const model = getModelForSettings(settings);
-    const cacheKey = await getSummaryCacheKey(
-      tab.url,
-      settings.responseFormat,
-      model,
-      settings.summaryLanguage,
-      settings.customInstructions,
-      settings.translationEngine,
-    );
-    const promptsCacheKey = await getPromptsCacheKey(
-      tab.url,
-      settings.responseFormat,
-      model,
-      settings.summaryLanguage,
-      settings.customInstructions,
-      settings.translationEngine,
-    );
-    const cached = await chrome.storage.local.get([cacheKey, promptsCacheKey]);
-
-    if (cached[cacheKey]) {
-      currentSummaryText = cached[cacheKey];
-      currentSummaryLanguage = settings.summaryLanguage;
-      currentTranslationEngine = settings.translationEngine;
-      setMarkdownHtml(summaryText, cached[cacheKey]);
-      makeSummaryPassagesFocusable();
-      setSummaryCopyButtonsVisible(!!cached[cacheKey].trim());
-      updateResummarizeHint(settings);
-      const badgeInputs =
-        state && state.urlHash === (await hashUrl(tab.url))
-          ? await getTimeSavedInputsForTab(tab, state)
-          : null;
-      showTimeSavedFromInputs(badgeInputs, cached[cacheKey]);
-      showOnlyView("summaryView");
-      if (cached[promptsCacheKey] !== undefined) {
-        showSummaryContext(cached[promptsCacheKey]);
-      } else {
-        showSummaryContext([]);
-        setSuggestedQuestionsLoading();
-        startSuggestedQuestionsBg(
-          promptsCacheKey,
-          { title: tab.title || "", url: tab.url, summary: cached[cacheKey] },
-          settings,
-          await shouldPersist(tab.url),
-        );
-      }
-      return;
-    }
+    restoreTabViewFn = restoreTabView;
   } catch (error) {
     console.error(error);
   }
-  showOnlyView("homeView");
 });
 
 summarizeBtn?.addEventListener("click", () => summarizeActivePage());

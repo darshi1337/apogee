@@ -7,8 +7,8 @@
       "requestHeaders": [{ "header": "origin", "operation": "remove" }]
     },
     "condition": {
-      "requestDomains": ["localhost", "127.0.0.1", "[::1]", "::1"],
-      "excludedInitiatorDomains": ["localhost", "127.0.0.1", "[::1]", "::1"],
+      "requestDomains": ["localhost", "127.0.0.1", "[::1]"],
+      "excludedInitiatorDomains": ["localhost", "127.0.0.1", "[::1]"],
       "resourceTypes": ["xmlhttprequest"]
     }
   }

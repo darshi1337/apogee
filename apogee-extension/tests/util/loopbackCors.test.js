@@ -121,12 +121,24 @@ test("bundled static fallback rule stays restricted to loopback request hosts", 
     ),
   );
   assert.ok(Array.isArray(rules) && rules.length > 0);
-  const allowed = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+  const allowed = new Set(["localhost", "127.0.0.1", "[::1]"]);
   for (const rule of rules) {
     for (const host of rule.condition.requestDomains || []) {
       assert.ok(
         allowed.has(host),
         `static rule request host ${host} must be loopback`,
+      );
+    }
+    // Bare "::1" is not a valid DNR domain: Firefox rejects the whole
+    // static ruleset at load when it appears.
+    for (const host of [
+      ...(rule.condition.requestDomains || []),
+      ...(rule.condition.excludedInitiatorDomains || []),
+    ]) {
+      assert.notStrictEqual(
+        host,
+        "::1",
+        "static rule must use bracketed [::1], never bare ::1",
       );
     }
     assert.ok(

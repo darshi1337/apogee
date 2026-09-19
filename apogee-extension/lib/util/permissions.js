@@ -76,6 +76,39 @@ export function getOptionalOriginsForUrl(url) {
   return [];
 }
 
+// Scoped origins for reading one site's content (`*://host/*`). Covered
+// by the all-sites optional declaration, requested only after scripting
+// proves the tab grant is gone (persistent surfaces like the side panel
+// outlive activeTab). Never requested preemptively: popups covered by
+// activeTab must not nag.
+// @param {string} url Target webpage URL
+// @returns {string[]} Single scoped pattern, or [] for non-web URLs
+export function siteOriginsForUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return [];
+    }
+    if (!parsed.hostname) return [];
+    return [`*://${parsed.hostname}/*`];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Ask the user for one-site read access, fail-closed like the rest here.
+ * Must run within the user gesture (called from the summarize click path).
+ * @param {string} url Target webpage URL
+ * @returns {Promise<boolean>} True when access is (now) granted
+ */
+export async function requestSiteAccess(url) {
+  const origins = siteOriginsForUrl(url);
+  if (origins.length === 0) return false;
+  if (await hasHostPermissions(origins)) return true;
+  return await requestHostPermissions(origins);
+}
+
 /**
  * Checks whether optional host permissions are needed for a URL, and if so, prompts the user to grant them.
  * @param {string} url Target webpage URL

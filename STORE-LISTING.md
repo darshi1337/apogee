@@ -140,11 +140,11 @@ A bundled static rule scoped to those loopback hosts stays as a fallback. The ru
 
 **notifications** It shows a system note when a summary asked for with keyboard shortcut or context menu is ready. The popup often stays closed while the model generates.
 
-**Host permission justification** (`http://127.0.0.1/*`, `http://localhost/*`, `http://[::1]/*`) These loopback host permissions link Apogee to the user own local Ollama server. They serve users who opt into Local Ollama mode. Requests go straight to the model running on their own machine. Only loopback addresses on the user device take part.
+**Host permission justification** (`*://*/*`, `http://127.0.0.1/*`, `http://localhost/*`, `http://[::1]/*`) These loopback host permissions link Apogee to the user own local Ollama server. They serve users who opt into Local Ollama mode. Requests go straight to the model running on their own machine. Only loopback addresses on the user device take part. The all-sites entry keeps the persistent side panel working across tab changes; page text is read only when the user asks for a summary.
 
 **Host permission justification** (`*://*.bilibili.com/*`, `*://*.hdslb.com/*`, `*://*.youtube.com/*`, `*://*.googlevideo.com/*`, `*://*.bsky.app/*`, `https://sponsor.ajay.app/*`) The manifest states these site-specific cross-origin permissions as `optional_host_permissions` in `manifest.json`. When the user summarizes a Bilibili or YouTube video, Apogee checks granted permissions. It asks the user on demand before it fetches subtitles from the Bilibili API (`api.bilibili.com` / `hdslb.com`). It fetches the video caption track from YouTube endpoints through the page content script (`youtube.com` / `googlevideo.com`). It fetches SponsorBlock timestamps (`sponsor.ajay.app`, opt out under Settings, then Privacy to turn the lookup off fully).
 
-When the user summarizes a Bluesky post, Apogee fetches the thread from the public AT Protocol endpoint. The address is `https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread`. It carries only the public `at://` URI, with DOM fallback when offline. Standing host permissions cover loopback addresses only (`127.0.0.1`/`localhost`/`[::1]`). Apogee reaches each other site on demand with `activeTab`.
+When the user summarizes a Bluesky post, Apogee fetches the thread from the public AT Protocol endpoint. The address is `https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread`. It carries only the public `at://` URI, with DOM fallback when offline. Standing host permissions cover all sites plus loopback addresses (`127.0.0.1`/`localhost`/`[::1]`). Apogee reaches each other site on demand with `activeTab`.
 
 ## Remote code
 
