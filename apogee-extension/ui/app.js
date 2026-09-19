@@ -1281,6 +1281,7 @@ async function copyToClipboard(text, btn) {
     btn.innerHTML = original;
   }, 1500);
 }
+
 // Bulk export (#244): one JSON file holding every past summary in
 // cacheOrder, oldest first. Entries without stored text are skipped, and
 // the source URL stays empty — cache keys hold a one-way hash of it.
