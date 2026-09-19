@@ -2008,7 +2008,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       active: true,
       currentWindow: true,
     });
-    await restoreTabView(tab, settings);
+    // Set up the header chrome before content restore: a restore failure
+    // must never leave the header buttons permanently hidden.
+    if (!isSidePanelSurface && typeof sidePanelOpenFunction() === "function") {
+      setSidePanelButtons({ panelOpen: false, available: true });
+    }
+    try {
+      await restoreTabView(tab, settings);
+    } catch (err) {
+      console.error("Tab restore failed:", err);
+    }
 
     const sidePanelOpen = await isSidePanelOpenForTab(tab?.id);
     if (

@@ -7,6 +7,7 @@ import {
   detectPrimaryLanguage,
   detectedMatchesTarget,
 } from "./detectLanguage.js";
+import { debugLog } from "../util/log.js";
 
 export async function* streamInTargetLanguage(
   chatFn,
@@ -39,6 +40,9 @@ export async function* streamInTargetLanguage(
       yield out;
       return;
     }
+    debugLog(
+      `[i18n] translate fallback: detected=${detected} target=${target}`,
+    );
     onFallback?.();
     const translated = await translateFn(out, target);
     if (translated != null) {
