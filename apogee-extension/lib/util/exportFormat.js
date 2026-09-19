@@ -55,6 +55,24 @@ export function formatSummaryAsJSON({
   );
 }
 
+// Bulk export: one JSON file holding every past summary in cacheOrder.
+// Each item uses the same shape as formatSummaryAsJSON so single and bulk
+// exports stay interchangeable.
+export function formatSummariesBulkAsJSON(summaries) {
+  const items = (Array.isArray(summaries) ? summaries : []).map((item) => ({
+    title: item?.title || "",
+    url: item?.url || "",
+    model: item?.model || "",
+    format: item?.format || "",
+    language: item?.language || "",
+    summary: typeof item?.summary === "string" ? item.summary : "",
+    suggestedQuestions: Array.isArray(item?.suggestedQuestions)
+      ? item.suggestedQuestions
+      : [],
+  }));
+  return JSON.stringify(items, null, 2) + "\n";
+}
+
 // Page titles can contain characters that are illegal in file names
 // (e.g. `/`, `\`, `:`) or that browsers interpret as paths. Strip those,
 // collapse whitespace, and fall back to "summary" so the JSON download

@@ -97,6 +97,14 @@
     "message": "Filter past summaries by title",
     "description": "Past summaries filter aria label"
   },
+  "exportAllJson": {
+    "message": "Export all (.json)",
+    "description": "Bulk export button label"
+  },
+  "exportAllJsonAria": {
+    "message": "Export all past summaries as JSON",
+    "description": "Bulk export button accessible name"
+  },
   "summaryView": {
     "message": "Summary",
     "description": "Summary view aria label"

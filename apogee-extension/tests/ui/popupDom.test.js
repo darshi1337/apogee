@@ -94,3 +94,31 @@ test("app.html includes settings configuration controls", () => {
     assert.ok(el, `Settings control #${id} must exist in app.html`);
   });
 });
+
+test("app.html includes a decorative wordmark for the empty state (#243)", () => {
+  const { document } = parseHTML(popupHtmlRaw);
+  const mark = document.getElementById("wordmarkEmpty");
+  assert.ok(mark, "Empty-state wordmark #wordmarkEmpty must exist");
+  assert.strictEqual(
+    mark.getAttribute("aria-hidden"),
+    "true",
+    "Wordmark must be hidden from assistive tech",
+  );
+  assert.strictEqual(mark.textContent.trim(), "apogee");
+  assert.ok(
+    mark.classList.contains("hidden"),
+    "Wordmark starts hidden until past summaries load",
+  );
+});
+
+test("app.html includes a bulk export button for past summaries (#244)", () => {
+  const { document } = parseHTML(popupHtmlRaw);
+  const btn = document.getElementById("exportAllJsonBtn");
+  assert.ok(btn, "Bulk export button #exportAllJsonBtn must exist");
+  assert.strictEqual(btn.textContent.trim(), "Export all (.json)");
+  assert.strictEqual(
+    btn.getAttribute("data-i18n-aria-label"),
+    "exportAllJsonAria",
+    "Bulk export button must carry an i18n aria-label key",
+  );
+});

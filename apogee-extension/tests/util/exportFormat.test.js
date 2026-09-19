@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
 import {
+  formatSummariesBulkAsJSON,
   formatSummaryAsJSON,
   formatSummaryAsMarkdown,
   safeExportFilename,
@@ -115,4 +116,39 @@ test("safeExportFilename strips illegal characters and falls back", () => {
   );
   assert.strictEqual(safeExportFilename(""), "summary");
   assert.strictEqual(safeExportFilename("   "), "summary");
+});
+
+test("formatSummariesBulkAsJSON keeps every item in order", () => {
+  const result = JSON.parse(
+    formatSummariesBulkAsJSON([
+      {
+        title: "First",
+        url: "",
+        model: "m1",
+        format: "bullets",
+        language: "English",
+        summary: "one",
+        suggestedQuestions: ["q1"],
+      },
+      { title: "Second", summary: "two" },
+    ]),
+  );
+  assert.strictEqual(result.length, 2);
+  assert.strictEqual(result[0].title, "First");
+  assert.deepStrictEqual(result[0].suggestedQuestions, ["q1"]);
+  assert.deepStrictEqual(result[1], {
+    title: "Second",
+    url: "",
+    model: "",
+    format: "",
+    language: "",
+    summary: "two",
+    suggestedQuestions: [],
+  });
+});
+
+test("formatSummariesBulkAsJSON handles empty and non-array input", () => {
+  assert.deepStrictEqual(JSON.parse(formatSummariesBulkAsJSON([])), []);
+  assert.deepStrictEqual(JSON.parse(formatSummariesBulkAsJSON()), []);
+  assert.deepStrictEqual(JSON.parse(formatSummariesBulkAsJSON("nope")), []);
 });
