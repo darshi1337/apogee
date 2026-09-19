@@ -1282,6 +1282,19 @@ async function copyToClipboard(text, btn) {
   }, 1500);
 }
 
+// Shared download step for the single and bulk JSON exports.
+function downloadTextFile({ filename, text, mimeType }) {
+  const blob = new Blob([text], { type: mimeType });
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
 // Bulk export (#244): one JSON file holding every past summary in
 // cacheOrder, oldest first. Entries without stored text are skipped, and
 // the source URL stays empty — cache keys hold a one-way hash of it.
@@ -1311,17 +1324,11 @@ exportAllJsonBtn?.addEventListener("click", async () => {
     }
     if (items.length === 0) return;
 
-    const blob = new Blob([formatSummariesBulkAsJSON(items)], {
-      type: "application/json",
+    downloadTextFile({
+      filename: "apogee-summaries.json",
+      text: formatSummariesBulkAsJSON(items),
+      mimeType: "application/json",
     });
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = objectUrl;
-    link.download = "apogee-summaries.json";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(objectUrl);
   } catch (err) {
     console.error("Export all summaries error:", err);
   }
@@ -1356,21 +1363,11 @@ exportJsonBtn?.addEventListener("click", async () => {
     suggestedQuestions,
   });
 
-  const blob = new Blob([json], {
-    type: "application/json",
+  downloadTextFile({
+    filename: `${safeExportFilename(title)}.json`,
+    text: json,
+    mimeType: "application/json",
   });
-
-  const objectUrl = URL.createObjectURL(blob);
-
-  const link = document.createElement("a");
-  link.href = objectUrl;
-  link.download = `${safeExportFilename(title)}.json`;
-
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-
-  URL.revokeObjectURL(objectUrl);
 });
 
 copyMarkdownBtn?.addEventListener("click", async () => {

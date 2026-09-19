@@ -39,27 +39,24 @@ export function formatSummaryAsJSON({
   suggestedQuestions = [],
 }) {
   return JSON.stringify(
-    {
-      title: title || "",
-      url: url || "",
-      model: model || "",
-      format: format || "",
-      language: language || "",
-      summary: typeof summary === "string" ? summary : "",
-      suggestedQuestions: Array.isArray(suggestedQuestions)
-        ? suggestedQuestions
-        : [],
-    },
+    normalizeSummaryItem({
+      title,
+      url,
+      model,
+      format,
+      language,
+      summary,
+      suggestedQuestions,
+    }),
     null,
     2,
   );
 }
 
-// Bulk export: one JSON file holding every past summary in cacheOrder.
-// Each item uses the same shape as formatSummaryAsJSON so single and bulk
-// exports stay interchangeable.
-export function formatSummariesBulkAsJSON(summaries) {
-  const items = (Array.isArray(summaries) ? summaries : []).map((item) => ({
+// Shared shape for single and bulk JSON exports so the two stay
+// interchangeable. Not exported: reach it through the formatters.
+function normalizeSummaryItem(item) {
+  return {
     title: item?.title || "",
     url: item?.url || "",
     model: item?.model || "",
@@ -69,7 +66,14 @@ export function formatSummariesBulkAsJSON(summaries) {
     suggestedQuestions: Array.isArray(item?.suggestedQuestions)
       ? item.suggestedQuestions
       : [],
-  }));
+  };
+}
+
+// Bulk export: one JSON file holding every past summary in cacheOrder.
+export function formatSummariesBulkAsJSON(summaries) {
+  const items = (Array.isArray(summaries) ? summaries : []).map((item) =>
+    normalizeSummaryItem(item ?? {}),
+  );
   return JSON.stringify(items, null, 2) + "\n";
 }
 
