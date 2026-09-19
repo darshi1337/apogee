@@ -1049,6 +1049,9 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 }
 
 .section-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 1px solid var(--btn-border);
   background: var(--btn-bg);
   color: var(--text-secondary);
@@ -1068,6 +1071,16 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
   background: var(--btn-hover-bg);
   border-color: var(--btn-hover-border);
   color: var(--text-main);
+}
+
+.section-action-btn:focus-visible {
+  outline: 2px solid var(--input-focus-border);
+  outline-offset: 1px;
+}
+
+.section-action-btn .ico svg {
+  width: 12px;
+  height: 12px;
 }
 
 .past-summary-card {

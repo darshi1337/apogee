@@ -121,4 +121,8 @@ test("app.html includes a bulk export button for past summaries (#244)", () => {
     "exportAllJsonAria",
     "Bulk export button must carry an i18n aria-label key",
   );
+  assert.ok(
+    btn.querySelector('[data-ico="download"]'),
+    "Bulk export button must contain a download icon",
+  );
 });
