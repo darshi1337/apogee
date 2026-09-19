@@ -258,6 +258,18 @@ export function renderMarkdown(source, { stored = false } = {}) {
   return sanitizeMarkdownHtml(html);
 }
 
+// Small local models often disobey the prompt's "no heading" rule and open
+// with a "Summary" heading (## Summary, **Summary**, Summary:). The card
+// already carries the "Summarize this page" title, so that first line is
+// redundant. Only a complete leading heading line is dropped: body text
+// that merely starts with the word (e.g. "Summary of findings...") is kept.
+export function stripLeadingSummaryHeading(text) {
+  return String(text ?? "").replace(
+    /^\s*(?:#{1,6}\s*|\*\*)?summary(?::|\*\*)?[ \t]*(?:\n|$)/i,
+    "",
+  );
+}
+
 export function renderStoredSummaryMarkdown(text) {
   // Stored past summaries render with no page context: the page host is
   // nulled AND the always-linkify hosts are off, so every link (including a
