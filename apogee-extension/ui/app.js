@@ -810,6 +810,30 @@ async function getPageData(tab) {
 
 let modelProgressHideTimer = null;
 
+// Defrag-style progress: one row of square blocks, grey until done.
+// Blocks flip instantly, so there is no motion to reduce.
+const MODEL_PROGRESS_BLOCKS = 24;
+
+function renderModelProgressBlocks(pct) {
+  if (!modelProgressFill) return;
+  if (modelProgressFill.childElementCount !== MODEL_PROGRESS_BLOCKS) {
+    modelProgressFill.innerHTML = "";
+    for (let i = 0; i < MODEL_PROGRESS_BLOCKS; i++) {
+      const block = document.createElement("span");
+      block.className = "mp-block";
+      block.setAttribute("aria-hidden", "true");
+      modelProgressFill.appendChild(block);
+    }
+  }
+  const filled = Math.min(
+    MODEL_PROGRESS_BLOCKS,
+    Math.floor((pct / 100) * MODEL_PROGRESS_BLOCKS),
+  );
+  for (let i = 0; i < modelProgressFill.childElementCount; i++) {
+    modelProgressFill.children[i].classList.toggle("on", i < filled);
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (sender?.id !== chrome.runtime.id) return;
   if (sender.tab) return;
@@ -825,7 +849,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     if (typeof p.progress === "number") {
       const pct = Math.round(p.progress * 100);
       modelProgressPercent.textContent = `${pct}%`;
-      modelProgressFill.parentElement?.style.setProperty("--p", `${pct}%`);
+      renderModelProgressBlocks(pct);
       modelProgressFill.parentElement?.setAttribute("aria-valuenow", pct);
       if (pct >= 100) {
         modelProgressHideTimer = setTimeout(
