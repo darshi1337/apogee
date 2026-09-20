@@ -58,6 +58,8 @@
   --radio-checked-color: #8886ff;
   --accent: #8886ff;
   --progress-track: rgba(255, 255, 255, 0.1);
+  --mp-fill-from: #c4c2ff;
+  --mp-fill-to: #7a78ff;
   --send-btn-bg: #5855ff;
   --send-btn-hover-bg: #f0f0f2;
   --send-btn-text: #ffffff;
@@ -101,6 +103,8 @@
   --radio-checked-color: #5855ff;
   --accent: #5855ff;
   --progress-track: rgba(0, 0, 0, 0.06);
+  --mp-fill-from: #c9c8ff;
+  --mp-fill-to: #5855ff;
   --send-btn-bg: #5855ff;
   --send-btn-hover-bg: #161616;
   --send-btn-text: #ffffff;
@@ -2014,6 +2018,7 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 
 .model-progress-fill {
   display: flex;
+  align-items: center;
   gap: 3px;
   width: 100%;
   height: 12px;
@@ -2026,8 +2031,9 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
   background: var(--progress-track);
 }
 
-.model-progress-fill .mp-block.on {
-  background: var(--accent);
+.model-progress-fill .mp-block.lead {
+  transform: scaleY(1.35);
+  box-shadow: 0 0 8px var(--accent);
 }
 
 .model-progress-footer {

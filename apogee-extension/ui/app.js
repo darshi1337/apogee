@@ -814,6 +814,13 @@ let modelProgressHideTimer = null;
 // Blocks flip instantly, so there is no motion to reduce.
 const MODEL_PROGRESS_BLOCKS = 24;
 
+function mpHexToRgb(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || "").trim());
+  if (!m) return null;
+  const v = parseInt(m[1], 16);
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+}
+
 function renderModelProgressBlocks(pct) {
   if (!modelProgressFill) return;
   if (modelProgressFill.childElementCount !== MODEL_PROGRESS_BLOCKS) {
@@ -829,8 +836,26 @@ function renderModelProgressBlocks(pct) {
     MODEL_PROGRESS_BLOCKS,
     Math.floor((pct / 100) * MODEL_PROGRESS_BLOCKS),
   );
+  const style = getComputedStyle(document.documentElement);
+  const from = mpHexToRgb(style.getPropertyValue("--mp-fill-from")) || [
+    201, 200, 255,
+  ];
+  const to = mpHexToRgb(style.getPropertyValue("--mp-fill-to")) || [
+    88, 85, 255,
+  ];
   for (let i = 0; i < modelProgressFill.childElementCount; i++) {
-    modelProgressFill.children[i].classList.toggle("on", i < filled);
+    const block = modelProgressFill.children[i];
+    const on = i < filled;
+    block.classList.toggle("on", on);
+    block.classList.toggle("lead", on && i === filled - 1);
+    if (on) {
+      const t =
+        MODEL_PROGRESS_BLOCKS <= 1 ? 1 : i / (MODEL_PROGRESS_BLOCKS - 1);
+      const rgb = from.map((c, k) => Math.round(c + (to[k] - c) * t));
+      block.style.background = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+    } else {
+      block.style.background = "";
+    }
   }
 }
 
