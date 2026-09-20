@@ -825,7 +825,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     if (typeof p.progress === "number") {
       const pct = Math.round(p.progress * 100);
       modelProgressPercent.textContent = `${pct}%`;
-      modelProgressFill.style.width = `${pct}%`;
+      modelProgressFill.parentElement?.style.setProperty("--p", `${pct}%`);
       modelProgressFill.parentElement?.setAttribute("aria-valuenow", pct);
       if (pct >= 100) {
         modelProgressHideTimer = setTimeout(
