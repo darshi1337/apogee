@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
 
       - name: Run actionlint
-        uses: reviewdog/action-actionlint@v1.74.0
+        uses: reviewdog/action-actionlint@v1.76.0
         with:
           fail_level: error
 
