@@ -4,6 +4,26 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.3](https://github.com/darshi1337/apogee/compare/v0.2.2...v0.2.3) (2026-09-25)
+
+
+### Fixed
+
+* **#338:** [chore] Prefix debugLog output with [apogee] ([1962a41](https://github.com/darshi1337/apogee/commit/1962a41bd4a05c2150c66200b019dc054426fce4))
+* **#340:** [test] Reuse createCollectingPort in attachToStream.test.js ([628fddd](https://github.com/darshi1337/apogee/commit/628fddd4a80d7bf6f192b1cb775700105c5dbb57))
+* **#344:** [chore] Name the language-detect sample-size constant ([c1c2760](https://github.com/darshi1337/apogee/commit/c1c2760d1e648dcf8c08e35602f45b2cff9bf55f))
+* **#349:** [bug] Skip empty chunk broadcast at text cap ([c45e699](https://github.com/darshi1337/apogee/commit/c45e699833e94bce3b0dfd3baed822021f39e5fa))
+* **#353:** [docs] Clarify broad host permission wording ([21032ac](https://github.com/darshi1337/apogee/commit/21032acda0ca57ec31705b270479c4ff1f47d5c8))
+* Byte-aware storage eviction and atomic past-summary delete ([a7fca12](https://github.com/darshi1337/apogee/commit/a7fca12d6b94a8fb43604d86ebd582799643db89))
+* Byte-aware storage eviction and atomic past-summary delete ([4a62ecc](https://github.com/darshi1337/apogee/commit/4a62ecc5321f1bba94f27e06fb852d10990a76ad))
+* Resolve [#338](https://github.com/darshi1337/apogee/issues/338) [chore] Prefix debugLog output with [apogee] ([c364b24](https://github.com/darshi1337/apogee/commit/c364b244b723dbaae6e2fc7aff33cd5677f61a2f))
+* Resolve [#340](https://github.com/darshi1337/apogee/issues/340) [test] Reuse createCollectingPort in attachToStre... ([d73f529](https://github.com/darshi1337/apogee/commit/d73f52916f0e5266fc7087184f0d813202c7cdb8))
+* Resolve [#344](https://github.com/darshi1337/apogee/issues/344) [chore] Name the language-detect sample-size cons... ([5074322](https://github.com/darshi1337/apogee/commit/507432281b92cfb5c732db44fa14f474ae0fda3d))
+* Resolve [#349](https://github.com/darshi1337/apogee/issues/349) [bug] Skip empty chunk broadcast at text cap ([ba3bee6](https://github.com/darshi1337/apogee/commit/ba3bee6c48d24905ad2a50557c8dcb5ae4745ac6))
+* Resolve [#353](https://github.com/darshi1337/apogee/issues/353) [docs] Clarify broad host permission wording ([221ed69](https://github.com/darshi1337/apogee/commit/221ed69c5abbb0f1b29e8405ebb7669866cd322f))
+* Sliding stream expiry so long summaries survive cleanup ([c17549c](https://github.com/darshi1337/apogee/commit/c17549cc15d2fc3ae6ff5102941f31198ddc2543))
+* Sliding stream expiry so long summaries survive cleanup ([c2ad363](https://github.com/darshi1337/apogee/commit/c2ad363c6a3be137c9e3dcd351d5448983a70df1))
+
 ## [0.2.2](https://github.com/darshi1337/apogee/compare/v0.2.2...v0.2.2) (2026-09-22)
 
 
@@ -240,7 +260,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - [chore] Prefix debugLog output with [apogee] ([1962a41](https://github.com/darshi1337/apogee/commit/1962a41bd4a05c2150c66200b019dc054426fce4))
 - [chore] Name the language-detect sample-size constant ([c1c2760](https://github.com/darshi1337/apogee/commit/c1c2760d1e648dcf8c08e35602f45b2cff9bf55f))
 - [test] Reuse createCollectingPort in attachToStream.test.js ([628fddd](https://github.com/darshi1337/apogee/commit/628fddd4a80d7bf6f192b1cb775700105c5dbb57))
-- [bug] Skip empty chunk broadcast at text cap ([c45e699](https://github.com/darshi1337/apogee/commit/c45e699833e94bce3b0dfd3baed822021f39e5fa))
 
 ## [0.2.1] - 2026-08-19
 
