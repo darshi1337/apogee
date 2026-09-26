@@ -124,7 +124,7 @@ export const MAX_CACHED_PAGES = 50;
 // Legacy entries without `b` are measured with getBytesInUse when the
 // browser offers it, else only the count cap applies.
 export const MAX_CACHE_BYTES = 4_000_000;
-export const MAX_CONTENT_CACHE_BYTES = 2_000_000;
+const MAX_CONTENT_CACHE_BYTES = 2_000_000;
 // A finished summary is capped at 1M chars upstream; 2.5 MB of UTF-8 leaves
 // headroom for non-Latin text plus the order-entry metadata.
 export const MAX_ENTRY_BYTES = 2_500_000;
@@ -158,7 +158,7 @@ export function estimateByteSize(value) {
 
 // Native byte accounting when the browser offers it, else null so callers
 // fall back to index estimates. Never throws: tests and some browsers lack it.
-export async function storedBytesInUse(keys) {
+async function storedBytesInUse(keys) {
   try {
     const store = chrome?.storage?.local;
     const fn = store?.getBytesInUse;
