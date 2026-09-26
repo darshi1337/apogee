@@ -25,7 +25,7 @@ const LINK_TOKEN_SUFFIX = "@@";
 const LINK_TOKEN_RE = /@@APOGEE-LINK-(\d+)@@/g;
 const LINK_TOKEN_STRIP_RE = /@@APOGEE-LINK-\d+@@/g;
 
-export const ALWAYS_LINKIFY_HOSTS = new Set(["youtube.com", "bilibili.com"]);
+const ALWAYS_LINKIFY_HOSTS = new Set(["youtube.com", "bilibili.com"]);
 
 let linkifyPageHost = null;
 
@@ -258,7 +258,7 @@ export function stripLeadingSummaryHeading(text) {
 // (<<<APOGEE_CONTENT ... APOGEE_CONTENT>>>) into their answer. Those markers
 // are input delimiters only and must never display. Strip any occurrence so
 // the card shows only the summary itself.
-export function stripEchoedFences(text) {
+function stripEchoedFences(text) {
   return String(text ?? "")
     .replaceAll("<<<APOGEE_CONTENT", "")
     .replaceAll("APOGEE_CONTENT>>>", "");

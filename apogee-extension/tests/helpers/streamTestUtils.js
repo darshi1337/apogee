@@ -28,10 +28,22 @@ export function withMockPerformanceClock(fn) {
   const advanceClock = (ms) => {
     currentTime += ms;
   };
-
-  try {
-    return fn({ advanceClock });
-  } finally {
+  const restoreClock = () => {
     performance.now = origNow;
+  };
+
+  let result;
+  try {
+    result = fn({ advanceClock });
+  } catch (err) {
+    restoreClock();
+    throw err;
   }
+  // Keep the mock clock installed until async test bodies settle; otherwise
+  // the real clock leaks into post-await assertions.
+  if (result && typeof result.then === "function") {
+    return result.finally(restoreClock);
+  }
+  restoreClock();
+  return result;
 }
