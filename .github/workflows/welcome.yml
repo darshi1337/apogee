@@ -1,0 +1,45 @@
+name: Welcome newcomers
+
+# Greets first-time contributors on their first issue and first PR.
+# pull_request_target (not pull_request): the job never checks out PR
+# code, it only posts a comment via the API, so the base workflow runs
+# even on fork PRs without exposing secrets to untrusted code.
+
+on:
+  issues:
+    types: [opened]
+  # zizmor: ignore[dangerous-triggers] -- safe use: the job never checks out
+  # PR code and only posts a comment via the API, so fork PRs work without
+  # exposing secrets to untrusted code. See the header comment above.
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  greet:
+    name: Post welcome comment
+    runs-on: ubuntu-latest
+    # FIRST_TIMER: never contributed before. FIRST_TIME_CONTRIBUTOR:
+    # contributed before but this is their first PR/issue interaction.
+    if: contains(fromJSON('["FIRST_TIMER", "FIRST_TIME_CONTRIBUTOR"]'), github.event.issue.author_association || github.event.pull_request.author_association)
+    steps:
+      - name: Welcome on first issue
+        if: github.event_name == 'issues'
+        run: gh issue comment "$NUMBER" --body "$BODY"
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NUMBER: ${{ github.event.issue.number }}
+          BODY: "Thanks for opening your first issue! A maintainer will triage it within about a week. If this is a bug, check the issue template boxes are filled in. If you want to fix it yourself, say so and we will scope it with you. Start with CONTRIBUTING.md."
+
+      - name: Welcome on first PR
+        if: github.event_name == 'pull_request_target'
+        run: gh pr comment "$NUMBER" --body "$BODY"
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          BODY: "Thanks for your first PR! CI will run shortly. Make sure `npm run lint` and `npm test` pass in `apogee-extension/` and that the PR links its issue. A maintainer will review within about a week."

@@ -32,11 +32,8 @@ jobs:
           fail_level: error
 
   zizmor:
-    # Advisory until the first green run proves the config in this repo,
-    # then drop continue-on-error to make it blocking.
-    name: zizmor (advisory)
+    name: zizmor
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
         with:

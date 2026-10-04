@@ -1,0 +1,23 @@
+name: Labeler
+
+# Path-based auto-labels on PRs. Triage only, never blocks: a wrong label
+# is cheaper than a missed one, and maintainers can remove them.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    name: Apply path labels
+    # PR content runs nowhere here: pull_request_target executes the base
+    # workflow, and this job only reads the file list via the API.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/labeler@v7.0.0
+        with:
+          configuration-path: .github/labeler.yml

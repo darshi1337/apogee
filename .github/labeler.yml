@@ -1,0 +1,15 @@
+# Path-to-label map for the Labeler workflow. Keep in sync with the labels
+# that exist in the repo: bug, documentation, enhancement, extractor, test.
+documentation:
+  - "**/*.md"
+  - "docs/**"
+
+extractor:
+  - "apogee-extension/content/extractors/**"
+  - "apogee-extension/tests/extractors/**"
+
+test:
+  - "apogee-extension/tests/**"
+
+javascript:
+  - "**/*.js"

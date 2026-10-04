@@ -1,0 +1,30 @@
+name: Stale issues and PRs
+
+# Closes abandoned threads so the tracker stays triageable. Newcomer
+# labels never go stale: closing a beginner's issue by robot is exactly
+# how you lose them. Assigned items stay open while someone owns them.
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    name: Mark and close stale items
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v11.0.0
+        with:
+          days-before-stale: 60
+          days-before-close: 14
+          exempt-issue-labels: "first-timers-only,good first issue,help wanted"
+          exempt-pr-labels: "help wanted"
+          exempt-assignees: true
+          stale-issue-message: "This issue has been quiet for 60 days. It will close in 14 days unless someone comments or picks it up. If you want it, say so and it stays open."
+          stale-pr-message: "This PR has been quiet for 60 days. It will close in 14 days unless there is new activity. Reopen or comment to keep it alive."
+          close-issue-message: "Closing for inactivity. If this still matters, comment and a maintainer will reopen it."
