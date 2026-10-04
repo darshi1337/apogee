@@ -6,9 +6,11 @@ By taking part you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Your first contribution
 
-New here? Start with the [`good first issue`][gfi] list. Each one stays scoped. Finish it without reading the whole extension first. Each one names the files it touches and what "done" means.
+New here? Start with the [`first-timers-only`][fto] list. Each one stays scoped. Finish it without reading the whole extension first. Each one names the files it touches and what "done" means. A maintainer will walk you through your first PR on these.
 
 What the labels mean:
+
+- **`first-timers-only`**: reserved for first-time contributors, hand-held review, regulars please stay off
 
 - **`good first issue`**: self-contained, no deep context needed, an evening of work
 
@@ -33,6 +35,7 @@ If nothing on the list fits, open an issue. Say what you want to change before y
 Stuck halfway? Open a draft PR and ask. A half-finished branch with a clear question is easier to help with than a stalled one.
 
 [gfi]: https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22
+[fto]: https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3Afirst-timers-only
 
 ## Getting set up
 
