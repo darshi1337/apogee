@@ -4,6 +4,23 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.4](https://github.com/darshi1337/apogee/compare/v0.2.3...v0.2.4) (2026-10-04)
+
+
+### Fixed
+
+* Add maxlength to llamaModelInput from MODEL_NAME_MAX_CHARS ([#339](https://github.com/darshi1337/apogee/issues/339)) ([1a88d72](https://github.com/darshi1337/apogee/commit/1a88d72535ebfb872fe05c7129268f46299b4a51))
+* Address review on [#383](https://github.com/darshi1337/apogee/issues/383) - helper body test, placement, privacy box ([db7e532](https://github.com/darshi1337/apogee/commit/db7e532aa78e6e800eb23e753eae02477dd9e4fd))
+* Apply focus keyword to discussion summaries ([c9331f3](https://github.com/darshi1337/apogee/commit/c9331f30f51d799660fb42a96f7ec1f13a8afe38))
+* Apply focus keyword to discussion summaries ([8c10805](https://github.com/darshi1337/apogee/commit/8c1080558a567441117d09b82a02f113bb883cd4))
+* **background:** Cancel offscreen stream when relay popup disconnects ([9c04f91](https://github.com/darshi1337/apogee/commit/9c04f913651d1e72b7598257ee1954e59c13dafb))
+* **background:** Cancel offscreen stream when relay popup disconnects ([6645c5f](https://github.com/darshi1337/apogee/commit/6645c5f2c22a441cd3f2b6e832e4c00ddbc3527f))
+* No persisted credentials in contributors sync, use loop var ([e82d41b](https://github.com/darshi1337/apogee/commit/e82d41bb9b6bf92a0adb8551c3b34677757877df))
+* Rebase-and-retry sync pushes to survive bot races ([40ea861](https://github.com/darshi1337/apogee/commit/40ea861ceedcab39948e2b30f999bf159ae98752))
+* Sync contributors wall on every main push, weekly schedule ([cbfe0f5](https://github.com/darshi1337/apogee/commit/cbfe0f5aadffc2b4f4be85f882bd5317f8c025da))
+* **ui:** Pass focusKeyword to cache key functions on restore path ([#391](https://github.com/darshi1337/apogee/issues/391)) ([775d581](https://github.com/darshi1337/apogee/commit/775d581e0a92576a359cc58dbb88c9f7f3a938be))
+* **ui:** Pass focusKeyword to cache key functions on restore path ([#391](https://github.com/darshi1337/apogee/issues/391)) ([5444aa6](https://github.com/darshi1337/apogee/commit/5444aa6ea8b542b39329143383bffdd84b37eb81))
+
 ## [0.2.3](https://github.com/darshi1337/apogee/compare/v0.2.2...v0.2.3) (2026-10-01)
 
 
