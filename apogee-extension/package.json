@@ -32,7 +32,7 @@
     "addons-linter": "^10.13.0",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
-    "globals": "^17.12.0",
+    "globals": "^17.13.0",
     "linkedom": "^0.18.13",
     "prettier": "^3.9.9",
     "vite": "^8.3.2",
