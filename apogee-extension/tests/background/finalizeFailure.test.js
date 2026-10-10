@@ -62,6 +62,16 @@ chrome.notifications = {
 };
 chrome.action = {};
 
+let mockFetchHandler = null;
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async (url, opts) => {
+  if (mockFetchHandler) {
+    const res = await mockFetchHandler(url, opts);
+    if (res !== undefined) return res;
+  }
+  return originalFetch(url, opts);
+};
+
 globalThis.chrome = chrome;
 
 const {
@@ -243,3 +253,58 @@ test("fire-and-forget finalize call sites are awaited with catch handlers (#265)
     "failed finalizes preserve buffered text",
   );
 });
+
+test("runSuggestQuestionsJob passes translationEngine in LLAMACPP branch (#411)", async () => {
+  const { settings: origSettings } = await chrome.storage.local.get("settings");
+  let translatorCalled = false;
+  const { __setTranslatorForTest, disposeTranslatorNow } = await import(
+    "../../lib/engines/transformersEngine.js"
+  );
+
+  try {
+    await chrome.storage.local.set({
+      settings: { ...origSettings, llamaHost: "http://127.0.0.1:8080" },
+    });
+    __setTranslatorForTest(async () => {
+      translatorCalled = true;
+      return [{ translation_text: "1. ¿Qué es esto?" }];
+    }, "Xenova/opus-mt-en-es");
+
+    mockFetchHandler = async (url) => {
+      const urlStr = typeof url === "string" ? url : (url?.url || String(url));
+      if (urlStr.includes("v1/chat/completions")) {
+        const sse = `data: {"choices":[{"delta":{"content":"1. What is this?"}}]}\n\ndata: [DONE]\n\n`;
+        return new Response(sse, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }
+      return new Response("{}");
+    };
+
+    await finalizeSummaryJob({
+      finalize: makeFinalize({
+        promptsCacheKey: "suggested-prompts:llamacpp-unique-key",
+        providerType: "llamacpp",
+        language: "es",
+        translationEngine: "opus",
+      }),
+      model: "test-model",
+      title: "T",
+      url: "https://example.com",
+      text: "Resumen en español",
+    });
+
+    const deadline = Date.now() + 2000;
+    while (!translatorCalled && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    assert.strictEqual(translatorCalled, true, "opus translator was called");
+  } finally {
+    await chrome.storage.local.set({ settings: origSettings });
+    mockFetchHandler = null;
+    disposeTranslatorNow();
+  }
+});
+
+

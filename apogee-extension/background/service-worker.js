@@ -1492,7 +1492,7 @@ async function runSuggestQuestionsJob(payload) {
         questions = await generateLocalSuggestions(
           llamaHost,
           model,
-          { title, url, summary, language },
+          { title, url, summary, language, translationEngine },
           LLAMACPP_PROVIDER,
           llamaApiKey,
         );
