@@ -102,6 +102,7 @@ import {
 } from "../lib/util/ollamaHost.js";
 import {
   broadcastToStream,
+  disconnectStreamPorts,
   safeDisconnect,
   safePost,
 } from "../lib/util/streamBroadcast.js";
@@ -247,6 +248,10 @@ export function takePendingFinalize(jobId, now = Date.now()) {
 
 export const FINALIZE_FAILED_MESSAGE =
   "Couldn't save this summary (storage unavailable). The text above is preserved — try summarizing again.";
+
+const EXPIRED_STREAM_ERROR =
+  "This response is no longer available (its stream expired). " +
+  "Try summarizing again.";
 
 function notifyFinalizeFailure({ finalize, error, streamId }) {
   console.error("Failed to finalize summary:", error);
@@ -470,6 +475,24 @@ function scheduleStreamCleanup(streamId) {
   chrome.alarms.create(`${STREAM_CLEANUP_PREFIX}${streamId}`, {
     delayInMinutes: STREAM_CLEANUP_MINUTES,
   });
+}
+
+function expireStreamForCleanup(streamId) {
+  const stream = activeStreams.get(streamId);
+  if (stream && !stream.done) {
+    // Cleanup alarms run outside finish(), so mark terminal state here.
+    stream.done = true;
+    stream.error = EXPIRED_STREAM_ERROR;
+    stream.errorUserFacing = true;
+    broadcastToStream(stream, {
+      type: "error",
+      error: EXPIRED_STREAM_ERROR,
+      userFacing: true,
+    });
+    disconnectStreamPorts(stream);
+  }
+  activeStreams.delete(streamId);
+  registeredStreamJobs.delete(streamId);
 }
 
 const KEEPALIVE_MS = 20000;
@@ -1745,8 +1768,7 @@ if (typeof chrome !== "undefined" && chrome.alarms?.onAlarm?.addListener) {
     }
     if (alarm.name.startsWith(STREAM_CLEANUP_PREFIX)) {
       const streamId = alarm.name.slice(STREAM_CLEANUP_PREFIX.length);
-      activeStreams.delete(streamId);
-      registeredStreamJobs.delete(streamId);
+      expireStreamForCleanup(streamId);
     }
   });
 }
@@ -1812,9 +1834,7 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onConnect?.addListener) {
     if (!stream) {
       safePost(popupPort, {
         type: "error",
-        error:
-          "This response is no longer available (its stream expired). " +
-          "Try summarizing again.",
+        error: EXPIRED_STREAM_ERROR,
       });
       safeDisconnect(popupPort);
       return;
