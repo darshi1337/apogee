@@ -113,6 +113,11 @@ export async function getPromptsCacheKey(
     focusKeyword,
   );
 }
+// Payload focus keywords are untrusted input: only a real string rides
+// into a cache key, anything else falls back to unscoping (#392).
+export function asFocusKeyword(value) {
+  return typeof value === "string" ? value : "";
+}
 // Single choke point for the prompts key (#392): every caller repeats the
 // same settings-derived preamble, and a key dimension added only at some
 // call sites silently collides at the rest. New dimensions go here.
@@ -134,6 +139,24 @@ export async function getPromptsCacheKeyForSettings(
 }
 export async function getContentCacheKey(url) {
   return `content:${await hashUrl(url)}`;
+}
+// Settings-scoped twin of getSummaryCacheKey: same rationale as
+// getPromptsCacheKeyForSettings above.
+export async function getSummaryCacheKeyForSettings(
+  url,
+  settings,
+  model,
+  focusKeyword = "",
+) {
+  return getSummaryCacheKey(
+    url,
+    settings.responseFormat,
+    model,
+    settings.summaryLanguage,
+    settings.customInstructions,
+    settings.translationEngine,
+    focusKeyword,
+  );
 }
 
 export const MAX_CACHED_PAGES = 50;

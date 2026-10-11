@@ -228,8 +228,8 @@ test("[#391] restoreTabView reuses the gated focus keyword and shared cache keys
   );
   assert.ok(helperMatch, "getSummaryCacheKeys helper found");
   assert.ok(
-    helperMatch[0].includes("getSummaryCacheKey("),
-    "helper computes the summary key",
+    helperMatch[0].includes("getSummaryCacheKeyForSettings("),
+    "helper computes the summary key via the shared settings helper",
   );
   assert.ok(
     helperMatch[0].includes("getPromptsCacheKeyForSettings("),

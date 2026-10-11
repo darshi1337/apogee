@@ -59,7 +59,7 @@ import {
 } from "../lib/storage/viewState.js";
 import {
   hashUrl,
-  getSummaryCacheKey,
+  getSummaryCacheKeyForSettings,
   getPromptsCacheKeyForSettings,
   parseSummaryCacheKey,
   persistContent,
@@ -828,13 +828,10 @@ function getGatedFocusKeyword(pageType) {
 }
 async function getSummaryCacheKeys(url, settings, model, focusKeyword) {
   return {
-    cacheKey: await getSummaryCacheKey(
+    cacheKey: await getSummaryCacheKeyForSettings(
       url,
-      settings.responseFormat,
+      settings,
       model,
-      settings.summaryLanguage,
-      settings.customInstructions,
-      settings.translationEngine,
       focusKeyword,
     ),
     promptsCacheKey: await getPromptsCacheKeyForSettings(
