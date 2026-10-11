@@ -2204,6 +2204,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 settings.summaryLanguage,
                 settings.customInstructions,
                 settings.translationEngine,
+                typeof message.payload?.focusKeyword === "string"
+                  ? message.payload.focusKeyword
+                  : "",
               )
             : message.payload?.promptsCacheKey;
           runSuggestQuestionsJob({

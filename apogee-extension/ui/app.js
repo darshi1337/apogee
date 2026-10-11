@@ -463,6 +463,7 @@ function startSuggestedQuestionsBg(
   { title, url, summary },
   settings,
   persist = true,
+  focusKeyword = "",
 ) {
   currentPromptsCacheKey = promptsCacheKey;
   chrome.runtime
@@ -480,6 +481,7 @@ function startSuggestedQuestionsBg(
         model: getModelForSettings(settings),
         language: settings.summaryLanguage,
         translationEngine: settings.translationEngine,
+        focusKeyword,
       },
     })
     .catch(() => {});
@@ -2471,6 +2473,7 @@ document.addEventListener("DOMContentLoaded", async () => {
               },
               settings,
               await shouldPersist(tab.url),
+              focusKeyword,
             );
           }
           return;
