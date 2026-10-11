@@ -1492,9 +1492,7 @@ async function runSuggestQuestionsJob(payload) {
         providerType === PROVIDERS.LOCAL
       ) {
         const isLlama = providerType === PROVIDERS.LLAMACPP;
-        const { llamaHost, llamaApiKey } = isLlama
-          ? await getSettings()
-          : {};
+        const { llamaHost, llamaApiKey } = isLlama ? await getSettings() : {};
         questions = await generateLocalSuggestions(
           isLlama ? llamaHost : host,
           model,

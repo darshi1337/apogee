@@ -257,9 +257,8 @@ test("fire-and-forget finalize call sites are awaited with catch handlers (#265)
 test("runSuggestQuestionsJob passes translationEngine in LLAMACPP branch (#411)", async () => {
   const { settings: origSettings } = await chrome.storage.local.get("settings");
   let translatorCalled = false;
-  const { __setTranslatorForTest, disposeTranslatorNow } = await import(
-    "../../lib/engines/transformersEngine.js"
-  );
+  const { __setTranslatorForTest, disposeTranslatorNow } =
+    await import("../../lib/engines/transformersEngine.js");
 
   try {
     await chrome.storage.local.set({
@@ -271,7 +270,7 @@ test("runSuggestQuestionsJob passes translationEngine in LLAMACPP branch (#411)"
     }, "Xenova/opus-mt-en-es");
 
     mockFetchHandler = async (url) => {
-      const urlStr = typeof url === "string" ? url : (url?.url || String(url));
+      const urlStr = typeof url === "string" ? url : url?.url || String(url);
       if (urlStr.includes("v1/chat/completions")) {
         const sse = `data: {"choices":[{"delta":{"content":"1. What is this?"}}]}\n\ndata: [DONE]\n\n`;
         return new Response(sse, {
@@ -306,5 +305,3 @@ test("runSuggestQuestionsJob passes translationEngine in LLAMACPP branch (#411)"
     disposeTranslatorNow();
   }
 });
-
-
