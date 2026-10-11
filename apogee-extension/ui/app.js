@@ -60,7 +60,7 @@ import {
 import {
   hashUrl,
   getSummaryCacheKey,
-  getPromptsCacheKey,
+  getPromptsCacheKeyForSettings,
   parseSummaryCacheKey,
   persistContent,
   getCachedContent,
@@ -837,13 +837,10 @@ async function getSummaryCacheKeys(url, settings, model, focusKeyword) {
       settings.translationEngine,
       focusKeyword,
     ),
-    promptsCacheKey: await getPromptsCacheKey(
+    promptsCacheKey: await getPromptsCacheKeyForSettings(
       url,
-      settings.responseFormat,
+      settings,
       model,
-      settings.summaryLanguage,
-      settings.customInstructions,
-      settings.translationEngine,
       focusKeyword,
     ),
   };
@@ -2575,13 +2572,10 @@ async function summarizeCustomContent(title, content, url = "") {
     const sourceUrl = url || "";
     const cacheIdentity = sourceUrl || `local:${await hashUrl(content)}`;
 
-    const promptsCacheKey = await getPromptsCacheKey(
+    const promptsCacheKey = await getPromptsCacheKeyForSettings(
       cacheIdentity,
-      settings.responseFormat,
+      settings,
       model,
-      settings.summaryLanguage,
-      settings.customInstructions,
-      settings.translationEngine,
     );
 
     const { streamId, stream } = await provider.summarize({

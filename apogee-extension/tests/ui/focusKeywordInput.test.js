@@ -232,8 +232,8 @@ test("[#391] restoreTabView reuses the gated focus keyword and shared cache keys
     "helper computes the summary key",
   );
   assert.ok(
-    helperMatch[0].includes("getPromptsCacheKey("),
-    "helper computes the prompts key",
+    helperMatch[0].includes("getPromptsCacheKeyForSettings("),
+    "helper computes the prompts key via the shared settings helper",
   );
 
   const start = appCode.indexOf("async function restoreTabView(");

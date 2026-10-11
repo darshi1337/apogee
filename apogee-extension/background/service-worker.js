@@ -66,7 +66,7 @@ import { initDebugLogging, sanitizeLogMessage } from "../lib/util/log.js";
 import { NotificationTargetManager } from "../lib/util/notificationTargets.js";
 import {
   getSummaryCacheKey,
-  getPromptsCacheKey,
+  getPromptsCacheKeyForSettings,
   hashUrl,
   persistSummaryIfAllowed,
   persistContent,
@@ -359,13 +359,11 @@ async function buildTrustedFinalize(payload) {
     settings.customInstructions,
     settings.translationEngine,
   );
-  const promptsCacheKey = await getPromptsCacheKey(
+  const promptsCacheKey = await getPromptsCacheKeyForSettings(
     cacheUrl,
-    settings.responseFormat,
+    settings,
     model,
-    settings.summaryLanguage,
-    settings.customInstructions,
-    settings.translationEngine,
+    typeof payload.focusKeyword === "string" ? payload.focusKeyword : "",
   );
 
   const persist = isSelection ? false : await shouldPersist(rawUrl);
@@ -1094,13 +1092,10 @@ export async function runBackgroundSummarize(
       settings.customInstructions,
       settings.translationEngine,
     ),
-    promptsCacheKey: await getPromptsCacheKey(
+    promptsCacheKey: await getPromptsCacheKeyForSettings(
       cacheUrl,
-      settings.responseFormat,
+      settings,
       model,
-      settings.summaryLanguage,
-      settings.customInstructions,
-      settings.translationEngine,
     ),
     persist,
     persistUrl: tab.url,
@@ -2197,13 +2192,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             typeof message.payload?.url === "string" ? message.payload.url : "";
           const model = message.payload?.model || getModelForSettings(settings);
           const promptsCacheKey = rawUrl
-            ? await getPromptsCacheKey(
+            ? await getPromptsCacheKeyForSettings(
                 rawUrl,
-                settings.responseFormat,
+                settings,
                 model,
-                settings.summaryLanguage,
-                settings.customInstructions,
-                settings.translationEngine,
                 typeof message.payload?.focusKeyword === "string"
                   ? message.payload.focusKeyword
                   : "",
