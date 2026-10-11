@@ -59,8 +59,8 @@ import {
 } from "../lib/storage/viewState.js";
 import {
   hashUrl,
-  getSummaryCacheKey,
-  getPromptsCacheKey,
+  getSummaryCacheKeyForSettings,
+  getPromptsCacheKeyForSettings,
   parseSummaryCacheKey,
   persistContent,
   getCachedContent,
@@ -463,6 +463,7 @@ function startSuggestedQuestionsBg(
   { title, url, summary },
   settings,
   persist = true,
+  focusKeyword = "",
 ) {
   currentPromptsCacheKey = promptsCacheKey;
   chrome.runtime
@@ -480,6 +481,7 @@ function startSuggestedQuestionsBg(
         model: getModelForSettings(settings),
         language: settings.summaryLanguage,
         translationEngine: settings.translationEngine,
+        focusKeyword,
       },
     })
     .catch(() => {});
@@ -826,22 +828,16 @@ function getGatedFocusKeyword(pageType) {
 }
 async function getSummaryCacheKeys(url, settings, model, focusKeyword) {
   return {
-    cacheKey: await getSummaryCacheKey(
+    cacheKey: await getSummaryCacheKeyForSettings(
       url,
-      settings.responseFormat,
+      settings,
       model,
-      settings.summaryLanguage,
-      settings.customInstructions,
-      settings.translationEngine,
       focusKeyword,
     ),
-    promptsCacheKey: await getPromptsCacheKey(
+    promptsCacheKey: await getPromptsCacheKeyForSettings(
       url,
-      settings.responseFormat,
+      settings,
       model,
-      settings.summaryLanguage,
-      settings.customInstructions,
-      settings.translationEngine,
       focusKeyword,
     ),
   };
@@ -2471,6 +2467,7 @@ document.addEventListener("DOMContentLoaded", async () => {
               },
               settings,
               await shouldPersist(tab.url),
+              focusKeyword,
             );
           }
           return;
@@ -2572,13 +2569,10 @@ async function summarizeCustomContent(title, content, url = "") {
     const sourceUrl = url || "";
     const cacheIdentity = sourceUrl || `local:${await hashUrl(content)}`;
 
-    const promptsCacheKey = await getPromptsCacheKey(
+    const promptsCacheKey = await getPromptsCacheKeyForSettings(
       cacheIdentity,
-      settings.responseFormat,
+      settings,
       model,
-      settings.summaryLanguage,
-      settings.customInstructions,
-      settings.translationEngine,
     );
 
     const { streamId, stream } = await provider.summarize({
