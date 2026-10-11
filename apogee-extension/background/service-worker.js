@@ -1487,23 +1487,19 @@ async function runSuggestQuestionsJob(payload) {
   let suggestStatus = SKIP_LOOKUP_STATUS.EMPTY;
   try {
     try {
-      if (providerType === PROVIDERS.LLAMACPP) {
-        const { llamaHost, llamaApiKey } = await getSettings();
+      if (
+        providerType === PROVIDERS.LLAMACPP ||
+        providerType === PROVIDERS.LOCAL
+      ) {
+        const isLlama = providerType === PROVIDERS.LLAMACPP;
+        const { llamaHost, llamaApiKey } = isLlama ? await getSettings() : {};
         questions = await generateLocalSuggestions(
-          llamaHost,
+          isLlama ? llamaHost : host,
           model,
-          { title, url, summary, language },
-          LLAMACPP_PROVIDER,
-          llamaApiKey,
+          { title, url, summary, language, translationEngine },
+          isLlama ? LLAMACPP_PROVIDER : undefined,
+          isLlama ? llamaApiKey : undefined,
         );
-      } else if (providerType === PROVIDERS.LOCAL) {
-        questions = await generateLocalSuggestions(host, model, {
-          title,
-          url,
-          summary,
-          language,
-          translationEngine,
-        });
       } else if (providerType === PROVIDERS.TRANSFORMERS && !hasOffscreenAPI) {
         questions = await generateTransformersSuggestions(model, {
           title,
