@@ -37,6 +37,7 @@ import {
   withCustomInstructions,
 } from "../lib/summarize/prompts.js";
 import { truncateForPrompt } from "../lib/summarize/chunk.js";
+import { cleanText } from "../lib/summarize/cleaner.js";
 import { createSummarizeProgressTracker } from "../lib/summarize/progress.js";
 import { STREAM_CLEANUP_MS } from "../lib/util/streamExpiry.js";
 import { mapReduceStream } from "../lib/summarize/mapReduce.js";
@@ -1175,6 +1176,75 @@ export async function runBackgroundSummarize(
     });
     if (resp?.error) throw new Error(resp.error);
   }
+}
+
+// #414: extract-only — run the full extraction pipeline (including PDF text)
+// without touching any model, stream, or finalize path.
+export async function runExtractOnly(tab) {
+  let targetTab = tab;
+  if (!targetTab && typeof chrome !== "undefined" && chrome.tabs?.query) {
+    const [active] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    targetTab = active;
+  }
+  if (!targetTab) {
+    throw new UserFacingError(COULD_NOT_READ_THIS_PAGE_ERROR_MSG);
+  }
+
+  const selection = normalizeSelectedText();
+  const isSelection = selection.length > 0;
+
+  let pageData;
+  if (isSelection) {
+    pageData = {
+      title: targetTab.title || "Selected text",
+      url: targetTab.url,
+      content: selection,
+      type: "generic",
+      isPdf: false,
+    };
+  } else {
+    pageData = await extractFromActiveTab(targetTab);
+    if (!pageData) {
+      throw new UserFacingError(COULD_NOT_READ_THIS_PAGE_ERROR_MSG);
+    }
+    if (!pageData.isPdf && !pageData.content) {
+      throw new UserFacingError(NOTHING_TO_SUMMARIZE_ERROR_MSG);
+    }
+  }
+
+  let content = pageData.content;
+  if (pageData.isPdf && !content) {
+    try {
+      content = await extractPdfContent(targetTab);
+    } catch (err) {
+      const msg = err?.message || String(err);
+      if (msg.startsWith("PDF_TOO_LARGE:")) {
+        throw new UserFacingError(
+          "This PDF is too large to process inside the extension. Try a shorter document.",
+        );
+      }
+      throw err;
+    }
+    if (!content) {
+      throw new UserFacingError(COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG);
+    }
+  }
+
+  const cleaned = cleanText(content || "");
+  if (!cleaned) {
+    throw new UserFacingError(NOTHING_TO_SUMMARIZE_ERROR_MSG);
+  }
+
+  return {
+    content: cleaned,
+    title: pageData.title,
+    url: pageData.url,
+    type: pageData.type,
+    isPdf: pageData.isPdf,
+  };
 }
 
 function notifyJobFailed(err) {
@@ -2323,6 +2393,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
           const res = await summarizeMultiTab(targetTabs || []);
           sendResponse(res || { error: "Could not summarize selected tabs." });
+          break;
+        }
+
+        case "extract-only": {
+          const res = await runExtractOnly(message.payload?.tab);
+          sendResponse(res);
           break;
         }
 

@@ -99,7 +99,7 @@ import {
   NOTHING_TO_SUMMARIZE_ERROR_MSG,
   COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG,
 } from "../lib/util/messages.js";
-import { applyI18nToDom } from "../lib/util/i18n.js";
+import { t, applyI18nToDom } from "../lib/util/i18n.js";
 import { safeDisconnect } from "../lib/util/streamBroadcast.js";
 import { tryParseUrl } from "../lib/util/url.js";
 import { createAnnouncer, handleTrapTabKey } from "../lib/util/a11y.js";
@@ -238,6 +238,7 @@ function setSidePanelButtons({ panelOpen, available }) {
 
 const summarizeBtn = document.getElementById("summarizeBtn");
 const summarizeSelectionBtn = document.getElementById("summarizeSelectionBtn");
+const extractTextBtn = document.getElementById("extractTextBtn");
 const summarizeShortcutHint = document.getElementById("summarizeShortcutHint");
 const focusKeywordInput = document.getElementById("focusKeywordInput");
 const summaryText = document.getElementById("summaryText");
@@ -1416,12 +1417,12 @@ function setSummaryCopyButtonsVisible(hasText) {
 }
 
 async function copyToClipboard(text, btn) {
-  if (!text || !btn) return;
+  if (!text || !btn) return false;
   try {
     await navigator.clipboard.writeText(text);
   } catch (err) {
     console.error("Copy to clipboard failed:", err);
-    return;
+    return false;
   }
   announce("Copied to clipboard.");
   const original = btn.innerHTML;
@@ -1430,6 +1431,7 @@ async function copyToClipboard(text, btn) {
   btn._copyResetTimer = setTimeout(() => {
     btn.innerHTML = original;
   }, 1500);
+  return true;
 }
 
 // Shared download step for the single and bulk JSON exports.
@@ -1774,6 +1776,47 @@ async function consumeSummaryStream(stream, { tab, promptsCacheKey, jobId }) {
     );
   }
   return text;
+}
+
+async function extractAndCopyPage() {
+  showOnlyView("summaryView");
+  showSummarizingContext();
+  setLoadingIndicator(summaryText, t("extracting"));
+
+  try {
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    await ensureTabUrl(tab);
+
+    const result = await chrome.runtime.sendMessage({
+      target: "service-worker",
+      action: "extract-only",
+      payload: { tab },
+    });
+    if (result?.error) {
+      renderError(summaryText, result.error);
+      return;
+    }
+
+    const content = result?.content || "";
+    summaryText.textContent = content;
+    currentSummaryText = content;
+    currentPageData = result;
+
+    setSummaryCopyButtonsVisible(!!content.trim());
+    updateExtractorChip(result);
+    announce(t("textExtracted"));
+
+    const copied = await copyToClipboard(content, copyMarkdownBtn);
+    if (!copied) {
+      setTimeSavedBadgeLabel(t("pressCopyHint"));
+      announce(t("textExtractedPressCopy"));
+    }
+  } catch (error) {
+    renderError(summaryText, toUserMessage(error));
+  }
 }
 
 async function summarizeActivePage() {
@@ -2501,6 +2544,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 summarizeBtn?.addEventListener("click", () => summarizeActivePage());
+extractTextBtn?.addEventListener("click", () => extractAndCopyPage());
 
 summarizeSelectionBtn?.addEventListener("click", async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
