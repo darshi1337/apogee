@@ -5,6 +5,8 @@ import { readSource } from "../helpers/readSource.js";
 import {
   createSlidingExpiry,
   STREAM_CLEANUP_MS,
+  MIN_ALARM_DELAY_MINUTES,
+  msToAlarmMinutes,
 } from "../../lib/util/streamExpiry.js";
 
 // Issue #314: a fixed 2-min cleanup expired long map-reduce summaries
@@ -14,6 +16,10 @@ import {
 
 test("expiry window constant stays at 2 minutes", () => {
   assert.strictEqual(STREAM_CLEANUP_MS, 2 * 60 * 1000);
+});
+
+test("minimum alarm delay constant is 0.5 minutes", () => {
+  assert.strictEqual(MIN_ALARM_DELAY_MINUTES, 0.5);
 });
 
 test("idle stream is reclaimed after the window", (t) => {
@@ -205,5 +211,78 @@ test("shared chunk helper heartbeats on every accepted chunk", () => {
     helperBody.includes("broadcastToStream(stream,") &&
       helperBody.includes("scheduleCleanup()"),
     "shared chunk path broadcasts and reschedules cleanup (heartbeat)",
+  );
+});
+
+test("msToAlarmMinutes converts milliseconds above minimum without warning", () => {
+  let warned = false;
+  const result = msToAlarmMinutes(120_000, {
+    warn: () => {
+      warned = true;
+    },
+  });
+  assert.strictEqual(result, 2);
+  assert.strictEqual(warned, false);
+});
+
+test("msToAlarmMinutes allows exact minimum boundary without warning", () => {
+  let warned = false;
+  const result = msToAlarmMinutes(30_000, {
+    warn: () => {
+      warned = true;
+    },
+  });
+  assert.strictEqual(result, 0.5);
+  assert.strictEqual(warned, false);
+});
+
+test("msToAlarmMinutes clamps below-minimum delays and logs a warning", () => {
+  const warnings = [];
+  const result = msToAlarmMinutes(10_000, {
+    warn: (msg) => warnings.push(msg),
+  });
+  assert.strictEqual(result, 0.5);
+  assert.strictEqual(warnings.length, 1);
+  assert.match(warnings[0], /below the minimum alarm delay/);
+});
+
+test("msToAlarmMinutes clamps zero and negative delays and logs a warning", () => {
+  const warnings = [];
+  const warn = (msg) => warnings.push(msg);
+  assert.strictEqual(msToAlarmMinutes(0, { warn }), 0.5);
+  assert.strictEqual(msToAlarmMinutes(-5000, { warn }), 0.5);
+  assert.strictEqual(warnings.length, 2);
+});
+
+test("msToAlarmMinutes treats non-finite or non-number inputs (NaN, Infinity, string, undefined, null) as below-minimum", () => {
+  const warnings = [];
+  const warn = (msg) => warnings.push(msg);
+  assert.strictEqual(msToAlarmMinutes(NaN, { warn }), 0.5);
+  assert.strictEqual(msToAlarmMinutes(Infinity, { warn }), 0.5);
+  assert.strictEqual(msToAlarmMinutes(-Infinity, { warn }), 0.5);
+  assert.strictEqual(msToAlarmMinutes("30000", { warn }), 0.5);
+  assert.strictEqual(msToAlarmMinutes(undefined, { warn }), 0.5);
+  assert.strictEqual(msToAlarmMinutes(null, { warn }), 0.5);
+  assert.strictEqual(warnings.length, 6);
+});
+
+test("msToAlarmMinutes supports custom minMinutes option", () => {
+  const warnings = [];
+  const result = msToAlarmMinutes(45_000, {
+    minMinutes: 1.0,
+    warn: (msg) => warnings.push(msg),
+  });
+  assert.strictEqual(result, 1.0);
+  assert.strictEqual(warnings.length, 1);
+});
+
+test("service worker derives STREAM_CLEANUP_MINUTES via msToAlarmMinutes", () => {
+  const code = readSource(
+    "../../background/service-worker.js",
+    import.meta.url,
+  );
+  assert.ok(
+    code.includes("msToAlarmMinutes(STREAM_CLEANUP_MS)"),
+    "STREAM_CLEANUP_MINUTES matches msToAlarmMinutes(STREAM_CLEANUP_MS)",
   );
 });

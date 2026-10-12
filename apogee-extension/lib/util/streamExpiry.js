@@ -10,6 +10,22 @@
 // chrome.alarms (re-creating an alarm overwrites it).
 
 export const STREAM_CLEANUP_MS = 2 * 60 * 1000;
+export const MIN_ALARM_DELAY_MINUTES = 0.5;
+
+export function msToAlarmMinutes(
+  ms,
+  { minMinutes = MIN_ALARM_DELAY_MINUTES, warn = console.warn } = {},
+) {
+  const isFiniteNumber = typeof ms === "number" && Number.isFinite(ms);
+  const minutes = isFiniteNumber ? ms / (60 * 1000) : NaN;
+  if (!isFiniteNumber || minutes < minMinutes) {
+    warn?.(
+      `[apogee] Stream cleanup delay of ${ms}ms (${minutes} min) is below the minimum alarm delay of ${minMinutes} min; clamping to ${minMinutes} min.`,
+    );
+    return minMinutes;
+  }
+  return minutes;
+}
 
 export function createSlidingExpiry({
   timeoutMs = STREAM_CLEANUP_MS,

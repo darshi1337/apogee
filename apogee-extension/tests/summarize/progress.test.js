@@ -104,7 +104,9 @@ test("cleanup window is defined once and shared", () => {
     import.meta.url,
   );
   assert.ok(
-    worker.includes('STREAM_CLEANUP_MS } from "../lib/util/streamExpiry.js"'),
+    /STREAM_CLEANUP_MS,?\s*\}\s*from\s*"\.\.\/lib\/util\/streamExpiry\.js"/.test(
+      worker,
+    ),
     "worker derives its alarm window from the shared constant",
   );
   assert.ok(
