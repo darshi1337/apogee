@@ -1811,6 +1811,9 @@ async function extractAndCopyPage() {
 
     const copied = await copyToClipboard(content, copyMarkdownBtn);
     if (!copied) {
+      // Reuse the time-saved badge slot: auto-copy can fail when the
+      // user-activation window expires on slow pages/PDFs, and this is the
+      // only visible badge in the summary view.
       setTimeSavedBadgeLabel(t("pressCopyHint"));
       announce(t("textExtractedPressCopy"));
     }
