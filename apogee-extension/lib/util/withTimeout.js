@@ -1,12 +1,5 @@
-/**
- * Race a promise against a timeout, clearing the timer either way.
- *
- * @param {Promise<*>} promise work to wait for.
- * @param {number} ms timeout in milliseconds.
- * @param {{ onTimeout?: () => * }} [opts] fallback invoked on timeout. When
- * omitted, the race rejects with a generic timeout error.
- * @returns the inner promise value, or the `onTimeout()` return on timeout.
- */
+// Race a promise against a timeout, clearing the timer either way.
+// Falls back to `onTimeout()` on timeout, else rejects.
 export function withTimeout(promise, ms, { onTimeout } = {}) {
   let timer;
   const timeout = new Promise((resolve, reject) => {
@@ -28,13 +21,7 @@ export function withTimeout(promise, ms, { onTimeout } = {}) {
   );
 }
 
-/**
- * Linear backoff for download/load retries: longer wait on each attempt.
- *
- * @param {number} baseMs base delay per attempt.
- * @param {number} attempt 1-based attempt count.
- * @returns delay in milliseconds.
- */
+// Linear backoff for download retries: longer wait on each attempt.
 export function retryDelayForAttempt(baseMs, attempt) {
   return baseMs * attempt;
 }

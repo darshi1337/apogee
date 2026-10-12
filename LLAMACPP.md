@@ -1,12 +1,12 @@
 # Local llama.cpp Setup Guide
 
-Local llama.cpp mode links Apogee straight to a `llama-server` instance running on your machine. It fits people who already run `llama.cpp` themselves. No wrapper sits around it. Your sampling flags stay. Point it at any GGUF.
+Local llama.cpp mode links Apogee directly to a `llama-server` instance on your machine. It fits people who already run `llama.cpp` themselves. No wrapper sits around it. Your sampling flags stay. Point it at any GGUF.
 
-If you would rather not manage a server at all, [Local Ollama](OLLAMA.md) does the same job. It brings built-in model management. Both talk to your own machine over loopback and neither sends page content anywhere.
+If you prefer no server management at all, [Local Ollama](OLLAMA.md) does the same job. It includes built-in model management. Both talk to your own machine over loopback and neither sends page content elsewhere.
 
 ## How It Works
 
-Apogee talks to `llama-server` over local HTTP (`http://127.0.0.1:8080` by default) using its OpenAI-compatible `/v1/chat/completions` endpoint. No middle service sits between.
+Apogee talks to `llama-server` over local HTTP (`http://127.0.0.1:8080` by default) through its OpenAI-compatible `/v1/chat/completions` endpoint. No middle service sits between.
 
 Unlike Ollama, `llama-server` serves exactly one model: the GGUF you launched it with. Apogee reads which one that is instead of asking you to pick from a list.
 
@@ -48,7 +48,7 @@ The status line under the model name tells you where you stand:
 | --- | --- |
 | Detected from the server, N token context | Linked, and Apogee knows the running context window |
 | N models available | A proxy in front of `llama-server` serves several |
-| Connected, but the model could not be read. Check the API key | The server is up, but `/v1/models` refused. Often a missing or wrong API key causes this |
+| Connected, but Apogee could not read the model. Check the API key | The server is up, but `/v1/models` refused. Often a missing or wrong API key causes this |
 | Not connected | Nothing answered on that address |
 
 ## The Model Field
@@ -77,7 +77,7 @@ If neither endpoint reports a window (you can turn `/props` off server-side), Ap
 
 ## CORS
 
-Nothing to set up. `llama-server` handles CORS itself. It reflects the asking origin and answers preflight requests. Apogee reaches it with no flags or env vars. This differs from Ollama, which needs its origin check worked around.
+Nothing to set up. `llama-server` handles CORS itself. It reflects the asking origin and answers preflight requests. Apogee reaches it with no flags and no env vars. This differs from Ollama, which needs its origin check worked around.
 
 ## API Key
 
@@ -118,7 +118,7 @@ Any instruction-tuned GGUF works. Pick a size your RAM or VRAM can hold.
 
 **"Could not connect to llama.cpp at ..."**: the server is not running, or it uses a different port. Check its terminal. Then `curl http://127.0.0.1:8080/health`. It returns `{"status":"ok"}` on a live server.
 
-**Linked, but no model name**: `/v1/models` refused. With an API key set on the server, check the key in Settings matches.
+**Linked, but no model name**: `/v1/models` refused. With an API key set on the server, check that the key in Settings matches.
 
 **"Disallowed llama.cpp host"**: the address is not a loopback address (`127.0.0.1`, `localhost`, or `[::1]`). Apogee refuses remote servers, so page text stays on your machine. To use one on another machine, forward its port first: `ssh -L 8080:localhost:8080 user@host`.
 

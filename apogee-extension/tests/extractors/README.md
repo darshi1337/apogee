@@ -52,7 +52,7 @@ const result = extractHackerNews();
 
 Options:
 
-- **`files`** - paths under `content/`, in the same order `lib/extract/pageExtraction.js` injects them. Order matters: `thread.js` holds the helpers the discussion extractors call, so it goes first. `video.js` holds the video helpers, so it goes before `youtube.js` and `bilibili.js`.
+- **`files`** - paths under `content/`, in the same order `lib/extract/pageExtraction.js` injects them. Order matters. The `thread.js` file holds the helpers for discussion extractors, so it goes first. The `video.js` file holds the video helpers, so it goes before `youtube.js` and `bilibili.js`.
 
 - **`url`** - what the extractor sees as `location`. Most extractors branch on the path. `extractHackerNews` stops unless it sees `/item`. Use a realistic URL for the page your fixture came from.
 

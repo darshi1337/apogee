@@ -2,7 +2,7 @@
 
 This file lists each message Apogee can show you. It states what each message means. It states what to do about it. Rows group by pipeline stage.
 
-You do not have to find your message by hand. Each failure the popup shows carries a "What does this mean?" link. The link opens this file at the right part. Clicking a failure note opens it too. Note bodies end with "Click to see what this means."
+You do not have to find your message by hand. Each popup failure carries a "What does this mean?" link. The link opens this file at the right part. Clicking a failure note opens it too. Note bodies end with "Click to see what this means."
 
 Read this first:
 
@@ -116,7 +116,7 @@ These read like warnings but nothing has gone wrong.
 
 ## Internal
 
-These should never reach the UI. If one does, it is a bug worth reporting with the steps that made it.
+These should never reach the UI. If one does, report it as a bug with the steps that made it.
 
 | Error message | Meaning |
 | --- | --- |

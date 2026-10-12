@@ -15,7 +15,7 @@ export async function initDebugLogging() {
     const { settings } = await chrome.storage.local.get("settings");
     setDebugLogging(settings?.debugLogs === true);
   } catch {
-    // intent: default to debug logging off if settings unreadable
+    // Keep debug logging off when settings cannot be read.
   }
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local" || !changes.settings) return;
@@ -25,9 +25,9 @@ export async function initDebugLogging() {
 
 const MAX_LOG_MESSAGE_LENGTH = 500;
 
-// True when an `extra` / log key names a credential. CamelCase, snake_case,
-// kebab-case and dotted forms are normalized to words first, so bare `auth`
-// matches `myAuth` / `my-auth` but not `author`.
+// A key names a credential when its words match the allow-list below.
+// CamelCase, snake_case, kebab-case and dotted forms are split first,
+// so bare `auth` matches `myAuth` but not `author`.
 export function isSensitiveCredentialKey(key) {
   const normalized = String(key ?? "")
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -44,7 +44,6 @@ export function isSensitiveCredentialKey(key) {
 export function sanitizeLogMessage(message, maxLen = MAX_LOG_MESSAGE_LENGTH) {
   let str = String(message ?? "");
 
-  // 1. Redact Authorization Bearer tokens & secret/API keys, including JSON/YAML-style forms.
   str = str.replace(
     /Bearer\s+[a-zA-Z0-9._~+/-]+=*/gi,
     "Bearer [redacted-token]",
@@ -57,17 +56,14 @@ export function sanitizeLogMessage(message, maxLen = MAX_LOG_MESSAGE_LENGTH) {
     },
   );
 
-  // 2. Redact data: and blob: URLs
   str = str.replace(
     /data:[a-zA-Z0-9-]+\/[a-zA-Z0-9-+.]+;base64,[^\s"'<>()]+/gi,
     "data:[redacted-data-url]",
   );
   str = str.replace(/blob:[^\s"'<>()]+/gi, "blob:[redacted-blob-url]");
 
-  // 3. Redact file: URLs
   str = str.replace(/file:\/\/[^\s"'<>()]+/gi, "file://[redacted-file-url]");
 
-  // 4. Redact http / https URLs (credentials, query parameters, sensitive domains)
   str = str.replace(/https?:\/\/[^\s"'<>()]+/gi, (urlMatch) => {
     if (isSensitiveUrl(urlMatch)) {
       return "[redacted-sensitive-url]";
@@ -81,7 +77,6 @@ export function sanitizeLogMessage(message, maxLen = MAX_LOG_MESSAGE_LENGTH) {
     return sanitizedUrl;
   });
 
-  // 5. Truncate if length exceeds maxLen
   if (str.length > maxLen) {
     str = str.slice(0, maxLen) + "... [truncated]";
   }

@@ -1,10 +1,10 @@
 # Apogee Model Reference
 
-Apogee gives you full control over how AI models run on your machine. Pick between hardware-accelerated WebGPU in your browser, light WebAssembly for CPU use, or your own Local Ollama instance or llama-server.
+Apogee lets you choose how AI models run on your machine. Use WebGPU in your browser for speed, WebAssembly for CPU use, or your own local Ollama instance or llama-server.
 
 ## Provider Overview
 
-The table below sums up the main technical differences between the four supported AI provider engines in Apogee.
+The table below sums up the main technical differences between the four AI provider engines in Apogee.
 
 | Provider | Runtime Engine | Internet Dependency | Model Size Range | Recommended Hardware Target |
 | --- | --- | --- | --- | --- |
@@ -15,7 +15,7 @@ The table below sums up the main technical differences between the four supporte
 
 ## WebLLM GPU Models
 
-WebLLM runs compact open weights straight on your graphics card through WebGPU. On Chrome, Edge, Brave, Dia, Vivaldi, and Opera, WebLLM is the default provider.
+WebLLM runs compact open weights directly on your graphics card through WebGPU. On Chrome, Edge, Brave, Dia, Vivaldi, and Opera, WebLLM is the default provider.
 
 | Model | Download Size | Best Suited For | Technical Notes |
 | --- | --- | --- | --- |
@@ -26,7 +26,7 @@ WebLLM runs compact open weights straight on your graphics card through WebGPU. 
 
 ## Transformers.js WebAssembly Models
 
-Transformers.js runs ONNX models on CPU through WebAssembly. On Firefox, where WebExtensions lack offscreen document WebGPU support, Transformers.js runs straight in the background page. It is the default provider there. It is also an opt-in provider on Chromium browsers for machines without WebGPU.
+Transformers.js runs ONNX models on CPU through WebAssembly. On Firefox, WebExtensions lack offscreen document WebGPU support, so Transformers.js runs directly in the background page. It is the default provider there. It is also an opt-in provider on Chromium browsers for machines without WebGPU.
 
 | Model | Download Size | Best Suited For | Technical Notes |
 | --- | --- | --- | --- |
@@ -34,7 +34,7 @@ Transformers.js runs ONNX models on CPU through WebAssembly. On Firefox, where W
 | Qwen 2.5 0.5B | ~480 MB | Multilingual CPU summarization | Compact multilingual use on WASM |
 | Llama 3.2 1B | ~1.2 GB | Deeper reasoning on modern CPUs | Suited for faster desktop CPUs |
 
-Transformers.js caps context windows at 4096 tokens to keep generation fast on CPU. The WASM runtime ships bundled straight inside the extension package without loading code from outside CDNs.
+Transformers.js caps context windows at 4096 tokens to keep generation fast on CPU. The WASM runtime ships bundled directly inside the extension package. It loads no code from outside CDNs.
 
 ## Local Ollama Recommended Models
 

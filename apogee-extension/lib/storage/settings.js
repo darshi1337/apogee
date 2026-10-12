@@ -9,15 +9,13 @@ const PROVIDER_VALUES = new Set(Object.values(PROVIDERS));
 
 function sanitizeSettings(settings) {
   const clean = { ...settings };
-  // A corrupted store must not flip the provider or loopback hosts: unknown
-  // providers fall back to the default, and hosts go through the same shared
-  // validator the service worker enforces at request time.
+  // Corrupted stores must not flip provider or hosts: fall back to
+  // defaults and revalidate through the shared loopback validator.
   if (!PROVIDER_VALUES.has(clean.provider)) {
     clean.provider = DEFAULT_SETTINGS.provider;
   }
-  // An unknown WebLLM model id would make the offscreen engine fetch config
-  // from the remote CDN instead of the bundled libs, so reset it to the
-  // default rather than passing it through.
+  // Unknown model ids would fetch config from the remote CDN, so reset
+  // to the default instead of passing them through.
   if (!isKnownWebLLMModelId(clean.webllmModel)) {
     clean.webllmModel = DEFAULT_SETTINGS.webllmModel;
   }

@@ -27,18 +27,16 @@ function base64ToBytes(base64) {
   return bytes;
 }
 
-/**
- * Parse PDF text straight from bytes (#267). The popup upload path used to
- * hold arrayBuffer + binary string + base64 concurrently and then decode the
- * base64 back to bytes inside pdf.js — ~3x the file in memory. Callers that
- * already have bytes use this and skip both transient strings entirely.
- *
- * options.maxChars bounds the *expanded* text: once a page pushes past it,
- * parsing stops early (remaining pages are never read) and the result carries
- * the user-visible truncation note. The MAX_PDF_TEXT_CHARS backstop still
- * throws on pathological inflation. Defaults preserve the legacy behavior
- * (service-worker tab path), which caps only via the backstop.
- */
+// Parse PDF text straight from bytes (#267). The popup upload path used to
+// hold arrayBuffer + binary string + base64 concurrently and then decode the
+// base64 back to bytes inside pdf.js — ~3x the file in memory. Callers that
+// already have bytes use this and skip both transient strings entirely.
+//
+// options.maxChars bounds the *expanded* text: once a page pushes past it,
+// parsing stops early (remaining pages are never read) and the result carries
+// the user-visible truncation note. The MAX_PDF_TEXT_CHARS backstop still
+// throws on pathological inflation. Defaults preserve the legacy behavior
+// (service-worker tab path), which caps only via the backstop.
 export async function extractPdfTextFromBytes(
   bytes,
   { maxChars = Infinity, label = "PDF" } = {},
@@ -100,11 +98,9 @@ export async function extractPdfText(pdfBase64) {
   return text;
 }
 
-/**
- * Append one page's text to the running extraction, enforcing the text
- * accumulation ceiling so pathological content-stream inflation inside the
- * parser cannot turn the result string itself into the OOM vector.
- */
+// Append one page's text to the running extraction, enforcing the text
+// accumulation ceiling so pathological content-stream inflation inside the
+// parser cannot turn the result string itself into the OOM vector.
 export function appendPdfText(text, addition) {
   const next = text + addition;
   if (next.length > MAX_PDF_TEXT_CHARS) {

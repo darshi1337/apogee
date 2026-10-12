@@ -33,8 +33,7 @@ export function formatSummaryAsJSON(item) {
   return JSON.stringify(normalizeSummaryItem(item), null, 2);
 }
 
-// Shared shape for single and bulk JSON exports so the two stay
-// interchangeable. Not exported: reach it through the formatters.
+// One shared shape for single and bulk JSON exports.
 function normalizeSummaryItem(item) {
   return {
     title: item?.title || "",
@@ -49,7 +48,6 @@ function normalizeSummaryItem(item) {
   };
 }
 
-// Bulk export: one JSON file holding every past summary in cacheOrder.
 export function formatSummariesBulkAsJSON(summaries) {
   const items = (Array.isArray(summaries) ? summaries : []).map((item) =>
     normalizeSummaryItem(item ?? {}),
@@ -57,10 +55,8 @@ export function formatSummariesBulkAsJSON(summaries) {
   return JSON.stringify(items, null, 2) + "\n";
 }
 
-// Page titles can contain characters that are illegal in file names
-// (e.g. `/`, `\`, `:`) or that browsers interpret as paths. Strip those,
-// collapse whitespace, and fall back to "summary" so the JSON download
-// always gets a safe, single-segment file name.
+// Titles can hold path characters or whitespace, so strip them down to a
+// safe single-segment download name, falling back to "summary".
 export function safeExportFilename(title, fallback = "summary") {
   const cleaned = String(title || "")
     // eslint-disable-next-line no-control-regex

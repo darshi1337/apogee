@@ -111,14 +111,12 @@ export function appendStreamTextCapped(current, addition) {
 // encoded independently without corrupting boundary bytes.
 export const BASE64_SLICE_BYTES = 0x9000;
 
-/**
- * Encode bytes to base64 one slice at a time (#267). The naive
- * binary-string-then-btoa pattern holds the input bytes, a full-size binary
- * string, and the full base64 output concurrently (~3x a 50 MB upload in
- * UTF-16 strings). Here only the input, the growing output, and one 36 KiB
- * slice are live at once; each slice's binary string is released per
- * iteration.
- */
+// Encode bytes to base64 one slice at a time (#267). The naive
+// binary-string-then-btoa pattern holds the input bytes, a full-size binary
+// string, and the full base64 output concurrently (~3x a 50 MB upload in
+// UTF-16 strings). Here only the input, the growing output, and one 36 KiB
+// slice are live at once; each slice's binary string is released per
+// iteration.
 export function bytesToBase64(bytes) {
   let out = "";
   for (let i = 0; i < bytes.length; i += BASE64_SLICE_BYTES) {
@@ -133,11 +131,9 @@ export function bytesToBase64(bytes) {
   return out;
 }
 
-/**
- * Best-effort stream-reader teardown shared by readTextHead below and the
- * DOCX inflator: cancel/release throw when the reader already closed, and
- * both call sites want to ignore exactly that.
- */
+// Best-effort stream-reader teardown shared by readTextHead below and the
+// DOCX inflator: cancel/release throw when the reader already closed, and
+// both call sites want to ignore exactly that.
 export async function cancelReader(reader) {
   try {
     await reader.cancel();
@@ -154,15 +150,13 @@ export function releaseReaderLock(reader) {
   }
 }
 
-/**
- * Read at most maxChars+1 characters of a user-supplied file (#267).
- * file.text() on a 50 MB upload materializes the whole string before the
- * caller can truncate it; streaming slices through a TextDecoder and
- * cancelling past the cap keeps peak memory proportional to the cap, not the
- * file. Returns { text, truncated } with the same note convention as
- * truncatePastedText. UTF-8 note: every character costs >= 1 byte, so a file
- * whose byte size fits the cap cannot exceed it and is read whole.
- */
+// Read at most maxChars+1 characters of a user-supplied file (#267).
+// file.text() on a 50 MB upload materializes the whole string before the
+// caller can truncate it; streaming slices through a TextDecoder and
+// cancelling past the cap keeps peak memory proportional to the cap, not the
+// file. Returns { text, truncated } with the same note convention as
+// truncatePastedText. UTF-8 note: every character costs >= 1 byte, so a file
+// whose byte size fits the cap cannot exceed it and is read whole.
 export async function readTextHead(file, maxChars = MAX_PASTED_CHARS) {
   if (
     typeof file.size === "number" &&

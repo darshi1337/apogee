@@ -2,7 +2,7 @@
 
 ## Our Pledge
 
-We, as members, contributors, and leaders, promise to make our community a safe place for everyone. This means no one will experience harassment because of their age, size, disability, ethnicity, sex, gender identity, experience, education, financial status, nationality, appearance, race, caste, color, religion, or sexual orientation.
+We, as members, contributors, and leaders, promise a safe community for all. No one will face harassment for age, size, disability, ethnicity, sex, gender identity, experience, or education. The same rule covers financial status, nationality, appearance, race, caste, color, religion, and sexual orientation.
 
 We agree to act and speak in ways that make our community open, welcoming, diverse, inclusive, and healthy.
 
@@ -72,9 +72,9 @@ Here is how we handle problems:
 
 ## Attribution
 
-This Code of Conduct is based on the [Contributor Covenant][homepage], version 2.1. Find it at https://www.contributor-covenant.org/version/2/1/code_of_conduct.html.
+The [Contributor Covenant][homepage], version 2.1, gives the base for this Code of Conduct. Find it at https://www.contributor-covenant.org/version/2/1/code_of_conduct.html.
 
-Our guidelines were inspired by [Mozilla's code of conduct enforcement ladder][mozilla].
+[Mozilla's code of conduct enforcement ladder][mozilla] inspired our guidelines.
 
 For questions about this Code of Conduct, see the FAQ at https://www.contributor-covenant.org/faq. Translations are available at https://www.contributor-covenant.org/translations.
 

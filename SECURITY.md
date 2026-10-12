@@ -54,4 +54,4 @@ Please **do** report a mismatch between what the docs promise and what the code 
 
 ## Supported Versions
 
-Only the latest released version gets fixes. Apogee ships through the Chrome Web Store and Firefox Add-ons. Both stores auto-update. “Upgrade to the current version” is the remedy for reports against an older version.
+Only the latest released version gets fixes. Apogee ships through the Chrome Web Store and Firefox Add-ons. Both stores auto-update. "Upgrade to the current version" is the remedy for reports against an older version.

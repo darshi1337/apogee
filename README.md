@@ -14,7 +14,7 @@ A private AI summarizer in your browser for articles, videos, PDFs, DOCX files, 
 
 [![PRs Welcome](.github/assets/badge-prs-welcome.svg)](CONTRIBUTING.md) [![Good first issues](.github/assets/badge-good-first-issues.svg)](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) [![First-timers-only](.github/assets/badge-first-timers-only.svg)](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3Afirst-timers-only) [![Help wanted](.github/assets/badge-help-wanted.svg)](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) [![Contributors](.github/assets/badge-contributors.svg)](https://github.com/darshi1337/apogee/graphs/contributors)
 
-<sub>An offline-first browser extension that respects privacy, built with care by <a href="https://github.com/darshi1337">darshi1337</a> and <a href="https://github.com/darshi1337/apogee/graphs/contributors">contributors</a></sub>
+<sub>An offline-first browser extension that respects privacy, by <a href="https://github.com/darshi1337">darshi1337</a> and <a href="https://github.com/darshi1337/apogee/graphs/contributors">contributors</a></sub>
 
 </div>
 
@@ -89,7 +89,7 @@ The table below compares Apogee with common cloud-based AI extensions and the di
 
 - **Custom Standing Instructions**: Set your own prompt guidance such as simple explanations or technical summaries.
 
-- **Per-Page Focus Keywords**: Enter an optional topic or keyword (up to 200 characters) in the **Focus on... (optional)** field (located below the response format selector in the home view) before summarizing articles, PDFs, DOCX files, or pasted text to steer emphasis toward specific themes without inventing facts. The input is hidden on video, discussion (Hacker News, Reddit, Stack Overflow), and multi-tab pages.
+- **Per-Page Focus Keywords**: Enter an optional topic or keyword (up to 200 characters) in the **Focus on... (optional)** field. Find the field below the response format selector in the home view. Use it before you summarize articles, PDFs, DOCX files, or pasted text. It steers emphasis toward specific themes without inventing facts. The input stays hidden on video, discussion (Hacker News, Reddit, Stack Overflow), and multi-tab pages.
 
 - **Multi-Language Translation**: Summarize pages into 32 target languages with the default Helsinki-NLP Opus-MT engine or direct LLM translation.
 

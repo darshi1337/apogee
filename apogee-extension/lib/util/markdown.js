@@ -1,14 +1,6 @@
-/**
- * Minimal Markdown-to-HTML renderer for model output and cached summaries.
- *
- * Security model: model output and cached summaries are untrusted input
- * (a poisoned cache or model quirk must never become stored XSS). The
- * renderer escapes everything first and only re-introduces a small allow-list
- * of formatting tags (p, h1-h6, ul, ol, li, strong, em, code, a). A final
- * allow-list sanitizer pass makes that guarantee fail-closed: even if a
- * formatting regex ever misfires, unexpected tags/attributes are escaped
- * instead of sunk into innerHTML.
- */
+// Minimal Markdown-to-HTML renderer for untrusted model and cache output.
+// Everything is escaped first; only a small tag allow-list returns, with a
+// fail-closed sanitizer so a regex misfire still escapes instead of sinking.
 import { tryParseUrl } from "./url.js";
 
 export function escapeHtml(text) {
@@ -49,23 +41,15 @@ function isLinkifiableHref(href, { allowAlwaysHosts = true } = {}) {
   const parsed = tryParseUrl(href);
   if (!parsed) return false;
   const host = normalizeLinkHost(parsed.hostname);
-  // Stored past summaries render with the page host nulled and
-  // allowAlwaysHosts off (see renderStoredSummaryMarkdown): a planted
-  // youtube/bilibili link from a malicious page then stays plain text
-  // instead of clickable (#212).
+  // Stored summaries render with no page host and no always-linkify hosts,
+  // so planted links stay plain text (#212).
   if (ALWAYS_LINKIFY_HOSTS.has(host)) return allowAlwaysHosts;
   return host === linkifyPageHost;
 }
 
-/**
- * Resolve a clicked href against the page URL and allow-list the protocol.
- * Returns the absolute http(s) URL to navigate to, or null when the href is
- * missing, unparseable, relative-to-a-non-http(s)-base, or a dangerous
- * scheme (javascript:, data:, ...). The URL parser normalizes case and
- * strips leading C0 controls/whitespace, so obfuscated variants like
- * `JaVaScRiPt:` or `"  javascript:..."` are rejected too. Used by the
- * summary click handler so navigation can never outrun the sanitizer (#266).
- */
+// Resolve a clicked href to an absolute http(s) URL, or null when unsafe.
+// Obfuscated schemes and non-http bases are rejected, so navigation never
+// outruns the sanitizer (#266).
 export function resolveNavigableHttpUrl(href, base) {
   if (typeof href !== "string" || href === "") return null;
   const resolved = tryParseUrl(href, base);
@@ -76,12 +60,8 @@ export function resolveNavigableHttpUrl(href, base) {
   return resolved.href;
 }
 
-/**
- * Reject hrefs that could break out of the href="..." attribute or use a
- * dangerous scheme. `href` here is the escaped-form match (entities intact),
- * so a literal quote would appear as &quot; — reject those outright and only
- * accept http(s) URLs with no whitespace or angle brackets.
- */
+// Reject hrefs that could break out of the attribute or use a dangerous
+// scheme. Only plain http(s) urls without whitespace survive.
 export function isSafeMarkdownHref(href) {
   if (!href || typeof href !== "string") return false;
   if (/[\s<>"']/.test(href)) return false;
@@ -154,18 +134,15 @@ function sanitizeAnchorAttributes(attrString) {
   if ((quote === '"' || quote === "'") && href.endsWith(quote)) {
     href = href.slice(1, -1);
   }
-  // The renderer emits escaped hrefs (quotes as &quot;). A raw quote here
-  // means the tag did not come from the renderer — drop the link.
+  // Escaped hrefs encode quotes; a raw quote means the tag did not come
+  // from the renderer, so drop the link.
   if (!isSafeMarkdownHref(href)) return null;
   return `<a href="${href}" target="_blank" rel="noopener noreferrer">`;
 }
 
-/**
- * Fail-closed allow-list sanitizer for renderer output. Only the formatting
- * tags the renderer emits survive; everything else (including event-handler
- * attributes, javascript: hrefs, and unknown elements) is escaped to text.
- * Pure string processing so it works in extension pages and in node tests.
- */
+// Fail-closed sanitizer for renderer output. Only emitted formatting tags
+// survive; the rest escapes to text. Pure string processing for pages and
+// node tests.
 export function sanitizeMarkdownHtml(html) {
   if (!html || typeof html !== "string") return "";
   return html.replace(
@@ -186,9 +163,7 @@ export function sanitizeMarkdownHtml(html) {
 }
 
 export function renderMarkdown(source, { stored = false } = {}) {
-  // Strip legacy private-use marks from user input so model/cached text
-  // cannot inject link placeholders that the restore pass would expand.
-  // Current ASCII link tokens are stripped inside extractMarkdownLinks.
+  // Strip legacy marks so cached text cannot inject link placeholders.
   const allowAlwaysHosts = !stored;
   const inline = (escapedText) =>
     renderInline(escapedText, { allowAlwaysHosts });
@@ -242,11 +217,8 @@ export function renderMarkdown(source, { stored = false } = {}) {
   return sanitizeMarkdownHtml(html);
 }
 
-// Small local models often disobey the prompt's "no heading" rule and open
-// with a "Summary" heading (## Summary, **Summary**, Summary:). The card
-// already carries the "Summarize this page" title, so that first line is
-// redundant. Only a complete leading heading line is dropped: body text
-// that merely starts with the word (e.g. "Summary of findings...") is kept.
+// Small models often open with a redundant "Summary" heading. The card
+// already carries that title, so drop one leading heading line only.
 export function stripLeadingSummaryHeading(text) {
   return String(text ?? "").replace(
     /^\s*(?:#{1,6}\s*|\*\*)?summary(?::|\*\*)?[ \t]*(?:\n|$)/i,
@@ -254,30 +226,23 @@ export function stripLeadingSummaryHeading(text) {
   );
 }
 
-// Small local models sometimes echo the prompt's prompt-injection fences
-// (<<<APOGEE_CONTENT ... APOGEE_CONTENT>>>) into their answer. Those markers
-// are input delimiters only and must never display. Strip any occurrence so
-// the card shows only the summary itself.
+// Small models sometimes echo the input fences into their answer. Those
+// markers must never display, so strip every occurrence.
 function stripEchoedFences(text) {
   return String(text ?? "")
     .replaceAll("<<<APOGEE_CONTENT", "")
     .replaceAll("APOGEE_CONTENT>>>", "");
 }
 
-// Combined model-output cleanup: fence echo first (it may precede a
-// redundant heading), then the leading "Summary" heading. Preserves the
-// previous trimStart-then-strip contract used by callers.
+// Combined cleanup: fences first since they may precede the heading.
 export function cleanModelOutput(text) {
   const noFence = stripEchoedFences(String(text ?? "").trimStart()).trimStart();
   return stripLeadingSummaryHeading(noFence);
 }
 
 export function renderStoredSummaryMarkdown(text) {
-  // Stored past summaries render with no page context: the page host is
-  // nulled AND the always-linkify hosts are off, so every link (including a
-  // youtube/bilibili URL planted by a malicious page) stays plain label text
-  // instead of becoming clickable (#212). Live summaries keep the
-  // same-origin + youtube/bilibili link behavior via renderMarkdown().
+  // Stored summaries have no page context, so every link stays plain
+  // label text instead of clickable (#212).
   const savedHost = linkifyPageHost;
   linkifyPageHost = null;
   try {
@@ -287,11 +252,8 @@ export function renderStoredSummaryMarkdown(text) {
   }
 }
 
-/**
- * Single choke point for rendering untrusted Markdown into the DOM. The HTML
- * is allow-list sanitized by renderMarkdown(); this setter keeps every sink
- * going through that path instead of raw innerHTML assignments.
- */
+// Single choke point for untrusted Markdown into the DOM. All sinks go
+// through the sanitized renderer instead of raw innerHTML.
 export function setMarkdownHtml(element, source, { stored = false } = {}) {
   if (!element) return;
   element.innerHTML = stored

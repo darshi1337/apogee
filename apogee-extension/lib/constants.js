@@ -32,10 +32,8 @@ export const WEBLLM_MODELS = [
 
 const DEFAULT_WEBLLM_MODEL = WEBLLM_MODELS.find((m) => m.default).id;
 
-// Allow-list for WebLLM model ids. Anything else passed to CreateMLCEngine
-// makes it fetch model config from the remote HuggingFace CDN, so unknown
-// ids (stale storage, tampered settings, untrusted message payloads) must be
-// rejected before the engine starts, keeping model loads on the bundled libs.
+// Allow-list for model ids: unknown ids fetch config remotely, so reject
+// them before the engine starts and stay on bundled libs.
 export function isKnownWebLLMModelId(id) {
   return WEBLLM_MODELS.some((m) => m.id === id);
 }
@@ -132,9 +130,8 @@ export const CUSTOM_INSTRUCTIONS_MAX_CHARS = 2000;
 
 export const PRIVATE_HOSTS_MAX_CHARS = 1000;
 
-// Model-name free text (llama.cpp server model, Ollama tag override). Real
-// names are tens of chars; cap so a pasted blob cannot ride along into
-// loopback request bodies and stored settings.
+// Free-text model names are capped so a pasted blob cannot ride into
+// request bodies or stored settings.
 export const MODEL_NAME_MAX_CHARS = 100;
 
 export const TRANSLATION_ENGINES = { LLM: "llm", OPUS: "opus" };
@@ -153,7 +150,8 @@ const DEFAULT_LOCAL_MODEL = "qwen3:8b";
 
 const isFirefox = process.env.TARGET_BROWSER === "firefox";
 
-// llama.cpp is offered on both builds: like Ollama it is a plain fetch to a loopback server, with none of the WebGPU or offscreen-document dependency that keeps WebLLM off Firefox.
+// llama.cpp runs on both builds as plain loopback fetch, without the
+// WebGPU dependency that keeps WebLLM off Firefox.
 export const PROVIDERS = isFirefox
   ? { TRANSFORMERS: "transformers", LOCAL: "local", LLAMACPP: "llamacpp" }
   : {
@@ -191,7 +189,8 @@ export const DEFAULT_SETTINGS = {
   transformersModel: DEFAULT_TRANSFORMERS_MODEL,
   localModel: DEFAULT_LOCAL_MODEL,
   ollamaHost: DEFAULT_OLLAMA_HOST,
-  // llama-server loads one model at launch, so there is no list to pick from and no sensible default to ship: the name is filled in from the server once it answers. The API key stays empty unless the server was started with --api-key, which most are not.
+  // No list to pick from: the name fills in once the server answers, and
+  // the key stays empty unless the server needs one.
   llamaHost: DEFAULT_LLAMACPP_HOST,
   llamaModel: "",
   llamaApiKey: "",

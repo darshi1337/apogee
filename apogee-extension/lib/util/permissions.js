@@ -1,8 +1,6 @@
-// Shared chrome.permissions call core for the check/request pair below:
-// same guard, same callback-to-promise shape, only the API method differs.
-// Fail closed throughout: without the permissions API there is no prompt to
-// grant, so callers must treat access as denied rather than assuming the
-// gated fetch is allowed.
+// One shared core for the check/request pair below. Fail closed:
+// without the permissions API there is no prompt to grant, so callers
+// treat access as denied.
 import { UserFacingError } from "./userError.js";
 import { tryParseUrl } from "./url.js";
 async function queryPermissionsApi(method, origins) {
@@ -23,29 +21,15 @@ async function queryPermissionsApi(method, origins) {
   }
 }
 
-/**
- * Checks whether the extension currently has granted host permissions for the specified origins.
- * @param {string[]} origins List of origin match patterns (e.g. ["*://*.bilibili.com/*"])
- * @returns {Promise<boolean>}
- */
 export async function hasHostPermissions(origins) {
   return queryPermissionsApi("contains", origins);
 }
 
-/**
- * Requests host permissions on demand for the specified origins.
- * @param {string[]} origins List of origin match patterns
- * @returns {Promise<boolean>}
- */
 export async function requestHostPermissions(origins) {
   return queryPermissionsApi("request", origins);
 }
 
-/**
- * Maps a target URL to any optional host permissions it requires.
- * @param {string} url Target webpage URL
- * @returns {string[]} List of origin patterns required for full feature support on this domain
- */
+// Which optional host permissions a URL needs, if any.
 export function getOptionalOriginsForUrl(url) {
   if (!url || typeof url !== "string") return [];
   const parsed = tryParseUrl(url);
@@ -66,23 +50,16 @@ export function getOptionalOriginsForUrl(url) {
       ];
     }
     if (host === "bsky.app" || host.endsWith(".bsky.app")) {
-      // Covers both the bsky.app page and the public.api.bsky.app thread
-      // endpoint fetched by the Bluesky extractor. Without this mapping
-      // getOptionalOriginsForUrl() returned [] for bsky.app, so the
-      // on-demand permission prompt in ensurePermissionsForUrl() never fired.
+      // Covers page plus API thread endpoint; without it the prompt never fired.
       return ["*://*.bsky.app/*"];
     }
   }
   return [];
 }
 
-// Scoped origins for reading one site's content (`*://host/*`). Covered
-// by the all-sites optional declaration, requested only after scripting
-// proves the tab grant is gone (persistent surfaces like the side panel
-// outlive activeTab). Never requested preemptively: popups covered by
-// activeTab must not nag.
-// @param {string} url Target webpage URL
-// @returns {string[]} Single scoped pattern, or [] for non-web URLs
+// Scoped origins for reading one site (`*://host/*`). Requested only
+// after scripting proves the tab grant is gone; never preemptively,
+// so popups covered by activeTab do not nag.
 export function siteOriginsForUrl(url) {
   const parsed = tryParseUrl(url);
   if (!parsed) return [];
@@ -93,12 +70,8 @@ export function siteOriginsForUrl(url) {
   return [`*://${parsed.hostname}/*`];
 }
 
-/**
- * Ask the user for one-site read access, fail-closed like the rest here.
- * Must run within the user gesture (called from the summarize click path).
- * @param {string} url Target webpage URL
- * @returns {Promise<boolean>} True when access is (now) granted
- */
+// Ask for one-site read access. Fail closed, and call from the user
+// gesture so the browser prompt is allowed.
 export async function requestSiteAccess(url) {
   const origins = siteOriginsForUrl(url);
   if (origins.length === 0) return false;
@@ -106,24 +79,14 @@ export async function requestSiteAccess(url) {
   return await requestHostPermissions(origins);
 }
 
-/**
- * Actionable blocked-permission message for the popup. Names the host so the
- * user knows what is gated, and names the button that re-prompts (the
- * permission request must run in the click gesture).
- * @param {string} url Target webpage URL
- * @returns {string}
- */
+// Blocked-permission message naming the host and the button that re-prompts.
+// Call from the click gesture so the request is allowed.
 export function permissionBlockedMessage(url) {
   const host = tryParseUrl(url)?.hostname || "";
   const where = host ? ` ${host}` : " this site";
   return `Apogee needs permission to read${where}. Click Summarize again and choose Allow when the browser asks.`;
 }
 
-/**
- * Checks whether optional host permissions are needed for a URL, and if so, prompts the user to grant them.
- * @param {string} url Target webpage URL
- * @returns {Promise<boolean>} True if permissions are already granted or were successfully granted by the user.
- */
 export async function ensurePermissionsForUrl(url) {
   const origins = getOptionalOriginsForUrl(url);
   if (origins.length === 0) return true;
@@ -132,12 +95,8 @@ export async function ensurePermissionsForUrl(url) {
   return await requestHostPermissions(origins);
 }
 
-/**
- * Same gate as ensurePermissionsForUrl, but throws the actionable blocked
- * message instead of returning false so denied callers cannot fall through
- * to extraction and fail opaquely (#304). Must run within the user gesture.
- * @param {string} url Target webpage URL
- */
+// Same gate, but throws the blocked message instead of returning false,
+// so denied callers cannot fall through to extraction (#304).
 export async function ensurePermissionsOrThrow(url) {
   if (await ensurePermissionsForUrl(url)) return;
   throw new UserFacingError(permissionBlockedMessage(url));

@@ -58,7 +58,7 @@ Each piece of runnable code, JavaScript and WebAssembly alike, ships inside the 
 
 ## Client-Side PDF Text Parsing
 
-PDF text extraction runs fully client-side with `pdf.js`, bundled straight into the extension. A PDF opened in a tab downloads through the network context of that tab. Apogee reads a PDF picked or dropped into the popup straight from the local `File` object. Only pulled text reaches the model. The file itself never passes through any other process.
+PDF text extraction runs fully client-side with `pdf.js`, bundled directly into the extension. A PDF opened in a tab downloads through the network context of that tab. Apogee reads a PDF picked or dropped into the popup directly from the local `File` object. Only pulled text reaches the model. The file itself never passes through any other process.
 
 ## Client-Side DOCX and Text Input
 
@@ -76,7 +76,7 @@ It also leaves out `localhost`, `127.0.0.1`, and `[::1]` as initiators. This is 
 
 ## Telemetry and Analytics Policy
 
-Apogee ships no Google Analytics, Mixpanel, crash-reporting SDKs, or telemetry of any kind. Apogee collects no usage data or perf metrics.
+Apogee ships no Google Analytics, Mixpanel, crash-reporting SDKs, or telemetry of any kind. Apogee collects no usage data and no perf metrics.
 
 ## Activity & Privacy Audit View
 
@@ -100,9 +100,9 @@ Settings includes an **Activity & Privacy Audit** panel. It gives full visual in
 
   This is a fixed list, not content detection. Under Settings, then Privacy, name your own hosts (one per line) for the same treatment.
 
-  Examples: a bank, a health portal, your own mail server, or a smaller webmail provider. A host you add also covers its subdomains. Anything on neither list follows normal caching, unless you pick "Don't save".
+  Examples: a bank, a health portal, your own mail server, or a smaller webmail provider. A host you add also covers its subdomains. Anything on neither list follows normal caching, unless you pick `"Don't save"`.
 
-- **Session-Only Storage and On-Demand Clearing**: Under Settings, then Privacy, pick "Don't save (this session only)". Then nothing page-derived reaches disk. Click "Clear cached summaries & page data" to wipe all cached content on demand. Your prefs stay.
+- **Session-Only Storage and On-Demand Clearing**: Under Settings, then Privacy, pick `"Don't save (this session only)"`. Then nothing page-derived reaches disk. Click "Clear cached summaries & page data" to wipe all cached content on demand. Your prefs stay.
 
 - **Model Weights Storage**: Model weights stay in standard browser cache structures locally. They never go out.
 
@@ -110,7 +110,7 @@ Settings includes an **Activity & Privacy Audit** panel. It gives full visual in
 
 Apogee asks for a tight set of browser permissions to enforce security sandboxes:
 
-- **`activeTab` and `scripting`**: Apogee cannot read your browsing history or check other open tabs. It reads the current active tab only in three cases. You click Summarize or Ask. You right-click and pick "Summarize this page". You use the keyboard shortcut.
+- **`activeTab` and `scripting`**: Apogee cannot read your browsing history and cannot check other open tabs. It reads the current active tab only in three cases. You click Summarize or Ask. You right-click and pick "Summarize this page". You use the keyboard shortcut.
 
   The popup reads local files and pasted text only after you pick or give them there.
 
@@ -120,9 +120,9 @@ Apogee asks for a tight set of browser permissions to enforce security sandboxes
 
 - **`unlimitedStorage`**: It lifts the default quota on `chrome.storage.local`. Cached summaries and page text survive normal storage pressure. It grants access to nothing beyond that cache.
 
-- **`offscreen` (Chrome and Edge only)**: It runs the in-browser WebLLM engine in a hidden document. A service worker cannot reach WebGPU straight. It also runs the Transformers.js engine there when picked. A service worker cannot load it reliably either.
+- **`offscreen` (Chrome and Edge only)**: It runs the in-browser WebLLM engine in a hidden document. A service worker cannot reach WebGPU directly. It also runs the Transformers.js engine there when picked. A service worker cannot load it reliably either.
 
-  The Firefox build neither uses nor asks for it. Transformers.js runs straight in the background page there instead.
+  The Firefox build neither uses nor asks for it. Transformers.js runs directly in the background page there instead.
 
 - **`sidePanel` (Chrome and Edge only)**: It keeps the current Apogee local interface open next to the page instead of in the short-lived toolbar popup. It grants no page or network access. The Firefox build does not ask for it.
 
@@ -134,7 +134,7 @@ Apogee asks for a tight set of browser permissions to enforce security sandboxes
 
 - **Host & Optional Host Permissions**: Apogee holds standing host access to all sites (`*://*/*`) plus local loopback hosts (`http://127.0.0.1/*`, `http://localhost/*`, and `http://[::1]/*`) for your local Ollama instance. Page text is still read only when you ask for a summary. Site-specific cross-origin domains (such as `*.bilibili.com`, `*.hdslb.com`, `*.youtube.com`, `*.googlevideo.com`, `*.bsky.app` (which covers the `public.api.bsky.app` thread endpoint), and `sponsor.ajay.app`) need listing. They stay listed as `optional_host_permissions` in `manifest.json`. Apogee checks or asks for them on demand when features needing those surfaces run. Where the browser has no permissions API, these gates stay denied instead of failing open.
 
-  Apogee reaches each other site strictly on demand through `activeTab` when you click Summarize or Ask. Verbatim, the manifest holds `*://*/*`, `http://127.0.0.1/*`, `http://localhost/*`, and `http://[::1]/*` as standing hosts. The all-sites entry exists so the persistent side panel keeps working when you change tabs (the temporary tab grant expires on navigation); page text is still read only when you ask for a summary. It holds `*://*.bilibili.com/*`, `*://*.hdslb.com/*`, `*://*.youtube.com/*`, `*://*.googlevideo.com/*`, `*://*.bsky.app/*`, and `https://sponsor.ajay.app/*` as optional hosts.
+  Apogee reaches each other site strictly on demand through `activeTab` when you click Summarize or Ask. Verbatim, the manifest holds `*://*/*`, `http://127.0.0.1/*`, `http://localhost/*`, and `http://[::1]/*` as standing hosts. The all-sites entry exists so the persistent side panel keeps working when you change tabs. The temporary tab grant expires on navigation. Page text is still read only when you ask for a summary. It holds `*://*.bilibili.com/*`, `*://*.hdslb.com/*`, `*://*.youtube.com/*`, `*://*.googlevideo.com/*`, `*://*.bsky.app/*`, and `https://sponsor.ajay.app/*` as optional hosts.
 
 - **`contextMenus`**: It adds the "Summarize this page" right-click menu entry. It sees no more of your browsing than the page you right-clicked. `activeTab` already covers that page.
 

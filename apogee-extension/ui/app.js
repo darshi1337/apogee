@@ -59,8 +59,8 @@ import {
 } from "../lib/storage/viewState.js";
 import {
   hashUrl,
-  getSummaryCacheKey,
-  getPromptsCacheKey,
+  getSummaryCacheKeyForSettings,
+  getPromptsCacheKeyForSettings,
   parseSummaryCacheKey,
   persistContent,
   getCachedContent,
@@ -194,7 +194,7 @@ if (isSidePanelSurface) {
 if (typeof chrome.tabs?.onUpdated === "function") {
   chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (tabId !== activeTabId || !changeInfo.url) return;
-    clearFocusKeyword();
+    clearKeywordOnPageChange(tabId, changeInfo.url);
   });
 }
 
@@ -360,10 +360,22 @@ function syncCappedInputMaxLengths() {
 
 syncCappedInputMaxLengths();
 
-// The side panel document survives tab switches and same-tab navigations,
-// so a leftover keyword would silently steer the next summary.
+// The side panel document survives tab switches, same-tab navigations,
+// and fresh opens on new pages, so a leftover keyword would silently
+// steer the next summary.
 function clearFocusKeyword() {
   if (focusKeywordInput) focusKeywordInput.value = "";
+}
+
+// One page-change check for the navigation listener and the restore
+// path below: clear a leftover keyword when the tab or URL moved on,
+// keep it on a same-page re-render.
+function clearKeywordOnPageChange(tabId, url) {
+  if (tabId !== lastKeywordTabId || url !== lastKeywordTabUrl) {
+    clearFocusKeyword();
+  }
+  lastKeywordTabId = tabId ?? null;
+  lastKeywordTabUrl = url ?? null;
 }
 
 // Shared counter + debounced-autosave wiring for the capped settings
@@ -448,6 +460,12 @@ let settingsEntryView = "homeView";
 
 let activeTabId = null;
 
+// Last tab + URL restoreTabView rendered. A fresh open on a new page
+// runs neither the tab-switch nor the navigation listener, so without
+// this check the input would keep the previous page's keyword.
+let lastKeywordTabId = null;
+let lastKeywordTabUrl = null;
+
 // Bumps on every side-panel tab restore so an in-flight restore for a
 // previous tab stands down instead of painting stale content.
 let tabViewEpoch = 0;
@@ -463,6 +481,7 @@ function startSuggestedQuestionsBg(
   { title, url, summary },
   settings,
   persist = true,
+  focusKeyword = "",
 ) {
   currentPromptsCacheKey = promptsCacheKey;
   chrome.runtime
@@ -480,6 +499,7 @@ function startSuggestedQuestionsBg(
         model: getModelForSettings(settings),
         language: settings.summaryLanguage,
         translationEngine: settings.translationEngine,
+        focusKeyword,
       },
     })
     .catch(() => {});
@@ -826,22 +846,16 @@ function getGatedFocusKeyword(pageType) {
 }
 async function getSummaryCacheKeys(url, settings, model, focusKeyword) {
   return {
-    cacheKey: await getSummaryCacheKey(
+    cacheKey: await getSummaryCacheKeyForSettings(
       url,
-      settings.responseFormat,
+      settings,
       model,
-      settings.summaryLanguage,
-      settings.customInstructions,
-      settings.translationEngine,
       focusKeyword,
     ),
-    promptsCacheKey: await getPromptsCacheKey(
+    promptsCacheKey: await getPromptsCacheKeyForSettings(
       url,
-      settings.responseFormat,
+      settings,
       model,
-      settings.summaryLanguage,
-      settings.customInstructions,
-      settings.translationEngine,
       focusKeyword,
     ),
   };
@@ -1267,13 +1281,12 @@ function buildPastSummaryCard(entry, text) {
   return card;
 }
 
-// Fetch stored texts for index entries. One targeted read, bounded by the cache cap.
+// One targeted read, bounded by the cache cap.
 async function fetchPastSummaryTexts(entries) {
   const keys = entries.map((e) => e?.s).filter(Boolean);
   return keys.length > 0 ? await chrome.storage.local.get(keys) : {};
 }
 
-// Render one card per entry that still has stored text.
 function renderPastSummaryCards(entries, stored) {
   pastSummariesList.innerHTML = "";
   for (const entry of entries) {
@@ -2058,18 +2071,14 @@ async function checkConnection() {
   return await provider.checkReady();
 }
 
-/**
- * Reflect what llama-server reported back into the model field.
- *
- * llama-server loads one model at launch, so unlike Ollama there is no list to
- * choose from -- the field is filled in from the server instead. It stays
- * editable for the cases detection cannot cover: a proxy such as llama-swap
- * routing by model name, or a build whose /v1/models says something unhelpful.
- *
- * Auto-fill only touches an empty field, which is what keeps a name the user
- * typed, and a name detected earlier, from being overwritten on the next
- * health check. Clearing the field asks for detection again.
- */
+// Reflect what llama-server reported back into the model field.
+// llama-server loads one model at launch, so unlike Ollama there is no list to
+// choose from -- the field is filled in from the server instead. It stays
+// editable for the cases detection cannot cover: a proxy such as llama-swap
+// routing by model name, or a build whose /v1/models says something unhelpful.
+// Auto-fill only touches an empty field, which is what keeps a name the user
+// typed, and a name detected earlier, from being overwritten on the next
+// health check. Clearing the field asks for detection again.
 function updateLlamaModelUI(settings, status) {
   if (settings.provider !== PROVIDERS.LLAMACPP) return;
   if (!llamaModelInput) return;
@@ -2246,6 +2255,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       const stale = () => epoch !== tabViewEpoch;
       activeTabId = tab?.id;
       await ensureTabUrl(tab);
+      // Same reasoning as the tab-switch and navigation resets above, for
+      // a fresh open on another page: the panel document survives, the
+      // input still holds the old keyword, and neither listener runs.
+      clearKeywordOnPageChange(tab?.id, tab?.url);
       if (tab?.url) {
         setLinkifyOriginFromUrl(tab.url);
       }
@@ -2471,6 +2484,7 @@ document.addEventListener("DOMContentLoaded", async () => {
               },
               settings,
               await shouldPersist(tab.url),
+              focusKeyword,
             );
           }
           return;
@@ -2572,13 +2586,10 @@ async function summarizeCustomContent(title, content, url = "") {
     const sourceUrl = url || "";
     const cacheIdentity = sourceUrl || `local:${await hashUrl(content)}`;
 
-    const promptsCacheKey = await getPromptsCacheKey(
+    const promptsCacheKey = await getPromptsCacheKeyForSettings(
       cacheIdentity,
-      settings.responseFormat,
+      settings,
       model,
-      settings.summaryLanguage,
-      settings.customInstructions,
-      settings.translationEngine,
     );
 
     const { streamId, stream } = await provider.summarize({
@@ -3031,7 +3042,7 @@ async function clearCachedData() {
   return pages + viewStates;
 }
 
-/** What is on disk right now, for telling the user what a wipe would cost. */
+// What is on disk right now, for telling the user what a wipe would cost.
 async function storedHistoryStats() {
   // Index reads only — never a full-store `get(null)` scan.
   const stored = await chrome.storage.local.get([
@@ -3117,7 +3128,7 @@ llamaHostInput?.addEventListener("change", async () => {
     try {
       llamaDefaultPort = new URL(DEFAULT_LLAMACPP_HOST).port || "8080";
     } catch {
-      // Keep the built-in fallback above.
+      // Built-in constant always parses; keep the default.
     }
     val = validateLoopbackUrl(val, {
       label: "llama.cpp",

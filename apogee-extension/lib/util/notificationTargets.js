@@ -1,8 +1,8 @@
 export const NOTIFICATION_TARGET_TTL_MS = 60 * 60 * 1000; // 1 hour
 export const MAX_NOTIFICATION_TARGETS = 50;
 
-// Shared lazy TTL + oldest-first capacity map. Expiry is reclaimed on
-// set/get/take/size; entries without a usable timestamp count as expired.
+// Lazy TTL map with oldest-first eviction. Expiry is reclaimed on access;
+// entries without a usable timestamp count as expired.
 function isExpired(createdAt, now, ttlMs) {
   const ts = Number(createdAt);
   return !Number.isFinite(ts) || now - ts >= ttlMs;
@@ -21,7 +21,7 @@ export class NotificationTargetManager {
   set(id, data, now = Date.now()) {
     this.evictStale(now);
     if (this.targets.has(id)) {
-      // Refresh recency so a re-set entry is not evicted as oldest.
+      // Refresh recency so a repeated entry survives eviction.
       this.targets.delete(id);
     } else if (this.targets.size >= this.maxCapacity) {
       const oldestKey = this.targets.keys().next().value;

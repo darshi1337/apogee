@@ -52,7 +52,7 @@ WHAT IT DOES
 
 - Custom instructions hold your standing guidance ("Explain like I'm five", "Focus on the technical details"). They apply to each summary and answer.
 
-- Per-page focus keywords ("Focus on... (optional)", up to 200 characters) let you steer article, document, and pasted text summaries toward specific topics without adding ungrounded facts (hidden on video, discussion, and multi-tab pages).
+- Per-page focus keywords ("Focus on... (optional)", up to 200 characters) steer article, document, and pasted text summaries toward specific topics. They add no ungrounded facts. They stay hidden on video, discussion, and multi-tab pages.
 
 - Summaries come in your language. Pick one of 29 output languages (or keep the page own). The summarization model itself translates. Dedicated on-device translation models offer another option.
 
@@ -118,7 +118,7 @@ Each permission and feature serves this one purpose: on-device summarization and
 
 ## Permission justifications
 
-**activeTab** Apogee reads the content of the page the user actively views. It acts only when the user clearly starts it (toolbar click, right-click menu, or keyboard shortcut). It summarizes that page or answers questions about it. activeTab grants access to the current tab on user action. It avoids broad host permissions across all sites; the standing all-sites host entry exists only so the persistent side panel keeps working across tab changes (see Host permission justification below).
+**activeTab** Apogee reads the content of the page the user actively views. It acts only when the user clearly starts it (toolbar click, right-click menu, or keyboard shortcut). It summarizes that page or answers questions about it. activeTab grants access to the current tab on user action. It avoids broad host permissions across all sites. The standing all-sites host entry exists only for the persistent side panel. It keeps the panel working across tab changes (see Host permission justification below).
 
 **scripting** On user action, Apogee injects a content script into the active tab. It pulls the readable text of the page (article body, YouTube transcript, or PDF text) to summarize. It scrolls to the source passage of a summary line and highlights it. It runs only on the tab the user started it on.
 
@@ -144,7 +144,7 @@ A bundled static rule scoped to those loopback hosts stays as a fallback. The ru
 
 **notifications** It shows a system note when a summary asked for with keyboard shortcut or context menu is ready. The popup often stays closed while the model generates.
 
-**Host permission justification** (`*://*/*`, `http://127.0.0.1/*`, `http://localhost/*`, `http://[::1]/*`) These loopback host permissions link Apogee to the user own local Ollama server. They serve users who opt into Local Ollama mode. Requests go straight to the model running on their own machine. Only loopback addresses on the user device take part. The all-sites entry keeps the persistent side panel working across tab changes; page text is read only when the user asks for a summary.
+**Host permission justification** (`*://*/*`, `http://127.0.0.1/*`, `http://localhost/*`, `http://[::1]/*`) These loopback host permissions link Apogee to the user own local Ollama server. They serve users who opt into Local Ollama mode. Requests go straight to the model running on their own machine. Only loopback addresses on the user device take part. The all-sites entry keeps the persistent side panel working across tab changes. Apogee reads page text only when the user asks for a summary.
 
 **Host permission justification** (`*://*.bilibili.com/*`, `*://*.hdslb.com/*`, `*://*.youtube.com/*`, `*://*.googlevideo.com/*`, `*://*.bsky.app/*`, `https://sponsor.ajay.app/*`) The manifest states these site-specific cross-origin permissions as `optional_host_permissions` in `manifest.json`. When the user summarizes a Bilibili or YouTube video, Apogee checks granted permissions. It asks the user on demand before it fetches subtitles from the Bilibili API (`api.bilibili.com` / `hdslb.com`). It fetches the video caption track from YouTube endpoints through the page content script (`youtube.com` / `googlevideo.com`). It fetches SponsorBlock timestamps (`sponsor.ajay.app`, opt out under Settings, then Privacy to turn the lookup off fully).
 

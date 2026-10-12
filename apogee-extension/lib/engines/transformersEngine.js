@@ -213,7 +213,7 @@ function scheduleTranslatorIdleDispose() {
   if (translatorIdleTimer.unref) translatorIdleTimer.unref();
 }
 
-/** Dispose the cached translator so it stops contending WASM memory. */
+// Dispose the cached translator so it stops contending WASM memory.
 export function disposeTranslatorNow() {
   cancelTranslatorIdleDispose();
   if (translator) {

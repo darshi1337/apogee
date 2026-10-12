@@ -24,5 +24,4 @@
      PRIVACY.md, and STORE-LISTING.md (permission justifications). A claim in
      one and not the others is what store reviewers catch. -->
 
-- [ ] Permissions unchanged, or all four of manifest / README / PRIVACY /
-      store-listing updated together
+- [ ] Permissions unchanged, or all four of manifest / README / PRIVACY / store-listing updated together

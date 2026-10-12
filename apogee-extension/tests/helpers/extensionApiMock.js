@@ -1,7 +1,5 @@
-/**
- * Headless WebExtensions API mock environment for unit testing.
- * Mocks chrome.storage, chrome.runtime, chrome.tabs, and chrome.permissions in Node.js.
- */
+// Headless WebExtensions API mock environment for unit testing.
+// Mocks chrome.storage, chrome.runtime, chrome.tabs, and chrome.permissions in Node.js.
 
 // Shared add/removeListener pair for the mock event surfaces below: same
 // array, same removal, only the listener list differs.

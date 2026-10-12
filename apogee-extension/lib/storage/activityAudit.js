@@ -4,13 +4,8 @@ import { parsePrivateHosts, shouldPersist } from "./pageCache.js";
 const AUDIT_LOG_KEY = "apogee_activity_audit_log";
 const MAX_AUDIT_ENTRIES = 20;
 
-/**
- * Record a page access event in local storage for transparency audit.
- * Skips pages that must not persist (sensitive hosts, user private hosts,
- * or "Don't save" mode), so the audit log itself never becomes a backdoor
- * history of pages the user asked not to keep.
- * @param {{ title: string, url: string, contentLength: number, type: string }} event
- */
+// Record a page access for the transparency audit. Skips pages the user
+// asked not to keep, so the log never becomes a backdoor history.
 export async function recordPageAccessEvent({
   title,
   url,
@@ -32,14 +27,10 @@ export async function recordPageAccessEvent({
     const updated = [entry, ...logs].slice(0, MAX_AUDIT_ENTRIES);
     await chrome.storage.local.set({ [AUDIT_LOG_KEY]: updated });
   } catch {
-    // Safe fallback: ignore audit logging error
+    // Audit logging must never break the page flow.
   }
 }
 
-/**
- * Retrieve the page access audit log.
- * @returns {Promise<Array<{ timestamp: string, title: string, url: string, contentLength: number, type: string }>>}
- */
 export async function getPageAccessLog() {
   if (typeof chrome === "undefined" || !chrome.storage?.local) return [];
   try {
@@ -50,9 +41,6 @@ export async function getPageAccessLog() {
   }
 }
 
-/**
- * Get comprehensive Privacy & Activity audit summary.
- */
 export async function getActivityAuditSummary() {
   const settings = await getSettings();
   const logs = await getPageAccessLog();
@@ -60,7 +48,7 @@ export async function getActivityAuditSummary() {
   let storageCount = 0;
   if (typeof chrome !== "undefined" && chrome.storage?.local) {
     try {
-      // Count from the order indexes, not a full-store `get(null)` scan.
+      // Count via the order indexes instead of scanning the whole store.
       const [{ cacheOrder = [] }, { contentCacheOrder = [] }] =
         await Promise.all([
           chrome.storage.local.get("cacheOrder"),

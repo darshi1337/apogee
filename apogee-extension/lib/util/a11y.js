@@ -1,6 +1,5 @@
-// Keyboard and live-region helpers for modal dialogs (#315).
-// Kept free of DOM globals beyond the nodes passed in, so node tests can
-// exercise the trap order and the announcer timing without a browser.
+// Helpers for modal dialogs (#315). Kept free of DOM globals beyond the
+// passed-in nodes, so node tests run without a browser.
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -12,22 +11,19 @@ const FOCUSABLE_SELECTOR = [
 ].join(",");
 
 function isRendered(element) {
-  // Hidden-attribute check only: layout rects are zero in test DOMs
-  // (linkedom) and in real browsers for display:none alike, so rects
-  // cannot tell the two apart. CSS-hidden subtrees inside an open dialog
-  // are the caller's concern; nothing in the dialog hides that way.
+  // Hidden attribute only: rects are zero in test DOMs and for display:none
+  // alike, so they cannot tell the two apart.
   if (!element || element.hidden) return false;
   return !element.closest?.("[hidden]");
 }
 
-// Tab order inside a dialog, in DOM order. The caller owns focus movement.
+// Tab order in DOM order; the caller owns focus movement.
 export function getTrapTargets(root) {
   if (!root || typeof root.querySelectorAll !== "function") return [];
   return [...root.querySelectorAll(FOCUSABLE_SELECTOR)].filter(isRendered);
 }
 
-// The element that should receive focus for a Tab/Shift+Tab press when
-// `current` is focused. Returns null when the press stays where it is.
+// Next focus target for Tab/Shift+Tab, or null when focus stays put.
 export function nextTrapTarget(targets, current, shiftKey) {
   if (!Array.isArray(targets) || targets.length === 0) return null;
   const index = targets.indexOf(current);
@@ -37,14 +33,14 @@ export function nextTrapTarget(targets, current, shiftKey) {
   return null;
 }
 
-// Wires a Tab keydown event to the trap. Returns true when handled.
+// Wire a Tab keydown to the trap; true when handled.
 export function handleTrapTabKey(event, root, current) {
   if (!event || event.key !== "Tab") return false;
   const targets = getTrapTargets(root);
   const next = nextTrapTarget(targets, current, event.shiftKey);
   if (!next) {
-    // No wrap point (empty dialog, or a mid-list Tab): hold focus inside
-    // when there is nowhere to go, otherwise let the browser move it.
+    // No wrap point: hold focus when the dialog is empty, else let the
+    // browser move it.
     if (targets.length === 0) event.preventDefault();
     return targets.length === 0;
   }
@@ -53,10 +49,9 @@ export function handleTrapTabKey(event, root, current) {
   return true;
 }
 
-// Trailing-edge announcer: rapid calls collapse to the last message
-// (last-wins), delivered after delayMs. An exact repeat of the message
-// already on the live region is dropped so screen readers do not chatter.
-// `write` performs the DOM update; tests inject a recorder.
+// Trailing-edge announcer: rapid calls collapse to the last message,
+// and repeats of the live-region text are dropped to avoid chatter.
+// Tests inject `write` as a recorder.
 export function createAnnouncer(write, { delayMs = 300 } = {}) {
   let timer = null;
   let pending = null;

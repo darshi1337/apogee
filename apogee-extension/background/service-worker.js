@@ -68,8 +68,9 @@ import { getSettings } from "../lib/storage/settings.js";
 import { initDebugLogging, sanitizeLogMessage } from "../lib/util/log.js";
 import { NotificationTargetManager } from "../lib/util/notificationTargets.js";
 import {
-  getSummaryCacheKey,
-  getPromptsCacheKey,
+  asFocusKeyword,
+  getPromptsCacheKeyForSettings,
+  getSummaryCacheKeyForSettings,
   hashUrl,
   persistSummaryIfAllowed,
   persistContent,
@@ -354,21 +355,17 @@ async function buildTrustedFinalize(payload) {
     ? `${rawUrl}#apogee-selection`
     : rawUrl || `local:${await hashUrl(payload.content || "")}`;
 
-  const cacheKey = await getSummaryCacheKey(
+  const cacheKey = await getSummaryCacheKeyForSettings(
     cacheUrl,
-    settings.responseFormat,
+    settings,
     model,
-    settings.summaryLanguage,
-    settings.customInstructions,
-    settings.translationEngine,
+    asFocusKeyword(payload.focusKeyword),
   );
-  const promptsCacheKey = await getPromptsCacheKey(
+  const promptsCacheKey = await getPromptsCacheKeyForSettings(
     cacheUrl,
-    settings.responseFormat,
+    settings,
     model,
-    settings.summaryLanguage,
-    settings.customInstructions,
-    settings.translationEngine,
+    asFocusKeyword(payload.focusKeyword),
   );
 
   const persist = isSelection ? false : await shouldPersist(rawUrl);
@@ -1089,21 +1086,11 @@ export async function runBackgroundSummarize(
 
   const jobId = `summary-${crypto.randomUUID()}`;
   const finalize = {
-    cacheKey: await getSummaryCacheKey(
+    cacheKey: await getSummaryCacheKeyForSettings(cacheUrl, settings, model),
+    promptsCacheKey: await getPromptsCacheKeyForSettings(
       cacheUrl,
-      settings.responseFormat,
+      settings,
       model,
-      settings.summaryLanguage,
-      settings.customInstructions,
-      settings.translationEngine,
-    ),
-    promptsCacheKey: await getPromptsCacheKey(
-      cacheUrl,
-      settings.responseFormat,
-      model,
-      settings.summaryLanguage,
-      settings.customInstructions,
-      settings.translationEngine,
     ),
     persist,
     persistUrl: tab.url,
@@ -2200,13 +2187,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             typeof message.payload?.url === "string" ? message.payload.url : "";
           const model = message.payload?.model || getModelForSettings(settings);
           const promptsCacheKey = rawUrl
-            ? await getPromptsCacheKey(
+            ? await getPromptsCacheKeyForSettings(
                 rawUrl,
-                settings.responseFormat,
+                settings,
                 model,
-                settings.summaryLanguage,
-                settings.customInstructions,
-                settings.translationEngine,
+                asFocusKeyword(message.payload?.focusKeyword),
               )
             : message.payload?.promptsCacheKey;
           runSuggestQuestionsJob({

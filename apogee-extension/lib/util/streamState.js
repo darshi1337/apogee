@@ -7,12 +7,8 @@ import {
   tokensPerSecond,
 } from "./throughput.js";
 
-// Shared buffered-stream state for the service worker and the offscreen
-// document: same accumulation cap, same accepted-prefix token counting, same
-// final-stats math, same late-subscriber replay. Transport stays per-side
-// (alarms cleanup + finalizeSummaryJob in the worker, setTimeout cleanup +
-// stream-finished relay in offscreen), as do the extra flags each side keeps
-// (AbortController, errorUserFacing) via the `extra` slot.
+// Shared buffered-stream state for worker and offscreen: same cap,
+// counting, stats, and replay. Transport and extra flags stay per-side.
 
 export function createStreamState(extra = {}) {
   return {
@@ -28,11 +24,8 @@ export function createStreamState(extra = {}) {
   };
 }
 
-// Capped accumulation for one chunk (#269): keeps the head and drops the
-// tail so a runaway model cannot bloat worker memory. Counts only the
-// accepted prefix toward tokens. Returns false for empty/cancelled chunks
-// and when the cap accepted zero new chars, in which case the caller
-// broadcasts nothing.
+// Capped accumulation (#269): keep the head so a runaway model cannot
+// bloat memory. False when nothing new was accepted.
 export function appendChunkToState(state, text) {
   if (!text || state.cancelled) return false;
   const capped = appendStreamTextCapped(state.text, text);
@@ -45,11 +38,8 @@ export function appendChunkToState(state, text) {
   return accepted > 0;
 }
 
-// Shared chunk-emit path for the service worker and the offscreen document
-// (#349): same gate, same chunk broadcast, same progress heartbeat, same
-// conditional stats broadcast. Transport stays per-side via scheduleCleanup
-// (alarms in the worker, sliding expiry in offscreen). Returns false when
-// nothing was accepted, in which case nothing goes out.
+// Shared emit path for worker and offscreen (#349). False when nothing
+// was accepted and nothing went out.
 export function emitChunkToState(stream, text, scheduleCleanup) {
   if (!appendChunkToState(stream, text)) return false;
   broadcastToStream(stream, { type: "chunk", text });
@@ -59,8 +49,7 @@ export function emitChunkToState(stream, text, scheduleCleanup) {
   return true;
 }
 
-// Live rate update once enough tokens and time have passed; null before that
-// so callers broadcast only real updates.
+// Live rate once warmed up; null before that to avoid noisy updates.
 export function warmedStatsForState(state) {
   if (state.firstTokenTime == null) return null;
   const elapsedMs = performance.now() - state.firstTokenTime;
@@ -71,9 +60,7 @@ export function warmedStatsForState(state) {
   };
 }
 
-// Final-stats math shared by both finish paths: prefers the backend's own
-// token count and duration (which exclude network transit) and stamps the
-// outgoing message with the computed rate.
+// Final stats prefer the backend count, which excludes network transit.
 export function finishStateWithStats(state, msg) {
   state.done = true;
   const elapsedMs =
@@ -87,9 +74,8 @@ export function finishStateWithStats(state, msg) {
   return { ...msg, tokensPerSec: state.tokensPerSec };
 }
 
-// Late-subscriber catch-up: replay the accumulated text, then whichever
-// terminal or progress state the stream is in. errorExtra carries the
-// worker-only userFacing flag; offscreen passes nothing.
+// Late-subscriber catch-up: replay text, then the terminal or progress
+// state. errorExtra carries the worker-only flag.
 export function replayStreamToPort(stream, port, errorExtra) {
   if (stream.text) {
     safePost(port, { type: "chunk", text: stream.text });

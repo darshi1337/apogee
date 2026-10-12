@@ -3,10 +3,10 @@ import { parsePrivateHosts } from "../storage/pageCache.js";
 import { isSensitiveCredentialKey, sanitizeLogMessage } from "./log.js";
 import { ALLOWED_OLLAMA_HOSTS } from "./ollamaHost.js";
 
-// The loopback display uses the same shared set as the validators
-// (see ollamaHost.js): 127.0.0.1, localhost, and the IPv6 loopback [::1].
+// Loopback display shares the validator set in ollamaHost.js.
 
-// customInstructions is free text the user wrote, privateHosts names sites they consider private (a clinic, an employer), and ollamaHost can name a machine on their network. None belongs in something pasted into a public issue, but all matter to a bug report, so report their shape instead of their contents.
+// Free-text settings shape bug reports but must not leak into pasted
+// issues, so report their shape instead of their contents.
 function redact(key, value) {
   if (key === "customInstructions") {
     const text = String(value || "");
@@ -44,12 +44,8 @@ function redactExtra(key, value) {
   return sanitizeLogMessage(redact(key, value));
 }
 
-/**
- * A settings block to sit above the offscreen logs, so a copied report says
- * which configuration produced the behaviour. Values equal to the shipped
- * default are marked, because "everything default except provider" is usually
- * the first thing worth knowing.
- */
+// Settings block for the top of a report, so a copy says which config
+// produced the behaviour. Defaults are marked.
 export function formatDiagnosticSettings(settings, extra = {}) {
   const lines = ["--- apogee diagnostics ---"];
 
@@ -70,11 +66,8 @@ export function formatDiagnosticSettings(settings, extra = {}) {
   return lines.join("\n");
 }
 
-/**
- * The same report as Markdown, for pasting straight into an issue. Logs go in
- * a collapsed <details> so a long engine trace doesn't bury the description,
- * and inside a fence so backticks in a log line can't break out of it.
- */
+// Same report as Markdown for pasting into an issue. Logs sit collapsed
+// in a fence sized past any backticks they contain.
 export function formatDiagnosticsMarkdown(settings, extra = {}, logs = []) {
   const rows = [];
 
@@ -94,7 +87,7 @@ export function formatDiagnosticsMarkdown(settings, extra = {}, logs = []) {
   }
 
   const body = Array.isArray(logs) ? logs.join("\n") : String(logs || "");
-  // A log line containing ``` would end the fence early; widen ours past the longest run it contains.
+  // Widen the fence past the longest backtick run so logs cannot break out.
   const longest = Math.max(
     2,
     ...(body.match(/`+/g) || []).map((r) => r.length),

@@ -20,14 +20,9 @@ function throwIfAborted(signal) {
   }
 }
 
-/**
- * FIFO mutex. `acquire()` waits forever (legacy behavior). Pass
- * `{ timeout, signal }` to bound the wait: a stalled holder no longer
- * head-of-line-blocks every later stream forever.
- *
- * Timed-out / aborted waiters are removed from the queue so the next
- * waiter still gets the lock in order.
- */
+// FIFO mutex. `acquire()` waits forever; pass `{ timeout, signal }` so a
+// stalled holder cannot block later streams. Settled waiters leave the
+// queue in order.
 export function createLock() {
   let locked = false;
   const waiters = [];
@@ -87,9 +82,7 @@ export function createLock() {
       };
 
       if (timeout !== undefined) {
-        // No unref here: callers await this timer, so it must keep the event
-        // loop alive until it fires. (Unref would let the loop drain with the
-        // acquire still pending, cancelling the waiter.)
+        // Keep the event loop alive: callers await this timer.
         waiter.timer = setTimeout(() => {
           if (waiter.settled) return;
           waiter.settled = true;
@@ -134,11 +127,7 @@ export function createLock() {
   return acquire;
 }
 
-/**
- * Per-key FIFO locks. Each key gets an independent mutex, so a stalled
- * download of one engine/model does not head-of-line-block streams using
- * a different engine/model. Locks are created lazily and shared per key.
- */
+// Per-key FIFO locks, so one stalled engine/model does not block the rest.
 export function createKeyedLock() {
   const locks = new Map();
 

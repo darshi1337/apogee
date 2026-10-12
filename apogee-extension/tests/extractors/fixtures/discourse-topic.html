@@ -1,41 +1,46 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <title>How to optimize WebAssembly binary size? - Discourse Forum</title>
-  <meta name="generator" content="Discourse 3.2.0">
-</head>
-<body>
-  <div id="main-outlet">
-    <div id="topic-title">
-      <h1><a class="fancy-title">How to optimize WebAssembly binary size?</a></h1>
-      <div class="topic-category">
-        <span class="badge-wrapper">Performance</span>
-      </div>
-    </div>
-
-    <div class="post-stream">
-      <div id="post_1" class="topic-post">
-        <div class="names">
-          <span class="username">dave</span>
-        </div>
-        <div class="cooked">
-          We are compiling C++ modules to WebAssembly using Emscripten and our .wasm binary is around 5MB. What compiler flags or optimization tools (like twiggy or binaryen) do you recommend?
+  <head>
+    <meta charset="utf-8" />
+    <title>How to optimize WebAssembly binary size? - Discourse Forum</title>
+    <meta name="generator" content="Discourse 3.2.0" />
+  </head>
+  <body>
+    <div id="main-outlet">
+      <div id="topic-title">
+        <h1>
+          <a class="fancy-title">How to optimize WebAssembly binary size?</a>
+        </h1>
+        <div class="topic-category">
+          <span class="badge-wrapper">Performance</span>
         </div>
       </div>
 
-      <div id="post_2" class="topic-post">
-        <div class="names">
-          <span class="username">eve</span>
+      <div class="post-stream">
+        <div id="post_1" class="topic-post">
+          <div class="names">
+            <span class="username">dave</span>
+          </div>
+          <div class="cooked">
+            We are compiling C++ modules to WebAssembly using Emscripten and our
+            .wasm binary is around 5MB. What compiler flags or optimization
+            tools (like twiggy or binaryen) do you recommend?
+          </div>
         </div>
-        <div class="actions">
-          <span class="like-count">12</span>
-        </div>
-        <div class="cooked">
-          Use `-Oz` optimization in Emscripten and run `wasm-opt -O4` from Binaryen. That usually drops binary size by 40-50%.
+
+        <div id="post_2" class="topic-post">
+          <div class="names">
+            <span class="username">eve</span>
+          </div>
+          <div class="actions">
+            <span class="like-count">12</span>
+          </div>
+          <div class="cooked">
+            Use `-Oz` optimization in Emscripten and run `wasm-opt -O4` from
+            Binaryen. That usually drops binary size by 40-50%.
+          </div>
         </div>
       </div>
     </div>
-  </div>
-</body>
+  </body>
 </html>

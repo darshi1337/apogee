@@ -193,6 +193,41 @@ test("summarizeActivePage gates the focus keyword on page-type support (#319)", 
   assert.ok(cacheWindow.includes("focusKeyword"), "gated focusKeyword used");
 });
 
+test("opening on a new page clears a leftover focus keyword (#413)", () => {
+  // One shared page-change check, not one per entry path.
+  const helperMatch = appCode.match(
+    /function clearKeywordOnPageChange\(tabId, url\) \{[\s\S]*?\n\}/,
+  );
+  assert.ok(helperMatch, "clearKeywordOnPageChange helper found");
+  assert.match(helperMatch[0], /tabId !== lastKeywordTabId/);
+  assert.match(helperMatch[0], /url !== lastKeywordTabUrl/);
+  assert.match(helperMatch[0], /clearFocusKeyword\(\)/);
+
+  // Both entry paths share it: the navigation listener and the restore
+  // path for fresh opens. A same-page re-render keeps the typed value
+  // because the ids and URLs match.
+  const onUpdatedMatch = appCode.match(
+    /chrome\.tabs\.onUpdated\.addListener\(\([\s\S]*?\) => \{[\s\S]*?\n {2}\}\);/,
+  );
+  assert.ok(onUpdatedMatch, "chrome.tabs.onUpdated listener found");
+  assert.match(
+    onUpdatedMatch[0],
+    /clearKeywordOnPageChange\(tabId, changeInfo\.url\)/,
+  );
+
+  const start = appCode.indexOf("async function restoreTabView(");
+  assert.ok(start !== -1, "restoreTabView function found");
+  const body = appCode.slice(start, start + 1500);
+  const ensureIdx = body.indexOf("await ensureTabUrl(tab)");
+  assert.ok(ensureIdx !== -1, "tab URL resolved before the keyword check");
+  assert.ok(
+    body
+      .slice(ensureIdx)
+      .includes("clearKeywordOnPageChange(tab?.id, tab?.url)"),
+    "restoreTabView shares the page-change check",
+  );
+});
+
 test("[#370] resetting the focus keyword input in a function clearFocusKeyword() helper", () => {
   const onActivatedMatch = appCode.match(
     /chrome\.tabs\.onActivated\.addListener\(\(\) => \{[\s\S]*?\n {4}\}\);/,
@@ -204,7 +239,10 @@ test("[#370] resetting the focus keyword input in a function clearFocusKeyword()
   assert.ok(onUpdatedMatch, "chrome.tabs.onUpdated listener found");
 
   assert.match(onActivatedMatch[0], /clearFocusKeyword\(\)/);
-  assert.match(onUpdatedMatch[0], /clearFocusKeyword\(\)/);
+  // The navigation listener shares the page-change helper (#413) instead
+  // of clearing directly.
+  assert.match(onUpdatedMatch[0], /clearKeywordOnPageChange\(/);
+  assert.doesNotMatch(onUpdatedMatch[0], /clearFocusKeyword\(\)/);
 
   assert.doesNotMatch(
     onActivatedMatch[0],
@@ -228,12 +266,12 @@ test("[#391] restoreTabView reuses the gated focus keyword and shared cache keys
   );
   assert.ok(helperMatch, "getSummaryCacheKeys helper found");
   assert.ok(
-    helperMatch[0].includes("getSummaryCacheKey("),
-    "helper computes the summary key",
+    helperMatch[0].includes("getSummaryCacheKeyForSettings("),
+    "helper computes the summary key via the shared settings helper",
   );
   assert.ok(
-    helperMatch[0].includes("getPromptsCacheKey("),
-    "helper computes the prompts key",
+    helperMatch[0].includes("getPromptsCacheKeyForSettings("),
+    "helper computes the prompts key via the shared settings helper",
   );
 
   const start = appCode.indexOf("async function restoreTabView(");

@@ -1,6 +1,6 @@
 # Local Ollama Setup Guide
 
-Local Ollama mode lets advanced users connect Apogee directly to an Ollama instance running on their own computer. This way, they run bigger models (like those with 4 billion to 8 billion+ parameters). All text analysis stays private.
+Local Ollama mode connects Apogee directly to an Ollama instance on your own computer. You can run bigger models (4 billion to 8 billion+ parameters). All text analysis stays private.
 
 ## How It Works
 
@@ -37,9 +37,9 @@ ollama pull llama3.1:8b
 
 ## Automatic CORS Handling
 
-Apogee connects to Ollama without needing extra settings or complicated configurations:
+Apogee connects to Ollama with no extra settings:
 
-- **Header Stripping Rule**: Apogee removes the `Origin` header from its own requests sent to `127.0.0.1`, `localhost`, and the IPv6 loopback `[::1]`. If your browser supports special rules for temporary connections, setup runs on its own. This protects other websites and local services. The same rule works with llama.cpp.
+- **Header Stripping Rule**: Apogee removes the `Origin` header from its own requests sent to `127.0.0.1`, `localhost`, and the IPv6 loopback `[::1]`. If your browser supports rules for temporary connections, setup runs on its own. This protects other websites and local services. The same rule works with llama.cpp.
 
 - **Zero OLLAMA_ORIGINS Setup**: Requests carry no `Origin` header, so Ollama needs no `OLLAMA_ORIGINS="*"` environment variable.
 

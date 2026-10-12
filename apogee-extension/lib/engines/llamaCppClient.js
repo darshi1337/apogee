@@ -10,12 +10,10 @@ import { LLM_HEALTH_CHECK_TIMEOUT_MS } from "../constants.js";
 
 class LlamaCppError extends UserFacingError {}
 
-/**
- * llama-server's context window is set by its `-c` launch flag, not by the
- * model, so a model name says nothing about it. When neither `/props` nor
- * `/v1/models` reports the running value, callers fall back to this: low
- * enough to be safe on a modestly configured server.
- */
+// llama-server's context window is set by its `-c` launch flag, not by the
+// model, so a model name says nothing about it. When neither `/props` nor
+// `/v1/models` reports the running value, callers fall back to this: low
+// enough to be safe on a modestly configured server.
 export const DEFAULT_CONTEXT_TOKENS = 8192;
 
 const SSE_DONE = "[DONE]";
@@ -178,22 +176,18 @@ function positiveInt(value) {
     : null;
 }
 
-/**
- * Whether llama-server is reachable, which model(s) it is serving, and the
- * context window it is actually running with.
- *
- * `/health` answering is the whole of "is it up". The two lookups after it
- * only enrich that answer, so a server with `/props` disabled
- * (`endpoint_props: false`) or an unfamiliar `/v1/models` shape still reports
- * as connected. `contextTokens` is null when neither reported one, leaving the
- * caller to apply DEFAULT_CONTEXT_TOKENS rather than having a guess handed to
- * it as though it were detected.
- *
- * A wrong `apiKey` still reports connected, because `/health` is public, but
- * both enrichment lookups answer 401 and it comes back with no models and no
- * contextTokens. Connected with an empty model list is therefore the signature
- * of a bad key rather than of a server that has nothing loaded.
- */
+// Whether llama-server is reachable, which model(s) it is serving, and the
+// context window it is actually running with.
+// `/health` answering is the whole of "is it up". The two lookups after it
+// only enrich that answer, so a server with `/props` disabled
+// (`endpoint_props: false`) or an unfamiliar `/v1/models` shape still reports
+// as connected. `contextTokens` is null when neither reported one, leaving the
+// caller to apply DEFAULT_CONTEXT_TOKENS rather than having a guess handed to
+// it as though it were detected.
+// A wrong `apiKey` still reports connected, because `/health` is public, but
+// both enrichment lookups answer 401 and it comes back with no models and no
+// contextTokens. Connected with an empty model list is therefore the signature
+// of a bad key rather than of a server that has nothing loaded.
 export async function checkHealth(
   host,
   timeoutMs = LLM_HEALTH_CHECK_TIMEOUT_MS,

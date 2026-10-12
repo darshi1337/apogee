@@ -43,7 +43,11 @@
                   },
                   {
                     "kind": "t1",
-                    "data": { "author": "dave", "score": 3, "body": "[deleted]" }
+                    "data": {
+                      "author": "dave",
+                      "score": 3,
+                      "body": "[deleted]"
+                    }
                   }
                 ]
               }

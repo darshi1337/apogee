@@ -1,17 +1,11 @@
-// Best-effort port helpers shared by the service worker, the offscreen
-// document, and the popup: postMessage/disconnect throw when the other end
-// already went away, and every call site wants to ignore exactly that.
-// Returns true when the call went through, false when the port was already
-// closed (or missing).
-// Single best-effort wrapper behind safePost/safeDisconnect: postMessage and
-// disconnect throw for exactly the same reason (the other end already went
-// away), and every call site wants to ignore exactly that.
+// Ports close silently when the other end goes away, so every call site
+// shares one best-effort wrapper that returns false instead of throwing.
 function safePortCall(port, method, ...args) {
   try {
     port[method](...args);
     return true;
   } catch {
-    // intent: best-effort, ignore if port already closed
+    // The other end already went away.
     return false;
   }
 }
@@ -46,10 +40,8 @@ export function disconnectIfUnknownPort(port, disconnect = safeDisconnect) {
   return true;
 }
 
-// Shared subscriber iteration for broadcast and teardown: copy the set
-// because a port that disconnects mid-loop mutates `subscribers` via its
-// onDisconnect handler, and iterating the live set would skip the next
-// subscriber.
+// Copy the set before iterating: a disconnect mid-loop mutates it
+// and the live iteration would skip the next subscriber.
 function forEachSubscriber(stream, fn) {
   for (const port of [...stream.subscribers]) {
     fn(port);
@@ -60,9 +52,8 @@ export function broadcastToStream(stream, msg) {
   forEachSubscriber(stream, (port) => safePost(port, msg));
 }
 
-// Shared terminal-port teardown (#351): expiry and cancel both drop every
-// subscriber at once instead of leaving ports open, then clear the set so the
-// disconnected ports are gone even if an onDisconnect handler never runs.
+// Drop every subscriber at once (#351), then clear the set in case
+// an onDisconnect handler never runs.
 export function disconnectStreamPorts(stream) {
   forEachSubscriber(stream, safeDisconnect);
   stream.subscribers.clear();

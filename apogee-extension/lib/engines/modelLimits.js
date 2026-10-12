@@ -50,20 +50,16 @@ function isPositiveTokenCount(value) {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
-/**
- * How much text to put in one chunk for a given model.
- *
- * Every branch below infers the context window from the model name, which
- * works while the name implies the window. It does not always: a llama.cpp
- * server takes its window from its own `-c` launch flag, so the same GGUF can
- * be serving 4096 tokens or 32768 and the name reads identically either way.
- * Guessing there is not merely imprecise, it can overflow -- a model named for
- * a 128k window, run with `-c 4096`, would be handed chunks twenty times too
- * large. So a caller that has asked the server what it is actually running
- * passes `contextTokensOverride`, and that wins outright.
- *
- * Callers without one pass nothing and keep the name-based behaviour.
- */
+// How much text to put in one chunk for a given model.
+// Every branch below infers the context window from the model name, which
+// works while the name implies the window. It does not always: a llama.cpp
+// server takes its window from its own `-c` launch flag, so the same GGUF can
+// be serving 4096 tokens or 32768 and the name reads identically either way.
+// Guessing there is not merely imprecise, it can overflow -- a model named for
+// a 128k window, run with `-c 4096`, would be handed chunks twenty times too
+// large. So a caller that has asked the server what it is actually running
+// passes `contextTokensOverride`, and that wins outright.
+// Callers without one pass nothing and keep the name-based behaviour.
 export function getMaxChunkChars(model, contextTokensOverride) {
   let contextTokens;
   if (isPositiveTokenCount(contextTokensOverride)) {

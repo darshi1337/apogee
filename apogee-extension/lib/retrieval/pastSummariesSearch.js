@@ -1,15 +1,6 @@
 import { dot, embedTexts as defaultEmbedTexts } from "../engines/embeddings.js";
 
-/**
- * Searches stored past summaries using semantic vector search and keyword matching.
- *
- * @param {Object} options
- * @param {string} options.query - Search query string.
- * @param {Array} options.cacheOrder - Array of stored summary metadata [{ s, p, t, v }].
- * @param {Object} options.storedSummaries - Object mapping cacheKey -> summary text.
- * @param {Function} [options.embedTextsFn] - Function to embed search query.
- * @returns {Promise<Array>} Ordered array of matching cacheOrder item objects.
- */
+// Searches stored past summaries using semantic vector search and keyword matching.
 export async function searchPastSummaries({
   query,
   cacheOrder = [],
@@ -62,10 +53,9 @@ export async function searchPastSummaries({
       }
     }
 
-    // Combine vector score and keyword match boost
     const score = vectorScore * 1.5 + textScore;
 
-    // Inclusion criteria: If vector comparison occurred, match if score > 0.25 or keyword match exists If entry has no vector or query embedding failed, fallback to keyword match (textScore > 0)
+    // Vector matches need a minimum score; keyword-only entries fall back to text matches.
     const isMatch =
       item.v && queryVector ? score > 0.25 || textScore > 0 : textScore > 0;
 

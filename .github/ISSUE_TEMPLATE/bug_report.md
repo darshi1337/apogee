@@ -5,16 +5,11 @@ title: ""
 labels: bug
 ---
 
-**Describe the bug**
-Describe what is wrong.
+**Describe the bug** Describe what is wrong.
 
-**Steps to reproduce**
-1.
-2.
-3.
+**Steps to reproduce** 1. 2. 3.
 
-**Expected behavior**
-Describe what you expected to happen instead.
+**Expected behavior** Describe what you expected to happen instead.
 
 **Environment**
 
@@ -26,8 +21,7 @@ Describe what you expected to happen instead.
 
 - OS:
 
-**Debug logs**
-If the bug happened during a summarize or ask, engine logs help. Recording is off by default. Do these steps:
+**Debug logs** If the bug happened during a summarize or ask, engine logs help. Recording is off by default. Do these steps:
 
 1. Open Settings.
 2. Open Diagnostics.
@@ -37,5 +31,4 @@ If the bug happened during a summarize or ask, engine logs help. Recording is of
 
 ⚠️ Engine logs may contain details about the page that triggered the bug. Review what you paste before you submit it.
 
-**Additional context**
-Other context that might help (console errors, screenshots, the page or site you used if it is not sensitive).
+**Additional context** Other context that might help (console errors, screenshots, the page or site you used if it is not sensitive).

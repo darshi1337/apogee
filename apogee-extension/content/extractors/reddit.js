@@ -1,5 +1,3 @@
-// Reddit comments-page extractor.
-//
 // Fetches the thread JSON for the page already open (`${location.origin}${location.pathname}.json`,
 // same origin as the viewed comments page) from the content script (the page's
 // own context), so no extra host permission or extension-pages connect-src

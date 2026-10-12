@@ -1,21 +1,18 @@
-/**
- * UserFacingError – an error whose message was written for the end user.
- *
- * Any error that is *not* a UserFacingError is assumed to carry a raw string
- * from the browser, from a vendored library, or from a remote server, and
- * `toUserMessage` maps it onto one of a small set of generic fallbacks so that
- * those strings never reach the UI verbatim.
- */
+// UserFacingError – an error whose message was written for the end user.
+// Any error that is *not* a UserFacingError is assumed to carry a raw string
+// from the browser, from a vendored library, or from a remote server, and
+// `toUserMessage` maps it onto one of a small set of generic fallbacks so that
+// those strings never reach the UI verbatim.
 export class UserFacingError extends Error {
   constructor(message, options) {
     super(message, options);
     this.name = "UserFacingError";
-    /** Marker so the check works across module‐graph duplicates. */
+    // Marker so the check works across module‐graph duplicates.
     this.isUserFacing = true;
   }
 }
 
-// ── Fallback catalogue ───────────────────────────────────────────────── Each entry is [pattern, fallback message]. Order matters: more specific patterns go first, broader ones later.
+// More specific patterns go first; the first match wins.
 
 const FALLBACKS = [
   [/\bpdf\b/i, "Couldn't process this PDF document."],
@@ -43,20 +40,9 @@ const FALLBACKS = [
 
 const GENERIC_FALLBACK = "An unexpected error occurred. Try summarizing again.";
 
-/**
- * Return a user‐safe message string for any error.
- *
- * - If `err` is a `UserFacingError` (or carries the `isUserFacing` marker),
- *   its `.message` is returned verbatim — someone already chose those words.
- * - Otherwise, the raw message is matched against `FALLBACKS` and replaced
- *   with the first hit, or with a generic fallback if nothing matches.
- *
- * The original error is always preserved on `cause` by callers and in the
- * `console.error` calls that sit beside every render site.
- *
- * This function is pure and needs no browser APIs, so its tests do not
- * require a `chrome` stub.
- */
+// Return a user‐safe message for any error.
+// UserFacingError messages pass through verbatim; anything else matches
+// FALLBACKS in order or falls back to generic. Pure with no browser APIs.
 export function toUserMessage(err) {
   if (err && err.isUserFacing) return err.message;
 
@@ -71,14 +57,7 @@ export function toUserMessage(err) {
 const MAX_NOTIFICATION_LEN = 120;
 const SHORT_SUFFIX = " Open Apogee for details.";
 
-/**
- * Formats a notification body message. If the combined message and standard suffix
- * exceeds 120 characters, truncates the message and appends a short call-to-action.
- *
- * @param {string} rawMessage - The base error or status message.
- * @param {string} [suffix=" Click to see what this means."] - The standard action suffix.
- * @returns {string} The safely capped notification body text.
- */
+// Cap the notification body so message plus suffix fits the limit.
 export function formatNotificationMessage(
   rawMessage,
   suffix = " Click to see what this means.",

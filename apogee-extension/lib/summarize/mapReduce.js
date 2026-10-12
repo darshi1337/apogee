@@ -32,7 +32,7 @@ function choosePartialChunks(chunks, maxChunks, selectChunksFn, onProgress) {
         return selected;
       }
     } catch {
-      // Fall through to the default.
+      // Caller-supplied selector failed; keep every chunk below.
     }
   }
   // No selector (or it failed): keep every chunk and rely on the tree-reduce stage to fold the surplus. The point of issue #148 is exactly that "drop material you don't have time to map" is the wrong default.

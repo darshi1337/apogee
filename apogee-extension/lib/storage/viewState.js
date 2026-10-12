@@ -12,19 +12,16 @@ function viewStateKey(tabId) {
   return `popupViewState:${tabId}`;
 }
 
-/**
- * Tab ids come from chrome.tabs and are non-negative integers. Anything else
- * (null, undefined, a URL string, floats) must never become a storage key:
- * `saveViewState(url, ...)` once created `popupViewState:https://...` keys
- * that leaked raw URLs into key names, were unreachable via
- * `loadViewState(tabId)`, and were never removed by `removeViewState(tabId)`
- * on tab close.
- */
+// Tab ids come from chrome.tabs and are non-negative integers. Anything else
+// (null, undefined, a URL string, floats) must never become a storage key:
+// `saveViewState(url, ...)` once created `popupViewState:https://...` keys
+// that leaked raw URLs into key names, were unreachable via
+// `loadViewState(tabId)`, and were never removed by `removeViewState(tabId)`
+// on tab close.
 export function isValidTabId(tabId) {
   return typeof tabId === "number" && Number.isInteger(tabId) && tabId >= 0;
 }
 
-/** Whether a view-state key is a legacy orphan keyed by something other than a numeric tab id. */
 export function isOrphanedViewStateKey(key) {
   return (
     typeof key === "string" &&
@@ -34,9 +31,8 @@ export function isOrphanedViewStateKey(key) {
 }
 
 const MAX_VIEW_STATES = 50;
-// View states duplicate summary text per tab, so they get their own byte
-// budget well inside the storage quota. Measured natively when possible,
-// else the count cap alone applies.
+// View states duplicate summary text per tab, so they keep a smaller
+// byte budget inside the quota.
 const MAX_VIEW_STATE_BYTES = 1_000_000;
 
 const acquireViewStateLock = createLock();
@@ -82,7 +78,6 @@ async function writeViewState(tabId, partial, expectedJob = null) {
 
     const order = viewStateOrder.filter((k) => k !== key);
     order.push(key);
-    // Byte-aware eviction without reading every state back.
     const removeKeys = await evictKeysOverBudget(order, {
       maxCount: MAX_VIEW_STATES,
       maxBytes: MAX_VIEW_STATE_BYTES,
@@ -93,9 +88,8 @@ async function writeViewState(tabId, partial, expectedJob = null) {
       await chrome.storage.local.set({ [key]: state, viewStateOrder: order });
     } catch (err) {
       if (!isQuotaError(err)) throw err;
-      // Ephemeral UI state, not the durable summary (finalize owns that and
-      // already surfaces quota failures visibly): evict half the oldest
-      // states and retry once, else drop this write with a warning.
+      // Ephemeral UI state only: evict half the oldest states and retry
+      // once, else drop the write with a warning.
       const extra = order.splice(0, Math.ceil(order.length / 2));
       removeKeys.push(...extra);
       try {
@@ -133,17 +127,12 @@ export async function loadViewState(tabId) {
   return stored[key] || null;
 }
 
-/** Whether a storage key holds popup view state rather than a setting. */
 export function isViewStateKey(key) {
   return key.startsWith("popupViewState:") || key === "viewStateOrder";
 }
 
-/**
- * Delete every tab's saved view state, along with its order index. Reads
- * only the order index and the keys it names — never a full-store
- * `get(null)` scan — under the same lock as the writers, so a concurrent
- * write cannot resurrect entries into an index read before the wipe.
- */
+// Delete every tab's saved view state. Reads only the index and its keys
+// under the writer lock, so a concurrent write cannot resurrect entries.
 export async function clearAllViewStates() {
   return clearIndexedKeys(acquireViewStateLock, ["viewStateOrder"]);
 }
@@ -163,17 +152,9 @@ export async function removeViewState(tabId) {
   }
 }
 
-/**
- * Remove legacy view-state entries keyed by something other than a numeric
- * tab id (e.g. `popupViewState:https://...` written by multi-tab
- * summarization before it used the owning tab's id), and drop their entries
- * from the order index. Runs under the same lock as the writers. Returns the
- * number of storage keys removed.
- *
- * This keeps one full-store read: orphans are by definition absent from the
- * order index, so only a scan finds them. It runs on tab close and on
- * install/startup — never on the write hot path.
- */
+// Remove legacy entries keyed by URL instead of tab id. Keeps one
+// full-store scan since orphans are absent from the index; runs on tab
+// close and startup, never on the write path.
 export async function cleanupOrphanedViewStates() {
   const release = await acquireViewStateLock();
   try {

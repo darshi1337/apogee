@@ -1,4 +1,5 @@
-// ponytail: 4.7 is a heuristic average, not a real tokenizer. It only ever affects a chunk longer than LONG_CHUNK_CHARS (a batched/estimated delta, not a per-token one) — recalibrate if the display rate visibly drifts from a backend's own self-reported rate.
+// 4.7 chars is a heuristic average, not a tokenizer. It only affects long
+// batched chunks; recalibrate if the display drifts from backend rates.
 export const EST_CHARS_PER_TOKEN = 4.7;
 const LONG_CHUNK_CHARS = 16;
 

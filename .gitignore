@@ -62,6 +62,19 @@ desktop.ini
 AGENTS.md
 skills-lock.json
 
+# Local agent runtime state (Claude Code locks, checkpoints, mailbox).
+# These files record what runs on one machine. They never belong in a commit.
+**/.claude/scheduled_tasks.lock
+**/.claude/scheduled_tasks.json
+**/.claude/routines/.state/
+**/.claude/worktrees/
+**/.claude/checkpoints/
+**/.claude/mailbox/
+**/.claude/agent-registry.json
+**/.claude/agent-memory-local
+**/.claude/first-run
+**/.claude/assistant-daemon-state.json
+
 # Locally generated social preview source and render
 .github/social-preview.html
 .github/social-preview.css
