@@ -549,6 +549,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Expire stream subscribers on cleanup (#386) ([fa56fae](https://github.com/darshi1337/apogee/commit/fa56fae2edadbdb4863da8068bd5e8f312a2dde1))
 - Honor focusKeyword in video summarize path (#388) ([0276c1e](https://github.com/darshi1337/apogee/commit/0276c1eca211c1fc0e7e46a237260f765d923c87))
 - Show focus keyword for video and discussion, gate cache on multi-tab only (#390) ([4c42680](https://github.com/darshi1337/apogee/commit/4c42680910e121683ee2f7027427fdb3bf70969d))
+- Pass translationEngine in llama.cpp suggest path (#411) ([712b300](https://github.com/darshi1337/apogee/commit/712b3003f4c0464eaa88a2a0265c115ce4ac0c19))
+- Scope suggest-questions-bg cache key by focusKeyword (#392) ([4ddcc9a](https://github.com/darshi1337/apogee/commit/4ddcc9a9d82a8f6be1902fba2e20a9752c75e394))
+- Clear a stale focus keyword on a fresh open on a new page (#413) (#446) ([cb26b44](https://github.com/darshi1337/apogee/commit/cb26b44f836b7f2116d7cc49ba388abf3493577c))
 
 ### Changed
 
