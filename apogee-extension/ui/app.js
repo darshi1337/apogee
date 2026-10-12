@@ -98,6 +98,7 @@ import {
   COULD_NOT_READ_THIS_PAGE_ERROR_MSG,
   NOTHING_TO_SUMMARIZE_ERROR_MSG,
   COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG,
+  PDF_TOO_LARGE_ERROR_MSG,
 } from "../lib/util/messages.js";
 import { t, applyI18nToDom } from "../lib/util/i18n.js";
 import { safeDisconnect } from "../lib/util/streamBroadcast.js";
@@ -1912,10 +1913,7 @@ async function summarizeActivePage() {
         } catch (err) {
           const msg = err?.message || String(err);
           if (msg.startsWith("PDF_TOO_LARGE:")) {
-            renderError(
-              summaryText,
-              "This PDF is too large to process inside the extension. Try a shorter document.",
-            );
+            renderError(summaryText, PDF_TOO_LARGE_ERROR_MSG);
             return;
           }
           throw err;

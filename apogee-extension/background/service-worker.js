@@ -123,6 +123,7 @@ import {
   COULD_NOT_READ_THIS_PAGE_ERROR_MSG,
   NOTHING_TO_SUMMARIZE_ERROR_MSG,
   COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG,
+  PDF_TOO_LARGE_ERROR_MSG,
 } from "../lib/util/messages.js";
 
 initDebugLogging();
@@ -1006,6 +1007,37 @@ async function generateTransformersSuggestions(
   );
 }
 
+// Shared by runBackgroundSummarize and runExtractOnly (#414): wrap selected
+// text as page data so the generic extraction path is skipped.
+function buildSelectionPageData(tab, selection) {
+  return {
+    title: tab.title || "Selected text",
+    url: tab.url,
+    content: selection,
+    type: "generic",
+    isPdf: false,
+  };
+}
+
+// Shared by runBackgroundSummarize and runExtractOnly (#414): pull text from
+// a PDF tab, mapping oversized/unreadable PDFs to user-facing errors.
+async function extractPdfTextOrThrow(tab) {
+  let content;
+  try {
+    content = await extractPdfContent(tab);
+  } catch (err) {
+    const msg = err?.message || String(err);
+    if (msg.startsWith("PDF_TOO_LARGE:")) {
+      throw new UserFacingError(PDF_TOO_LARGE_ERROR_MSG);
+    }
+    throw err;
+  }
+  if (!content) {
+    throw new UserFacingError(COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG);
+  }
+  return content;
+}
+
 export async function runBackgroundSummarize(
   tab,
   { notifyOnFinish, selectionText } = {},
@@ -1024,13 +1056,7 @@ export async function runBackgroundSummarize(
 
   let pageData;
   if (isSelection) {
-    pageData = {
-      title: tab.title || "Selected text",
-      url: tab.url,
-      content: selection,
-      type: "generic",
-      isPdf: false,
-    };
+    pageData = buildSelectionPageData(tab, selection);
   } else {
     // Reuse already-extracted content when available, so a re-summarize in
     // another format only re-runs the model (#177).
@@ -1069,20 +1095,7 @@ export async function runBackgroundSummarize(
 
   let content = pageData.content;
   if (pageData.isPdf && !content) {
-    try {
-      content = await extractPdfContent(tab);
-    } catch (err) {
-      const msg = err?.message || String(err);
-      if (msg.startsWith("PDF_TOO_LARGE:")) {
-        throw new UserFacingError(
-          "This PDF is too large to process inside the extension. Try a shorter document.",
-        );
-      }
-      throw err;
-    }
-    if (!content) {
-      throw new UserFacingError(COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG);
-    }
+    content = await extractPdfTextOrThrow(tab);
   }
 
   const jobId = `summary-${crypto.randomUUID()}`;
@@ -1201,13 +1214,7 @@ export async function runExtractOnly(tab) {
 
   let pageData;
   if (isSelection) {
-    pageData = {
-      title: targetTab.title || "Selected text",
-      url: targetTab.url,
-      content: selection,
-      type: "generic",
-      isPdf: false,
-    };
+    pageData = buildSelectionPageData(targetTab, selection);
   } else {
     pageData = await extractFromActiveTab(targetTab);
     if (!pageData) {
@@ -1220,20 +1227,7 @@ export async function runExtractOnly(tab) {
 
   let content = pageData.content;
   if (pageData.isPdf && !content) {
-    try {
-      content = await extractPdfContent(targetTab);
-    } catch (err) {
-      const msg = err?.message || String(err);
-      if (msg.startsWith("PDF_TOO_LARGE:")) {
-        throw new UserFacingError(
-          "This PDF is too large to process inside the extension. Try a shorter document.",
-        );
-      }
-      throw err;
-    }
-    if (!content) {
-      throw new UserFacingError(COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG);
-    }
+    content = await extractPdfTextOrThrow(targetTab);
   }
 
   const cleaned = cleanText(content || "");

@@ -4,3 +4,5 @@ export const NOTHING_TO_SUMMARIZE_ERROR_MSG =
   "Nothing to summarize here yet - open a page, email, or video first.";
 export const COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG =
   "Couldn't pull any text out of this PDF - it might be a scanned image.";
+export const PDF_TOO_LARGE_ERROR_MSG =
+  "This PDF is too large to process inside the extension. Try a shorter document.";
