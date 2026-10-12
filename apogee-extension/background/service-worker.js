@@ -39,7 +39,10 @@ import {
 import { truncateForPrompt } from "../lib/summarize/chunk.js";
 import { cleanText } from "../lib/summarize/cleaner.js";
 import { createSummarizeProgressTracker } from "../lib/summarize/progress.js";
-import { STREAM_CLEANUP_MS } from "../lib/util/streamExpiry.js";
+import {
+  msToAlarmMinutes,
+  STREAM_CLEANUP_MS,
+} from "../lib/util/streamExpiry.js";
 import { mapReduceStream } from "../lib/summarize/mapReduce.js";
 import { parseSuggestedQuestions } from "../lib/summarize/questions.js";
 import { extractPdfText } from "../lib/extract/pdfExtract.js";
@@ -464,7 +467,7 @@ export function untrackOffscreenRelay(streamId) {
 const STREAM_CLEANUP_PREFIX = "stream-cleanup:";
 // Single source of truth for the 2-min window lives in lib/util/streamExpiry.js
 // (the offscreen document consumes it as ms); alarms take minutes.
-const STREAM_CLEANUP_MINUTES = STREAM_CLEANUP_MS / (60 * 1000);
+const STREAM_CLEANUP_MINUTES = msToAlarmMinutes(STREAM_CLEANUP_MS);
 // Sliding expiry: re-creating an alarm with the same name overwrites it, so
 // every call pushes expiry 2 min out. Callers refresh on each chunk of
 // progress (emitChunk, relayed offscreen chunks); a stream with no progress
