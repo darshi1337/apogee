@@ -19,9 +19,7 @@ chrome.scripting = {
 };
 globalThis.chrome = chrome;
 
-const { runExtractOnly } = await import(
-  "../../background/service-worker.js"
-);
+const { runExtractOnly } = await import("../../background/service-worker.js");
 
 const TAB = {
   id: 1,
