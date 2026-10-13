@@ -73,6 +73,30 @@
     "message": "Click, then select text on the webpage",
     "description": "Select text button tooltip"
   },
+  "extractText": {
+    "message": "Copy text",
+    "description": "Chip button label: extract page text without AI"
+  },
+  "extractTextHint": {
+    "message": "Extract and copy page text, no AI needed",
+    "description": "Tooltip/aria-label for the extract text chip button"
+  },
+  "extracting": {
+    "message": "Extracting",
+    "description": "Loading indicator text while extracting page content"
+  },
+  "textExtracted": {
+    "message": "Text extracted.",
+    "description": "Screen reader announcement when page text extraction succeeds"
+  },
+  "pressCopyHint": {
+    "message": "Press Copy button to copy",
+    "description": "Visible badge label when automatic clipboard write fails"
+  },
+  "textExtractedPressCopy": {
+    "message": "Text extracted. Press Copy button to copy.",
+    "description": "Screen reader announcement when automatic clipboard write fails"
+  },
   "webgpuUnsupportedLead": {
     "message": "WebGPU is not supported in this browser. Use",
     "description": "WebGPU warning lead text"

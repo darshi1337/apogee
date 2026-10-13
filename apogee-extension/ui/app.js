@@ -98,8 +98,9 @@ import {
   COULD_NOT_READ_THIS_PAGE_ERROR_MSG,
   NOTHING_TO_SUMMARIZE_ERROR_MSG,
   COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG,
+  PDF_TOO_LARGE_ERROR_MSG,
 } from "../lib/util/messages.js";
-import { applyI18nToDom } from "../lib/util/i18n.js";
+import { t, applyI18nToDom } from "../lib/util/i18n.js";
 import { safeDisconnect } from "../lib/util/streamBroadcast.js";
 import { tryParseUrl } from "../lib/util/url.js";
 import { createAnnouncer, handleTrapTabKey } from "../lib/util/a11y.js";
@@ -238,6 +239,7 @@ function setSidePanelButtons({ panelOpen, available }) {
 
 const summarizeBtn = document.getElementById("summarizeBtn");
 const summarizeSelectionBtn = document.getElementById("summarizeSelectionBtn");
+const extractTextBtn = document.getElementById("extractTextBtn");
 const summarizeShortcutHint = document.getElementById("summarizeShortcutHint");
 const focusKeywordInput = document.getElementById("focusKeywordInput");
 const summaryText = document.getElementById("summaryText");
@@ -1416,12 +1418,12 @@ function setSummaryCopyButtonsVisible(hasText) {
 }
 
 async function copyToClipboard(text, btn) {
-  if (!text || !btn) return;
+  if (!text || !btn) return false;
   try {
     await navigator.clipboard.writeText(text);
   } catch (err) {
     console.error("Copy to clipboard failed:", err);
-    return;
+    return false;
   }
   announce("Copied to clipboard.");
   const original = btn.innerHTML;
@@ -1430,6 +1432,7 @@ async function copyToClipboard(text, btn) {
   btn._copyResetTimer = setTimeout(() => {
     btn.innerHTML = original;
   }, 1500);
+  return true;
 }
 
 // Shared download step for the single and bulk JSON exports.
@@ -1776,6 +1779,50 @@ async function consumeSummaryStream(stream, { tab, promptsCacheKey, jobId }) {
   return text;
 }
 
+async function extractAndCopyPage() {
+  showOnlyView("summaryView");
+  showSummarizingContext();
+  setLoadingIndicator(summaryText, t("extracting"));
+
+  try {
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    await ensureTabUrl(tab);
+
+    const result = await chrome.runtime.sendMessage({
+      target: "service-worker",
+      action: "extract-only",
+      payload: { tab },
+    });
+    if (result?.error) {
+      renderError(summaryText, result.error);
+      return;
+    }
+
+    const content = result?.content || "";
+    summaryText.textContent = content;
+    currentSummaryText = content;
+    currentPageData = result;
+
+    setSummaryCopyButtonsVisible(!!content.trim());
+    updateExtractorChip(result);
+    announce(t("textExtracted"));
+
+    const copied = await copyToClipboard(content, copyMarkdownBtn);
+    if (!copied) {
+      // Reuse the time-saved badge slot: auto-copy can fail when the
+      // user-activation window expires on slow pages/PDFs, and this is the
+      // only visible badge in the summary view.
+      setTimeSavedBadgeLabel(t("pressCopyHint"));
+      announce(t("textExtractedPressCopy"));
+    }
+  } catch (error) {
+    renderError(summaryText, toUserMessage(error));
+  }
+}
+
 async function summarizeActivePage() {
   if (activeSummarizeStreamId) {
     cancelStream(activeSummarizeStreamId);
@@ -1866,10 +1913,7 @@ async function summarizeActivePage() {
         } catch (err) {
           const msg = err?.message || String(err);
           if (msg.startsWith("PDF_TOO_LARGE:")) {
-            renderError(
-              summaryText,
-              "This PDF is too large to process inside the extension. Try a shorter document.",
-            );
+            renderError(summaryText, PDF_TOO_LARGE_ERROR_MSG);
             return;
           }
           throw err;
@@ -2501,6 +2545,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 summarizeBtn?.addEventListener("click", () => summarizeActivePage());
+extractTextBtn?.addEventListener("click", () => extractAndCopyPage());
 
 summarizeSelectionBtn?.addEventListener("click", async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
