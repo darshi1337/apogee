@@ -369,6 +369,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Add per-page focus keyword (#161) ([1560098](https://github.com/darshi1337/apogee/commit/1560098b6711315a3105949fc3ec06d697287eee))
 - Localize popup via chrome.i18n framework ([6780eb7](https://github.com/darshi1337/apogee/commit/6780eb7bf681182894c6292833f92440d31955e7))
 - Auto-sync readme contributors wall with scheduled workflow ([62e1cff](https://github.com/darshi1337/apogee/commit/62e1cff94da2285ae0f24619fc27cfb3e961f855))
+- Add extract-only copy-text action (#414) (#449) ([001c4bd](https://github.com/darshi1337/apogee/commit/001c4bd16d7364acb32e9a1526170b97060301d0))
 
 ### Fixed
 
@@ -552,6 +553,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Pass translationEngine in llama.cpp suggest path (#411) ([712b300](https://github.com/darshi1337/apogee/commit/712b3003f4c0464eaa88a2a0265c115ce4ac0c19))
 - Scope suggest-questions-bg cache key by focusKeyword (#392) ([4ddcc9a](https://github.com/darshi1337/apogee/commit/4ddcc9a9d82a8f6be1902fba2e20a9752c75e394))
 - Clear a stale focus keyword on a fresh open on a new page (#413) (#446) ([cb26b44](https://github.com/darshi1337/apogee/commit/cb26b44f836b7f2116d7cc49ba388abf3493577c))
+- Clamp sub-minute STREAM_CLEANUP alarm delays to Chrome's minimum (#447) ([07fa5f5](https://github.com/darshi1337/apogee/commit/07fa5f51db1dce8d70fecbc14dc1644ec205bbc6))
 
 ### Changed
 
