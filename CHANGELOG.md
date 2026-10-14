@@ -370,6 +370,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Localize popup via chrome.i18n framework ([6780eb7](https://github.com/darshi1337/apogee/commit/6780eb7bf681182894c6292833f92440d31955e7))
 - Auto-sync readme contributors wall with scheduled workflow ([62e1cff](https://github.com/darshi1337/apogee/commit/62e1cff94da2285ae0f24619fc27cfb3e961f855))
 - Add extract-only copy-text action (#414) (#449) ([001c4bd](https://github.com/darshi1337/apogee/commit/001c4bd16d7364acb32e9a1526170b97060301d0))
+- Provider fallback chain across engines (#459) ([1a2f83b](https://github.com/darshi1337/apogee/commit/1a2f83b3dc02689366b5ae5165ec04e8f2e741db))
+- Effective-config view with keys hidden (#461) ([ebceca6](https://github.com/darshi1337/apogee/commit/ebceca6cf9d39aa5827bb1f3f39ba8168c6d1e85))
 
 ### Fixed
 
