@@ -70,11 +70,11 @@ Run `install:extension`, `build`, `test`, `lint`, `format`, `build:watch`, and `
 
 ## Repository Folder Guide and Contribution Rules
 
-The Apogee extension code lives in `apogee-extension/`. Below is what each folder holds, what files it has, and how to contribute to it.
+The Apogee extension code lives in `apogee-extension/`. Below is what each folder holds, what files it has, and how to contribute to it. File lists are a snapshot; `ls` is the source of truth when they differ.
 
 ### 1. `content/` (Tab Context Extractor Scripts)
 
-- **What it holds**: `content.js` (main injection script). `Readability.js` (bundled article parser from Mozilla). Site-specific extractors live in `content/extractors/`. They cover `youtube.js`, `bilibili.js`, `wikipedia.js`, `reddit.js`, `gmail.js`, `hackernews.js`, `github.js`, and `lobsters.js`. They also cover `arxiv.js`, `mastodon.js`, `stackoverflow.js`, `lemmy.js`, `discourse.js`, `bluesky.js`, `devto.js`, and `gitlab.js`. Shared helpers live in `thread.js` (page text, reply trees, page render) and `video.js` (timestamps, transcripts). `thread.js` loads first. Every extractor can call its helpers.
+- **What it holds**: `content.js` (main injection script). `Readability.js` (bundled article parser from Mozilla). `highlight.js` (in-page passage highlight overlay). Site-specific extractors live in `content/extractors/`: `arxiv.js`, `bilibili.js`, `bluesky.js`, `devto.js`, `discourse.js`, `generic.js` (Readability fallback), `github.js`, `gitlab.js`, `gmail.js`, `hackernews.js`, `lemmy.js`, `lobsters.js`, `mastodon.js`, `reddit.js`, `stackoverflow.js`, `wikipedia.js`, and `youtube.js`. Shared helpers live in `thread.js` (page text, reply trees, page render) and `video.js` (timestamps, transcripts). `thread.js` loads first. Every extractor can call its helpers.
 
 - **How to contribute**: Add a new extractor file in `content/extractors/` that reads DOM nodes cleanly without touching global window scope. Register your extractor in `lib/extract/pageExtraction.js`. Add a static HTML test fixture in `tests/extractors/fixtures/`. Add unit test cases in `tests/extractors/`.
 
@@ -84,19 +84,25 @@ The `lib/` folder holds plain JavaScript logic split into clean functional folde
 
 #### `lib/engines/` (AI Model Runtime Adapters)
 
-- **What it holds**: `transformersEngine.js` (WebAssembly CPU engine). `ollamaClient.js` (Local Ollama HTTP streaming client). `llamaCppClient.js` (local llama.cpp SSE client). `providers.js` (engine registry).
+- **What it holds**: `providers.js` (engine registry, ordered fallback chain, extracted-text fallback). `ollamaClient.js` (Local Ollama HTTP streaming client). `llamaCppClient.js` (local llama.cpp SSE client). `transformersEngine.js` (WebAssembly CPU engine). `transformersLib.js` and `onnxWasm.js` (model lib loading). `embeddings.js` (on-device embedding client). `httpChatStream.js` (shared chat-completions streaming scaffold). `modelLimits.js` (per-engine chunk budgets).
 
-- **How to contribute**: Add new model configs to `providers.js` or improve token streaming handlers inside the provider clients and engine adapters. Keep inference strictly on-device with no cloud API deps.
+- **How to contribute**: Add new model configs to `providers.js` or improve token streaming handlers inside the provider clients and engine adapters. New engines plug into the `resolveEngineChain` order once instead of once per call site. Keep inference strictly on-device with no cloud API deps.
 
 #### `lib/extract/` (Text Extraction Routers)
 
-- **What it holds**: `pageExtraction.js` (tab extraction router). `pdfExtract.js` (client-side PDF parsing with pdf.js). `docxExtract.js` (dep-free DOCX ZIP/XML parsing).
+- **What it holds**: `pageExtraction.js` (tab extraction router). `pdfExtract.js` (client-side PDF parsing with pdf.js). `docxExtract.js` (dep-free DOCX ZIP/XML parsing). `selection.js` (selected-text capture and length gating). `fileLimits.js` (upload and payload size caps).
 
 - **How to contribute**: Add routing rules for new extractors or improve fallback text extraction for complex page layouts.
 
+#### `lib/language/` (Detection and Translation)
+
+- **What it holds**: `detectLanguage.js` (page and summary language detection). `languageOutput.js` (target-language generation and fallbacks). `opusTranslate.js` plus `opusTranslateEngine.js` (on-device OPUS translation).
+
+- **How to contribute**: Extend language coverage or improve translation fallback handling.
+
 #### `lib/retrieval/` (On-Device RAG and Semantic Search)
 
-- **What it holds**: `rag.js` (on-device passage chunking, embedding with `all-MiniLM-L6-v2`, and vector similarity retrieval). `pastSummariesSearch.js` (on-device vector search across saved past summaries).
+- **What it holds**: `rag.js` (on-device passage chunking, embedding with `all-MiniLM-L6-v2`, and vector similarity retrieval). `pastSummariesSearch.js` (on-device vector search across saved past summaries). `passageMatch.js` (summary-to-source passage grounding for highlight-in-page).
 
 - **How to contribute**: Tune cosine similarity limits, passage overlap values, or improve vector search index speed.
 
@@ -108,21 +114,21 @@ The `lib/` folder holds plain JavaScript logic split into clean functional folde
 
 #### `lib/summarize/` (Prompt Engineering and Chunking)
 
-- **What it holds**: The `chunk.js` file holds a dynamic token and character chunker. The `prompts.js` file holds prompt template builders for articles, videos, and Q&A. The `mapReduce.js` file holds hierarchical map-reduce with tree-folding and OOM-safe fallbacks. The `ollamaSummarize.js` file holds a map-reduce pipeline runner and translation directives.
+- **What it holds**: `prompts.js` (prompt template builders for articles, videos, and Q&A, plus the focus-keyword cap). `chunk.js` (dynamic token and character chunker). `cleaner.js` (model-output cleanup). `sections.js` (section-aware splitting). `mapReduce.js` (hierarchical map-reduce with tree-folding and OOM-safe fallbacks). `progress.js` (shared summarize progress tracker). `ollamaSummarize.js` (map-reduce pipeline runner and translation directives). `youtubeSummarize.js` plus `youtubeChapters.js` and `timestamps.js` (video transcript path). `questions.js` (suggested-question parsing).
 
 - **How to contribute**: Improve prompt templates for clarity, improve hierarchical map-reduce chunking and tree-reduction, or improve target language translation handling.
 
 #### `lib/util/` (Shared Helper Utilities)
 
-- **What it holds**: `userError.js` (cleaned user-facing error mapping). `permissions.js` (dynamic host permission checks and on-demand origin prompts). Plus execution mutex locks and reading-time-saved calc functions.
+- **What it holds**: error surfacing (`userError.js`, `connectionError.js`, `errorHelp.js`, `messages.js`), streaming plumbing (`streamState.js`, `streamBroadcast.js`, `streamExpiry.js`, `mutex.js`, `retry.js`, `withTimeout.js`), loopback networking (`ollamaHost.js`, `loopbackCors.js`), rendering and text (`markdown.js`, `i18n.js`, `a11y.js`, `exportFormat.js`, `readingTime.js`, `throughput.js`, `hash.js`, `url.js`), and extension plumbing (`permissions.js`, `log.js`, `diagnostics.js`, `notificationTargets.js`).
 
 - **How to contribute**: Add friendly user error mappers or shared util functions used across extension background scripts and popups.
 
 ### 3. `background/` (Service Worker Architecture)
 
-- **What it holds**: `service-worker.js`, which acts as the central background routing hub for Manifest V3. It handles message passing, streaming port links, offscreen document lifecycles, and alarm cleanup timers.
+- **What it holds**: `service-worker.js`, the Manifest V3 message router. It keeps routing, engine-running (`startLocalHttpStream`, `startTransformersStream`, `createBufferedStream`), background summarize/extract, lookups, and alarms. Four modules carry the rest, with one-way dependencies (`streams.js` <- `suggestQuestions.js` <- `finalize.js`, all imported by the worker): `streams.js` (stream registry, sliding expiry, offscreen relay, keep-alive), `finalize.js` (trusted finalize rebuild, summary persistence, notifications, preserved-text retry store), `suggestQuestions.js` (follow-up-question job plus its generation helpers), `loopbackProviders.js` (Ollama/llama.cpp host validation and provider descriptors).
 
-- **How to contribute**: Change service worker message listeners, improve token buffer streaming, or improve background idle timers.
+- **How to contribute**: Change service worker message listeners, improve token buffer streaming, or improve background idle timers. Put new stream lifecycle in `streams.js`, new persist/notify work in `finalize.js`, and new background jobs beside `suggestQuestions.js` — not inline in the router.
 
 ### 4. `offscreen/` (Chromium Inference Sandbox)
 
@@ -132,9 +138,9 @@ The `lib/` folder holds plain JavaScript logic split into clean functional folde
 
 ### 5. `ui/` (Popup and Side Panel Interface)
 
-- **What it holds**: `app.html`, `app.css`, `app.js`, and `icons.js` (inline SVG icons) render the shared popup and side-panel interface. They cover Home, Summary, Ask, local file upload, Past Summaries search, and Settings views.
+- **What it holds**: `app.js` renders the shared popup and side-panel interface (Home, Summary, Ask, local file upload, Past Summaries search, Settings views). `app.html`, `app.css`, and `icons.js` (inline SVG icons) support it. `mock.js` stands in for `chrome` in non-extension contexts. Three modules carry the testable logic: `jobs.js` (the one streaming-job runner owning start, view state, cancel, consume, and engine fallback), `focusKeyword.js` (keyword gating and page-change tracking), `cappedInputs.js` (input caps, counters, autosave wiring).
 
-- **How to contribute**: Improve UI parts, update theme styles, improve accessibility, or add interactive controls while keeping extension design standards.
+- **How to contribute**: Improve UI parts, update theme styles, improve accessibility, or add interactive controls while keeping extension design standards. Put new job flows through `runStreamingJob` and new pure UI logic in an importable module with direct unit tests — not inline in `app.js`.
 
 ### 6. `rules/` (Declarative Net Request Security Rules)
 
@@ -150,7 +156,7 @@ The `lib/` folder holds plain JavaScript logic split into clean functional folde
 
 ### 8. `tests/` (Unit Test Suite and HTML Fixtures)
 
-- **What it holds**: Dep-free unit tests run on the Node built-in test runner (`node --test`). They group into folders matching lib modules. They cover `tests/background/`, `tests/engines/`, `tests/extract/`, `tests/extractors/`, `tests/helpers/`, and `tests/language/`. They also cover `tests/retrieval/`, `tests/storage/`, `tests/summarize/`, `tests/ui/`, and `tests/util/`. The suite adds `tests/manifest.test.js` plus static HTML fixtures in `tests/extractors/fixtures/`.
+- **What it holds**: Dep-free unit tests run on the Node built-in test runner (`node --test`). They group into folders matching lib modules: `tests/background/`, `tests/content/`, `tests/engines/`, `tests/extract/`, `tests/extractors/`, `tests/helpers/`, and `tests/language/`. They also cover `tests/retrieval/`, `tests/storage/`, `tests/summarize/`, `tests/ui/`, and `tests/util/`. The suite adds `tests/manifest.test.js` plus static HTML fixtures in `tests/extractors/fixtures/`.
 
 - **How to contribute**: Add unit test files matching `.test.js` naming, add realistic HTML fixtures for new extractors, and cover edge cases.
 

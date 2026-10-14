@@ -232,12 +232,16 @@ test("fire-and-forget finalize call sites are awaited with catch handlers (#265)
     new URL("../../background/service-worker.js", import.meta.url),
     "utf-8",
   );
+  const finalizeCode = fs.readFileSync(
+    new URL("../../background/finalize.js", import.meta.url),
+    "utf-8",
+  );
   assert.ok(
-    swCode.includes("finalizeSummaryJob({"),
+    swCode.includes("finalizeSummaryJob("),
     "finalizeSummaryJob call sites exist",
   );
   assert.ok(
-    swCode.includes("}).catch((err) => console.error("),
+    swCode.includes(").catch((err) => console.error("),
     "fire-and-forget finalize/suggest jobs attach .catch",
   );
   assert.ok(
@@ -245,11 +249,11 @@ test("fire-and-forget finalize call sites are awaited with catch handlers (#265)
     "stream-finished IIFE has an outer .catch",
   );
   assert.ok(
-    swCode.includes("finalize-failed"),
+    finalizeCode.includes("finalize-failed"),
     "finalize failures surface a user-visible message",
   );
   assert.ok(
-    swCode.includes("preservePendingFinalize("),
+    finalizeCode.includes("preservePendingFinalize("),
     "failed finalizes preserve buffered text",
   );
 });

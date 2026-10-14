@@ -2301,6 +2301,28 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
   gap: 4px;
 }
 
+.effective-config-list {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 11px;
+}
+
+.effective-config-key {
+  color: var(--text-muted);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.effective-config-value {
+  margin: 0;
+  color: var(--text-main);
+  overflow-wrap: anywhere;
+}
+
 .audit-log-item {
   display: flex;
   align-items: center;

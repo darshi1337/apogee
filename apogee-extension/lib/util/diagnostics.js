@@ -44,22 +44,42 @@ function redactExtra(key, value) {
   return sanitizeLogMessage(redact(key, value));
 }
 
+// Redacted effective config (#416): every known setting with secret
+// values hidden, for the Settings view and the diagnostic reports alike.
+// Entries carry the display value plus whether it equals the default.
+export function getRedactedSettings(settings) {
+  return Object.keys(DEFAULT_SETTINGS).map((key) => {
+    const value = settings?.[key];
+    return {
+      key,
+      value: redact(key, value),
+      isDefault: value === DEFAULT_SETTINGS[key],
+    };
+  });
+}
+
+// Shared extra-fields pass for both report shapes: skip empties, redact
+// the rest. Escaping stays at the format site (Markdown only).
+function redactedExtraEntries(extra) {
+  const entries = [];
+  for (const [key, value] of Object.entries(extra)) {
+    if (value === undefined || value === null || value === "") continue;
+    entries.push([key, redactExtra(key, value)]);
+  }
+  return entries;
+}
+
 // Settings block for the top of a report, so a copy says which config
 // produced the behaviour. Defaults are marked.
 export function formatDiagnosticSettings(settings, extra = {}) {
   const lines = ["--- apogee diagnostics ---"];
 
-  for (const [key, fallback] of Object.entries(extra)) {
-    if (fallback !== undefined && fallback !== null && fallback !== "") {
-      lines.push(`${key}: ${redactExtra(key, fallback)}`);
-    }
+  for (const [key, shown] of redactedExtraEntries(extra)) {
+    lines.push(`${key}: ${shown}`);
   }
 
-  for (const key of Object.keys(DEFAULT_SETTINGS)) {
-    const value = settings?.[key];
-    const shown = redact(key, value);
-    const isDefault = value === DEFAULT_SETTINGS[key];
-    lines.push(`${key}: ${shown}${isDefault ? " (default)" : ""}`);
+  for (const { key, value, isDefault } of getRedactedSettings(settings)) {
+    lines.push(`${key}: ${value}${isDefault ? " (default)" : ""}`);
   }
 
   lines.push("--- logs ---");
@@ -71,16 +91,12 @@ export function formatDiagnosticSettings(settings, extra = {}) {
 export function formatDiagnosticsMarkdown(settings, extra = {}, logs = []) {
   const rows = [];
 
-  for (const [key, value] of Object.entries(extra)) {
-    if (value !== undefined && value !== null && value !== "") {
-      const shown = escapeMarkdownTableCell(redactExtra(key, value));
-      rows.push(`| ${escapeMarkdownTableCell(key)} | ${shown} |`);
-    }
+  for (const [key, shown] of redactedExtraEntries(extra)) {
+    const cell = escapeMarkdownTableCell(shown);
+    rows.push(`| ${escapeMarkdownTableCell(key)} | ${cell} |`);
   }
-  for (const key of Object.keys(DEFAULT_SETTINGS)) {
-    const value = settings?.[key];
-    const shown = escapeMarkdownTableCell(redact(key, value));
-    const isDefault = value === DEFAULT_SETTINGS[key];
+  for (const { key, value, isDefault } of getRedactedSettings(settings)) {
+    const shown = escapeMarkdownTableCell(value);
     rows.push(
       `| ${escapeMarkdownTableCell(key)} | ${shown}${isDefault ? " _(default)_" : ""} |`,
     );

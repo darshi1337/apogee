@@ -3,6 +3,7 @@ import assert from "node:assert";
 import {
   formatDiagnosticSettings,
   formatDiagnosticsMarkdown,
+  getRedactedSettings,
 } from "../../lib/util/diagnostics.js";
 import { DEFAULT_SETTINGS } from "../../lib/constants.js";
 
@@ -267,4 +268,54 @@ test("formatDiagnosticsMarkdown: omits empty extra fields", () => {
   assert.doesNotMatch(md, /\| b \|/);
   assert.doesNotMatch(md, /\| c \|/);
   assert.ok(md.includes("| d | ok |"));
+});
+
+test("getRedactedSettings covers every known setting with defaults flagged (#416)", () => {
+  const entries = getRedactedSettings(cloneDefaults());
+  assert.deepStrictEqual(
+    entries.map((e) => e.key),
+    Object.keys(DEFAULT_SETTINGS),
+  );
+  assert.ok(entries.every((e) => e.isDefault));
+  const changed = getRedactedSettings(
+    cloneDefaults({ responseFormat: "sentences" }),
+  );
+  const format = changed.find((e) => e.key === "responseFormat");
+  assert.equal(format.value, "sentences");
+  assert.equal(format.isDefault, false);
+});
+
+test("getRedactedSettings never exposes secret values (#416)", () => {
+  const entries = getRedactedSettings(
+    cloneDefaults({ llamaApiKey: "sk-live-secret" }),
+  );
+  const rendered = entries.map((e) => `${e.key}=${e.value}`).join("\n");
+  assert.ok(!rendered.includes("sk-live-secret"), "raw key leaks");
+  assert.equal(entries.find((e) => e.key === "llamaApiKey").value, "set");
+  assert.equal(
+    getRedactedSettings(cloneDefaults({ llamaApiKey: "" })).find(
+      (e) => e.key === "llamaApiKey",
+    ).value,
+    "unset",
+  );
+});
+
+test("getRedactedSettings hides free-text and non-loopback hosts (#416)", () => {
+  const entries = getRedactedSettings(
+    cloneDefaults({
+      customInstructions: "Answer like a pirate",
+      privateHosts: "intranet.example",
+      ollamaHost: "http://192.168.1.10:11434",
+    }),
+  );
+  const byKey = Object.fromEntries(entries.map((e) => [e.key, e.value]));
+  assert.ok(!byKey.customInstructions.includes("pirate"));
+  assert.ok(!byKey.privateHosts.includes("intranet.example"));
+  assert.ok(!byKey.ollamaHost.includes("192.168.1.10"));
+  assert.match(byKey.ollamaHost, /custom host/);
+  const loopback = getRedactedSettings(cloneDefaults());
+  assert.equal(
+    loopback.find((e) => e.key === "ollamaHost").value,
+    "http://127.0.0.1:11434",
+  );
 });

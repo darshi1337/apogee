@@ -137,6 +137,10 @@ test("service worker extends cleanup on local chunks and relayed chunks", () => 
     "../../background/service-worker.js",
     import.meta.url,
   );
+  const streamsCode = readSource(
+    "../../background/streams.js",
+    import.meta.url,
+  );
   const emitStart = code.indexOf("const emitChunk = (text) =>");
   assert.ok(emitStart !== -1, "createBufferedStream emitChunk exists");
   const emitBody = code.slice(emitStart, emitStart + 600);
@@ -145,25 +149,24 @@ test("service worker extends cleanup on local chunks and relayed chunks", () => 
       emitBody.includes("scheduleStreamCleanup(streamId)"),
     "local-stream chunk path reschedules the cleanup alarm (heartbeat)",
   );
-  const relayStart = code.indexOf("function relayToOffscreenStream");
+  const relayStart = streamsCode.indexOf("function relayToOffscreenStream");
   assert.ok(relayStart !== -1, "offscreen relay helper exists");
-  const relayBody = code.slice(relayStart, relayStart + 1500);
+  const relayBody = streamsCode.slice(relayStart, relayStart + 1500);
   assert.ok(
     relayBody.includes('msg.type === "chunk"') &&
       relayBody.includes("scheduleStreamCleanup(streamId)"),
     "relayed offscreen chunks reschedule the registered-job alarm",
   );
   assert.ok(
-    EXPECTED_EXPIRED_FRAGMENTS.every((fragment) => code.includes(fragment)),
-    "worker keeps the existing retry message for genuinely expired streams",
+    EXPECTED_EXPIRED_FRAGMENTS.every((fragment) =>
+      streamsCode.includes(fragment),
+    ),
+    "expiry keeps the existing retry message for genuinely expired streams",
   );
 });
 
 test("service worker cleanup alarm terminates subscribers before deleting stream state", () => {
-  const code = readSource(
-    "../../background/service-worker.js",
-    import.meta.url,
-  );
+  const code = readSource("../../background/streams.js", import.meta.url);
   const handlerMatch = code.match(
     /function expireStreamForCleanup\(streamId\) \{[\s\S]*?\n\}/,
   );
@@ -277,10 +280,7 @@ test("msToAlarmMinutes supports custom minMinutes option", () => {
 });
 
 test("service worker derives STREAM_CLEANUP_MINUTES via msToAlarmMinutes", () => {
-  const code = readSource(
-    "../../background/service-worker.js",
-    import.meta.url,
-  );
+  const code = readSource("../../background/streams.js", import.meta.url);
   assert.ok(
     code.includes("msToAlarmMinutes(STREAM_CLEANUP_MS)"),
     "STREAM_CLEANUP_MINUTES matches msToAlarmMinutes(STREAM_CLEANUP_MS)",

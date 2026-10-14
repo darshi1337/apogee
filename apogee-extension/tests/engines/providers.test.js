@@ -5,6 +5,11 @@ import {
   getProvider,
   getProviderType,
   getModelForSettings,
+  getProviderForType,
+  resolveEngineChain,
+  runWithEngineFallback,
+  buildExtractedTextFallback,
+  StreamCancelledError,
 } from "../../lib/engines/providers.js";
 import {
   PROVIDERS,
@@ -124,4 +129,98 @@ test("adding llama.cpp left the Ollama provider untouched", () => {
   assert.equal(provider.constructor.name, "DirectOllamaProvider");
   assert.equal(provider.host, "http://127.0.0.1:11434");
   assert.equal(provider.model, "qwen3:8b");
+});
+
+// Provider fallback chain across engines (#415): the preferred engine runs
+// first, entries with missing keys are skipped, and extracted text is the
+// last resort when no engine answers.
+test("resolveEngineChain prefers the configured engine and skips missing keys", () => {
+  const chain = resolveEngineChain(
+    settings({ provider: PROVIDERS.LOCAL, llamaApiKey: "" }),
+  );
+  assert.equal(chain[0], PROVIDERS.LOCAL);
+  assert.ok(!chain.includes(PROVIDERS.LLAMACPP));
+  const withKey = resolveEngineChain(
+    settings({ provider: PROVIDERS.LOCAL, llamaApiKey: "k" }),
+  );
+  assert.ok(withKey.includes(PROVIDERS.LLAMACPP));
+});
+
+test("resolveEngineChain never skips the explicitly preferred engine", () => {
+  const chain = resolveEngineChain(
+    settings({ provider: PROVIDERS.LLAMACPP, llamaApiKey: "" }),
+  );
+  assert.equal(chain[0], PROVIDERS.LLAMACPP);
+});
+
+test("resolveEngineChain honors an explicit order and drops unknowns", () => {
+  const chain = resolveEngineChain(
+    settings({ provider: PROVIDERS.LOCAL, llamaApiKey: "k" }),
+    [PROVIDERS.LLAMACPP, "nonsense", PROVIDERS.LOCAL, PROVIDERS.LOCAL],
+  );
+  assert.deepStrictEqual(chain, [PROVIDERS.LLAMACPP, PROVIDERS.LOCAL]);
+});
+
+test("runWithEngineFallback tries the next engine after a failure", async () => {
+  const tried = [];
+  const out = await runWithEngineFallback(
+    settings({ provider: PROVIDERS.LOCAL }),
+    [PROVIDERS.LOCAL, PROVIDERS.TRANSFORMERS],
+    async (type, provider) => {
+      tried.push(type);
+      assert.ok(provider);
+      if (type === PROVIDERS.LOCAL) throw new Error("boom");
+      return "ok";
+    },
+    { content: "page text" },
+  );
+  assert.equal(out.type, PROVIDERS.TRANSFORMERS);
+  assert.equal(out.result, "ok");
+  assert.deepStrictEqual(tried, [PROVIDERS.LOCAL, PROVIDERS.TRANSFORMERS]);
+  assert.equal(out.errors.length, 1);
+});
+
+test("runWithEngineFallback falls back to extracted text when all fail", async () => {
+  const out = await runWithEngineFallback(
+    settings({ provider: PROVIDERS.LOCAL, llamaApiKey: "" }),
+    [PROVIDERS.LOCAL],
+    async () => {
+      throw new Error("down");
+    },
+    { content: "  page text here  " },
+  );
+  assert.equal(out.type, "extracted-text");
+  assert.equal(out.result.fallbackText, "page text here");
+});
+
+test("runWithEngineFallback rethrows cancellation without trying more", async () => {
+  const tried = [];
+  await assert.rejects(
+    runWithEngineFallback(
+      settings({ provider: PROVIDERS.LOCAL }),
+      [PROVIDERS.LOCAL, PROVIDERS.TRANSFORMERS],
+      async (type) => {
+        tried.push(type);
+        throw new StreamCancelledError("Cancelled.");
+      },
+      {},
+    ),
+    StreamCancelledError,
+  );
+  assert.deepStrictEqual(tried, [PROVIDERS.LOCAL]);
+});
+
+test("buildExtractedTextFallback trims and caps long text", () => {
+  assert.equal(buildExtractedTextFallback("  hi  "), "hi");
+  assert.equal(buildExtractedTextFallback(""), "");
+  assert.equal(buildExtractedTextFallback(null), "");
+  assert.equal(buildExtractedTextFallback("abcdef", 3), "abc…");
+});
+
+test("getProviderForType builds a provider for an explicit chain entry", () => {
+  const provider = getProviderForType(
+    PROVIDERS.TRANSFORMERS,
+    settings({ provider: PROVIDERS.LOCAL }),
+  );
+  assert.equal(provider.constructor.name, "TransformersProvider");
 });

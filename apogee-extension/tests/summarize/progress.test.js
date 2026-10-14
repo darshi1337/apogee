@@ -99,10 +99,7 @@ test("all summarize runtimes share the progress tracker", () => {
 });
 
 test("cleanup window is defined once and shared", () => {
-  const worker = readSource(
-    "../../background/service-worker.js",
-    import.meta.url,
-  );
+  const worker = readSource("../../background/streams.js", import.meta.url);
   assert.ok(
     /import\s*\{[^}]*msToAlarmMinutes[^}]*STREAM_CLEANUP_MS[^}]*\}\s*from\s*"\.\.\/lib\/util\/streamExpiry\.js"/.test(
       worker,

@@ -1,70 +1,84 @@
 import test from "node:test";
 import assert from "node:assert";
-import fs from "node:fs";
 
-const swCode = fs.readFileSync(
-  new URL("../../background/service-worker.js", import.meta.url),
-  "utf-8",
-);
-
-const fnMatch = swCode.match(/function validateLoopbackHost[\s\S]*?\n\}/);
-assert.ok(fnMatch, "validateLoopbackHost function found");
-const fnBody = fnMatch[0];
+import {
+  validateLoopbackHost,
+  loopbackDefaultPort,
+  rejectLoopbackHost,
+  ALLOWED_LOOPBACK_HOSTS,
+} from "../../background/loopbackProviders.js";
+import { ALLOWED_OLLAMA_HOSTS } from "../../lib/util/ollamaHost.js";
+import { UserFacingError } from "../../lib/util/userError.js";
 
 test("validateLoopbackHost throws a UserFacingError rather than a plain Error (#157)", () => {
-  assert.match(fnBody, /throw rejectLoopbackHost\(/);
-  assert.doesNotMatch(fnBody, /throw new Error\(/);
+  assert.throws(
+    () => validateLoopbackHost("https://evil.example:9999"),
+    (err) => err instanceof UserFacingError && err.name === "UserFacingError",
+  );
 });
 
 test("validateLoopbackHost's rejection states the rule, not an internal assertion (#157)", () => {
-  const helperMatch = swCode.match(/function rejectLoopbackHost[\s\S]*?\n\}/);
-  assert.ok(helperMatch, "rejectLoopbackHost helper found");
-  const helperBody = helperMatch[0];
-
-  assert.match(helperBody, /new UserFacingError/);
-  assert.match(helperBody, /can only reach/i);
-  assert.match(helperBody, /Check the host in Settings/);
+  const err = tryValidate("https://evil.example:9999");
+  assert.match(err.message, /can only reach/i);
+  assert.match(err.message, /Check the host in Settings/);
 });
 
 test("validateLoopbackHost keeps the rejected value out of the user-facing message (#157)", () => {
-  const helperMatch = swCode.match(/function rejectLoopbackHost[\s\S]*?\n\}/);
-  const helperBody = helperMatch[0];
-
-  // The UserFacingError constructor call itself must not interpolate the rejected host/reason - only the console.error line may.
-  const userFacingErrorCall = helperBody.match(
-    /new UserFacingError\(([\s\S]*?)\);/,
-  )[1];
-  assert.doesNotMatch(userFacingErrorCall, /\$\{host\}/);
-  assert.doesNotMatch(userFacingErrorCall, /\$\{reason\}/);
-
-  assert.match(helperBody, /console\.error\(.*\$\{.*host.*reason.*\)/s);
+  const err = tryValidate("http://evil.example:1234");
+  assert.ok(!err.message.includes("evil.example"), "host leaks into message");
+  assert.ok(!err.message.includes("1234"), "reason leaks into message");
 });
 
 test("validateLoopbackHost's message is built from ALLOWED_LOOPBACK_HOSTS, not hardcoded (#157)", () => {
-  const helperMatch = swCode.match(/function rejectLoopbackHost[\s\S]*?\n\}/);
-  const helperBody = helperMatch[0];
-  assert.match(helperBody, /ALLOWED_LOOPBACK_HOSTS/);
+  assert.equal(ALLOWED_LOOPBACK_HOSTS, ALLOWED_OLLAMA_HOSTS);
+  const err = tryValidate("not-a-url");
+  for (const host of ALLOWED_OLLAMA_HOSTS) {
+    assert.ok(err.message.includes(host), `message names ${host}`);
+  }
+});
+
+test("rejectLoopbackHost logs the rejected value to the console only (#157)", () => {
+  const lines = [];
+  const orig = console.error;
+  console.error = (msg) => void lines.push(String(msg));
+  try {
+    rejectLoopbackHost("Ollama", "http://evil.example:1234", "nope");
+  } finally {
+    console.error = orig;
+  }
+  assert.equal(lines.length, 1);
+  assert.ok(lines[0].includes("evil.example"), "console keeps the value");
 });
 
 test("validateLoopbackHost shares the allowed set with lib/util/ollamaHost.js (#210)", () => {
-  assert.match(
-    swCode,
-    /from "\.\.\/lib\/util\/ollamaHost\.js"/,
-    "service worker must import the shared loopback validator",
+  assert.equal(
+    validateLoopbackHost("http://127.0.0.1:11434"),
+    "http://127.0.0.1:11434",
   );
-  assert.match(swCode, /validateLoopbackUrl/);
-  assert.match(
-    swCode,
-    /const ALLOWED_LOOPBACK_HOSTS\s*=\s*ALLOWED_OLLAMA_HOSTS/,
-    "the allowed set must alias the shared set so they cannot diverge",
+  assert.throws(
+    () => validateLoopbackHost("http://example.com"),
+    UserFacingError,
   );
 });
 
 test("validateLoopbackHost applies the shared port check with a per-provider default (#210)", () => {
-  assert.match(fnBody, /validateLoopbackUrl/);
-  assert.match(fnBody, /defaultPort/);
-  assert.ok(
-    /label === LLAMACPP_PROVIDER\.label/.test(swCode),
-    "llama.cpp hosts must default to the llama port, not the Ollama one",
+  assert.equal(loopbackDefaultPort("Ollama"), "11434");
+  assert.equal(loopbackDefaultPort("llama.cpp"), "8080");
+  assert.equal(
+    validateLoopbackHost("http://127.0.0.1", "Ollama"),
+    "http://127.0.0.1:11434",
+  );
+  assert.equal(
+    validateLoopbackHost("http://127.0.0.1", "llama.cpp"),
+    "http://127.0.0.1:8080",
   );
 });
+
+function tryValidate(host) {
+  try {
+    validateLoopbackHost(host);
+  } catch (err) {
+    return err;
+  }
+  throw new Error(`expected validateLoopbackHost(${host}) to throw`);
+}

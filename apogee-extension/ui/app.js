@@ -14,6 +14,19 @@ import {
   cancelStream,
   StreamCancelledError,
 } from "../lib/engines/providers.js";
+import { runStreamingJob } from "./jobs.js";
+import { renderEffectiveConfig } from "./effectiveConfig.js";
+import { getRedactedSettings } from "../lib/util/diagnostics.js";
+import {
+  gateFocusKeyword,
+  isFocusKeywordSupportedType,
+  createKeywordPageTracker,
+} from "./focusKeyword.js";
+import {
+  syncCappedInputMaxLengths,
+  updateCappedInputCount,
+  wireCappedSettingsInput,
+} from "./cappedInputs.js";
 import {
   PROVIDERS,
   WEBLLM_MODELS,
@@ -329,6 +342,7 @@ const debugLogsCard = document.getElementById("debugLogsCard");
 const debugLogsContent = document.getElementById("debugLogsContent");
 const copyDiagnosticsBtn = document.getElementById("copyDiagnosticsBtn");
 const copyDiagnosticsHint = document.getElementById("copyDiagnosticsHint");
+const effectiveConfigList = document.getElementById("effectiveConfigList");
 const clearDebugLogsBtn = document.getElementById("clearDebugLogsBtn");
 const a11yAnnouncer = document.getElementById("a11yAnnouncer");
 const saveHistoryRadios = document.querySelectorAll(
@@ -349,18 +363,12 @@ const versionText = document.getElementById("versionText");
 // Single source of truth for input caps lives in JS (#320): the HTML
 // maxlength attributes are fallback only, re-synced here so bumping a
 // constant updates the enforced UI limit without touching markup.
-function setInputMaxLength(input, maxChars) {
-  if (input) input.maxLength = maxChars;
-}
-
-function syncCappedInputMaxLengths() {
-  setInputMaxLength(focusKeywordInput, FOCUS_KEYWORD_MAX_CHARS);
-  setInputMaxLength(customInstructionsInput, CUSTOM_INSTRUCTIONS_MAX_CHARS);
-  setInputMaxLength(privateHostsInput, PRIVATE_HOSTS_MAX_CHARS);
-  setInputMaxLength(llamaModelInput, MODEL_NAME_MAX_CHARS);
-}
-
-syncCappedInputMaxLengths();
+syncCappedInputMaxLengths([
+  [focusKeywordInput, FOCUS_KEYWORD_MAX_CHARS],
+  [customInstructionsInput, CUSTOM_INSTRUCTIONS_MAX_CHARS],
+  [privateHostsInput, PRIVATE_HOSTS_MAX_CHARS],
+  [llamaModelInput, MODEL_NAME_MAX_CHARS],
+]);
 
 // The side panel document survives tab switches, same-tab navigations,
 // and fresh opens on new pages, so a leftover keyword would silently
@@ -372,40 +380,17 @@ function clearFocusKeyword() {
 // One page-change check for the navigation listener and the restore
 // path below: clear a leftover keyword when the tab or URL moved on,
 // keep it on a same-page re-render.
+const keywordPageTracker = createKeywordPageTracker({
+  onClear: () => clearFocusKeyword(),
+});
+
 function clearKeywordOnPageChange(tabId, url) {
-  if (tabId !== lastKeywordTabId || url !== lastKeywordTabUrl) {
-    clearFocusKeyword();
-  }
-  lastKeywordTabId = tabId ?? null;
-  lastKeywordTabUrl = url ?? null;
+  keywordPageTracker.handlePageChange(tabId, url);
 }
 
 // Shared counter + debounced-autosave wiring for the capped settings
-// inputs: the custom-instructions and private-hosts blocks were identical
-// apart from element, cap, and settings key.
-function updateCappedInputCount(input, countEl, maxChars) {
-  if (!input || !countEl) return;
-  countEl.textContent = `${input.value.length} / ${maxChars}`;
-}
-
-function wireCappedSettingsInput(input, countEl, maxChars, settingKey) {
-  if (!input) return;
-  let saveTimer = null;
-  const persist = async () => {
-    await saveSettings({
-      [settingKey]: input.value.slice(0, maxChars).trim(),
-    });
-  };
-  input.addEventListener("input", () => {
-    updateCappedInputCount(input, countEl, maxChars);
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(persist, 500);
-  });
-  input.addEventListener("blur", () => {
-    clearTimeout(saveTimer);
-    persist();
-  });
-}
+// inputs lives in cappedInputs.js; saveSettings is injected at the call
+// sites below so tests can pass a fake.
 
 if (versionText) {
   versionText.textContent = `v${chrome.runtime.getManifest().version}`;
@@ -462,12 +447,6 @@ let settingsEntryView = "homeView";
 
 let activeTabId = null;
 
-// Last tab + URL restoreTabView rendered. A fresh open on a new page
-// runs neither the tab-switch nor the navigation listener, so without
-// this check the input would keep the previous page's keyword.
-let lastKeywordTabId = null;
-let lastKeywordTabUrl = null;
-
 // Bumps on every side-panel tab restore so an in-flight restore for a
 // previous tab stands down instead of painting stale content.
 let tabViewEpoch = 0;
@@ -508,7 +487,11 @@ function startSuggestedQuestionsBg(
 }
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== "local" || !currentPromptsCacheKey) return;
+  if (area !== "local") return;
+  if (changes.settings) {
+    refreshEffectiveConfigView(changes.settings.newValue);
+  }
+  if (!currentPromptsCacheKey) return;
   const change = changes[currentPromptsCacheKey];
   if (!change) return;
   const questions = Array.isArray(change.newValue) ? change.newValue : [];
@@ -745,6 +728,13 @@ async function applySettingsToUI(settings) {
 
   updateWebgpuWarning(isWebllm).catch((err) => console.error(err));
   updatePrivacyAuditUI().catch((err) => console.error(err));
+  refreshEffectiveConfigView(settings);
+}
+
+// Effective-config card (#416): one refresh path for initial apply and
+// storage updates, so the view cannot lag behind the stored setup.
+function refreshEffectiveConfigView(settings) {
+  renderEffectiveConfig(effectiveConfigList, getRedactedSettings(settings));
 }
 
 async function updatePrivacyAuditUI() {
@@ -830,21 +820,12 @@ const EXTRACTOR_INFO = {
   pdf: { label: "PDF", icon: "filetext" },
 };
 
-// Only multi-tab pages skip the keyword-focus prompt path: the multi-tab
-// synthesis uses buildMultiTabSummaryPrompt (no focusKeyword param - see
-// background/service-worker.js). Video goes through summarizeYoutube and
-// discussion threads go through the discussion prompts, both of which honor
-// focusKeyword (see lib/summarize/ollamaSummarize.js).
-function isFocusKeywordSupportedType(type) {
-  return type !== "multi-tab";
-}
 // Gate on type support (#319): the input is hidden for video, discussion,
 // and multi-tab pages, but a value typed before the type resolves (or left
 // over) must not fragment the cache or ride along in job payloads the
-// prompt path ignores.
+// prompt path ignores. Logic lives in focusKeyword.js.
 function getGatedFocusKeyword(pageType) {
-  const requested = (focusKeywordInput?.value || "").trim();
-  return isFocusKeywordSupportedType(pageType) ? requested : "";
+  return gateFocusKeyword(focusKeywordInput?.value, pageType);
 }
 async function getSummaryCacheKeys(url, settings, model, focusKeyword) {
   return {
@@ -1598,6 +1579,43 @@ function renderSummaryError(error) {
   renderError(summaryText, toUserMessage(error));
 }
 
+// Last-resort output (#415): every engine failed, so show the extracted
+// page text instead of leaving the run empty.
+function renderExtractedTextFallback(target, fallbackText) {
+  target.textContent = "";
+  const note = document.createElement("p");
+  note.className = "error-message";
+  note.textContent =
+    "All summary engines failed, showing the extracted page text instead.";
+  target.appendChild(note);
+  const body = document.createElement("p");
+  body.textContent = fallbackText || "No readable text was extracted.";
+  target.appendChild(body);
+  announce("All engines failed. Showing extracted text.");
+}
+
+// Shared summarize wiring for the page and custom-content jobs: reset the
+// spinner, track the stream on the cancel button, consume into the summary
+// view, and show extracted text when every engine fails. persistStream
+// saves the job's per-attempt state and returns "superseded" when a newer
+// job took over, which ends this job silently instead of falling back.
+function summarizeJobRunner(settings, summarizeArgs, opts) {
+  const { tab, jobId, promptsCacheKey, persistStream } = opts;
+  return runStreamingJob({
+    settings,
+    content: summarizeArgs.content,
+    reset: () => setLoadingIndicator(summaryText, randomSummarizeVerb()),
+    start: (engine) => engine.summarize(summarizeArgs),
+    persistStream,
+    showCancel: showCancelSummarizeButton,
+    hideCancel: hideCancelSummarizeButton,
+    consume: (stream) =>
+      consumeSummaryStream(stream, { tab, promptsCacheKey, jobId }),
+    renderFallback: (fallbackText) =>
+      renderExtractedTextFallback(summaryText, fallbackText),
+  });
+}
+
 async function returnHomeAfterCancel(tabId, jobId = null) {
   const state = jobId
     ? await saveViewStateIfJobMatches(
@@ -1850,7 +1868,6 @@ async function summarizeActivePage() {
       promptsCacheKey: null,
     });
     const settings = await getSettings();
-    const provider = getProvider(settings);
     const model = getModelForSettings(settings);
     currentSummaryLanguage = settings.summaryLanguage;
     currentTranslationEngine = settings.translationEngine;
@@ -1897,8 +1914,6 @@ async function summarizeActivePage() {
       tabId: tab.id,
     };
 
-    let streamId, stream;
-
     if (pageData.isPdf) {
       // getPageData already filled the PDF text on a cache hit; extract
       // only when it is still missing (#177).
@@ -1924,57 +1939,53 @@ async function summarizeActivePage() {
         }
       }
       pageData.content = pdfContent;
-      setLoadingIndicator(summaryText, randomSummarizeVerb());
-      ({ streamId, stream } = await provider.summarize({
-        title: pageData.title,
-        url: pageData.url,
-        content: pdfContent,
-        mode: settings.responseFormat,
-        language: settings.summaryLanguage,
-        translationEngine: settings.translationEngine,
-        focusKeyword,
-        finalize,
-        onStats: (rate) => setTokensPerSecBadge(tokensPerSecBadgeSummary, rate),
-      }));
-    } else {
-      ({ streamId, stream } = await provider.summarize({
+    }
+    {
+      const summarizeArgs = {
         title: pageData.title,
         url: pageData.url,
         content: pageData.content,
         mode: settings.responseFormat,
-        type: pageData.type,
+        type: pageData.isPdf ? undefined : pageData.type,
         language: settings.summaryLanguage,
         translationEngine: settings.translationEngine,
         focusKeyword,
         finalize,
         onStats: (rate) => setTokensPerSecBadge(tokensPerSecBadgeSummary, rate),
-      }));
-    }
-
-    const activeJobState = await saveViewStateIfJobMatches(
-      tab.id,
-      jobId,
-      {
-        view: "summaryView",
-        subview: "summarizing",
-        url: tab.url,
-        streamId,
+      };
+      // The whole attempt runs inside the fallback (#415): local HTTP
+      // engines report failure mid-stream, after the start handshake
+      // already resolved, so retrying only the start call would never
+      // reach the next engine.
+      const result = await summarizeJobRunner(settings, summarizeArgs, {
+        tab,
+        jobId,
         promptsCacheKey,
-        summaryLanguage: settings.summaryLanguage,
-        translationEngine: settings.translationEngine,
-      },
-      "summarizing",
-    );
-    if (!activeJobState) {
-      const latestState = await loadViewState(tab.id);
-      if (latestState?.jobId !== jobId) {
-        cancelStream(streamId);
-        return;
-      }
+        persistStream: async (streamId) => {
+          const activeJobState = await saveViewStateIfJobMatches(
+            tab.id,
+            jobId,
+            {
+              view: "summaryView",
+              subview: "summarizing",
+              url: tab.url,
+              streamId,
+              promptsCacheKey,
+              summaryLanguage: settings.summaryLanguage,
+              translationEngine: settings.translationEngine,
+            },
+            "summarizing",
+          );
+          if (!activeJobState) {
+            const latestState = await loadViewState(tab.id);
+            if (latestState?.jobId !== jobId) return "superseded";
+          }
+          return "done";
+        },
+      });
+      if (result !== "done") return;
     }
-    showCancelSummarizeButton(streamId);
 
-    await consumeSummaryStream(stream, { tab, promptsCacheKey, jobId });
     announce("Summary ready.");
   } catch (error) {
     if (error instanceof StreamCancelledError) {
@@ -2071,13 +2082,12 @@ async function submitQuestion(question) {
     currentPageData = pageData;
 
     const settings = await getSettings();
-    const provider = getProvider(settings);
     const content = pageData.content || currentSummaryText;
     if (!content) {
       throw new Error("Could not extract enough page content to answer.");
     }
 
-    const { streamId, stream } = await provider.ask({
+    const askArgs = {
       title: pageData.title,
       url: pageData.url,
       content,
@@ -2085,18 +2095,29 @@ async function submitQuestion(question) {
       language: settings.summaryLanguage,
       translationEngine: settings.translationEngine,
       onStats: (rate) => setTokensPerSecBadge(tokensPerSecBadgeAsk, rate),
+    };
+    await runStreamingJob({
+      settings,
+      content,
+      reset: () => showAnswerContext(trimmed),
+      start: (engine) => engine.ask(askArgs),
+      persistStream: async (streamId) => {
+        await saveViewState(tab.id, {
+          view: "summaryView",
+          subview: "answer",
+          url: tab.url,
+          streamId,
+          question: trimmed,
+        });
+        return "done";
+      },
+      showCancel: showCancelAskButton,
+      hideCancel: hideCancelAskButton,
+      consume: (stream) =>
+        consumeAnswerStream(stream, { tab, question: trimmed }),
+      renderFallback: (fallbackText) =>
+        renderExtractedTextFallback(answerBox, fallbackText),
     });
-
-    await saveViewState(tab.id, {
-      view: "summaryView",
-      subview: "answer",
-      url: tab.url,
-      streamId,
-      question: trimmed,
-    });
-    showCancelAskButton(streamId);
-
-    await consumeAnswerStream(stream, { tab, question: trimmed });
   } catch (error) {
     if (error instanceof StreamCancelledError) {
       returnToAskAfterCancel(activeTabId);
@@ -2624,7 +2645,6 @@ async function summarizeCustomContent(title, content, url = "") {
       currentWindow: true,
     });
     const settings = await getSettings();
-    const provider = getProvider(settings);
     const model = getModelForSettings(settings);
     currentSummaryLanguage = settings.summaryLanguage;
     currentTranslationEngine = settings.translationEngine;
@@ -2637,7 +2657,7 @@ async function summarizeCustomContent(title, content, url = "") {
       model,
     );
 
-    const { streamId, stream } = await provider.summarize({
+    const customArgs = {
       title,
       url: sourceUrl,
       content,
@@ -2654,24 +2674,27 @@ async function summarizeCustomContent(title, content, url = "") {
         language: settings.summaryLanguage,
         translationEngine: settings.translationEngine,
       },
+    };
+    await summarizeJobRunner(settings, customArgs, {
+      tab,
+      jobId,
+      promptsCacheKey,
+      persistStream: async (streamId) => {
+        if (tab?.id) {
+          await saveViewState(tab.id, {
+            view: "summaryView",
+            subview: "summarizing",
+            url: tab.url,
+            streamId,
+            jobId,
+            summaryText: "",
+            timeSaved: timeSavedInputsFor({ type: "article", content }),
+            promptsCacheKey,
+          });
+        }
+        return "done";
+      },
     });
-
-    activeSummarizeStreamId = streamId;
-    if (tab?.id) {
-      await saveViewState(tab.id, {
-        view: "summaryView",
-        subview: "summarizing",
-        url: tab.url,
-        streamId,
-        jobId,
-        summaryText: "",
-        timeSaved: timeSavedInputsFor({ type: "article", content }),
-        promptsCacheKey,
-      });
-    }
-    showCancelSummarizeButton(streamId);
-
-    await consumeSummaryStream(stream, { tab, promptsCacheKey, jobId });
   } catch (error) {
     if (error instanceof StreamCancelledError) {
       if (activeTabId) returnHomeAfterCancel(activeTabId, jobId);
@@ -2928,6 +2951,7 @@ wireCappedSettingsInput(
   customInstructionsCount,
   CUSTOM_INSTRUCTIONS_MAX_CHARS,
   "customInstructions",
+  saveSettings,
 );
 
 function updatePrivateHostsCount() {
@@ -2943,6 +2967,7 @@ wireCappedSettingsInput(
   privateHostsCount,
   PRIVATE_HOSTS_MAX_CHARS,
   "privateHosts",
+  saveSettings,
 );
 
 summaryLanguageSelect?.addEventListener("change", async () => {

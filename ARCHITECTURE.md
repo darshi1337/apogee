@@ -6,9 +6,9 @@ Apogee is an offline-first browser extension built for full data privacy. All te
 
 Apogee uses four cooperating execution contexts. They talk to each other with standard WebExtension messaging.
 
-- **Popup / Side Panel UI**: The same interface runs in the short-lived toolbar popup or, on Chromium, a persistent side panel. Use it to start summaries, pick output formats, ask follow-up questions, and search past summaries.
+- **Popup / Side Panel UI**: The same interface runs in the short-lived toolbar popup or, on Chromium, a persistent side panel. Use it to start summaries, pick output formats, ask follow-up questions, and search past summaries. The shared runner in `ui/jobs.js` drives every streaming summarize and Ask job.
 
-- **Service Worker**: The central router. It coordinates tasks, buffers streaming tokens, manages background alarms, and saves results to local storage.
+- **Service Worker**: The central router. It coordinates tasks, buffers streaming tokens, manages background alarms, and saves results to local storage. Stream lifecycle, finalize, suggest-questions, and loopback providers live in `background/streams.js`, `finalize.js`, `suggestQuestions.js`, and `loopbackProviders.js`.
 
 - **Inference Host**: The place where AI models run. On Chromium browsers, this is a dedicated offscreen document with WebGPU and WebAssembly support. On Firefox, models run inside the background page.
 
@@ -73,7 +73,7 @@ flowchart TD
         end
 
         subgraph bg["Service Worker"]
-            ROUTER["Message router<br/>buffered streams, cancel, finalize"]
+            ROUTER["Message router<br/>streams, finalize,<br/>suggest, loopback providers"]
         end
 
         subgraph host["Inference Host"]

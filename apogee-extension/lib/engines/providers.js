@@ -101,47 +101,15 @@ export function cancelStream(streamId) {
   );
 }
 
-async function startWebllmStream(action, payload, { onStats } = {}) {
+// One starter for every engine: the loopback HTTP engines (Ollama,
+// llama.cpp, Transformers) wrap under a fixed service-worker action with
+// the job action inside the payload, while WebLLM uses the job action
+// itself. Callers pass the already-shaped message.
+async function startStream(serviceAction, payload, { onStats } = {}) {
   const { streamId } = await sendToServiceWorker({
     target: "service-worker",
-    action,
+    action: serviceAction,
     payload,
-  });
-  if (!streamId) {
-    throw new Error("No streamId returned from service worker");
-  }
-  return { streamId, stream: attachToStream(streamId, { onStats }) };
-}
-
-async function startOllamaStream(action, payload, { onStats } = {}) {
-  const { streamId } = await sendToServiceWorker({
-    target: "service-worker",
-    action: "ollama-stream",
-    payload: { action, ...payload },
-  });
-  if (!streamId) {
-    throw new Error("No streamId returned from service worker");
-  }
-  return { streamId, stream: attachToStream(streamId, { onStats }) };
-}
-
-async function startTransformersStream(action, payload, { onStats } = {}) {
-  const { streamId } = await sendToServiceWorker({
-    target: "service-worker",
-    action: "transformers-stream",
-    payload: { action, ...payload },
-  });
-  if (!streamId) {
-    throw new Error("No streamId returned from service worker");
-  }
-  return { streamId, stream: attachToStream(streamId, { onStats }) };
-}
-
-async function startLlamaCppStream(action, payload, { onStats } = {}) {
-  const { streamId } = await sendToServiceWorker({
-    target: "service-worker",
-    action: "llamacpp-stream",
-    payload: { action, ...payload },
   });
   if (!streamId) {
     throw new Error("No streamId returned from service worker");
@@ -167,7 +135,7 @@ class WebLLMProvider {
     focusKeyword,
     onStats,
   }) {
-    return startWebllmStream(
+    return startStream(
       "summarize",
       {
         title,
@@ -187,7 +155,7 @@ class WebLLMProvider {
   }
 
   ask({ title, url, content, question, language, translationEngine, onStats }) {
-    return startWebllmStream(
+    return startStream(
       "ask",
       {
         title,
@@ -229,9 +197,10 @@ class TransformersProvider {
     focusKeyword,
     onStats,
   }) {
-    return startTransformersStream(
-      "summarize",
+    return startStream(
+      "transformers-stream",
       {
+        action: "summarize",
         title,
         url,
         content,
@@ -249,9 +218,10 @@ class TransformersProvider {
   }
 
   ask({ title, url, content, question, language, translationEngine, onStats }) {
-    return startTransformersStream(
-      "ask",
+    return startStream(
+      "transformers-stream",
       {
+        action: "ask",
         title,
         url,
         content,
@@ -302,9 +272,10 @@ class DirectOllamaProvider {
     focusKeyword,
     onStats,
   }) {
-    return startOllamaStream(
-      "summarize",
+    return startStream(
+      "ollama-stream",
       {
+        action: "summarize",
         title,
         url,
         content,
@@ -323,9 +294,10 @@ class DirectOllamaProvider {
   }
 
   ask({ title, url, content, question, language, translationEngine, onStats }) {
-    return startOllamaStream(
-      "ask",
+    return startStream(
+      "ollama-stream",
       {
+        action: "ask",
         title,
         url,
         content,
@@ -388,9 +360,10 @@ class DirectLlamaCppProvider {
     focusKeyword,
     onStats,
   }) {
-    return startLlamaCppStream(
-      "summarize",
+    return startStream(
+      "llamacpp-stream",
       {
+        action: "summarize",
         title,
         url,
         content,
@@ -410,9 +383,10 @@ class DirectLlamaCppProvider {
   }
 
   ask({ title, url, content, question, language, translationEngine, onStats }) {
-    return startLlamaCppStream(
-      "ask",
+    return startStream(
+      "llamacpp-stream",
       {
+        action: "ask",
         title,
         url,
         content,
@@ -460,6 +434,10 @@ export function getModelForSettings(settings) {
 
 export function getProvider(settings) {
   const type = getProviderType(settings);
+  return getProviderForType(type, settings);
+}
+
+export function getProviderForType(type, settings) {
   if (type === PROVIDERS.LOCAL) {
     return new DirectOllamaProvider(settings.localModel, settings.ollamaHost);
   }
@@ -473,5 +451,73 @@ export function getProvider(settings) {
   if (type === PROVIDERS.TRANSFORMERS) {
     return new TransformersProvider(settings.transformersModel);
   }
+  if (PROVIDERS.WEBLLM && type === PROVIDERS.WEBLLM) {
+    return new WebLLMProvider(settings.webllmModel);
+  }
   return new WebLLMProvider(settings.webllmModel);
+}
+
+// Ordered engine fallback chain for a job (#415). The preferred engine
+// comes first; fallback entries whose credentials are missing are skipped
+// so a job never spends a round-trip on an engine that cannot authenticate.
+export function providerNeedsKey(type, settings) {
+  if (type === PROVIDERS.LLAMACPP) {
+    return !settings?.llamaApiKey;
+  }
+  return false;
+}
+
+export function resolveEngineChain(settings, chain) {
+  const preferred = getProviderType(settings);
+  const ordered =
+    Array.isArray(chain) && chain.length > 0
+      ? chain
+      : [preferred, ...Object.values(PROVIDERS).filter((t) => t !== preferred)];
+  const seen = new Set();
+  const result = [];
+  for (const type of ordered) {
+    if (!Object.values(PROVIDERS).includes(type) || seen.has(type)) continue;
+    seen.add(type);
+    // The first entry is the caller's explicit choice, so it is always
+    // tried. Key-skipping applies to fallbacks only: without it the
+    // preferred engine itself could be dropped before a single attempt.
+    if (result.length > 0 && providerNeedsKey(type, settings)) continue;
+    result.push(type);
+  }
+  return result;
+}
+
+export function buildExtractedTextFallback(content, maxChars = 4000) {
+  const text = typeof content === "string" ? content.trim() : "";
+  if (!text) return "";
+  return text.length > maxChars ? `${text.slice(0, maxChars)}…` : text;
+}
+
+// Try each engine in order with runFn(type, provider, index). runFn must
+// cover the whole job attempt (start + consume): several engines only
+// report failure mid-stream, after the start handshake already succeeded,
+// so wrapping the start call alone would never retry them. Returns the
+// first success; when every engine fails, resolves with the extracted-text
+// fallback so the run still ends with page content instead of nothing.
+// opts.buildProvider(type) overrides provider construction (tests).
+export async function runWithEngineFallback(settings, chain, runFn, opts = {}) {
+  const types = resolveEngineChain(settings, chain);
+  const errors = [];
+  const build =
+    opts.buildProvider ??
+    ((type) => getProviderForType(type, { ...settings, provider: type }));
+  for (const [index, type] of types.entries()) {
+    try {
+      const result = await runFn(type, await build(type), index);
+      return { type, result, errors };
+    } catch (err) {
+      if (err instanceof StreamCancelledError) throw err;
+      errors.push({ type, error: err });
+    }
+  }
+  return {
+    type: "extracted-text",
+    result: { fallbackText: buildExtractedTextFallback(opts.content) },
+    errors,
+  };
 }

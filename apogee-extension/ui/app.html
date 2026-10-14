@@ -1008,6 +1008,24 @@
 
           <div class="settings-card">
             <div class="card-title">
+              <span class="ico" data-ico="lines" aria-hidden="true"></span>
+              <span data-i18n="effectiveConfig">Effective configuration</span>
+            </div>
+
+            <p class="settings-hint" data-i18n="effectiveConfigHint">
+              The settings currently in effect. Secrets show as set or unset,
+              never their contents.
+            </p>
+
+            <div id="effectiveConfigList" class="effective-config-list-wrap">
+              <p class="audit-empty" data-i18n="effectiveConfigEmpty">
+                No settings loaded yet.
+              </p>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <div class="card-title">
               <span class="ico" data-ico="inspect" aria-hidden="true"></span>
               <span data-i18n="diagnostics">Diagnostics</span>
             </div>

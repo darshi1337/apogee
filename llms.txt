@@ -6,11 +6,11 @@ Apogee is an offline-first, private browser extension for Chrome, Edge, and Fire
 
 - `apogee-extension/manifest.json`: Manifest V3 configuration for Chromium and Firefox.
 
-- `apogee-extension/background/service-worker.js`: Background service worker and message routing.
+- `apogee-extension/background/service-worker.js`: Background message router. Stream lifecycle (`streams.js`), finalize (`finalize.js`), suggest-questions (`suggestQuestions.js`), and loopback providers (`loopbackProviders.js`) live beside it.
 
-- `apogee-extension/popup/`: Extension popup UI (HTML, CSS, JS).
+- `apogee-extension/ui/`: Extension popup and side-panel UI. `jobs.js` runs every streaming summarize and Ask job; `app.js` renders the views.
 
-- `apogee-extension/lib/engines/`: LLM engine implementations (WebLLM, Transformers.js, Ollama, llama.cpp).
+- `apogee-extension/lib/engines/`: LLM engine implementations (WebLLM, Transformers.js, Ollama, llama.cpp) plus the ordered engine fallback chain in `providers.js`.
 
 - `apogee-extension/lib/engines/llamaCppClient.js`: SSE streaming client and health/context detection for a local `llama-server`.
 

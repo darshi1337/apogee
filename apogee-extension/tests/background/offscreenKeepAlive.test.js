@@ -92,9 +92,13 @@ test("relay and finish paths wire tracking end to end", () => {
     "../../background/service-worker.js",
     import.meta.url,
   );
-  const relayStart = swCode.indexOf("function relayToOffscreenStream");
+  const streamsCode = readSource(
+    "../../background/streams.js",
+    import.meta.url,
+  );
+  const relayStart = streamsCode.indexOf("function relayToOffscreenStream");
   assert.ok(relayStart !== -1, "relay helper exists");
-  const relayBody = swCode.slice(relayStart, relayStart + 2000);
+  const relayBody = streamsCode.slice(relayStart, relayStart + 2000);
   assert.ok(
     relayBody.includes("trackOffscreenRelay(streamId)"),
     "relay tracks the stream while a popup watches",
@@ -115,7 +119,7 @@ test("relay and finish paths wire tracking end to end", () => {
   // same shared forward the explicit cancel path uses — never an inline
   // duplicate — and only while the stream hasn't finished.
   assert.ok(
-    swCode.includes("function forwardCancelToOffscreen(streamId)"),
+    streamsCode.includes("function forwardCancelToOffscreen(streamId)"),
     "cancel forward lives in one shared helper",
   );
   const popupDiscIdx = relayBody.indexOf("popupPort.onDisconnect");

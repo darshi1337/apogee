@@ -31,7 +31,7 @@ jobs:
         # verification rejects raw SHAs as "imposter commits" and then no
         # results ever reach the public API. This is the one sanctioned
         # exception; everything else stays SHA-pinned.
-        uses: ossf/scorecard-action@v2.4.4
+        uses: ossf/scorecard-action@v2.5.0
         with:
           results_file: results.sarif
           results_format: sarif

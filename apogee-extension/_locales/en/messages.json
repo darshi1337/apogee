@@ -401,6 +401,18 @@
     "message": "Custom instructions and a non-loopback Ollama host are reported as a shape only, never their contents.",
     "description": "Diagnostics copy hint"
   },
+  "effectiveConfig": {
+    "message": "Effective configuration",
+    "description": "Effective configuration title"
+  },
+  "effectiveConfigHint": {
+    "message": "The settings currently in effect. Secrets show as set or unset, never their contents.",
+    "description": "Effective configuration help text"
+  },
+  "effectiveConfigEmpty": {
+    "message": "No settings loaded yet.",
+    "description": "Effective configuration empty text"
+  },
   "getInTouch": {
     "message": "Get in touch",
     "description": "Contact button and title"

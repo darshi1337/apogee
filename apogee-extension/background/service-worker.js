@@ -1,15 +1,11 @@
 import { summarizeText } from "../lib/summarize/ollamaSummarize.js";
 import { resolveEffectiveLanguage } from "../lib/language/detectLanguage.js";
-import {
-  streamInTargetLanguage,
-  generateInTargetLanguage,
-} from "../lib/language/languageOutput.js";
+import { streamInTargetLanguage } from "../lib/language/languageOutput.js";
 import { opusTranslateFnFor } from "../lib/language/opusTranslateEngine.js";
 import { chatStream, checkHealth } from "../lib/engines/ollamaClient.js";
 import {
   chatStream as llamaChatStream,
   checkHealth as llamaCheckHealth,
-  DEFAULT_CONTEXT_TOKENS as LLAMACPP_DEFAULT_CONTEXT_TOKENS,
 } from "../lib/engines/llamaCppClient.js";
 import { getMaxChunkChars, getMaxChunks } from "../lib/engines/modelLimits.js";
 import {
@@ -19,18 +15,12 @@ import {
   replayStreamToPort,
 } from "../lib/util/streamState.js";
 import { chunkBySections } from "../lib/summarize/sections.js";
-import { errorHelpUrl } from "../lib/util/errorHelp.js";
-import {
-  toUserMessage,
-  UserFacingError,
-  formatNotificationMessage,
-} from "../lib/util/userError.js";
+import { UserFacingError } from "../lib/util/userError.js";
 import { hasHostPermissions } from "../lib/util/permissions.js";
 import { disconnectIfUnknownPort } from "../lib/util/streamBroadcast.js";
 import { ensureLoopbackCorsRule } from "../lib/util/loopbackCors.js";
 import {
   buildAnswerPrompt,
-  buildSuggestQuestionsPrompt,
   buildMultiTabSummaryPrompt,
   buildExtractNotesPrompt,
   buildSynthesisPrompt,
@@ -39,17 +29,11 @@ import {
 import { truncateForPrompt } from "../lib/summarize/chunk.js";
 import { cleanText } from "../lib/summarize/cleaner.js";
 import { createSummarizeProgressTracker } from "../lib/summarize/progress.js";
-import {
-  msToAlarmMinutes,
-  STREAM_CLEANUP_MS,
-} from "../lib/util/streamExpiry.js";
 import { mapReduceStream } from "../lib/summarize/mapReduce.js";
-import { parseSuggestedQuestions } from "../lib/summarize/questions.js";
 import { extractPdfText } from "../lib/extract/pdfExtract.js";
 import {
   MAX_BILIBILI_SUBTITLE_CHARS,
   MAX_BILIBILI_SUBTITLE_SEGMENTS,
-  MAX_FINALIZE_TEXT_CHARS,
   MAX_UPLOAD_FILE_BYTES,
 } from "../lib/extract/fileLimits.js";
 import {
@@ -67,13 +51,10 @@ import {
 } from "../lib/engines/transformersEngine.js";
 import { getSettings } from "../lib/storage/settings.js";
 import { initDebugLogging, sanitizeLogMessage } from "../lib/util/log.js";
-import { NotificationTargetManager } from "../lib/util/notificationTargets.js";
 import {
   asFocusKeyword,
   getPromptsCacheKeyForSettings,
   getSummaryCacheKeyForSettings,
-  hashUrl,
-  persistSummaryIfAllowed,
   persistContent,
   getCachedContent,
   shouldPersist,
@@ -93,7 +74,7 @@ import {
   getProviderType,
   getModelForSettings,
 } from "../lib/engines/providers.js";
-import { PROVIDERS, DEFAULT_LLAMACPP_HOST } from "../lib/constants.js";
+import { PROVIDERS } from "../lib/constants.js";
 import {
   OFFSCREEN_READY_TIMEOUT_MS,
   LLM_HEALTH_CHECK_TIMEOUT_MS,
@@ -101,13 +82,7 @@ import {
   BILIBILI_FETCH_TIMEOUT_MS,
 } from "../lib/constants.js";
 import {
-  ALLOWED_OLLAMA_HOSTS,
-  DEFAULT_OLLAMA_PORT,
-  validateLoopbackUrl,
-} from "../lib/util/ollamaHost.js";
-import {
   broadcastToStream,
-  disconnectStreamPorts,
   safeDisconnect,
   safePost,
 } from "../lib/util/streamBroadcast.js";
@@ -115,7 +90,6 @@ import { tryParseUrl } from "../lib/util/url.js";
 import { withTimeout } from "../lib/util/withTimeout.js";
 import {
   saveViewState,
-  saveViewStateIfJobMatches,
   removeViewState,
   cleanupOrphanedViewStates,
 } from "../lib/storage/viewState.js";
@@ -125,13 +99,60 @@ import {
   COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG,
   PDF_TOO_LARGE_ERROR_MSG,
 } from "../lib/util/messages.js";
+import {
+  hasOffscreenAPI,
+  nextStreamId,
+  activeStreams,
+  registeredStreamJobs,
+  registerStreamJob,
+  scheduleStreamCleanup,
+  expireStreamForCleanup,
+  STREAM_CLEANUP_PREFIX,
+  EXPIRED_STREAM_ERROR,
+  startKeepAlive,
+  hasBackgroundJobsInflight,
+  isOffscreenStream,
+  forwardCancelToOffscreen,
+  relayToOffscreenStream,
+  untrackOffscreenRelay,
+} from "./streams.js";
+import {
+  OLLAMA_PROVIDER,
+  LLAMACPP_PROVIDER,
+  validateLoopbackHost,
+} from "./loopbackProviders.js";
+import {
+  buildTrustedFinalize,
+  recordPopupSummaryStream,
+  finalizeSummaryJob,
+  preservePendingFinalize,
+  notifyFinalizeFailure,
+  notifyJobFailed,
+  notificationTargets,
+} from "./finalize.js";
+import {
+  runSuggestQuestionsJob,
+  SKIP_LOOKUP_STATUS,
+} from "./suggestQuestions.js";
+
+// Names background tests import from this module. Implementations live in
+// finalize.js and streams.js; the re-exports keep existing import paths
+// working while the worker stays a thin router.
+export {
+  finalizeSummaryJob,
+  preservePendingFinalize,
+  takePendingFinalize,
+  pendingFinalizeRetries,
+  FINALIZE_FAILED_MESSAGE,
+} from "./finalize.js";
+export {
+  offscreenRelayInflight,
+  trackOffscreenRelay,
+  untrackOffscreenRelay,
+  hasWorkInFlight,
+} from "./streams.js";
 
 initDebugLogging();
-
-const hasOffscreenAPI =
-  typeof chrome !== "undefined" &&
-  typeof chrome.offscreen !== "undefined" &&
-  typeof chrome.offscreen.createDocument === "function";
 
 let offscreenReady = false;
 const offscreenLogs = [];
@@ -215,214 +236,6 @@ async function ensureOffscreenDocumentOnce() {
   if (!popupConnected) scheduleOffscreenIdleClose();
 }
 
-function nextStreamId(kind) {
-  return `${kind}-${crypto.randomUUID()}`;
-}
-
-const registeredStreamJobs = new Map();
-
-function registerStreamJob(streamId, jobData) {
-  if (!streamId || !jobData?.finalize) return;
-  registeredStreamJobs.set(streamId, jobData);
-  scheduleStreamCleanup(streamId);
-}
-
-// Summaries that finished generating but could not be persisted (e.g. storage
-// quota). Kept in memory so the text survives for a retry even when every
-// storage write is rejecting. Bounded by count and age via
-// NotificationTargetManager so a quota-stuck browser cannot grow it without
-// limit; expiry is lazy on preserve/take.
-const MAX_PENDING_FINALIZE_RETRIES = 10;
-const MAX_PENDING_FINALIZE_AGE_MS = 5 * 60 * 1000;
-export const pendingFinalizeRetries = new NotificationTargetManager({
-  ttlMs: MAX_PENDING_FINALIZE_AGE_MS,
-  maxCapacity: MAX_PENDING_FINALIZE_RETRIES,
-});
-
-export function preservePendingFinalize(
-  { finalize, model, title, url, text },
-  now = Date.now(),
-) {
-  const jobId = finalize?.jobId || finalize?.cacheKey || `${now}`;
-  pendingFinalizeRetries.set(jobId, { finalize, model, title, url, text }, now);
-  return jobId;
-}
-
-export function takePendingFinalize(jobId, now = Date.now()) {
-  return pendingFinalizeRetries.take(jobId, now);
-}
-
-export const FINALIZE_FAILED_MESSAGE =
-  "Couldn't save this summary (storage unavailable). The text above is preserved — try summarizing again.";
-
-const EXPIRED_STREAM_ERROR =
-  "This response is no longer available (its stream expired). " +
-  "Try summarizing again.";
-
-function notifyFinalizeFailure({ finalize, error, streamId }) {
-  console.error("Failed to finalize summary:", error);
-  const jobId = finalize?.jobId || null;
-  const promptsCacheKey = finalize?.promptsCacheKey || null;
-  const stream = streamId ? activeStreams.get(streamId) : null;
-  if (stream) {
-    try {
-      broadcastToStream(stream, {
-        type: "error",
-        error: FINALIZE_FAILED_MESSAGE,
-        userFacing: true,
-        finalizeFailed: true,
-        jobId,
-        promptsCacheKey,
-      });
-    } catch {
-      // intent: best-effort, ignore if already closed/unavailable
-    }
-  }
-  try {
-    chrome.runtime
-      .sendMessage({
-        type: "finalize-failed",
-        jobId,
-        promptsCacheKey,
-        error: FINALIZE_FAILED_MESSAGE,
-      })
-      .catch(() => {});
-  } catch {
-    // intent: best-effort, ignore if already closed/unavailable
-  }
-  if (finalize?.notifyOnFinish) {
-    try {
-      notifyJobFailed(new UserFacingError(FINALIZE_FAILED_MESSAGE));
-    } catch {
-      // intent: best-effort, ignore if already closed/unavailable
-    }
-  } else if (!stream) {
-    // No popup stream to show the banner and no completion notification
-    // requested: the notification is the only user-visible surface left.
-    // Background-initiated summaries always set notifyOnFinish, so this only
-    // fires for popup flows whose stream already went away.
-    try {
-      chrome.runtime
-        .sendMessage({
-          type: "model-progress",
-          progress: { progress: 0, text: FINALIZE_FAILED_MESSAGE },
-        })
-        .catch(() => {});
-    } catch {
-      // intent: best-effort, ignore if already closed/unavailable
-    }
-  }
-}
-
-async function recordPopupSummaryStream(payload, streamId) {
-  const finalize = payload?.finalize;
-  if (!finalize?.jobId || finalize.tabId == null) return;
-  registerStreamJob(streamId, {
-    finalize,
-    model: payload.model,
-    title: payload.title,
-    url: payload.url,
-  });
-  await saveViewStateIfJobMatches(
-    finalize.tabId,
-    finalize.jobId,
-    {
-      streamId,
-      promptsCacheKey: finalize.promptsCacheKey,
-      summaryLanguage: finalize.language,
-      translationEngine: finalize.translationEngine,
-    },
-    "summarizing",
-  );
-}
-
-async function buildTrustedFinalize(payload) {
-  if (!payload || typeof payload !== "object") return null;
-
-  const rawFinalize = payload.finalize || {};
-  const customContent = rawFinalize.customContent === true;
-  const rawUrl =
-    typeof payload.url === "string"
-      ? payload.url
-      : typeof rawFinalize.persistUrl === "string"
-        ? rawFinalize.persistUrl
-        : "";
-  if (!rawUrl && !customContent) return null;
-
-  const settings = await getSettings();
-  const model = payload.model || getModelForSettings(settings);
-  const providerType = getProviderType(settings);
-  const isSelection = Boolean(rawFinalize.isSelection);
-  const cacheUrl = isSelection
-    ? `${rawUrl}#apogee-selection`
-    : rawUrl || `local:${await hashUrl(payload.content || "")}`;
-
-  const cacheKey = await getSummaryCacheKeyForSettings(
-    cacheUrl,
-    settings,
-    model,
-    asFocusKeyword(payload.focusKeyword),
-  );
-  const promptsCacheKey = await getPromptsCacheKeyForSettings(
-    cacheUrl,
-    settings,
-    model,
-    asFocusKeyword(payload.focusKeyword),
-  );
-
-  const persist = isSelection ? false : await shouldPersist(rawUrl);
-
-  const jobId =
-    typeof rawFinalize.jobId === "string" && rawFinalize.jobId
-      ? rawFinalize.jobId
-      : `summary-${crypto.randomUUID()}`;
-
-  const tabId =
-    typeof rawFinalize.tabId === "number" ? rawFinalize.tabId : null;
-  const windowId =
-    typeof rawFinalize.windowId === "number" ? rawFinalize.windowId : null;
-  const notifyOnFinish = Boolean(rawFinalize.notifyOnFinish);
-  const sensitive = await isPrivateUrl(rawUrl, settings);
-
-  return {
-    cacheKey,
-    promptsCacheKey,
-    persist,
-    persistUrl: rawUrl,
-    isSelection,
-    customContent,
-    providerType,
-    host: settings.ollamaHost,
-    notifyOnFinish,
-    sensitive,
-    tabId,
-    jobId,
-    windowId,
-    language: settings.summaryLanguage,
-    translationEngine: settings.translationEngine,
-  };
-}
-
-function isOffscreenStream(streamId) {
-  return (
-    hasOffscreenAPI &&
-    (streamId.startsWith("webllm-") || streamId.startsWith("transformers-"))
-  );
-}
-
-// Shared cancel forward: the explicit cancel-stream path and the relay
-// popup-disconnect path abort the backing offscreen GPU/engine job the same
-// way, so a closed popup cannot leave a detached generation running.
-function forwardCancelToOffscreen(streamId) {
-  return chrome.runtime
-    .sendMessage({
-      target: "offscreen",
-      action: "cancel-stream",
-      payload: { streamId },
-    })
-    .catch(() => {});
-}
-
 // Shared head for the ollama/llamacpp/transformers stream actions: rebuild
 // the finalize worker-side (so callers cannot forge cache keys), merge it
 // into the payload with any caller extras, and register the popup
@@ -442,209 +255,6 @@ async function prepareStreamPayload(streamId, rawPayload, extra = {}) {
   return payload;
 }
 
-const activeStreams = new Map();
-
-// WebLLM / Transformers jobs run in the offscreen document, so they have no
-// entry in activeStreams above. Without explicit tracking the keep-alive
-// below sees no work in flight, the worker sleeps ~30s into a multi-minute
-// local generation, and the relay ports die: the popup freezes on its
-// spinner while the offscreen job keeps running to completion (the full
-// text only appears when the popup reopens and reads the saved view state).
-// Entries live only while a popup is relayed to an offscreen stream; the
-// headless finish path (stream-finished) needs no keep-alive because its
-// message wakes the worker on arrival.
-export const offscreenRelayInflight = new Set();
-
-export function trackOffscreenRelay(streamId) {
-  if (!streamId) return;
-  offscreenRelayInflight.add(streamId);
-  startKeepAlive();
-}
-
-export function untrackOffscreenRelay(streamId) {
-  offscreenRelayInflight.delete(streamId);
-}
-
-const STREAM_CLEANUP_PREFIX = "stream-cleanup:";
-// Single source of truth for the 2-min window lives in lib/util/streamExpiry.js
-// (the offscreen document consumes it as ms); alarms take minutes.
-const STREAM_CLEANUP_MINUTES = msToAlarmMinutes(STREAM_CLEANUP_MS);
-// Sliding expiry: re-creating an alarm with the same name overwrites it, so
-// every call pushes expiry 2 min out. Callers refresh on each chunk of
-// progress (emitChunk, relayed offscreen chunks); a stream with no progress
-// for the full window is reclaimed by the alarm handler below.
-function scheduleStreamCleanup(streamId) {
-  chrome.alarms.create(`${STREAM_CLEANUP_PREFIX}${streamId}`, {
-    delayInMinutes: STREAM_CLEANUP_MINUTES,
-  });
-}
-
-function expireStreamForCleanup(streamId) {
-  const stream = activeStreams.get(streamId);
-  if (stream && !stream.done) {
-    // Cleanup alarms run outside finish(), so mark terminal state here.
-    stream.done = true;
-    stream.error = EXPIRED_STREAM_ERROR;
-    stream.errorUserFacing = true;
-    broadcastToStream(stream, {
-      type: "error",
-      error: EXPIRED_STREAM_ERROR,
-      userFacing: true,
-    });
-    disconnectStreamPorts(stream);
-  }
-  activeStreams.delete(streamId);
-  registeredStreamJobs.delete(streamId);
-}
-
-const KEEPALIVE_MS = 20000;
-let keepAliveTimer = null;
-
-export function hasWorkInFlight() {
-  for (const stream of activeStreams.values()) {
-    if (!stream.done) return true;
-  }
-  if (offscreenRelayInflight.size > 0) return true;
-  return pendingSuggestKeys.size > 0;
-}
-
-function startKeepAlive() {
-  if (keepAliveTimer !== null) return;
-  keepAliveTimer = setInterval(() => {
-    if (!hasWorkInFlight()) {
-      clearInterval(keepAliveTimer);
-      keepAliveTimer = null;
-      return;
-    }
-    try {
-      chrome.runtime.getPlatformInfo(() => void chrome.runtime.lastError);
-    } catch {
-      // intent: best-effort, ignore if already closed/unavailable
-    }
-  }, KEEPALIVE_MS);
-  // Node test runners hold the event loop for active intervals; browsers
-  // return a number here so this is a no-op in the real worker.
-  if (keepAliveTimer.unref) keepAliveTimer.unref();
-}
-
-function relayToOffscreenStream(popupPort, streamId) {
-  // A live viewer exists, so this offscreen job is work in flight: keep the
-  // worker awake until the relay ends, otherwise it sleeps mid-generation
-  // and the popup stalls on its spinner.
-  trackOffscreenRelay(streamId);
-  const offscreenPort = chrome.runtime.connect({
-    name: `offscreen-stream-${streamId}`,
-  });
-
-  let terminal = false;
-
-  offscreenPort.onMessage.addListener((msg) => {
-    if (msg.type === "chunk") {
-      // Heartbeat for relayed jobs: the offscreen document owns the text,
-      // but the worker owns the registered-job/alarm entry, so progress seen
-      // here must slide the same 2-min window.
-      scheduleStreamCleanup(streamId);
-    }
-    if (
-      msg.type === "done" ||
-      msg.type === "error" ||
-      msg.type === "cancelled"
-    ) {
-      terminal = true;
-      untrackOffscreenRelay(streamId);
-    }
-    safePost(popupPort, msg);
-  });
-
-  offscreenPort.onDisconnect.addListener(() => {
-    untrackOffscreenRelay(streamId);
-    if (!terminal) {
-      safePost(popupPort, {
-        type: "error",
-        error: "Connection to local model was lost",
-      });
-    }
-    safeDisconnect(popupPort);
-  });
-
-  popupPort.onDisconnect.addListener(() => {
-    untrackOffscreenRelay(streamId);
-    // The offscreen port's own onDisconnect only drops the subscriber — a
-    // closed popup must also stop the backing job (guarded by !terminal so
-    // a finished stream isn't touched).
-    if (!terminal) {
-      forwardCancelToOffscreen(streamId);
-    }
-    safeDisconnect(offscreenPort);
-  });
-}
-
-const ALLOWED_LOOPBACK_HOSTS = ALLOWED_OLLAMA_HOSTS;
-
-// The rejected value stays in the console line only. The user-facing message states the rule instead, so a mistyped host reads as guidance rather than an internal assertion. ERROR.md documents this message word for word.
-function rejectLoopbackHost(label, host, reason) {
-  console.error(`${label} host rejected (${reason}): ${host}`);
-  const allowed = [...ALLOWED_LOOPBACK_HOSTS].join(" or ");
-  return new UserFacingError(
-    `Apogee can only reach ${label} over http on ${allowed}. Check the host in Settings.`,
-  );
-}
-
-function loopbackDefaultPort(label) {
-  // One shared validator (see lib/util/ollamaHost.js): the port rule and the
-  // 127.0.0.1/localhost-only stance come from there for every provider. The
-  // only per-provider part is the default port, since llama.cpp listens on
-  // 8080 while Ollama listens on 11434. (LLAMACPP_PROVIDER is declared below;
-  // this lookup runs at call time, after module init.)
-  if (label === LLAMACPP_PROVIDER.label) {
-    try {
-      return new URL(DEFAULT_LLAMACPP_HOST).port || "8080";
-    } catch {
-      return "8080";
-    }
-  }
-  return DEFAULT_OLLAMA_PORT;
-}
-
-function validateLoopbackHost(host, label = "Ollama") {
-  try {
-    return validateLoopbackUrl(host, {
-      label,
-      defaultPort: loopbackDefaultPort(label),
-    });
-  } catch (err) {
-    // Map the shared validator's plain errors onto the console-only reason;
-    // the user-facing message stays generic (see rejectLoopbackHost).
-    const message = err instanceof Error ? err.message : String(err);
-    const reason = message
-      .replace(`Invalid ${label} host`, "unparseable URL")
-      .replace(`Disallowed ${label} `, "")
-      .replace(`Invalid ${label} `, "");
-    throw rejectLoopbackHost(label, host, reason);
-  }
-}
-
-// What a loopback HTTP provider contributes to a generation job: the client that talks to it, the name its errors are written in, and the message action its stream arrives on. Everything else in the two functions below is the same whichever server is answering. Ollama is the default, so its call sites pass nothing and behave exactly as before.
-const OLLAMA_PROVIDER = {
-  label: "Ollama",
-  streamKind: "ollama-stream",
-  chatStream,
-};
-
-// llama-server reports the context window it is actually running, which comes from its own -c launch flag and so cannot be read off the model name. Ollama has no equivalent, which is why only this provider supplies the hook.
-const LLAMACPP_PROVIDER = {
-  label: "llama.cpp",
-  streamKind: "llamacpp-stream",
-  chatStream: llamaChatStream,
-  async getContextTokens(host, apiKey) {
-    const health = await llamaCheckHealth(
-      host,
-      LLM_HEALTH_CHECK_TIMEOUT_MS,
-      apiKey,
-    );
-    return health.contextTokens ?? LLAMACPP_DEFAULT_CONTEXT_TOKENS;
-  },
-};
 async function getRelevantAskContent(content, question) {
   if (!hasOffscreenAPI) {
     try {
@@ -696,14 +306,17 @@ function createBufferedStream(streamId, { finalize, model, title, url }) {
     broadcastToStream(stream, msg);
     scheduleStreamCleanup(streamId);
     if (msg.type === "done") {
-      finalizeSummaryJob({
-        finalize,
-        model,
-        title,
-        url,
-        text: stream.text,
-        streamId,
-      }).catch((err) => console.error("Failed to finalize summary:", err));
+      finalizeSummaryJob(
+        {
+          finalize,
+          model,
+          title,
+          url,
+          text: stream.text,
+          streamId,
+        },
+        { ensureOffscreenDocument },
+      ).catch((err) => console.error("Failed to finalize summary:", err));
     }
   };
 
@@ -982,31 +595,6 @@ async function startTransformersStream(
 // Shared tail for the local suggestion generators: prompt, language,
 // translator, generate, parse. Callers differ only in how they talk to their
 // engine (the `chat` closure).
-async function generateQuestionsFromChat(
-  chat,
-  { title, url, summary, language, translationEngine },
-) {
-  const prompt = buildSuggestQuestionsPrompt(title, url, summary);
-  const qLanguage = await resolveEffectiveLanguage(summary, language);
-  const translateFn = opusTranslateFnFor(translationEngine);
-  const text = await generateInTargetLanguage(chat, prompt, qLanguage, {
-    translateFn,
-  });
-  return parseSuggestedQuestions(text);
-}
-
-async function generateTransformersSuggestions(
-  model,
-  { title, url, summary, language, translationEngine },
-) {
-  return withTransformersEngine(model, null, async (eng) =>
-    generateQuestionsFromChat(
-      (p, opts) => transformersChatStream(eng, p, { system: opts?.system }),
-      { title, url, summary, language, translationEngine },
-    ),
-  );
-}
-
 // Shared by runBackgroundSummarize and runExtractOnly (#414): wrap selected
 // text as page data so the generic extraction path is skipped.
 function buildSelectionPageData(tab, selection) {
@@ -1244,24 +832,6 @@ export async function runExtractOnly(tab) {
   };
 }
 
-function notifyJobFailed(err) {
-  console.error("Background summarize failed:", err);
-  if (typeof chrome.notifications === "undefined") return;
-  const message = toUserMessage(err);
-  const notificationId = `apogee-summary-error-${crypto.randomUUID()}`;
-  // A notification body cannot hold a link, so clicking it opens the explanation instead of focusing the tab.
-  notificationTargets.set(notificationId, { helpUrl: errorHelpUrl(message) });
-  chrome.notifications.create(notificationId, {
-    type: "basic",
-    iconUrl: chrome.runtime.getURL("assets/icon-96.png"),
-    title: "Summarize failed",
-    message: formatNotificationMessage(
-      message,
-      " Click to see what this means.",
-    ),
-  });
-}
-
 // Narrow the bundled loopback Origin-strip to this extension's non-tab requests where session rules are supported; loopback clients await the same helper before fetching, so this is only a fast track. Never rejects.
 ensureLoopbackCorsRule().catch(() => {});
 
@@ -1321,15 +891,6 @@ const SPONSORBLOCK_CATEGORIES = ["sponsor", "selfpromo", "interaction"];
 // callers previously saw [] for denied permission, network failure, and
 // genuinely-empty alike. Each lookup below reports which one happened via
 // its status field so denied/off, network errors, and empty stay distinct.
-export const SKIP_LOOKUP_STATUS = {
-  OK: "ok",
-  OFF: "off",
-  DENIED: "denied",
-  INVALID: "invalid",
-  NETWORK: "network-error",
-  EMPTY: "empty",
-};
-
 // Shared fetch/HTTP/JSON core for the lookup trio below: same timeout
 // fetch, same non-ok check, same JSON parse, only the label differs.
 // Returns { data } on success or { status: NETWORK } with a telemetry-safe
@@ -1503,234 +1064,6 @@ export async function fetchBilibiliSubtitlesWithStatus({
   return { segments, status: SKIP_LOOKUP_STATUS.OK };
 }
 
-async function generateLocalSuggestions(
-  host,
-  model,
-  { title, url, summary, language, translationEngine },
-  client = OLLAMA_PROVIDER,
-  apiKey = "",
-) {
-  const validHost = validateLoopbackHost(host, client.label);
-  return generateQuestionsFromChat(
-    (p, opts) => client.chatStream(validHost, model, p, { ...opts, apiKey }),
-    { title, url, summary, language, translationEngine },
-  );
-}
-
-const pendingSuggestKeys = new Set();
-
-async function runSuggestQuestionsJob(payload) {
-  const {
-    promptsCacheKey,
-    persist = true,
-    persistUrl,
-    providerType,
-    host,
-    title,
-    url,
-    summary,
-    model,
-    language,
-    translationEngine,
-  } = payload || {};
-  if (!promptsCacheKey || pendingSuggestKeys.has(promptsCacheKey)) return;
-  pendingSuggestKeys.add(promptsCacheKey);
-  startKeepAlive();
-
-  let questions = [];
-  let suggestStatus = SKIP_LOOKUP_STATUS.EMPTY;
-  try {
-    try {
-      if (
-        providerType === PROVIDERS.LLAMACPP ||
-        providerType === PROVIDERS.LOCAL
-      ) {
-        const isLlama = providerType === PROVIDERS.LLAMACPP;
-        const { llamaHost, llamaApiKey } = isLlama ? await getSettings() : {};
-        questions = await generateLocalSuggestions(
-          isLlama ? llamaHost : host,
-          model,
-          { title, url, summary, language, translationEngine },
-          isLlama ? LLAMACPP_PROVIDER : undefined,
-          isLlama ? llamaApiKey : undefined,
-        );
-      } else if (providerType === PROVIDERS.TRANSFORMERS && !hasOffscreenAPI) {
-        questions = await generateTransformersSuggestions(model, {
-          title,
-          url,
-          summary,
-          language,
-          translationEngine,
-        });
-      } else {
-        await ensureOffscreenDocument();
-        const resp = await chrome.runtime.sendMessage({
-          target: "offscreen",
-          action: "suggest-questions",
-          payload: {
-            title,
-            url,
-            summary,
-            model,
-            language,
-            translationEngine,
-            provider:
-              providerType === PROVIDERS.TRANSFORMERS
-                ? "transformers"
-                : "webllm",
-          },
-        });
-        questions = resp?.questions || [];
-      }
-      suggestStatus =
-        questions.length > 0 ? SKIP_LOOKUP_STATUS.OK : SKIP_LOOKUP_STATUS.EMPTY;
-    } catch (err) {
-      questions = [];
-      suggestStatus = SKIP_LOOKUP_STATUS.NETWORK;
-      // Telemetry-safe: provider type + error name only, never title/summary.
-      console.warn(
-        `Suggest-questions unavailable: ${providerType || "unknown"} ${err?.name || "Error"}.`,
-      );
-    }
-
-    // Generating the questions takes its own trip through the model, so the setting gets one more look before this write too.
-    // A quota-full disk must not take down finalize: keep the in-memory
-    // questions for the popup even when the cache write rejects.
-    try {
-      if (persist && (await shouldPersist(persistUrl || url))) {
-        await chrome.storage.local.set({ [promptsCacheKey]: questions });
-      }
-    } catch (err) {
-      console.error("Failed to cache suggested questions:", err);
-    }
-    chrome.runtime
-      .sendMessage({
-        type: "suggested-prompts-ready",
-        promptsCacheKey,
-        questions,
-        status: suggestStatus,
-      })
-      .catch(() => {});
-  } catch (err) {
-    console.error("Suggest-questions job failed:", err);
-    try {
-      chrome.runtime
-        .sendMessage({
-          type: "suggested-prompts-ready",
-          promptsCacheKey,
-          questions,
-          status: suggestStatus,
-        })
-        .catch(() => {});
-    } catch {
-      // intent: best-effort, ignore if already closed/unavailable
-    }
-  } finally {
-    pendingSuggestKeys.delete(promptsCacheKey);
-  }
-}
-
-export async function finalizeSummaryJob({
-  finalize,
-  model,
-  title,
-  url,
-  text,
-  streamId = null,
-}) {
-  if (!finalize) return { ok: true, persisted: false };
-  // stream-finished text arrives via extension messaging and fans out into
-  // cache/history/view-state: bound it at the trust boundary before use.
-  if (typeof text === "string" && text.length > MAX_FINALIZE_TEXT_CHARS) {
-    text =
-      `${text.slice(0, MAX_FINALIZE_TEXT_CHARS).trim()}\n\n` +
-      `[...summary truncated to the first ${MAX_FINALIZE_TEXT_CHARS} characters...]`;
-  }
-  const {
-    cacheKey,
-    promptsCacheKey,
-    persist,
-    persistUrl,
-    isSelection,
-    providerType,
-    host,
-    notifyOnFinish,
-    sensitive,
-    tabId,
-    jobId,
-    windowId,
-    language,
-    translationEngine,
-  } = finalize;
-
-  try {
-    // `persist` is what was true when the job started. The write only happens if it is still true now, so turning history off mid-generation also excludes the summary that is running.
-    const persisted =
-      persist &&
-      (await persistSummaryIfAllowed(
-        persistUrl || url,
-        cacheKey,
-        promptsCacheKey,
-        text,
-        title,
-      ));
-
-    if (persisted || isSelection) {
-      await saveViewStateIfJobMatches(
-        tabId,
-        jobId,
-        {
-          view: "summaryView",
-          subview: "summary",
-          url: persistUrl || url,
-          streamId: null,
-          summaryText: text,
-          promptsCacheKey,
-          summaryLanguage: language,
-          translationEngine,
-        },
-        "summarizing",
-      );
-    }
-    runSuggestQuestionsJob({
-      promptsCacheKey,
-      persist: persisted,
-      persistUrl: persistUrl || url,
-      providerType,
-      host,
-      title,
-      url,
-      summary: text,
-      model,
-      language,
-      translationEngine,
-    }).catch((err) => console.error("Suggest-questions job failed:", err));
-    if (notifyOnFinish) {
-      notifyJobComplete({ title: sensitive ? "" : title, tabId, windowId });
-    }
-    return { ok: true, persisted: !!persisted };
-  } catch (err) {
-    preservePendingFinalize({ finalize, model, title, url, text });
-    notifyFinalizeFailure({ finalize, title, error: err, streamId });
-    return { ok: false, error: err };
-  }
-}
-
-const notificationTargets = new NotificationTargetManager();
-
-function notifyJobComplete({ title, tabId, windowId }) {
-  if (typeof chrome.notifications === "undefined") return;
-  const notificationId = `apogee-summary-${crypto.randomUUID()}`;
-  notificationTargets.set(notificationId, { tabId, windowId });
-  const rawMsg = title ? `"${title}" is ready to view.` : "Click to view it.";
-  chrome.notifications.create(notificationId, {
-    type: "basic",
-    iconUrl: chrome.runtime.getURL("assets/icon-96.png"),
-    title: "Summary ready",
-    message: formatNotificationMessage(rawMsg, ""),
-  });
-}
-
 if (typeof chrome.notifications !== "undefined") {
   chrome.notifications.onClicked.addListener(async (notificationId) => {
     const target = notificationTargets.get(notificationId);
@@ -1784,7 +1117,7 @@ function scheduleOffscreenIdleClose() {
 }
 
 async function closeOffscreenIfIdle() {
-  let hasActiveJob = pendingSuggestKeys.size > 0;
+  let hasActiveJob = hasBackgroundJobsInflight();
   if (!hasActiveJob && (await offscreenDocumentExists())) {
     try {
       const resp = await chrome.runtime.sendMessage({
@@ -2011,14 +1344,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const title = registeredJob?.title || message.title;
         const url = registeredJob?.url || message.url;
 
-        await finalizeSummaryJob({
-          finalize: trustedFinalize,
-          model,
-          title,
-          url,
-          text: message.text,
-          streamId,
-        });
+        await finalizeSummaryJob(
+          {
+            finalize: trustedFinalize,
+            model,
+            title,
+            url,
+            text: message.text,
+            streamId,
+          },
+          { ensureOffscreenDocument },
+        );
       } catch (err) {
         // buildTrustedFinalize can throw (e.g. storage read failure) before
         // finalizeSummaryJob ever runs; preserve the text here so the same
@@ -2258,14 +1594,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 asFocusKeyword(message.payload?.focusKeyword),
               )
             : message.payload?.promptsCacheKey;
-          runSuggestQuestionsJob({
-            ...message.payload,
-            ...(promptsCacheKey ? { promptsCacheKey } : {}),
-            providerType: getProviderType(settings),
-            host: settings.ollamaHost,
-          }).catch((err) =>
-            console.error("Suggest-questions job failed:", err),
-          );
+          runSuggestQuestionsJob(
+            {
+              ...message.payload,
+              ...(promptsCacheKey ? { promptsCacheKey } : {}),
+              providerType: getProviderType(settings),
+              host: settings.ollamaHost,
+            },
+            { ensureOffscreenDocument },
+          ).catch((err) => console.error("Suggest-questions job failed:", err));
           sendResponse({ started: true });
           break;
         }

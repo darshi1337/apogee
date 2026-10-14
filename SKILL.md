@@ -14,8 +14,8 @@ Work from `apogee-extension/`. Keep page content, prompts, summaries, and files 
 - Browser pages: start at `lib/extract/pageExtraction.js`. It injects content scripts and asks `content/content.js` for `extract-page-content`. Put site-specific behavior in `content/extractors/`. Register a new extractor in both files.
 - Selected text: use `lib/extract/selection.js`. Preserve minimum-selection and user-facing error behavior.
 - PDF and DOCX files: use `lib/extract/pdfExtract.js` and `lib/extract/docxExtract.js`. Keep size, expanded-text, archive, and eval-safety limits fail-closed.
-- Summarization: the UI starts in `ui/app.js` at `summarizeActivePage()` or `summarizeCustomContent()`. Provider adapters live in `lib/engines/providers.js`. Local generation lives in `lib/summarize/ollamaSummarize.js`. Long-input map-reduce lives in `lib/summarize/mapReduce.js`.
-- Background or offscreen routing: keep the message contract aligned between `background/service-worker.js` and `offscreen/offscreen.js`. Never let a tab-originated message invoke privileged actions.
+- Summarization: the UI starts in `ui/app.js` at `summarizeActivePage()` or `summarizeCustomContent()`. Both run through the shared runner in `ui/jobs.js`. Provider adapters and the engine fallback chain live in `lib/engines/providers.js`. Local generation lives in `lib/summarize/ollamaSummarize.js`. Long-input map-reduce lives in `lib/summarize/mapReduce.js`.
+- Background or offscreen routing: keep the message contract aligned between `background/service-worker.js` and `offscreen/offscreen.js`. Stream lifecycle lives in `background/streams.js`, finalize in `background/finalize.js`, suggest-questions in `background/suggestQuestions.js`, and loopback providers in `background/loopbackProviders.js`. Never let a tab-originated message invoke privileged actions.
 
 ## Make the change
 
