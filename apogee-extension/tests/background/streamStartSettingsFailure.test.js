@@ -24,10 +24,7 @@ chrome.alarms = {
 // Fail settings reads only once inside the stream starters: the message
 // router itself loads settings first (inside its own try, which answers
 // the popup), so only a failure after stream registration hangs.
-const STREAM_START_FRAMES = [
-  "startLocalHttpStream",
-  "startTransformersStream",
-];
+const STREAM_START_FRAMES = ["startLocalHttpStream", "startTransformersStream"];
 const realStorageGet = chrome.storage.local.get.bind(chrome.storage.local);
 chrome.storage.local.get = async (...args) => {
   const stack = new Error().stack || "";
@@ -73,7 +70,9 @@ async function waitForStream(streamId, label) {
     const stream = activeStreams.get(streamId);
     if (stream?.done) return stream;
     if (Date.now() > deadline) {
-      assert.fail(`${label}: stream ${streamId} never reached a terminal state`);
+      assert.fail(
+        `${label}: stream ${streamId} never reached a terminal state`,
+      );
     }
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
