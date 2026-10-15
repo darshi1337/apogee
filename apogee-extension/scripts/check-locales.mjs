@@ -17,6 +17,10 @@ function messageOf(catalog, key) {
   return typeof entry?.message === "string" ? entry.message : undefined;
 }
 
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.length > 0;
+}
+
 function keysWithoutMessage(catalog, keys) {
   return keys.filter((key) => !messageOf(catalog, key));
 }
@@ -60,7 +64,7 @@ function checkTermShape(term, seen) {
   if (!term || typeof term !== "object") {
     return { errors: ["glossary terms must be objects"], usable: false };
   }
-  if (typeof term.id !== "string" || term.id.length === 0) {
+  if (!isNonEmptyString(term.id)) {
     errors.push("glossary terms must have a non-empty string id");
     return { errors, usable: false };
   }
@@ -68,7 +72,7 @@ function checkTermShape(term, seen) {
     errors.push(`glossary term "${term.id}" is defined more than once`);
   }
   seen.add(term.id);
-  if (typeof term.en !== "string" || term.en.length === 0) {
+  if (!isNonEmptyString(term.en)) {
     errors.push(
       `glossary term "${term.id}" must have a non-empty canonical "en" text`,
     );
@@ -76,7 +80,7 @@ function checkTermShape(term, seen) {
   if (
     !Array.isArray(term.keys) ||
     term.keys.length === 0 ||
-    term.keys.some((key) => typeof key !== "string" || key.length === 0)
+    term.keys.some((key) => !isNonEmptyString(key))
   ) {
     errors.push(
       `glossary term "${term.id}" must list a non-empty array of catalog key strings`,
@@ -109,8 +113,8 @@ function checkTermDrift(term, defaults, catalogs) {
   }
   for (const [code, catalog] of Object.entries(catalogs)) {
     const present = known
-      .filter((key) => messageOf(catalog, key))
-      .map((key) => [key, catalog[key].message]);
+      .map((key) => [key, messageOf(catalog, key)])
+      .filter(([, text]) => text);
     if (new Set(present.map(([, text]) => text)).size > 1) {
       errors.push(
         `glossary term "${term.id}" drifts in locale "${code}" (one shared rendering per term): ${summarizeRenderings(present)}`,

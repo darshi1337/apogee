@@ -122,14 +122,12 @@ test("glossary drift inside one locale fails while others pass (#417)", () => {
 });
 
 test("glossary term listing an unknown key fails (#417)", () => {
-  const { root } = fixture({
+  const { root, glossary } = fixture({
     glossary: {
       terms: [{ id: "nope", en: "Nope", keys: ["doesNotExistKey"] }],
     },
   });
-  const { errors } = checkCatalogs(root, {
-    terms: [{ id: "nope", en: "Nope", keys: ["doesNotExistKey"] }],
-  });
+  const { errors } = checkCatalogs(root, glossary);
   assert.ok(
     errors.some((error) => /unknown default-locale key/.test(error)),
     `expected an unknown-key error, got: ${errors.join("; ")}`,
