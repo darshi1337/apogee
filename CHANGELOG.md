@@ -4,6 +4,38 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0](https://github.com/darshi1337/apogee/compare/v0.2.4...v0.3.0) (2026-10-16)
+
+
+### Added
+
+* Add extract-only copy-text action ([#414](https://github.com/darshi1337/apogee/issues/414)) ([#449](https://github.com/darshi1337/apogee/issues/449)) ([001c4bd](https://github.com/darshi1337/apogee/commit/001c4bd16d7364acb32e9a1526170b97060301d0))
+* Effective-config view with keys hidden ([#461](https://github.com/darshi1337/apogee/issues/461)) ([ebceca6](https://github.com/darshi1337/apogee/commit/ebceca6cf9d39aa5827bb1f3f39ba8168c6d1e85))
+* Locale catalog check in CI plus shared glossary ([#465](https://github.com/darshi1337/apogee/issues/465)) ([6f5cb78](https://github.com/darshi1337/apogee/commit/6f5cb7840d12723ff440d7bc7dc089f79deddde6))
+* Provider fallback chain across engines ([#459](https://github.com/darshi1337/apogee/issues/459)) ([1a2f83b](https://github.com/darshi1337/apogee/commit/1a2f83b3dc02689366b5ae5165ec04e8f2e741db))
+
+
+### Fixed
+
+* Clamp sub-minute STREAM_CLEANUP alarm delays to Chrome's minimum ([#447](https://github.com/darshi1337/apogee/issues/447)) ([07fa5f5](https://github.com/darshi1337/apogee/commit/07fa5f51db1dce8d70fecbc14dc1644ec205bbc6))
+* Clear a stale focus keyword on a fresh open on a new page ([#413](https://github.com/darshi1337/apogee/issues/413)) ([#446](https://github.com/darshi1337/apogee/issues/446)) ([cb26b44](https://github.com/darshi1337/apogee/commit/cb26b44f836b7f2116d7cc49ba388abf3493577c))
+* Disconnect offscreen ports on cancel via shared helper ([ea6a38a](https://github.com/darshi1337/apogee/commit/ea6a38abb5e8ad825c2ff98f537313506455a35f))
+* Disconnect offscreen ports on cancel via shared helper ([7e43a98](https://github.com/darshi1337/apogee/commit/7e43a9847adbc028a3faed74d59810e517430461))
+* End stream on settings-load failure ([#466](https://github.com/darshi1337/apogee/issues/466)) ([#474](https://github.com/darshi1337/apogee/issues/474)) ([6a245b4](https://github.com/darshi1337/apogee/commit/6a245b4a4d2f7e2af5be36ed9c4bb3fca2f8a434))
+* Evict pending finalizes without timestamp and document lazy TTL ([#342](https://github.com/darshi1337/apogee/issues/342)) ([e3b89c3](https://github.com/darshi1337/apogee/commit/e3b89c3371f5bbdfaf0d82a338a20baa54c77782))
+* Expire stream subscribers on cleanup ([cdf59ee](https://github.com/darshi1337/apogee/commit/cdf59ee98fd8f79026f49498a48ac62acf99cadc))
+* Expire stream subscribers on cleanup ([#386](https://github.com/darshi1337/apogee/issues/386)) ([fa56fae](https://github.com/darshi1337/apogee/commit/fa56fae2edadbdb4863da8068bd5e8f312a2dde1))
+* Honor focusKeyword in video summarize path ([8c2593e](https://github.com/darshi1337/apogee/commit/8c2593edbc6e1617a18dc25c65bbe9e2dbf1cf7a))
+* Honor focusKeyword in video summarize path ([#388](https://github.com/darshi1337/apogee/issues/388)) ([0276c1e](https://github.com/darshi1337/apogee/commit/0276c1eca211c1fc0e7e46a237260f765d923c87))
+* Pass translationEngine in llama.cpp suggest path ([#411](https://github.com/darshi1337/apogee/issues/411)) ([712b300](https://github.com/darshi1337/apogee/commit/712b3003f4c0464eaa88a2a0265c115ce4ac0c19))
+* Scope suggest-questions-bg cache key by focusKeyword ([#392](https://github.com/darshi1337/apogee/issues/392)) ([b88e867](https://github.com/darshi1337/apogee/commit/b88e86744b8d310148c22c159f877074a307dfdc))
+* Scope suggest-questions-bg cache key by focusKeyword ([#392](https://github.com/darshi1337/apogee/issues/392)) ([4ddcc9a](https://github.com/darshi1337/apogee/commit/4ddcc9a9d82a8f6be1902fba2e20a9752c75e394))
+* Show empty-result fault on blank summary output ([#467](https://github.com/darshi1337/apogee/issues/467)) ([#479](https://github.com/darshi1337/apogee/issues/479)) ([e53e164](https://github.com/darshi1337/apogee/commit/e53e16409d8f5d5ab0b9c84c7eebd06247ac9f3d))
+* Show focus keyword for video and discussion, gate cache on multi-tab only ([03fdf7d](https://github.com/darshi1337/apogee/commit/03fdf7d53e2c9c76d0c80dbb7808d56b39c4e6fe))
+* Show focus keyword for video and discussion, gate cache on multi-tab only ([#390](https://github.com/darshi1337/apogee/issues/390)) ([4c42680](https://github.com/darshi1337/apogee/commit/4c42680910e121683ee2f7027427fdb3bf70969d))
+* Surface offscreen-ready timeout error via shared withTimeout ([b8a3cb4](https://github.com/darshi1337/apogee/commit/b8a3cb47361ba11be9ed67b47ca3d448272ed9fc))
+* Surface offscreen-ready timeout error via shared withTimeout ([f8d8a3e](https://github.com/darshi1337/apogee/commit/f8d8a3ecc1858de0ac8704f04f22c76e2ab440db))
+
 ## [0.2.4](https://github.com/darshi1337/apogee/compare/v0.2.3...v0.2.4) (2026-10-05)
 
 ### Fixed
