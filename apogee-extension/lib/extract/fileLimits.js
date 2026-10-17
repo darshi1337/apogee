@@ -7,6 +7,36 @@ import { UserFacingError } from "../util/userError.js";
 export const MAX_UPLOAD_FILE_BYTES = 50 * 1024 * 1024;
 export const MAX_UPLOAD_FILE_MB = 50;
 
+const UPLOAD_MIME_TYPES = {
+  ".pdf": ["application/pdf"],
+  ".docx": [
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ],
+  ".txt": ["text/plain"],
+  ".md": ["text/markdown", "text/x-markdown", "text/plain"],
+  ".json": ["application/json", "text/json", "text/plain"],
+  ".html": ["text/html", "text/plain"],
+};
+
+export function assertUploadTypeOk({ name = "", type = "" }) {
+  const extension = name.toLowerCase().match(/\.[^.]+$/)?.[0];
+  const allowedTypes = UPLOAD_MIME_TYPES[extension];
+  const mimeType = type.split(";")[0].trim().toLowerCase();
+  // Browsers may leave MIME empty or report a generic binary type even for
+  // supported files, so these values rely on the extension instead.
+  if (
+    allowedTypes &&
+    (!mimeType ||
+      mimeType === "application/octet-stream" ||
+      allowedTypes.includes(mimeType))
+  ) {
+    return;
+  }
+  throw new UserFacingError(
+    "Unsupported file type. Please choose a PDF, DOCX, TXT, Markdown (.md), JSON, or HTML file.",
+  );
+}
+
 export function assertUploadSizeOk(byteLength, label = "file") {
   if (typeof byteLength === "number" && byteLength > MAX_UPLOAD_FILE_BYTES) {
     throw new UserFacingError(

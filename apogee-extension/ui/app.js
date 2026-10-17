@@ -90,6 +90,7 @@ import {
 } from "../lib/extract/pageExtraction.js";
 import {
   assertUploadSizeOk,
+  assertUploadTypeOk,
   MAX_EXTRACTED_TEXT_CHARS,
   readTextHead,
   truncateExtractedText,
@@ -2830,8 +2831,10 @@ pasteDialog?.addEventListener("keydown", (event) => {
 });
 
 const fileUploadInput = document.getElementById("fileUploadInput");
+const fileUploadError = document.getElementById("fileUploadError");
 
 async function summarizeFile(file) {
+  assertUploadTypeOk(file);
   // Same ceiling as the tab-PDF path, checked before any read so an
   // oversized file never enters memory (#184). The PDF branch below parses
   // straight from bytes (#267): the old arrayBuffer -> binary string ->
@@ -2914,13 +2917,23 @@ document.getElementById("uploadFileBtn")?.addEventListener("click", () => {
 
 async function handleFile(file) {
   if (!file) return;
+  if (fileUploadError) {
+    fileUploadError.textContent = "";
+    fileUploadError.classList.add("hidden");
+  }
 
   try {
     await summarizeFile(file);
   } catch (err) {
     console.error("File read failed:", err);
     showOnlyView("homeView");
-    announce(`Failed to read file: ${err.message || err}`);
+    const message = `Failed to read file: ${err.message || err}`;
+    if (fileUploadError) {
+      renderError(fileUploadError, message);
+      fileUploadError.classList.remove("hidden");
+    } else {
+      announce(message);
+    }
   } finally {
     if (fileUploadInput) fileUploadInput.value = "";
   }
