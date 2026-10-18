@@ -559,6 +559,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Clamp sub-minute STREAM_CLEANUP alarm delays to Chrome's minimum (#447) ([07fa5f5](https://github.com/darshi1337/apogee/commit/07fa5f51db1dce8d70fecbc14dc1644ec205bbc6))
 - End stream on settings-load failure (#466) (#474) ([6a245b4](https://github.com/darshi1337/apogee/commit/6a245b4a4d2f7e2af5be36ed9c4bb3fca2f8a434))
 - Show empty-result fault on blank summary output (#467) (#479) ([e53e164](https://github.com/darshi1337/apogee/commit/e53e16409d8f5d5ab0b9c84c7eebd06247ac9f3d))
+- Reject unsupported file uploads (#472) (#480) ([8035fa7](https://github.com/darshi1337/apogee/commit/8035fa7668fcce1b148ef2875c070d6df8e90de8))
 
 ### Changed
 
