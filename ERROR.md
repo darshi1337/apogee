@@ -36,11 +36,14 @@ Read this first:
 
 | Error message | Meaning | What to do |
 | --- | --- | --- |
+| Unsupported file type. Please choose a PDF, DOCX, TXT, Markdown (.md), JSON, or HTML file. | The file is not one of the types Apogee reads. Apogee checks the type before it reads any bytes. This applies to the file picker and to drag and drop. | Save or export the content as one of the listed types. Then pick the new file. |
+| This file is 60 MB, which exceeds the 50 MB limit for in-extension processing. | Apogee checks the size before it reads the file. The PDF and DOCX messages name the type, for example "This PDF is 60 MB...". | Save or export a smaller version, or split the file into parts. For a long document, paste only the part you need. |
 | This file is not a valid DOCX archive. / This is not a valid Word DOCX file. | The picked file is not a readable Office Open XML document. | Re-save it as `.docx`. You can also export it as PDF or plain text. |
 | This DOCX file is corrupt. | The ZIP structure or needed document entry is incomplete. | Re-download or re-save the document. Then try again. |
 | This DOCX file is password-protected. | Apogee cannot read encrypted Word archives without a password. | Remove the password. Then pick the unlocked copy. |
 | This DOCX file contains no readable text. | The document has no text paragraphs Apogee can pull out. | Export the document as PDF with a text layer. You can also copy its text into the popup. |
 | This DOCX uses an unsupported compression method. | The archive uses a ZIP compression type the browser does not support. | Re-save the document with Word or LibreOffice. Then try again. |
+| The file contains no readable text. | Apogee read the file, but the text came back empty. The file can hold only spaces, or it can be binary content with a supported extension. | Open the file to see its contents. If it holds text, paste that text into the popup instead. |
 
 ## Local Ollama
 

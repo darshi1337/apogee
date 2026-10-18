@@ -10,12 +10,116 @@ import {
   MAX_PASTED_CHARS,
   MAX_UPLOAD_FILE_BYTES,
   MAX_UPLOAD_FILE_MB,
+  assertUploadOk,
   assertUploadSizeOk,
+  assertUploadTypeOk,
   bytesToBase64,
   readTextHead,
   truncateExtractedText,
   truncatePastedText,
+  uploadExtension,
 } from "../../lib/extract/fileLimits.js";
+
+const supportedUploads = [
+  ["report.pdf", "application/pdf"],
+  [
+    "report.docx",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ],
+  ["notes.txt", "text/plain"],
+  ["notes.md", "text/markdown"],
+  ["notes.md", "text/x-markdown"],
+  ["notes.md", "text/plain"],
+  ["data.json", "application/json"],
+  ["data.json", "text/json"],
+  ["data.json", "text/plain"],
+  ["page.html", "text/html"],
+  ["page.html", "text/plain"],
+];
+
+test("upload type gate accepts supported extensions and MIME types (#472)", () => {
+  for (const [name, type] of supportedUploads) {
+    assertUploadTypeOk({ name, type });
+    assertUploadTypeOk({ name: name.toUpperCase(), type: type.toUpperCase() });
+    assertUploadTypeOk({ name, type: `${type}; charset=utf-8` });
+  }
+});
+
+test("upload type gate falls back to supported extensions for missing or generic MIME (#472)", () => {
+  for (const [name] of supportedUploads) {
+    assertUploadTypeOk({ name });
+    assertUploadTypeOk({ name, type: "" });
+    assertUploadTypeOk({ name, type: "application/octet-stream" });
+  }
+});
+
+test("upload type gate rejects small unsupported binaries with a friendly message (#472)", () => {
+  for (const [name, type] of [
+    ["image.png", "image/png"],
+    ["photo.jpg", "image/jpeg"],
+    ["archive.zip", "application/zip"],
+    ["program.exe", "application/octet-stream"],
+    ["module.wasm", "application/wasm"],
+    ["audio.mp3", "audio/mpeg"],
+    ["video.mp4", "video/mp4"],
+    ["legacy.doc", "application/msword"],
+    ["unknown.bin", ""],
+    ["notes.txt.exe", "text/plain"],
+    ["unknown.bin", "text/plain"],
+    ["README", "text/plain"],
+    ["", "application/pdf"],
+  ]) {
+    const file = new File([new Uint8Array([0, 1, 2, 255])], name, { type });
+    assertUploadSizeOk(file.size);
+    assert.throws(
+      () => assertUploadTypeOk(file),
+      (err) => {
+        assert.equal(err.isUserFacing, true);
+        assert.match(err.message, /Unsupported file type/);
+        assert.match(
+          err.message,
+          /PDF, DOCX, TXT, Markdown \(\.md\), JSON, or HTML/,
+        );
+        return true;
+      },
+      name,
+    );
+  }
+});
+
+test("upload type gate rejects incompatible MIME types despite a supported extension (#472)", () => {
+  for (const [name] of supportedUploads) {
+    assert.throws(() => assertUploadTypeOk({ name, type: "image/png" }));
+  }
+  assert.throws(() =>
+    assertUploadTypeOk({ name: "report.txt", type: "application/pdf" }),
+  );
+  assert.throws(() =>
+    assertUploadTypeOk({ name: "report.pdf", type: "text/plain" }),
+  );
+});
+
+test("upload gate runs kind then size and returns the extension (#472)", () => {
+  assert.equal(uploadExtension("NOTES.TXT"), ".txt");
+  assert.equal(uploadExtension("README"), undefined);
+  assert.equal(
+    assertUploadOk({ name: "notes.txt", type: "text/plain", size: 4 }),
+    ".txt",
+  );
+  assert.throws(
+    () => assertUploadOk({ name: "image.png", type: "image/png", size: 4 }),
+    /Unsupported file type/,
+  );
+  assert.throws(
+    () =>
+      assertUploadOk({
+        name: "notes.txt",
+        type: "text/plain",
+        size: MAX_UPLOAD_FILE_BYTES + 1,
+      }),
+    /exceeds the 50 MB limit/,
+  );
+});
 
 test("upload ceiling matches the documented 50 MB tab-PDF limit", () => {
   assert.equal(MAX_UPLOAD_FILE_BYTES, 50 * 1024 * 1024);

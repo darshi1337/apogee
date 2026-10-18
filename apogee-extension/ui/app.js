@@ -56,7 +56,7 @@ import {
   formatDiagnosticsMarkdown,
 } from "../lib/util/diagnostics.js";
 import { errorHelpUrl, ERROR_HELP_LABEL } from "../lib/util/errorHelp.js";
-import { toUserMessage } from "../lib/util/userError.js";
+import { toUserMessage, UserFacingError } from "../lib/util/userError.js";
 import {
   formatTimeSaved,
   formatVideoTimeSaved,
@@ -89,6 +89,7 @@ import {
   ensureTabUrl,
 } from "../lib/extract/pageExtraction.js";
 import {
+  assertUploadOk,
   assertUploadSizeOk,
   MAX_EXTRACTED_TEXT_CHARS,
   readTextHead,
@@ -2277,6 +2278,9 @@ function showOnlyView(view) {
   summaryView.classList.toggle("hidden", view !== "summaryView");
   settingsView.classList.toggle("hidden", view !== "settingsView");
   contactView.classList.toggle("hidden", view !== "contactView");
+  // A rejection from an earlier visit is stale by the time the user comes
+  // home, so clear it rather than let it reappear (#472).
+  if (view === "homeView") setFileUploadError();
 
   const target = document.getElementById(view);
   target?.focus({ preventScroll: true });
@@ -2830,22 +2834,30 @@ pasteDialog?.addEventListener("keydown", (event) => {
 });
 
 const fileUploadInput = document.getElementById("fileUploadInput");
+const fileUploadError = document.getElementById("fileUploadError");
+
+// One setter for the inline upload error: an empty message clears and hides
+// it, a message renders it. The live region is the fallback when the element
+// is missing.
+function setFileUploadError(message = "") {
+  if (!fileUploadError) {
+    if (message) announce(message);
+    return;
+  }
+  if (message) renderError(fileUploadError, message);
+  else fileUploadError.textContent = "";
+  fileUploadError.classList.toggle("hidden", !message);
+}
 
 async function summarizeFile(file) {
-  // Same ceiling as the tab-PDF path, checked before any read so an
-  // oversized file never enters memory (#184). The PDF branch below parses
+  // Kind and size both gate before any read, so an unsupported or oversized
+  // file never enters memory (#472, #184). The PDF branch below parses
   // straight from bytes (#267): the old arrayBuffer -> binary string ->
   // base64 -> decode round-trip held ~3x the file concurrently.
-  const lowerName = file.name.toLowerCase();
-  const label = lowerName.endsWith(".pdf")
-    ? "PDF"
-    : lowerName.endsWith(".docx")
-      ? "DOCX file"
-      : "file";
-  assertUploadSizeOk(file.size, label);
+  const extension = assertUploadOk(file);
   let text;
   let truncationNotice = "";
-  if (lowerName.endsWith(".pdf")) {
+  if (extension === ".pdf") {
     let arrayBuffer = await file.arrayBuffer();
     try {
       // file.size can be missing or wrong; re-check the actual bytes.
@@ -2872,7 +2884,7 @@ async function summarizeFile(file) {
       // eslint-disable-next-line no-useless-assignment
       arrayBuffer = null;
     }
-  } else if (lowerName.endsWith(".docx")) {
+  } else if (extension === ".docx") {
     let arrayBuffer = await file.arrayBuffer();
     try {
       assertUploadSizeOk(arrayBuffer.byteLength, "DOCX file");
@@ -2902,7 +2914,7 @@ async function summarizeFile(file) {
   }
 
   if (!text || !text.trim()) {
-    throw new Error("The file contains no readable text.");
+    throw new UserFacingError("The file contains no readable text.");
   }
   if (truncationNotice) announce(truncationNotice);
   await summarizeCustomContent(file.name, text.trim());
@@ -2914,13 +2926,19 @@ document.getElementById("uploadFileBtn")?.addEventListener("click", () => {
 
 async function handleFile(file) {
   if (!file) return;
+  setFileUploadError();
 
   try {
     await summarizeFile(file);
   } catch (err) {
     console.error("File read failed:", err);
     showOnlyView("homeView");
-    announce(`Failed to read file: ${err.message || err}`);
+    // User-facing messages already name the problem; only a raw browser or
+    // library string gets the read-failure prefix.
+    const message = err?.isUserFacing
+      ? err.message
+      : `Failed to read file: ${err.message || err}`;
+    setFileUploadError(message);
   } finally {
     if (fileUploadInput) fileUploadInput.value = "";
   }

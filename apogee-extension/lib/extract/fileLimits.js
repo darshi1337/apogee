@@ -7,6 +7,56 @@ import { UserFacingError } from "../util/userError.js";
 export const MAX_UPLOAD_FILE_BYTES = 50 * 1024 * 1024;
 export const MAX_UPLOAD_FILE_MB = 50;
 
+export const UPLOAD_MIME_TYPES = {
+  ".pdf": ["application/pdf"],
+  ".docx": [
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ],
+  ".txt": ["text/plain"],
+  ".md": ["text/markdown", "text/x-markdown", "text/plain"],
+  ".json": ["application/json", "text/json", "text/plain"],
+  ".html": ["text/html", "text/plain"],
+};
+
+// Single source for the extension the kind gate and the reader branch on.
+export function uploadExtension(name = "") {
+  return name.toLowerCase().match(/\.[^.]+$/)?.[0];
+}
+
+function uploadLabel(extension) {
+  if (extension === ".pdf") return "PDF";
+  if (extension === ".docx") return "DOCX file";
+  return "file";
+}
+
+// One gate for the whole upload: kind first, then size, both before any read.
+// Returns the extension so the caller picks a reader without repeating the
+// name matching.
+export function assertUploadOk(file) {
+  const extension = uploadExtension(file.name);
+  assertUploadTypeOk(file);
+  assertUploadSizeOk(file.size, uploadLabel(extension));
+  return extension;
+}
+
+export function assertUploadTypeOk({ name = "", type = "" }) {
+  const allowedTypes = UPLOAD_MIME_TYPES[uploadExtension(name)];
+  const mimeType = type.split(";")[0].trim().toLowerCase();
+  // Browsers may leave MIME empty or report a generic binary type even for
+  // supported files, so these values rely on the extension instead.
+  if (
+    allowedTypes &&
+    (!mimeType ||
+      mimeType === "application/octet-stream" ||
+      allowedTypes.includes(mimeType))
+  ) {
+    return;
+  }
+  throw new UserFacingError(
+    "Unsupported file type. Please choose a PDF, DOCX, TXT, Markdown (.md), JSON, or HTML file.",
+  );
+}
+
 export function assertUploadSizeOk(byteLength, label = "file") {
   if (typeof byteLength === "number" && byteLength > MAX_UPLOAD_FILE_BYTES) {
     throw new UserFacingError(

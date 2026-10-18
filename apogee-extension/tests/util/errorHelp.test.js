@@ -23,6 +23,16 @@ const CASES = [
     "pdfs",
   ],
   [
+    "Unsupported file type. Please choose a PDF, DOCX, TXT, Markdown (.md), JSON, or HTML file.",
+    "local-files",
+  ],
+  [
+    "This PDF is 60 MB, which exceeds the 50 MB limit for in-extension processing.",
+    "local-files",
+  ],
+  ["This DOCX file is corrupt.", "local-files"],
+  ["The file contains no readable text.", "local-files"],
+  [
     "Could not connect to Ollama at http://localhost:11434. Is it running and listening on that address?",
     "local-ollama",
   ],

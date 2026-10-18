@@ -9,6 +9,12 @@ export const ERROR_HELP_LABEL = "What does this mean?";
 // since the WebLLM message names Ollama as the fix.
 const SECTIONS = [
   [/streamid|unknown .*(action|model)/i, "internal"],
+  // Ahead of the pdf rule: kind and size rejections plus DOCX failures are
+  // local-file problems, even when the message names a PDF.
+  [
+    /\bdocx\b|unsupported file type|exceeds the .*limit|no readable text/i,
+    "local-files",
+  ],
   [/\bpdf\b/i, "pdfs"],
   [
     /webgpu|offscreen|onnx|transformers\.js|model download|highlight-in-page|locate this passage|in-browser model|out of memory|memory limit|allocation/i,
