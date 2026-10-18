@@ -1,7 +1,8 @@
 name: Consistency
 
 # Catches the drift that blocks store review: versions in 4 files,
-# STORE-LISTING version stamp, required store assets. Read-only, fast,
+# STORE-LISTING version stamp, required store assets, locale catalog
+# completeness plus shared glossary terms. Read-only, fast,
 # no dependencies to install.
 
 on:
@@ -118,6 +119,17 @@ jobs:
             if (fail) process.exit(1);
             console.log("permissions documented OK");
           '
+
+  locale-catalog:
+    name: Locale catalog complete + glossary shared
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Every locale defines every default key; glossary terms stay shared
+        run: node apogee-extension/scripts/check-locales.mjs
 
   pr-title:
     name: PR title looks like a changelog entry (warn-only)

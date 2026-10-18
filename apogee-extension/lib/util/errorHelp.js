@@ -21,7 +21,7 @@ const SECTIONS = [
   ],
   [/logs|clipboard|copy failed|cached data/i, "settings-cache-and-diagnostics"],
   [
-    /read (this|the) page|nothing to summarize|extract enough|no answer came back|can't read/i,
+    /read (this|the) page|nothing to summarize|extract enough|no (answer|summary) came back|can't read/i,
     "reading-the-page",
   ],
 ];

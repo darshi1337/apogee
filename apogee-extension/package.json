@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@huggingface/transformers": "4.3.1",
-    "@mlc-ai/web-llm": "0.2.85",
+    "@mlc-ai/web-llm": "0.2.86",
     "pdfjs-dist": "^6.4.299"
   },
   "devDependencies": {
@@ -34,7 +34,7 @@
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.13.0",
     "linkedom": "^0.18.13",
-    "prettier": "^3.9.9",
+    "prettier": "^3.9.10",
     "vite": "^8.3.4",
     "web-ext": "^10.7.0"
   },

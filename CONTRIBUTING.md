@@ -4,6 +4,10 @@ Thanks for looking at Apogee. This project is a single package, `apogee-extensio
 
 By taking part you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
+## Start by using it
+
+Install the extension and use it for real work before you change code. Read [ARCHITECTURE.md](ARCHITECTURE.md) to learn how the four contexts fit together. Write down what breaks, what confuses you, and what feels slow. Then look at the [`help wanted`](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) and [`good first issue`][gfi] lists. Reported bugs land there with the files they touch and what done means, so you can go from a bug report to your first fix.
+
 ## Your first contribution
 
 New here? Start with the [`first-timers-only`][fto] list. Each one stays scoped. Finish it without reading the whole extension first. Each one names the files it touches and what "done" means. A maintainer will walk you through your first PR on these.

@@ -368,8 +368,6 @@ async function startLocalHttpStream(
     return;
   }
 
-  const { customInstructions } = await getSettings();
-
   // Populated once the final chunk carries the backend's own token count and duration (Ollama's eval_count/eval_duration, llama.cpp's timings). It is more accurate than our own count since it excludes network transit.
   let serverStats = null;
 
@@ -414,6 +412,9 @@ async function startLocalHttpStream(
   );
 
   try {
+    // Settings load inside the run (#466): a storage failure must end the
+    // stream with an error, not reject after registration with no word.
+    const { customInstructions } = await getSettings();
     let generator;
     if (action === "summarize") {
       generator = summarizeText(
@@ -507,9 +508,10 @@ async function startTransformersStream(
     onProgress({ progress: 0, text }),
   );
 
-  const { customInstructions } = await getSettings();
-
   try {
+    // Settings load inside the run (#466): a storage failure must end the
+    // stream with an error, not reject after registration with no word.
+    const { customInstructions } = await getSettings();
     await withTransformersEngine(
       model,
       onProgress,

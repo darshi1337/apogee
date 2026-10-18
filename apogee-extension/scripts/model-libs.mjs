@@ -9,17 +9,17 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const MODEL_LIB_CACHE_DIR = resolve(ROOT, ".model-libs-cache");
 
 const MODEL_LIB_URL_PREFIX =
-  "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/web-llm-models/v0_2_84/base/";
+  "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/web-llm-models/v0_2_86/base/";
 
 const MODEL_LIB_SHA256 = {
   "Qwen2-1.5B-Instruct-q4f16_1_cs1k-webgpu.wasm":
-    "0fceb50bbaf47efdc31fce96b72c115dcb7f5221c85abe6a9fc02dda9d1d6fc3",
+    "436462adad407e0914d2350fd452a5a3d983e0031d77c940c43ea351c8cd3000",
   "SmolLM2-1.7B-Instruct-q4f16_1_cs1k-webgpu.wasm":
-    "2f2842aeab20193f9149f705ed43d6702ca568d39c1f272790e1874ad96c15f4",
+    "60ba2472d38d66fa4d8ed02821c1fbd7c448ddcde8c948571ace6ac6d996cba4",
   "Llama-3.2-1B-Instruct-q4f16_1_cs1k-webgpu.wasm":
-    "2aa9b5f0c8de532f6cbf6bb7b863aaa02645bf6fff856083b202f968712d3f92",
+    "4aa19a3b4531cd223931adf4523ff45f6822503820a7d394b57f6864ae606024",
   "Phi-3.5-mini-instruct-q4f16_1_cs1k-webgpu.wasm":
-    "0342d0b660eb0d0415d37e4689c77bdab6dd2ca89cf5a44a0623d4c962e67c77",
+    "1aacd70715c4bf67ce932b30ec9b9be65f9d5d65a3f750b37066f44097c26a49",
 };
 
 function sha256(bytes) {

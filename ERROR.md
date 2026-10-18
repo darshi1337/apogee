@@ -20,6 +20,7 @@ Read this first:
 | Nothing to summarize here yet - open a page, email, or video first. | Extraction worked but found no body text. The page may be a blank tab or an empty inbox view. It may use only canvas or images. The video may lack a transcript. | Open a real article, email, or video, or give text or file content in the popup. For YouTube, check the video has captions. Apogee reads the transcript, not the audio. |
 | Could not extract enough page content to answer. | Ask mode could not gather enough text to build a prompt. | Summarize the page first. Then ask your question from the summary view. |
 | No answer came back - try rephrasing the question. | The model returned an empty response. Small models do this on vague or very long questions. | Rephrase in a more concrete way. You can also switch to a larger model in Settings. |
+| No summary came back - try summarizing again. | The model returned an empty response. Small models do this on vague or very long inputs. | Summarize again. You can also switch to a larger model in Settings. |
 
 ## PDFs
 

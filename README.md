@@ -30,6 +30,10 @@ For power users, Apogee also talks straight to a local Ollama instance over `127
 
 ⭐ If Apogee helps you, [star the repository](https://github.com/darshi1337/apogee). It helps the project reach more contributors.
 
+## Why the name
+
+Apogee is the point of an orbit farthest from Earth. The word also means the highest point of anything. The name keeps the orbit theme of Mozilla Orbit, the discontinued project that inspired this extension. It also states the aim: to fly higher than Orbit by staying local and private.
+
 ## Get Started
 
 1. Install Apogee from the [Chrome Web Store](https://chromewebstore.google.com/detail/apogee/pgemlpomhkdcjjjcpnjlebalnfglomog). Or use [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/apogeeext/).
@@ -39,6 +43,10 @@ For power users, Apogee also talks straight to a local Ollama instance over `127
 3. Pick a summary format and select **Summarize**.
 
 The first in-browser run downloads the picked model. Cached models run offline after that. For larger models, set up [Ollama](OLLAMA.md) or [llama.cpp](LLAMACPP.md) in Settings.
+
+## Contribute
+
+Install the extension and use it each day. Read [ARCHITECTURE.md](ARCHITECTURE.md) to learn how it works. When something breaks, [open a bug report](https://github.com/darshi1337/apogee/issues/new/choose). A clear report is help enough. Each confirmed bug becomes an issue the next person can pick up. To fix a bug yourself, pick a [`first-timers-only`](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3Afirst-timers-only) or [`good first issue`](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) item and follow [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Why Apogee
 

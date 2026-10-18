@@ -1,0 +1,30 @@
+{
+  "_note": "Shared glossary for the extension UI catalogs in this directory. Terms repeated across messages stay identical everywhere: add the catalog keys here once instead of re-typing the term per key. scripts/check-locales.mjs (and the locale-catalog CI job) fails when a term drifts. Translators: render each term one way per locale and reuse that rendering for every listed key.",
+  "defaultLocale": "en",
+  "terms": [
+    {
+      "id": "settings",
+      "en": "Settings",
+      "description": "Settings surface title and button",
+      "keys": ["settings", "settingsTitle"]
+    },
+    {
+      "id": "summarize-this-page",
+      "en": "Summarize this page",
+      "description": "Primary summarize action and its card heading",
+      "keys": ["summarizeThisPage", "summarizeThisPageHeading"]
+    },
+    {
+      "id": "local-ollama",
+      "en": "Local Ollama",
+      "description": "Ollama provider name in warnings and settings",
+      "keys": ["webgpuLocalOllama", "providerOllama"]
+    },
+    {
+      "id": "local-llamacpp",
+      "en": "Local LLaMA.cpp",
+      "description": "llama.cpp provider name in settings",
+      "keys": ["providerLlamacpp", "llamacppCard"]
+    }
+  ]
+}

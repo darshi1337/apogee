@@ -1747,8 +1747,66 @@ async function streamGeneratorIntoElement(generator, element) {
   return finalText;
 }
 
+// Shared empty-summary fault (#467): blank model output renders the same
+// visible error in the live run and on view-state restore, instead of a
+// blank success. Callers add their own announce / badge / persistence.
+function showEmptySummaryFault() {
+  currentSummaryText = "";
+  renderError(summaryText, EMPTY_SUMMARY_MESSAGE);
+  setSummaryCopyButtonsVisible(false);
+}
+
+// Single builder for the finished summary view state so the empty and
+// success paths cannot drift: empty text saves null time-saved inputs,
+// non-empty text saves the current page inputs.
+function buildSummaryCompletedState(tab, summaryText) {
+  const isSelection = currentPageData?.type === "selection";
+  return {
+    view: "summaryView",
+    subview: "summary",
+    url: tab.url,
+    streamId: null,
+    summaryText,
+    timeSaved: summaryText
+      ? timeSavedInputsFor({
+          type: currentPageData?.type,
+          durationSeconds: currentPageData?.durationSeconds,
+          content: currentPageData?.content,
+        })
+      : null,
+    summaryLanguage: currentSummaryLanguage,
+    translationEngine: currentTranslationEngine,
+    isSelection,
+    ...(isSelection ? { selectionText: currentPageData.content } : {}),
+  };
+}
+
+// Single writer for the finished summary view state: a matching jobId
+// guards against a superseded run, otherwise the state saves directly.
+async function saveSummaryViewState(tabId, jobId, state) {
+  if (jobId) {
+    await saveViewStateIfJobMatches(tabId, jobId, state, "summarizing");
+  } else {
+    await saveViewState(tabId, state);
+  }
+}
+
 async function consumeSummaryStream(stream, { tab, promptsCacheKey, jobId }) {
   const text = await streamGeneratorIntoElement(stream, summaryText);
+
+  // Blank model output is a visible fault, not a success (#467): match the
+  // ask path, which renders EMPTY_ANSWER_MESSAGE instead of a blank view.
+  if (!text.trim()) {
+    showEmptySummaryFault();
+    announce(EMPTY_SUMMARY_MESSAGE);
+    updateTimeSavedBadge(null, null);
+    await saveSummaryViewState(
+      tab.id,
+      jobId,
+      buildSummaryCompletedState(tab, ""),
+    );
+    return "";
+  }
 
   currentSummaryText = text;
   makeSummaryPassagesFocusable();
@@ -1756,34 +1814,11 @@ async function consumeSummaryStream(stream, { tab, promptsCacheKey, jobId }) {
   setSummaryCopyButtonsVisible(!!text.trim());
   updateResummarizeHint();
   updateTimeSavedBadge(currentPageData, text);
-  const completedState = {
-    view: "summaryView",
-    subview: "summary",
-    url: tab.url,
-    streamId: null,
-    summaryText: text,
-    timeSaved: timeSavedInputsFor({
-      type: currentPageData?.type,
-      durationSeconds: currentPageData?.durationSeconds,
-      content: currentPageData?.content,
-    }),
-    summaryLanguage: currentSummaryLanguage,
-    translationEngine: currentTranslationEngine,
-    isSelection: currentPageData?.type === "selection",
-    ...(currentPageData?.type === "selection"
-      ? { selectionText: currentPageData.content }
-      : {}),
-  };
-  if (jobId) {
-    await saveViewStateIfJobMatches(
-      tab.id,
-      jobId,
-      completedState,
-      "summarizing",
-    );
-  } else {
-    await saveViewState(tab.id, completedState);
-  }
+  await saveSummaryViewState(
+    tab.id,
+    jobId,
+    buildSummaryCompletedState(tab, text),
+  );
   setSuggestedQuestionsLoading();
 
   currentPromptsCacheKey = promptsCacheKey;
@@ -2007,6 +2042,8 @@ cancelSummarizeBtn?.addEventListener("click", () => {
 
 const EMPTY_ANSWER_MESSAGE =
   "No answer came back - try rephrasing the question.";
+
+const EMPTY_SUMMARY_MESSAGE = "No summary came back - try summarizing again.";
 
 async function consumeAnswerStream(stream, { tab, question }) {
   let fullText = "";
@@ -2467,12 +2504,24 @@ document.addEventListener("DOMContentLoaded", async () => {
               questionInput.focus();
               return;
             }
-            if (state.subview === "summary" && state.summaryText) {
-              currentSummaryText = cleanModelOutput(state.summaryText);
+            if (
+              state.subview === "summary" &&
+              typeof state.summaryText === "string"
+            ) {
               currentSummaryLanguage =
                 state.summaryLanguage ?? settings.summaryLanguage;
               currentTranslationEngine =
                 state.translationEngine ?? settings.translationEngine;
+              if (!cleanModelOutput(state.summaryText).trim()) {
+                showOnlyView("summaryView");
+                showEmptySummaryFault();
+                showTimeSavedFromInputs(
+                  await getTimeSavedInputsForTab(tab, state),
+                  "",
+                );
+                return;
+              }
+              currentSummaryText = cleanModelOutput(state.summaryText);
               setMarkdownHtml(summaryText, cleanModelOutput(state.summaryText));
               makeSummaryPassagesFocusable();
               setSummaryCopyButtonsVisible(!!state.summaryText.trim());
