@@ -11,6 +11,7 @@ function sanitizeSettings(settings) {
   const clean = { ...settings };
   // Corrupted stores must not flip provider or hosts: fall back to
   // defaults and revalidate through the shared loopback validator.
+  clean.autoEngine = Boolean(clean.autoEngine);
   if (!PROVIDER_VALUES.has(clean.provider)) {
     clean.provider = DEFAULT_SETTINGS.provider;
   }
