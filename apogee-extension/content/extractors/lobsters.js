@@ -1,5 +1,8 @@
 const LOBSTERS_MAX_COMMENTS = 80;
 const LOBSTERS_MAX_DEPTH = 8;
+// Same value as the other discussion extractors' caps and as
+// MAX_MATCH_TEXT_CHARS (lib/retrieval/passageMatch.js) today, but not
+// coupled to them; change this one on its own.
 const LOBSTERS_MAX_COMMENT_CHARS = 1500;
 
 function lobstersCommentDepth(li) {

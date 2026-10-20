@@ -1,5 +1,8 @@
 const DEVTO_MAX_COMMENTS = 80;
 const DEVTO_MAX_DEPTH = 8;
+// Same value as the other discussion extractors' caps and as
+// MAX_MATCH_TEXT_CHARS (lib/retrieval/passageMatch.js) today, but not
+// coupled to them; change this one on its own.
 const DEVTO_MAX_COMMENT_CHARS = 1500;
 
 const DEVTO_NON_ARTICLE_PATHS = [

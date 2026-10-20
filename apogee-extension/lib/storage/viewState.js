@@ -30,6 +30,8 @@ export function isOrphanedViewStateKey(key) {
   );
 }
 
+// Same value as MAX_CACHED_PAGES (pageCache.js) today, but not coupled to
+// it: this caps per-tab UI state, that caps cached pages.
 const MAX_VIEW_STATES = 50;
 // View states duplicate summary text per tab, so they keep a smaller
 // byte budget inside the quota.

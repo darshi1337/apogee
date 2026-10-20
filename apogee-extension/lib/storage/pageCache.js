@@ -151,6 +151,7 @@ export async function getSummaryCacheKeyForSettings(
   );
 }
 
+// Same value as MAX_VIEW_STATES (viewState.js) today, but not coupled to it.
 export const MAX_CACHED_PAGES = 50;
 // Byte budgets keep a few large summaries inside the storage quota.
 // Sizes ride on the order index, so eviction skips value reads;

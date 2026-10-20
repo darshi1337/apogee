@@ -1,5 +1,8 @@
 const HN_MAX_COMMENTS = 80;
 const HN_MAX_DEPTH = 8;
+// Same value as the other discussion extractors' caps and as
+// MAX_MATCH_TEXT_CHARS (lib/retrieval/passageMatch.js) today, but not
+// coupled to them; change this one on its own.
 const HN_MAX_COMMENT_CHARS = 1500;
 const HN_DOWNVOTE_LIMIT = 4;
 

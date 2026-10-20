@@ -1,4 +1,7 @@
 const DISCOURSE_MAX_POSTS = 80;
+// Same value as the other discussion extractors' caps and as
+// MAX_MATCH_TEXT_CHARS (lib/retrieval/passageMatch.js) today, but not
+// coupled to them; change this one on its own.
 const DISCOURSE_MAX_POST_CHARS = 1500;
 
 function isDiscoursePage() {

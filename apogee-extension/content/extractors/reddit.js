@@ -8,6 +8,9 @@
 // fetch rationale.
 const REDDIT_MAX_COMMENTS = 60;
 const REDDIT_MAX_DEPTH = 8;
+// Same value as the other discussion extractors' caps and as
+// MAX_MATCH_TEXT_CHARS (lib/retrieval/passageMatch.js) today, but not
+// coupled to them; change this one on its own.
 const REDDIT_MAX_COMMENT_CHARS = 1500;
 const REDDIT_MAX_SELFTEXT_CHARS = 12000;
 

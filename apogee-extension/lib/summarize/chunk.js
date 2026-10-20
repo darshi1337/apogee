@@ -1,3 +1,5 @@
+// Same value as DEFAULT_MAX_CONTEXT_CHARS (lib/retrieval/rag.js) today, but
+// not coupled to it; change this one on its own.
 export const MAX_CHUNK_CHARS = 6000;
 
 const MAX_SINGLE_PROMPT_CHARS = 8000;
