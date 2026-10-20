@@ -64,7 +64,7 @@ PDF text extraction runs fully client-side with `pdf.js`, bundled directly into 
 
 The popup parses DOCX files picked or dropped into it locally from their ZIP/XML structure. No document-conversion service or heavy parser dep takes part. Apogee also reads text, Markdown, JSON, and HTML files locally, plus pasted text. Picked files cap at 50 MB.
 
-Pasted or plain-text input caps at 100,000 characters. A note tells you when truncation happens. These inputs go only to the picked on-device engine or the clearly set loopback Ollama/llama.cpp server.
+Pasted, selected, or plain-text input caps at 100,000 characters. A note tells you when truncation happens. These inputs go only to the picked on-device engine or the clearly set loopback Ollama/llama.cpp server.
 
 ## Local Ollama Connection Architecture
 

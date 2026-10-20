@@ -15,8 +15,7 @@ import {
   assertUploadTypeOk,
   bytesToBase64,
   readTextHead,
-  truncateExtractedText,
-  truncatePastedText,
+  truncateWithNote,
   uploadExtension,
 } from "../../lib/extract/fileLimits.js";
 
@@ -144,23 +143,60 @@ test("assertUploadSizeOk rejects oversized files with a friendly message (#184)"
   );
 });
 
-test("truncatePastedText passes short text through untouched (#211)", () => {
+test("truncateWithNote passes short text through untouched (#211)", () => {
   assert.equal(MAX_PASTED_CHARS, 100 * 1024);
-  const { text, truncated } = truncatePastedText("  hello  ");
+  const { text, truncated } = truncateWithNote(
+    "  hello  ",
+    MAX_PASTED_CHARS,
+    "pasted",
+  );
   assert.equal(text, "hello");
   assert.equal(truncated, false);
-  const atCap = truncatePastedText("x".repeat(MAX_PASTED_CHARS));
+  const atCap = truncateWithNote(
+    "x".repeat(MAX_PASTED_CHARS),
+    MAX_PASTED_CHARS,
+    "pasted",
+  );
   assert.equal(atCap.truncated, false);
   assert.equal(atCap.text.length, MAX_PASTED_CHARS);
 });
 
-test("truncatePastedText truncates with a note past the ceiling (#211)", () => {
-  const { text, truncated } = truncatePastedText(
-    "y".repeat(MAX_PASTED_CHARS + 1000),
-  );
-  assert.equal(truncated, true);
-  assert.ok(text.length < MAX_PASTED_CHARS + 1000);
-  assert.match(text, /\[\.\.\.pasted content truncated/);
+test("truncateWithNote truncates with a labeled note past the ceiling (#211, #267, #471)", () => {
+  for (const [label, maxChars] of [
+    ["pasted", MAX_PASTED_CHARS],
+    ["selected", MAX_PASTED_CHARS],
+    ["PDF file", MAX_EXTRACTED_TEXT_CHARS],
+  ]) {
+    const { text, truncated } = truncateWithNote(
+      "y".repeat(maxChars + 1000),
+      maxChars,
+      label,
+    );
+    assert.equal(truncated, true);
+    assert.ok(text.length <= maxChars);
+    assert.ok(text.startsWith("y".repeat(100)));
+    assert.match(
+      text,
+      new RegExp(
+        `\\[\\.\\.\\.${label} content truncated to the first ${maxChars} characters\\.\\.\\.\\]$`,
+      ),
+    );
+  }
+});
+
+test("truncateWithNote never splits an emoji at the cut point (#471)", () => {
+  // The two offsets put the cut on either half of a surrogate pair, so one
+  // of them always lands mid-emoji.
+  for (const prefix of ["", "x"]) {
+    const { text, truncated } = truncateWithNote(
+      prefix + "😀".repeat(MAX_PASTED_CHARS),
+      MAX_PASTED_CHARS,
+      "selected",
+    );
+    assert.equal(truncated, true);
+    const head = text.split("\n\n")[0].slice(prefix.length);
+    for (const char of head) assert.equal(char, "😀");
+  }
 });
 
 test("finished-summary backstop is a generous fixed ceiling", () => {
@@ -176,37 +212,15 @@ test("extracted-text cap shares the pasted working ceiling (#267)", () => {
   assert.equal(MAX_EXTRACTED_TEXT_CHARS, MAX_PASTED_CHARS);
 });
 
-test("truncateExtractedText passes short text through untouched (#267)", () => {
-  const { text, truncated } = truncateExtractedText("  hello  ", "PDF");
-  assert.equal(text, "hello");
-  assert.equal(truncated, false);
-  const atCap = truncateExtractedText(
-    "x".repeat(MAX_EXTRACTED_TEXT_CHARS),
-    "PDF",
-  );
-  assert.equal(atCap.truncated, false);
-  assert.equal(atCap.text.length, MAX_EXTRACTED_TEXT_CHARS);
-});
-
-test("truncateExtractedText truncates with a file note past the ceiling (#267)", () => {
-  const { text, truncated } = truncateExtractedText(
-    "y".repeat(MAX_EXTRACTED_TEXT_CHARS + 1000),
-    "PDF",
-  );
-  assert.equal(truncated, true);
-  assert.ok(text.startsWith("y".repeat(100)));
-  assert.match(text, /\[\.\.\.PDF content truncated/);
-  assert.match(text, new RegExp(`${MAX_EXTRACTED_TEXT_CHARS}`));
-});
-
 test("truncated extraction output fits back through the pasted choke point (#267)", () => {
-  const { text } = truncateExtractedText(
+  const { text } = truncateWithNote(
     "z".repeat(MAX_EXTRACTED_TEXT_CHARS + 5000),
+    MAX_EXTRACTED_TEXT_CHARS,
     "DOCX file",
   );
-  // summarizeCustomContent re-applies truncatePastedText; the early cap must
-  // not trigger a second truncation note downstream.
-  const downstream = truncatePastedText(text);
+  // summarizeCustomContent re-applies the same cap; the early cap must not
+  // trigger a second truncation note downstream.
+  const downstream = truncateWithNote(text, MAX_PASTED_CHARS, "pasted");
   assert.equal(downstream.truncated, false);
   assert.equal(downstream.text, text);
 });
@@ -266,7 +280,10 @@ test("readTextHead caps a large file with a user-visible note (#267)", async () 
   assert.equal(truncated, true);
   assert.ok(text.length <= MAX_PASTED_CHARS);
   assert.match(text, /\[\.\.\.file content truncated/);
-  assert.equal(truncatePastedText(text).truncated, false);
+  assert.equal(
+    truncateWithNote(text, MAX_PASTED_CHARS, "pasted").truncated,
+    false,
+  );
 });
 
 test("readTextHead counts characters, not bytes, for multibyte text (#267)", async () => {

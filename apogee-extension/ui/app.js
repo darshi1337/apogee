@@ -98,9 +98,9 @@ import {
   assertUploadOk,
   assertUploadSizeOk,
   MAX_EXTRACTED_TEXT_CHARS,
+  MAX_PASTED_CHARS,
   readTextHead,
-  truncateExtractedText,
-  truncatePastedText,
+  truncateWithNote,
 } from "../lib/extract/fileLimits.js";
 import {
   activateSelectionCapture,
@@ -2702,7 +2702,7 @@ async function summarizeCustomContent(title, content, url = "") {
   // Cap pasted / plain-text input up front (#211): clipboard and dialog text
   // reach this choke point unbounded, so truncate with a note before the
   // content fans out into chunks, cache keys, and stored history.
-  const capped = truncatePastedText(content);
+  const capped = truncateWithNote(content, MAX_PASTED_CHARS, "pasted");
   if (capped.truncated) {
     announce(
       "Pasted content exceeded the text limit and was truncated to the first 100,000 characters.",
@@ -2912,8 +2912,9 @@ async function summarizeFile(file) {
     try {
       assertUploadSizeOk(arrayBuffer.byteLength, "DOCX file");
       const { extractDocxText } = await import("../lib/extract/docxExtract.js");
-      const capped = truncateExtractedText(
+      const capped = truncateWithNote(
         await extractDocxText(arrayBuffer),
+        MAX_EXTRACTED_TEXT_CHARS,
         "DOCX file",
       );
       text = capped.text;

@@ -197,7 +197,7 @@ When you click a summary bullet in Chromium browsers, Apogee highlights the exac
 
 - **Local File Parsing**: Extension code parses PDF and DOCX files picked or dropped into the popup. It checks DOCX ZIP entries for valid structure. It rejects encrypted archives.
 
-  No document bytes go to a remote service. Picked files cap at 50 MB. Pasted and plain-text input caps at 100,000 characters, with a truncation note.
+  No document bytes go to a remote service. Picked files cap at 50 MB. Pasted, selected, and plain-text input caps at 100,000 characters, with a truncation note.
 
 - **Memory Limits & Out-Of-Memory (OOM) Resilience**: In-browser models catch WebGPU buffer allocation failures and WASM memory limits on their own. They call `resetEngineState` and fall back to bounded `chunkTextOverview` sampling. Runs stay stable under tight memory.
 

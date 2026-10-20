@@ -34,7 +34,9 @@ import { extractPdfText } from "../lib/extract/pdfExtract.js";
 import {
   MAX_BILIBILI_SUBTITLE_CHARS,
   MAX_BILIBILI_SUBTITLE_SEGMENTS,
+  MAX_PASTED_CHARS,
   MAX_UPLOAD_FILE_BYTES,
+  truncateWithNote,
 } from "../lib/extract/fileLimits.js";
 import {
   recordPageAccessEvent,
@@ -636,7 +638,14 @@ export async function runBackgroundSummarize(
   const providerType = getProviderType(settings);
   const model = getModelForSettings(settings);
 
-  const selection = normalizeSelectedText(selectionText);
+  // Selected text arrives whole from the capture script and the context menu,
+  // then fans out to view state, the finalize payload, and the prompt, so cap
+  // it before any of them (#471).
+  const selection = truncateWithNote(
+    normalizeSelectedText(selectionText),
+    MAX_PASTED_CHARS,
+    "selected",
+  ).text;
   if (selection && !isSummarizableSelection(selection)) {
     throw new UserFacingError(
       `Select at least ${MIN_SELECTION_LENGTH} characters to summarize.`,
