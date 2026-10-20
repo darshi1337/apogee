@@ -3,9 +3,8 @@
 
 const BLUESKY_MAX_POSTS = 80;
 const BLUESKY_MAX_DEPTH = 8;
-// Same value as the other discussion extractors' caps and as
-// MAX_MATCH_TEXT_CHARS (lib/retrieval/passageMatch.js) today, but not
-// coupled to them; change this one on its own.
+// Matches the other discussion caps and MAX_MATCH_TEXT_CHARS today;
+// the values are independent and can diverge.
 const BLUESKY_MAX_POST_CHARS = 1500;
 const BLUESKY_MAX_SELFTEXT_CHARS = 12000;
 const BLUESKY_API_BASE = "https://public.api.bsky.app";

@@ -5,9 +5,8 @@ function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Bounds the passage text turned into a regex. Equal to the extractors'
-// per-comment caps (content/extractors/*.js) today, but not coupled to
-// them; change this one on its own.
+// Bounds the passage text turned into a regex. Matches the extractors'
+// per-comment caps today; the values are independent and can diverge.
 const MAX_MATCH_TEXT_CHARS = 1500;
 
 function buildFlexibleMatcher(text) {
