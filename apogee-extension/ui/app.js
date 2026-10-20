@@ -1614,7 +1614,6 @@ function summarizeJobRunner(settings, summarizeArgs, opts) {
   const kind = detectInputKind({
     type: summarizeArgs.type,
     isPdf: opts.isPdf,
-    isSelection: summarizeArgs.isSelection,
     title: summarizeArgs.title,
     url: summarizeArgs.url,
   });

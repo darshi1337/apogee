@@ -27,6 +27,14 @@ test("detectInputKind identifies each input kind accurately", () => {
     detectInputKind({ url: "https://example.com/paper.pdf" }),
     INPUT_KINDS.DOCUMENT,
   );
+  assert.equal(
+    detectInputKind({ url: "https://example.com/paper.pdf?download=1#page=2" }),
+    INPUT_KINDS.DOCUMENT,
+  );
+  assert.equal(
+    detectInputKind({ url: "https://example.com/page?file=paper.pdf" }),
+    INPUT_KINDS.ARTICLE,
+  );
 
   assert.equal(detectInputKind({ type: "youtube" }), INPUT_KINDS.VIDEO);
   assert.equal(detectInputKind({ type: "bilibili" }), INPUT_KINDS.VIDEO);

@@ -45,14 +45,16 @@ export function detectInputKind({
   if (action === "ask") return INPUT_KINDS.ASK;
   if (isSelection || type === "selection") return INPUT_KINDS.SELECTION;
 
-  const lowerTitle = typeof title === "string" ? title.toLowerCase() : "";
+  const lowerTitle =
+    typeof title === "string" ? title.trim().toLowerCase() : "";
   const lowerUrl = typeof url === "string" ? url.toLowerCase() : "";
+  const urlPath = lowerUrl.split(/[?#]/, 1)[0];
 
   if (
     isPdf ||
     lowerTitle.endsWith(".pdf") ||
     lowerTitle.endsWith(".docx") ||
-    lowerUrl.endsWith(".pdf")
+    urlPath.endsWith(".pdf")
   ) {
     return INPUT_KINDS.DOCUMENT;
   }
@@ -115,9 +117,7 @@ export function resolveCandidateChain({
     const demoted = [];
     for (const type of candidates) {
       const model = getModelForSettings({ ...settings, provider: type });
-      const override =
-        type === PROVIDERS.LLAMACPP ? settings?.llamaContextTokens : undefined;
-      const usable = getUsableTokens(model, override);
+      const usable = getUsableTokens(model);
       if (usable < tokenCount) {
         demoted.push(type);
       } else {

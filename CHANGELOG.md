@@ -369,10 +369,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Add per-page focus keyword (#161) ([1560098](https://github.com/darshi1337/apogee/commit/1560098b6711315a3105949fc3ec06d697287eee))
 - Localize popup via chrome.i18n framework ([6780eb7](https://github.com/darshi1337/apogee/commit/6780eb7bf681182894c6292833f92440d31955e7))
 - Auto-sync readme contributors wall with scheduled workflow ([62e1cff](https://github.com/darshi1337/apogee/commit/62e1cff94da2285ae0f24619fc27cfb3e961f855))
-- Add extract-only copy-text action (#414) (#449) ([001c4bd](https://github.com/darshi1337/apogee/commit/001c4bd16d7364acb32e9a1526170b97060301d0))
-- Provider fallback chain across engines (#459) ([1a2f83b](https://github.com/darshi1337/apogee/commit/1a2f83b3dc02689366b5ae5165ec04e8f2e741db))
-- Effective-config view with keys hidden (#461) ([ebceca6](https://github.com/darshi1337/apogee/commit/ebceca6cf9d39aa5827bb1f3f39ba8168c6d1e85))
-- Locale catalog check in CI plus shared glossary (#465) ([6f5cb78](https://github.com/darshi1337/apogee/commit/6f5cb7840d12723ff440d7bc7dc089f79deddde6))
 
 ### Fixed
 
@@ -553,13 +549,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Expire stream subscribers on cleanup (#386) ([fa56fae](https://github.com/darshi1337/apogee/commit/fa56fae2edadbdb4863da8068bd5e8f312a2dde1))
 - Honor focusKeyword in video summarize path (#388) ([0276c1e](https://github.com/darshi1337/apogee/commit/0276c1eca211c1fc0e7e46a237260f765d923c87))
 - Show focus keyword for video and discussion, gate cache on multi-tab only (#390) ([4c42680](https://github.com/darshi1337/apogee/commit/4c42680910e121683ee2f7027427fdb3bf70969d))
-- Pass translationEngine in llama.cpp suggest path (#411) ([712b300](https://github.com/darshi1337/apogee/commit/712b3003f4c0464eaa88a2a0265c115ce4ac0c19))
-- Scope suggest-questions-bg cache key by focusKeyword (#392) ([4ddcc9a](https://github.com/darshi1337/apogee/commit/4ddcc9a9d82a8f6be1902fba2e20a9752c75e394))
-- Clear a stale focus keyword on a fresh open on a new page (#413) (#446) ([cb26b44](https://github.com/darshi1337/apogee/commit/cb26b44f836b7f2116d7cc49ba388abf3493577c))
-- Clamp sub-minute STREAM_CLEANUP alarm delays to Chrome's minimum (#447) ([07fa5f5](https://github.com/darshi1337/apogee/commit/07fa5f51db1dce8d70fecbc14dc1644ec205bbc6))
-- End stream on settings-load failure (#466) (#474) ([6a245b4](https://github.com/darshi1337/apogee/commit/6a245b4a4d2f7e2af5be36ed9c4bb3fca2f8a434))
-- Show empty-result fault on blank summary output (#467) (#479) ([e53e164](https://github.com/darshi1337/apogee/commit/e53e16409d8f5d5ab0b9c84c7eebd06247ac9f3d))
-- Reject unsupported file uploads (#472) (#480) ([8035fa7](https://github.com/darshi1337/apogee/commit/8035fa7668fcce1b148ef2875c070d6df8e90de8))
 
 ### Changed
 
