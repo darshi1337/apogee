@@ -42,7 +42,8 @@ const GENERIC_FALLBACK = "An unexpected error occurred. Try summarizing again.";
 
 // Return a user‐safe message for any error.
 // UserFacingError messages pass through verbatim; anything else matches
-// FALLBACKS in order or falls back to generic. Pure with no browser APIs.
+// FALLBACKS in order or uses the caller's fallback (generic by default).
+// Pure with no browser APIs.
 export function toUserMessage(err, fallback = GENERIC_FALLBACK) {
   if (err && err.isUserFacing) return err.message;
 
