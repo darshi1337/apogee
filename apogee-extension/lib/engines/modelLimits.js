@@ -29,9 +29,14 @@ const DEFAULT_OLLAMA_CONTEXT_TOKENS = 8192;
 
 const PRACTICAL_MAX_TOKENS = 24000;
 
-const RESERVED_TOKENS = 2048;
+export const RESERVED_TOKENS = 2048;
 
-const CHARS_PER_TOKEN = 4;
+export const CHARS_PER_TOKEN = 4;
+
+export function estimateTokens(text) {
+  const len = typeof text === "string" ? text.length : 0;
+  return Math.ceil(len / CHARS_PER_TOKEN);
+}
 
 function isTransformersModel(model) {
   return TRANSFORMERS_MODELS.some((m) => m.id === model);
@@ -50,6 +55,25 @@ function isPositiveTokenCount(value) {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
+export function getContextTokens(model, contextTokensOverride) {
+  if (isPositiveTokenCount(contextTokensOverride)) {
+    // Still capped: a reported 128k window would otherwise produce a single chunk far larger than is practical to generate from.
+    return Math.min(contextTokensOverride, PRACTICAL_MAX_TOKENS);
+  }
+  if ((model || "").endsWith("-MLC")) {
+    return WEBLLM_CONTEXT_TOKENS;
+  }
+  if (isTransformersModel(model)) {
+    return TRANSFORMERS_CONTEXT_TOKENS;
+  }
+  return getOllamaContextTokens(model);
+}
+
+export function getUsableTokens(model, contextTokensOverride) {
+  const contextTokens = getContextTokens(model, contextTokensOverride);
+  return Math.max(contextTokens - RESERVED_TOKENS, 512);
+}
+
 // How much text to put in one chunk for a given model.
 // Every branch below infers the context window from the model name, which
 // works while the name implies the window. It does not always: a llama.cpp
@@ -61,19 +85,7 @@ function isPositiveTokenCount(value) {
 // passes `contextTokensOverride`, and that wins outright.
 // Callers without one pass nothing and keep the name-based behaviour.
 export function getMaxChunkChars(model, contextTokensOverride) {
-  let contextTokens;
-  if (isPositiveTokenCount(contextTokensOverride)) {
-    // Still capped: a reported 128k window would otherwise produce a single chunk far larger than is practical to generate from.
-    contextTokens = Math.min(contextTokensOverride, PRACTICAL_MAX_TOKENS);
-  } else if ((model || "").endsWith("-MLC")) {
-    contextTokens = WEBLLM_CONTEXT_TOKENS;
-  } else if (isTransformersModel(model)) {
-    contextTokens = TRANSFORMERS_CONTEXT_TOKENS;
-  } else {
-    contextTokens = getOllamaContextTokens(model);
-  }
-  const usableTokens = Math.max(contextTokens - RESERVED_TOKENS, 512);
-  return usableTokens * CHARS_PER_TOKEN;
+  return getUsableTokens(model, contextTokensOverride) * CHARS_PER_TOKEN;
 }
 
 export function getMaxChunks(model) {

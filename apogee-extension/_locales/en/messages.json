@@ -221,6 +221,10 @@
     "message": "AI Provider",
     "description": "Provider card title"
   },
+  "autoEngineLabel": {
+    "message": "Auto-select engine by input kind and size",
+    "description": "Checkbox label for automatic engine selection"
+  },
   "providerWebllm": {
     "message": "In-Browser AI (GPU)",
     "description": "WebLLM provider label"

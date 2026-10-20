@@ -14,6 +14,12 @@ import {
   cancelStream,
   StreamCancelledError,
 } from "../lib/engines/providers.js";
+import {
+  INPUT_KINDS,
+  detectInputKind,
+  resolveCandidateChain,
+} from "../lib/engines/engineRules.js";
+import { estimateTokens } from "../lib/engines/modelLimits.js";
 import { runStreamingJob } from "./jobs.js";
 import { renderEffectiveConfig } from "./effectiveConfig.js";
 import { getRedactedSettings } from "../lib/util/diagnostics.js";
@@ -92,9 +98,9 @@ import {
   assertUploadOk,
   assertUploadSizeOk,
   MAX_EXTRACTED_TEXT_CHARS,
+  MAX_PASTED_CHARS,
   readTextHead,
-  truncateExtractedText,
-  truncatePastedText,
+  truncateWithNote,
 } from "../lib/extract/fileLimits.js";
 import {
   activateSelectionCapture,
@@ -329,6 +335,7 @@ const webllmModelList = document.getElementById("webllmModelList");
 const transformersModelList = document.getElementById("transformersModelList");
 const localModelList = document.getElementById("localModelList");
 const localModelStatus = document.getElementById("localModelStatus");
+const autoEngineCheckbox = document.getElementById("autoEngineCheckbox");
 const pasteDialog = document.getElementById("pasteDialog");
 const pasteDialogForm = document.getElementById("pasteDialogForm");
 const pasteDialogInput = document.getElementById("pasteDialogInput");
@@ -657,6 +664,8 @@ async function applySettingsToUI(settings) {
     `input[name="provider"][value="${provider}"]`,
   );
   if (provRadio) provRadio.checked = true;
+  if (autoEngineCheckbox)
+    autoEngineCheckbox.checked = Boolean(settings.autoEngine);
 
   const isWebllm = provider === PROVIDERS.WEBLLM;
   const isTransformers = provider === PROVIDERS.TRANSFORMERS;
@@ -1602,8 +1611,17 @@ function renderExtractedTextFallback(target, fallbackText) {
 // job took over, which ends this job silently instead of falling back.
 function summarizeJobRunner(settings, summarizeArgs, opts) {
   const { tab, jobId, promptsCacheKey, persistStream } = opts;
+  const kind = detectInputKind({
+    type: summarizeArgs.type,
+    isPdf: opts.isPdf,
+    title: summarizeArgs.title,
+    url: summarizeArgs.url,
+  });
+  const tokenCount = estimateTokens(summarizeArgs.content);
+  const chain = resolveCandidateChain({ kind, tokenCount, settings });
   return runStreamingJob({
     settings,
+    chain,
     content: summarizeArgs.content,
     reset: () => setLoadingIndicator(summaryText, randomSummarizeVerb()),
     start: (engine) => engine.summarize(summarizeArgs),
@@ -1997,6 +2015,7 @@ async function summarizeActivePage() {
         tab,
         jobId,
         promptsCacheKey,
+        isPdf: pageData.isPdf,
         persistStream: async (streamId) => {
           const activeJobState = await saveViewStateIfJobMatches(
             tab.id,
@@ -2134,8 +2153,12 @@ async function submitQuestion(question) {
       translationEngine: settings.translationEngine,
       onStats: (rate) => setTokensPerSecBadge(tokensPerSecBadgeAsk, rate),
     };
+    const kind = INPUT_KINDS.ASK;
+    const tokenCount = estimateTokens((content || "") + " " + trimmed);
+    const chain = resolveCandidateChain({ kind, tokenCount, settings });
     await runStreamingJob({
       settings,
+      chain,
       content,
       reset: () => showAnswerContext(trimmed),
       start: (engine) => engine.ask(askArgs),
@@ -2679,7 +2702,7 @@ async function summarizeCustomContent(title, content, url = "") {
   // Cap pasted / plain-text input up front (#211): clipboard and dialog text
   // reach this choke point unbounded, so truncate with a note before the
   // content fans out into chunks, cache keys, and stored history.
-  const capped = truncatePastedText(content);
+  const capped = truncateWithNote(content, MAX_PASTED_CHARS, "pasted");
   if (capped.truncated) {
     announce(
       "Pasted content exceeded the text limit and was truncated to the first 100,000 characters.",
@@ -2889,8 +2912,9 @@ async function summarizeFile(file) {
     try {
       assertUploadSizeOk(arrayBuffer.byteLength, "DOCX file");
       const { extractDocxText } = await import("../lib/extract/docxExtract.js");
-      const capped = truncateExtractedText(
+      const capped = truncateWithNote(
         await extractDocxText(arrayBuffer),
+        MAX_EXTRACTED_TEXT_CHARS,
         "DOCX file",
       );
       text = capped.text;
@@ -2997,6 +3021,10 @@ providerRadios.forEach((radio) => {
     updateLocalModelList(settings, status);
     updateLlamaModelUI(settings, status);
   });
+});
+
+autoEngineCheckbox?.addEventListener("change", async () => {
+  await saveSettings({ autoEngine: autoEngineCheckbox.checked });
 });
 
 formatRadios.forEach((radio) => {

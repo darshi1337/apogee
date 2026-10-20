@@ -1,5 +1,9 @@
 import { UserFacingError } from "../util/userError.js";
-import { MAX_PDF_TEXT_CHARS, truncateExtractedText } from "./fileLimits.js";
+import {
+  MAX_EXTRACTED_TEXT_CHARS,
+  MAX_PDF_TEXT_CHARS,
+  truncateWithNote,
+} from "./fileLimits.js";
 
 class PdfExtractionError extends UserFacingError {}
 
@@ -82,7 +86,7 @@ export async function extractPdfTextFromBytes(
       addition += "\n";
       text = appendPdfText(text, addition);
       if (text.length > maxChars) {
-        text = truncateExtractedText(text, label).text;
+        text = truncateWithNote(text, MAX_EXTRACTED_TEXT_CHARS, label).text;
         truncated = true;
         break;
       }

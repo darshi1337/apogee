@@ -185,6 +185,7 @@ export const WEBLLM_DOWNLOAD_RETRY_BASE_DELAY_MS = 2000;
 
 export const DEFAULT_SETTINGS = {
   provider: DEFAULT_PROVIDER,
+  autoEngine: false,
   webllmModel: DEFAULT_WEBLLM_MODEL,
   transformersModel: DEFAULT_TRANSFORMERS_MODEL,
   localModel: DEFAULT_LOCAL_MODEL,

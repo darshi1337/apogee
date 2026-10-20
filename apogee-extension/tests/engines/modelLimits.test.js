@@ -4,6 +4,11 @@ import assert from "node:assert";
 import {
   getMaxChunkChars,
   getMaxChunks,
+  CHARS_PER_TOKEN,
+  RESERVED_TOKENS,
+  getContextTokens,
+  getUsableTokens,
+  estimateTokens,
 } from "../../lib/engines/modelLimits.js";
 import { TRANSFORMERS_MODELS } from "../../lib/constants.js";
 
@@ -81,4 +86,31 @@ test("getMaxChunkChars ignores an absent or unusable override", () => {
       `override ${String(override)} should have been ignored`,
     );
   }
+});
+
+test("CHARS_PER_TOKEN and RESERVED_TOKENS are exported constants", () => {
+  assert.equal(CHARS_PER_TOKEN, 4);
+  assert.equal(RESERVED_TOKENS, 2048);
+});
+
+test("estimateTokens calculates ceiling of character length divided by CHARS_PER_TOKEN", () => {
+  assert.equal(estimateTokens(""), 0);
+  assert.equal(estimateTokens("abcd"), 1);
+  assert.equal(estimateTokens("abcde"), 2);
+  assert.equal(estimateTokens("a".repeat(400)), 100);
+});
+
+test("getContextTokens returns expected context tokens for each engine family", () => {
+  assert.equal(getContextTokens("Qwen2.5-1.5B-Instruct-q4f16_1-MLC"), 4096);
+  assert.equal(getContextTokens(TRANSFORMERS_MODELS[0].id), 3072);
+  assert.equal(getContextTokens("llama3.1:8b"), 24000);
+  assert.equal(getContextTokens("llama3.1:8b", 4096), 4096);
+});
+
+test("getUsableTokens reserves tokens with a 512 floor", () => {
+  assert.equal(
+    getUsableTokens("Qwen2.5-1.5B-Instruct-q4f16_1-MLC"),
+    4096 - 2048,
+  );
+  assert.equal(getUsableTokens("custom-model", 1024), 512);
 });
