@@ -37,9 +37,23 @@ export const SKIP_LOOKUP_STATUS = {
 
 export async function generateQuestionsFromChat(
   chat,
-  { title, url, summary, language, translationEngine },
+  {
+    title,
+    url,
+    summary,
+    language,
+    translationEngine,
+    customInstructions,
+    focusKeyword,
+  },
 ) {
-  const prompt = buildSuggestQuestionsPrompt(title, url, summary);
+  const prompt = buildSuggestQuestionsPrompt(
+    title,
+    url,
+    summary,
+    customInstructions,
+    focusKeyword,
+  );
   const qLanguage = await resolveEffectiveLanguage(summary, language);
   const translateFn = opusTranslateFnFor(translationEngine);
   const text = await generateInTargetLanguage(chat, prompt, qLanguage, {
@@ -50,12 +64,28 @@ export async function generateQuestionsFromChat(
 
 export async function generateTransformersSuggestions(
   model,
-  { title, url, summary, language, translationEngine },
+  {
+    title,
+    url,
+    summary,
+    language,
+    translationEngine,
+    customInstructions,
+    focusKeyword,
+  },
 ) {
   return withTransformersEngine(model, null, async (eng) =>
     generateQuestionsFromChat(
       (p, opts) => transformersChatStream(eng, p, { system: opts?.system }),
-      { title, url, summary, language, translationEngine },
+      {
+        title,
+        url,
+        summary,
+        language,
+        translationEngine,
+        customInstructions,
+        focusKeyword,
+      },
     ),
   );
 }
@@ -63,14 +93,30 @@ export async function generateTransformersSuggestions(
 export async function generateLocalSuggestions(
   host,
   model,
-  { title, url, summary, language, translationEngine },
+  {
+    title,
+    url,
+    summary,
+    language,
+    translationEngine,
+    customInstructions,
+    focusKeyword,
+  },
   client = OLLAMA_PROVIDER,
   apiKey = "",
 ) {
   const validHost = validateLoopbackHost(host, client.label);
   return generateQuestionsFromChat(
     (p, opts) => client.chatStream(validHost, model, p, { ...opts, apiKey }),
-    { title, url, summary, language, translationEngine },
+    {
+      title,
+      url,
+      summary,
+      language,
+      translationEngine,
+      customInstructions,
+      focusKeyword,
+    },
   );
 }
 
@@ -93,6 +139,8 @@ export async function runSuggestQuestionsJob(
     model,
     language,
     translationEngine,
+    customInstructions = "",
+    focusKeyword = "",
   } = payload || {};
   if (!trackBackgroundJob(promptsCacheKey)) return;
   startKeepAlive();
@@ -110,7 +158,15 @@ export async function runSuggestQuestionsJob(
         questions = await generateLocalSuggestions(
           isLlama ? llamaHost : host,
           model,
-          { title, url, summary, language, translationEngine },
+          {
+            title,
+            url,
+            summary,
+            language,
+            translationEngine,
+            customInstructions,
+            focusKeyword,
+          },
           isLlama ? LLAMACPP_PROVIDER : undefined,
           isLlama ? llamaApiKey : undefined,
         );
@@ -121,6 +177,8 @@ export async function runSuggestQuestionsJob(
           summary,
           language,
           translationEngine,
+          customInstructions,
+          focusKeyword,
         });
       } else {
         await ensureOffscreenDocument?.();
@@ -134,6 +192,8 @@ export async function runSuggestQuestionsJob(
             model,
             language,
             translationEngine,
+            customInstructions,
+            focusKeyword,
             provider:
               providerType === PROVIDERS.TRANSFORMERS
                 ? "transformers"

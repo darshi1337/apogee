@@ -55,7 +55,6 @@ test("buildTrustedFinalize rejects payloads with missing or invalid URL", async 
   );
   const expectedPromptsKey = await getPromptsCacheKey(
     url,
-    "bullets",
     "Qwen2.5-0.5B-Instruct-q4f16_1-MLC",
     "auto",
     "",
@@ -77,7 +76,6 @@ test("buildTrustedFinalize rejects payloads with missing or invalid URL", async 
   assert.strictEqual(
     await getPromptsCacheKey(
       url,
-      "bullets",
       "Qwen2.5-0.5B-Instruct-q4f16_1-MLC",
       "auto",
       "",

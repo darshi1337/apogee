@@ -49,7 +49,6 @@ test("suggest-questions-bg scopes the rebuilt promptsCacheKey by focusKeyword (#
 
   const expectedKey = await getPromptsCacheKey(
     url,
-    settings.responseFormat,
     model,
     settings.summaryLanguage,
     settings.customInstructions,
@@ -58,7 +57,6 @@ test("suggest-questions-bg scopes the rebuilt promptsCacheKey by focusKeyword (#
   );
   const unscopedKey = await getPromptsCacheKey(
     url,
-    settings.responseFormat,
     model,
     settings.summaryLanguage,
     settings.customInstructions,
