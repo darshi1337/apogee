@@ -150,6 +150,13 @@ export function appendStreamTextCapped(current, addition) {
   return { text: text.slice(0, MAX_STREAM_TEXT_CHARS), truncated: true };
 }
 
+// Test-only role (#500): the live copy of this encoder lives inside the
+// function passed to chrome.scripting.executeScript in
+// lib/extract/pageExtraction.js, and injected code cannot import modules.
+// This module-level copy is therefore the executable spec of the algorithm
+// the PDF path relies on: the tests below pin its invariants, and a
+// wiring-guard test keeps the injected copy's slice size in sync with it.
+//
 // Slice size for incremental base64 encoding below. Must stay a multiple of 3
 // so each slice encodes to a whole number of base64 quanta and slices can be
 // encoded independently without corrupting boundary bytes.

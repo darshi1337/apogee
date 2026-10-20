@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { readSource } from "../helpers/readSource.js";
 import {
   BASE64_SLICE_BYTES,
   MAX_BILIBILI_SUBTITLE_CHARS,
@@ -325,4 +326,23 @@ test("readTextHead streams when file size is unknown (#267)", async () => {
     text: "ok",
     truncated: false,
   });
+});
+
+// Wiring guard (#500): the PDF download path encodes base64 inside the
+// function injected into the page, and injected code cannot import modules,
+// so that copy is a duplicate of bytesToBase64 above. Keep the two in step:
+// a different slice size there would break the 3-byte alignment the reference
+// copy is tested for, and the two would silently drift apart.
+test("the injected PDF encoder uses the reference slice size (#500)", () => {
+  const code = readSource(
+    "../../lib/extract/pageExtraction.js",
+    import.meta.url,
+  );
+  const chunk = /const CHUNK = (0x[0-9a-fA-F]+|\d+);/.exec(code);
+  assert.ok(chunk, "the injected encoder declares its slice size");
+  assert.strictEqual(
+    Number(chunk[1]),
+    BASE64_SLICE_BYTES,
+    "the injected encoder and the reference copy share one slice size",
+  );
 });

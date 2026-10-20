@@ -226,6 +226,11 @@ export function disposeTranslatorNow() {
   return false;
 }
 
+// Test-only role (#500): reports the cached translator's model id and whether
+// an idle dispose is scheduled. No live caller - the offscreen document asks
+// for the text engine's status via getTransformersStatus() - but the test uses
+// this to observe the translator lifecycle, together with
+// __setTranslatorForTest below.
 export function getTranslatorStatus() {
   return {
     currentModelId: translatorModelId,
