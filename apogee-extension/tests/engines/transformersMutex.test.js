@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
+import * as transformersEngine from "../../lib/engines/transformersEngine.js";
 import {
   isTransientLoadError,
   isEngineCorruptingError,
@@ -8,6 +9,10 @@ import {
   getTranslatorStatus,
   __setTranslatorForTest,
 } from "../../lib/engines/transformersEngine.js";
+
+test("engine lock timeout stays module-local (#499)", () => {
+  assert.equal("ENGINE_LOCK_TIMEOUT_MS" in transformersEngine, false);
+});
 
 test("transient load errors are retried; corrupting errors are not transient", () => {
   assert.equal(

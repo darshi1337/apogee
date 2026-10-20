@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import * as fileLimits from "../../lib/extract/fileLimits.js";
 import {
   BASE64_SLICE_BYTES,
   MAX_BILIBILI_SUBTITLE_CHARS,
@@ -325,4 +326,8 @@ test("readTextHead streams when file size is unknown (#267)", async () => {
     text: "ok",
     truncated: false,
   });
+});
+
+test("reader lock release stays module-local (#499)", () => {
+  assert.equal("releaseReaderLock" in fileLimits, false);
 });

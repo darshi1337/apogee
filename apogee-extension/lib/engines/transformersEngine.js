@@ -9,7 +9,7 @@ import { getTransformers } from "./transformersLib.js";
 import { ortWasmUrl, ortWasmBinary } from "./onnxWasm.js";
 import { createLock } from "../util/mutex.js";
 
-export const ENGINE_LOCK_TIMEOUT_MS = 20 * 60 * 1000;
+const ENGINE_LOCK_TIMEOUT_MS = 20 * 60 * 1000;
 const LOAD_MAX_ATTEMPTS = 3;
 
 export function isTransientLoadError(err) {
