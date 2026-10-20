@@ -12,6 +12,7 @@ import {
   selectSalientChunks,
 } from "../lib/retrieval/rag.js";
 import { createLock } from "../lib/util/mutex.js";
+import { toUserMessage } from "../lib/util/userError.js";
 import { WEBLLM_MODELS, isKnownWebLLMModelId } from "../lib/constants.js";
 import {
   OFFSCREEN_STALL_NOTE_MS,
@@ -696,7 +697,7 @@ async function runStream(streamId, pending, stream) {
       .sendMessage({
         target: "service-worker",
         type: "model-progress",
-        progress: { text: `Error: ${err.message}`, progress: 0 },
+        progress: { text: toUserMessage(err), progress: 0 },
       })
       .catch(() => {});
   } finally {

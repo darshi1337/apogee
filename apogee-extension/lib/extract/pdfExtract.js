@@ -69,7 +69,9 @@ export async function extractPdfTextFromBytes(
     if (err instanceof PasswordException) {
       throw new PdfExtractionError("This PDF is password-protected.");
     }
-    throw new PdfExtractionError(err.message ?? String(err));
+    // pdf.js wording is for developers; keep it in the console only.
+    console.error("PDF load failed:", err);
+    throw new PdfExtractionError("Couldn't read this PDF. It may be damaged.");
   }
 
   try {

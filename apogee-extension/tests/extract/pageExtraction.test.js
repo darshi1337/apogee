@@ -91,10 +91,10 @@ test("raw injection failures are rewritten into a friendly message", () => {
   );
 });
 
-test("unrelated injection failures keep their original message", () => {
+test("unrelated injection failures never echo the raw browser message", () => {
   assert.equal(
     injectionErrorMessage(new Error("No tab with id: 42.")),
-    "No tab with id: 42.",
+    "Apogee couldn't read this page.",
   );
   assert.equal(injectionErrorMessage(null), "Apogee couldn't read this page.");
 });

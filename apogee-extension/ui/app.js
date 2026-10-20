@@ -2957,12 +2957,9 @@ async function handleFile(file) {
   } catch (err) {
     console.error("File read failed:", err);
     showOnlyView("homeView");
-    // User-facing messages already name the problem; only a raw browser or
-    // library string gets the read-failure prefix.
-    const message = err?.isUserFacing
-      ? err.message
-      : `Failed to read file: ${err.message || err}`;
-    setFileUploadError(message);
+    // User-facing messages already name the problem; a raw browser or
+    // library string never reaches the page, it gets a plain fallback.
+    setFileUploadError(toUserMessage(err, "Couldn't read this file."));
   } finally {
     if (fileUploadInput) fileUploadInput.value = "";
   }
@@ -3248,7 +3245,7 @@ backendUrlInput?.addEventListener("change", async () => {
   }
   try {
     val = validateOllamaHost(val);
-  } catch (err) {
+  } catch {
     // Never silently swap an invalid host for the default: that hides the
     // real address Ollama listens on. Keep the saved value and say why the
     // typed one cannot be used.
@@ -3256,7 +3253,7 @@ backendUrlInput?.addEventListener("change", async () => {
     backendUrlInput.value = settings.ollamaHost;
     renderStatusError(
       localModelStatus,
-      `That Ollama host cannot be used (${err?.message || "invalid host"}). ` +
+      `That Ollama host cannot be used. ` +
         `Use an http:// loopback address such as ${DEFAULT_OLLAMA_HOST}.`,
     );
     const status = await checkConnection();
@@ -3299,12 +3296,12 @@ llamaHostInput?.addEventListener("change", async () => {
       label: "llama.cpp",
       defaultPort: llamaDefaultPort,
     });
-  } catch (err) {
+  } catch {
     const settings = await getSettings();
     llamaHostInput.value = settings.llamaHost;
     renderStatusError(
       llamaModelStatus,
-      `That llama.cpp URL cannot be used (${err?.message || "invalid URL"}). ` +
+      `That llama.cpp URL cannot be used. ` +
         `Use an http:// loopback address such as ${DEFAULT_LLAMACPP_HOST}.`,
     );
     await refreshLlamaConnection();
