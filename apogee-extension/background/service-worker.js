@@ -1229,6 +1229,7 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onConnect?.addListener) {
       safePost(popupPort, {
         type: "error",
         error: EXPIRED_STREAM_ERROR,
+        userFacing: true,
       });
       safeDisconnect(popupPort);
       return;

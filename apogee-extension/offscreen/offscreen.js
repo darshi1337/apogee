@@ -729,6 +729,7 @@ chrome.runtime.onConnect.addListener((port) => {
       error:
         "This response is no longer available (its stream expired). " +
         "Try summarizing again.",
+      userFacing: true,
     });
     safeDisconnect(port);
     return;

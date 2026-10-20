@@ -286,3 +286,21 @@ test("service worker derives STREAM_CLEANUP_MINUTES via msToAlarmMinutes", () =>
     "STREAM_CLEANUP_MINUTES matches msToAlarmMinutes(STREAM_CLEANUP_MS)",
   );
 });
+
+// Without userFacing the popup runs the message through toUserMessage, which
+// rewrites "stream expired" into the generic lost-connection fallback.
+test("opening an unknown stream reports expired guidance as user-facing", () => {
+  for (const [file, anchor] of [
+    ["../../background/service-worker.js", "error: EXPIRED_STREAM_ERROR,"],
+    ["../../offscreen/offscreen.js", '"Try summarizing again.",'],
+  ]) {
+    const code = readSource(file, import.meta.url);
+    const at = code.indexOf(anchor);
+    assert.ok(at !== -1, `${file} posts the expired-stream error`);
+    const body = code.slice(at, at + 120);
+    assert.ok(
+      body.includes("userFacing: true"),
+      `${file} marks the expired-stream error user-facing`,
+    );
+  }
+});
