@@ -211,6 +211,8 @@ export async function buildTrustedFinalize(payload) {
     windowId,
     language: settings.summaryLanguage,
     translationEngine: settings.translationEngine,
+    customInstructions: settings.customInstructions || "",
+    focusKeyword: asFocusKeyword(payload.focusKeyword),
   };
 }
 
@@ -263,6 +265,8 @@ export async function finalizeSummaryJob(
     windowId,
     language,
     translationEngine,
+    customInstructions,
+    focusKeyword,
   } = finalize;
 
   try {
@@ -307,6 +311,8 @@ export async function finalizeSummaryJob(
         model,
         language,
         translationEngine,
+        customInstructions,
+        focusKeyword,
       },
       { ensureOffscreenDocument },
     ).catch((err) => console.error("Suggest-questions job failed:", err));

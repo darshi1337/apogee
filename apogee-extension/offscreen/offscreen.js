@@ -831,12 +831,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             provider,
             language,
             translationEngine,
+            customInstructions,
+            focusKeyword,
           } = message.payload;
           const prompts = await getPrompts();
           const prompt = prompts.buildSuggestQuestionsPrompt(
             title,
             url,
             summary,
+            customInstructions,
+            focusKeyword,
           );
           const qLanguage = await resolveEffectiveLanguage(summary, language);
           const translateFn = opusTranslateFnFor(

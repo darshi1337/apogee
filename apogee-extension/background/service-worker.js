@@ -723,6 +723,7 @@ export async function runBackgroundSummarize(
     tabId: tab.id,
     jobId,
     windowId: tab.windowId,
+    customInstructions: settings.customInstructions || "",
     ...(isSelection ? { selectionText: selection } : {}),
   };
 
@@ -1616,6 +1617,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             {
               ...message.payload,
               ...(promptsCacheKey ? { promptsCacheKey } : {}),
+              // The questions follow the reader's own instructions and focus
+              // keyword, the same way the summary does (#498).
+              customInstructions: settings.customInstructions || "",
+              focusKeyword: asFocusKeyword(message.payload?.focusKeyword),
               providerType: getProviderType(settings),
               host: settings.ollamaHost,
             },

@@ -44,7 +44,11 @@ async function makeCacheKey(
   translationEngine,
   focusKeyword,
 ) {
-  return `${prefix}:${fmt}:${lang}:${model}:${translationEngineKey(translationEngine)}:${await hashUrl(url)}${await hashedSuffix(customInstructions, "i")}${await hashedSuffix(focusKeyword, "k")}`;
+  // An empty `fmt` leaves the format out of the key: the suggested-questions
+  // prompt cannot change with the summary's response format, so a format change
+  // must not refetch questions that come out identical (#498).
+  const head = fmt ? `${prefix}:${fmt}` : prefix;
+  return `${head}:${lang}:${model}:${translationEngineKey(translationEngine)}:${await hashUrl(url)}${await hashedSuffix(customInstructions, "i")}${await hashedSuffix(focusKeyword, "k")}`;
 }
 
 export async function getSummaryCacheKey(
@@ -89,9 +93,13 @@ export function parseSummaryCacheKey(cacheKey) {
   if (!format || !language || modelParts.length === 0) return fallback;
   return { format, language, model: modelParts.join(":") };
 }
+// The suggested-questions key carries what the questions actually depend on:
+// the page, the model, the language they are written in, the translation engine,
+// the reader's own instructions and their focus keyword. The summary's response
+// format is not one of them - the questions are always two plain lines and the
+// parser strips list markers, so a format change cannot change them (#498).
 export async function getPromptsCacheKey(
   url,
-  fmt,
   model,
   lang = "auto",
   customInstructions = "",
@@ -101,7 +109,7 @@ export async function getPromptsCacheKey(
   return makeCacheKey(
     "suggested-prompts",
     url,
-    fmt,
+    "",
     model,
     lang,
     customInstructions,
@@ -123,7 +131,6 @@ export async function getPromptsCacheKeyForSettings(
 ) {
   return getPromptsCacheKey(
     url,
-    settings.responseFormat,
     model,
     settings.summaryLanguage,
     settings.customInstructions,

@@ -598,3 +598,50 @@ test("buildYoutubeBriefPrompt sanitizes page-controlled chapter titles", () => {
     "fence blocks must stay balanced",
   );
 });
+
+// The suggested-questions prompt follows the reader's focus keyword and their
+// own instructions, the same way the summary does: the cache key scopes both,
+// so a prompt that ignored them made a key dimension refetch questions that
+// could not change (#498).
+test("buildSuggestQuestionsPrompt uses the focus keyword and the custom instructions", () => {
+  const focused = buildSuggestQuestionsPrompt(
+    "Title",
+    "https://example.com/article",
+    "A summary.",
+    "",
+    "battery pricing",
+  );
+  assert.ok(
+    focused.includes("battery pricing"),
+    "the focus keyword reaches the prompt",
+  );
+  assert.ok(
+    focused.includes("READER'S FOCUS"),
+    "the focus clause is in the prompt",
+  );
+
+  const instructed = buildSuggestQuestionsPrompt(
+    "Title",
+    "https://example.com/article",
+    "A summary.",
+    "Ask about the trade-offs",
+  );
+  assert.ok(
+    instructed.includes("Ask about the trade-offs"),
+    "the custom instructions reach the prompt",
+  );
+
+  const plain = buildSuggestQuestionsPrompt(
+    "Title",
+    "https://example.com/article",
+    "A summary.",
+  );
+  assert.ok(
+    !plain.includes("READER'S FOCUS"),
+    "no focus clause without a focus keyword",
+  );
+  assert.ok(
+    !plain.includes("ADDITIONAL INSTRUCTIONS FROM THE USER"),
+    "no instructions block without custom instructions",
+  );
+});
