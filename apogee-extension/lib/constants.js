@@ -171,6 +171,18 @@ export const DEFAULT_LLAMACPP_HOST = "http://127.0.0.1:8080";
 
 export const OFFSCREEN_READY_TIMEOUT_MS = 8000;
 
+// #469: bounds for the calls into the offscreen (model) document.
+//
+// The document answers stream starts and status probes right away, so a healthy
+// reply lands in well under a second - these bounds only fire when the
+// document is stuck. The calls that do real work (embedding, passage search,
+// one-shot generation) can need a cold model load, so they get a much longer
+// bound: the extension already treats a slow model download as normal (see
+// OFFSCREEN_STALL_NOTE_MS), so the bound there is deliberately on the high side.
+export const OFFSCREEN_CALL_TIMEOUT_MS = 10000;
+
+export const OFFSCREEN_WORK_CALL_TIMEOUT_MS = 600000;
+
 export const LLM_HEALTH_CHECK_TIMEOUT_MS = 3000;
 
 export const SPONSORBLOCK_FETCH_TIMEOUT_MS = 4000;
