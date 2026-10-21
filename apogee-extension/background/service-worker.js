@@ -677,7 +677,13 @@ export async function runBackgroundSummarize(
   const cacheUrl = isSelection ? `${tab.url}#apogee-selection` : tab.url;
 
   if (!isSelection && CACHEABLE_PAGE_TYPES.has(pageData.type) && persist) {
-    await persistContent(tab.url, pageData);
+    // Caching the page is a convenience, not a precondition for the summary:
+    // a full storage quota must not cost the user their summary (#495).
+    try {
+      await persistContent(tab.url, pageData);
+    } catch (err) {
+      console.warn("Content cache write failed, continuing without it:", err);
+    }
   }
 
   // The audit log lives in on-disk storage alongside the cache, so it
