@@ -129,6 +129,10 @@ export async function loadViewState(tabId) {
   return stored[key] || null;
 }
 
+// Test-only role (#500): names the storage keys that hold view state
+// (popupViewState:<tabId> and the viewStateOrder index). No live caller -
+// viewStateKey() and isOrphanedViewStateKey() cover the live paths - but the
+// test pins the key contract those two rely on.
 export function isViewStateKey(key) {
   return key.startsWith("popupViewState:") || key === "viewStateOrder";
 }

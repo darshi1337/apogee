@@ -127,7 +127,10 @@ export function createLock() {
   return acquire;
 }
 
-// Per-key FIFO locks, so one stalled engine/model does not block the rest.
+// Test-only role (#500): per-key FIFO locks, so one stalled engine/model does
+// not block the rest. No live caller today - the product still takes one
+// createLock() per context - but the test pins the per-engine isolation
+// property this primitive exists for.
 export function createKeyedLock() {
   const locks = new Map();
 

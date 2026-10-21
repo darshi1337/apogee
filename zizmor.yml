@@ -12,13 +12,6 @@ rules:
         "*": ref-pin
 
   # Each ignore below is a conscious risk acceptance, not sweeping.
-  artipacked:
-    ignore:
-      # changelog-sync's entire job is pushing the synced CHANGELOG back.
-      # No credentials means no push means no job. Token stays at
-      # least-privilege contents:write.
-      - changelog-sync.yml:21
-
   superfluous-actions:
     ignore:
       # softprops/action-gh-release is pinned and does checksum-aware
