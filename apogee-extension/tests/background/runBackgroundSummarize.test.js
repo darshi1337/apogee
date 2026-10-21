@@ -352,3 +352,64 @@ test("runBackgroundSummarize extracts once across a format switch (#177)", async
     ]);
   }
 });
+
+// --- #495: a full storage quota must not cost the user their summary ---
+//
+// runBackgroundSummarize awaited persistContent before the model ran, so a
+// quota error from the content cache rejected the whole run and the user got
+// no summary at all. The cache write is best effort: the run continues even
+// when the write fails.
+test("runBackgroundSummarize continues when the content cache write fails (#495)", async () => {
+  const { getContentCacheKey } = await import("../../lib/storage/pageCache.js");
+  const contentKey = await getContentCacheKey(TAB.url);
+
+  const originalSet = chrome.storage.local.set;
+  const originalSend = chrome.tabs.sendMessage;
+  let cacheWriteAttempted = false;
+
+  chrome.tabs.sendMessage = async () => ({
+    title: "Example Article",
+    url: TAB.url,
+    content: "Extracted article text, long enough to summarize.",
+    type: "article",
+    isPdf: false,
+  });
+  chrome.storage.local.set = async (items) => {
+    // Fail only the content-cache write; every other write goes through.
+    if (items && Object.prototype.hasOwnProperty.call(items, contentKey)) {
+      cacheWriteAttempted = true;
+      const err = new Error("QUOTA_BYTES quota exceeded");
+      err.name = "QuotaExceededError";
+      throw err;
+    }
+    return originalSet(items);
+  };
+
+  try {
+    let thrown;
+    try {
+      await runBackgroundSummarize(TAB, { notifyOnFinish: false });
+    } catch (err) {
+      thrown = err;
+    }
+    assert.ok(cacheWriteAttempted, "the content cache write must be attempted");
+    assert.ok(
+      thrown,
+      "this mock has no model backend, so the run still fails later",
+    );
+    assert.notStrictEqual(
+      thrown.name,
+      "StorageQuotaError",
+      "a quota failure in the content cache must not abort the run",
+    );
+    assert.match(
+      thrown.message,
+      /offscreen API/,
+      "the run must reach the model stage instead of dying in the cache write",
+    );
+  } finally {
+    chrome.storage.local.set = originalSet;
+    chrome.tabs.sendMessage = originalSend;
+    await chrome.storage.local.remove([contentKey, "contentCacheOrder"]);
+  }
+});
