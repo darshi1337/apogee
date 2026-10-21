@@ -15,7 +15,11 @@ jobs:
       contents: write
       pull-requests: write
     steps:
+      # Use the PAT so the release PR triggers CI. A PR created with
+      # GITHUB_TOKEN starts no workflows, which leaves the required checks
+      # missing.
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         with:
+          token: ${{ secrets.SYNC_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json

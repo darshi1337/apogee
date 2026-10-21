@@ -3,8 +3,10 @@ name: Changelog Sync
 # Keeps the [Unreleased] section of CHANGELOG.md current after every merge to
 # main. Release-please owns the versioned sections; this workflow only
 # rewrites [Unreleased] from conventional commits since the last tag, so after
-# a release ships the section shrinks back on its own. The bot commit carries
-# [skip ci] and the job ignores bot pushes, so it never loops.
+# a release ships the section shrinks back on its own.
+# Main is protected, so GITHUB_TOKEN cannot push. SYNC_TOKEN is a fine-grained
+# PAT with Contents and Pull requests write access. The PAT opens a PR so CI
+# runs, then auto-merge lands it when the required checks pass.
 on:
   push:
     branches:
@@ -18,12 +20,21 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
+      - name: Check sync token
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "::error::SYNC_TOKEN is not set. Add a fine-grained PAT with Contents and Pull requests write access."
+            exit 1
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-          persist-credentials: false # push below uses an explicit token remote URL
+          persist-credentials: false # the push below uses the PAT remote URL
 
       - name: Install git-cliff
         run: |
@@ -60,26 +71,32 @@ jobs:
           EOF
           git diff --quiet -- CHANGELOG.md && echo "unchanged" || echo "changed"
 
-      - name: Commit back
+      - name: Open or update the sync PR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
           if git diff --quiet -- CHANGELOG.md; then
             echo "Changelog already current."
             exit 0
           fi
+          branch="automation/changelog-sync"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
           git add CHANGELOG.md
-          git commit -m "docs: sync changelog unreleased section [skip ci]"
-          # Credentials are not persisted by checkout (artipacked), so
-          # authenticate this push explicitly. Another sync job can push
-          # first and move main under us; rebase and retry instead of
-          # failing the run.
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
-          for attempt in 1 2 3; do
-            echo "push attempt $attempt/3"
-            git pull --rebase origin main && git push && break
-            git rebase --abort 2>/dev/null || true
-            sleep 5
-          done
+          git commit -m "docs: sync changelog unreleased section"
+          git remote set-url origin "https://x-access-token:${SYNC_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin "$branch"
+          pr=$(gh pr list --head "$branch" --state open --json number -q '.[0].number')
+          if [ -z "$pr" ]; then
+            gh pr create \
+              --base main \
+              --head "$branch" \
+              --title "docs: sync changelog unreleased section" \
+              --body "Regenerates the Unreleased changelog section from conventional commits since the last tag."
+            pr=$(gh pr list --head "$branch" --state open --json number -q '.[0].number')
+          fi
+          if [ -z "$(gh pr view "$pr" --json autoMergeRequest -q '.autoMergeRequest // empty')" ]; then
+            gh pr merge "$pr" --auto --squash
+          fi
