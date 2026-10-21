@@ -717,6 +717,7 @@ export async function runBackgroundSummarize(
     tabId: tab.id,
     jobId,
     windowId: tab.windowId,
+    customInstructions: settings.customInstructions || "",
     ...(isSelection ? { selectionText: selection } : {}),
   };
 
