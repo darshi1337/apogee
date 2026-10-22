@@ -39,10 +39,12 @@ export async function* attachToStream(streamId, { onStats } = {}) {
     if (msg.type === "chunk") {
       queue.push(msg.text);
     } else if (msg.type === "stats") {
-      onStats?.(msg.tokensPerSec);
+      onStats?.(msg.tokensPerSec, msg.elapsedMs);
     } else if (msg.type === "done") {
       done = true;
-      if (msg.tokensPerSec != null) onStats?.(msg.tokensPerSec);
+      if (msg.tokensPerSec != null || msg.elapsedMs != null) {
+        onStats?.(msg.tokensPerSec, msg.elapsedMs);
+      }
     } else if (msg.type === "cancelled") {
       cancelled = true;
       done = true;

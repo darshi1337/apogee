@@ -7,6 +7,8 @@ import {
   tokensPerSecond,
   finalTokensPerSecond,
   formatTokensPerSecond,
+  formatElapsedTime,
+  formatRunMetrics,
 } from "../../lib/util/throughput.js";
 
 test("tokensForChunk counts a short chunk as one token", () => {
@@ -78,4 +80,30 @@ test("formatTokensPerSecond renders nothing rather than a placeholder", () => {
   assert.strictEqual(formatTokensPerSecond(0), null);
   assert.strictEqual(formatTokensPerSecond(-1), null);
   assert.strictEqual(formatTokensPerSecond(NaN), null);
+});
+
+test("formatElapsedTime formats elapsed milliseconds to concise strings", () => {
+  assert.strictEqual(formatElapsedTime(500), "0.5s");
+  assert.strictEqual(formatElapsedTime(3200), "3.2s");
+  assert.strictEqual(formatElapsedTime(10000), "10.0s");
+  assert.strictEqual(formatElapsedTime(65000), "1m 5s");
+  assert.strictEqual(formatElapsedTime(120000), "2m");
+});
+
+test("formatElapsedTime returns null for invalid or non-positive durations", () => {
+  assert.strictEqual(formatElapsedTime(0), null);
+  assert.strictEqual(formatElapsedTime(-100), null);
+  assert.strictEqual(formatElapsedTime(NaN), null);
+  assert.strictEqual(formatElapsedTime(null), null);
+  assert.strictEqual(formatElapsedTime(undefined), null);
+});
+
+test("formatRunMetrics combines rate and elapsed time", () => {
+  assert.strictEqual(formatRunMetrics(14.2, 3200), "14 tok/s · 3.2s");
+  assert.strictEqual(formatRunMetrics(3.456, 1200), "3.5 tok/s · 1.2s");
+  assert.strictEqual(formatRunMetrics(14, null), "14 tok/s");
+  assert.strictEqual(formatRunMetrics(null, 3200), "3.2s");
+  assert.strictEqual(formatRunMetrics(null, null), null);
+  assert.strictEqual(formatRunMetrics(0, 0), null);
+  assert.strictEqual(formatRunMetrics(NaN, NaN), null);
 });

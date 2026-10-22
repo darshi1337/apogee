@@ -49,6 +49,8 @@ test("createStreamState initializes default fields and merges extra options", ()
   assert.strictEqual(state.tokenCount, 0);
   assert.strictEqual(state.firstTokenTime, null);
   assert.strictEqual(state.tokensPerSec, null);
+  assert.strictEqual(state.elapsedMs, null);
+  assert.ok(typeof state.startTime === "number");
   assert.strictEqual(state.extraFlag, true);
   assert.strictEqual(state.customId, 123);
 });
@@ -143,6 +145,7 @@ test("warmedStatsForState returns null until time and token thresholds clear", (
     assert.ok(stats);
     assert.strictEqual(stats.type, "stats");
     assert.ok(stats.tokensPerSec > 0);
+    assert.strictEqual(stats.elapsedMs, 500);
   });
 });
 
@@ -157,8 +160,10 @@ test("finishStateWithStats computes throughput and sets state.done", () => {
 
     assert.strictEqual(state.done, true);
     assert.ok(state.tokensPerSec > 0);
+    assert.strictEqual(state.elapsedMs, 1000);
     assert.strictEqual(finishedMsg.type, "done");
     assert.strictEqual(finishedMsg.tokensPerSec, state.tokensPerSec);
+    assert.strictEqual(finishedMsg.elapsedMs, 1000);
   });
 });
 
@@ -176,7 +181,9 @@ test("finishStateWithStats prefers valid serverStats over fallback elapsed math"
 
     assert.strictEqual(state.done, true);
     assert.strictEqual(state.tokensPerSec, 50); // 100 tokens / 2s
+    assert.strictEqual(state.elapsedMs, 1000);
     assert.strictEqual(finishedMsg.tokensPerSec, 50);
+    assert.strictEqual(finishedMsg.elapsedMs, 1000);
   });
 });
 
@@ -199,6 +206,7 @@ test("replayStreamToPort replays chunk and terminal/progress states in order wit
     });
     assert.strictEqual(port1.messages[1].type, "stats");
     assert.ok(port1.messages[1].tokensPerSec > 0);
+    assert.strictEqual(port1.messages[1].elapsedMs, 600);
     assert.deepStrictEqual(activeState.subscribers, origSubscribers);
 
     // 2. Cancelled stream
@@ -230,12 +238,13 @@ test("replayStreamToPort replays chunk and terminal/progress states in order wit
       text: "Complete answer",
       done: true,
       tokensPerSec: 25,
+      elapsedMs: 2500,
     });
     const port4 = createCollectingPort();
     replayStreamToPort(doneState, port4);
     assert.deepStrictEqual(port4.messages, [
       { type: "chunk", text: "Complete answer" },
-      { type: "done", tokensPerSec: 25 },
+      { type: "done", tokensPerSec: 25, elapsedMs: 2500 },
     ]);
   });
 });

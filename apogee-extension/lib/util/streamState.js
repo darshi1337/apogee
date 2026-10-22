@@ -18,8 +18,10 @@ export function createStreamState(extra = {}) {
     cancelled: false,
     subscribers: new Set(),
     tokenCount: 0,
+    startTime: performance.now(),
     firstTokenTime: null,
     tokensPerSec: null,
+    elapsedMs: null,
     ...extra,
   };
 }
@@ -52,26 +54,39 @@ export function emitChunkToState(stream, text, scheduleCleanup) {
 // Live rate once warmed up; null before that to avoid noisy updates.
 export function warmedStatsForState(state) {
   if (state.firstTokenTime == null) return null;
-  const elapsedMs = performance.now() - state.firstTokenTime;
-  if (!isWarmedUp(state.tokenCount, elapsedMs)) return null;
+  const elapsedSinceFirst = performance.now() - state.firstTokenTime;
+  if (!isWarmedUp(state.tokenCount, elapsedSinceFirst)) return null;
+  const elapsedMs =
+    state.startTime != null
+      ? Math.max(0, performance.now() - state.startTime)
+      : elapsedSinceFirst;
   return {
     type: "stats",
-    tokensPerSec: tokensPerSecond(state.tokenCount, elapsedMs),
+    tokensPerSec: tokensPerSecond(state.tokenCount, elapsedSinceFirst),
+    elapsedMs,
   };
 }
 
 // Final stats prefer the backend count, which excludes network transit.
 export function finishStateWithStats(state, msg) {
   state.done = true;
-  const elapsedMs =
+  const elapsedFromFirst =
     state.firstTokenTime != null ? performance.now() - state.firstTokenTime : 0;
   state.tokensPerSec =
     finalTokensPerSecond({
       serverStats: msg.serverStats ?? null,
       tokenCount: state.tokenCount,
-      elapsedMs,
+      elapsedMs: elapsedFromFirst,
     }) || null;
-  return { ...msg, tokensPerSec: state.tokensPerSec };
+  state.elapsedMs =
+    state.startTime != null
+      ? Math.max(0, performance.now() - state.startTime)
+      : elapsedFromFirst;
+  return {
+    ...msg,
+    tokensPerSec: state.tokensPerSec,
+    elapsedMs: state.elapsedMs,
+  };
 }
 
 // Late-subscriber catch-up: replay text, then the terminal or progress
@@ -85,7 +100,11 @@ export function replayStreamToPort(stream, port, errorExtra) {
   } else if (stream.error) {
     safePost(port, { type: "error", error: stream.error, ...errorExtra });
   } else if (stream.done) {
-    safePost(port, { type: "done", tokensPerSec: stream.tokensPerSec });
+    safePost(port, {
+      type: "done",
+      tokensPerSec: stream.tokensPerSec,
+      elapsedMs: stream.elapsedMs,
+    });
   } else if (stream.firstTokenTime != null) {
     const stats = warmedStatsForState(stream);
     if (stats) {

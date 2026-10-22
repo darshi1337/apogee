@@ -63,6 +63,30 @@ test("attachToStream reports the frozen rate on a done message with tokensPerSec
   assert.deepStrictEqual(received, [30]);
 });
 
+test("attachToStream passes elapsedMs along with tokensPerSec to onStats", async () => {
+  const port = createCollectingPort();
+  globalThis.chrome = { runtime: { connect: () => port } };
+
+  const received = [];
+  const resultsPromise = collectAsync(
+    attachToStream("stream-stats-elapsed", {
+      onStats: (rate, elapsedMs) => received.push({ rate, elapsedMs }),
+    }),
+  );
+  await new Promise((r) => setTimeout(r, 0));
+
+  port._emitMessage({ type: "chunk", text: "hello" });
+  port._emitMessage({ type: "stats", tokensPerSec: 15, elapsedMs: 1200 });
+  port._emitMessage({ type: "done", tokensPerSec: 18, elapsedMs: 2500 });
+  port._emitDisconnect();
+
+  await resultsPromise;
+  assert.deepStrictEqual(received, [
+    { rate: 15, elapsedMs: 1200 },
+    { rate: 18, elapsedMs: 2500 },
+  ]);
+});
+
 test("attachToStream does not call onStats for a done message with no tokensPerSec", async () => {
   const port = createCollectingPort();
   globalThis.chrome = { runtime: { connect: () => port } };

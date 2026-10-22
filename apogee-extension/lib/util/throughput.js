@@ -37,3 +37,23 @@ export function formatTokensPerSecond(rate) {
     ? `${Math.round(rate)} tok/s`
     : `${rate.toFixed(1)} tok/s`;
 }
+
+export function formatElapsedTime(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  const s = ms / 1000;
+  if (s < 60) {
+    return `${s.toFixed(1)}s`;
+  }
+  const mins = Math.floor(s / 60);
+  const remSec = Math.round(s % 60);
+  return remSec > 0 ? `${mins}m ${remSec}s` : `${mins}m`;
+}
+
+export function formatRunMetrics(rate, elapsedMs) {
+  const formattedRate = formatTokensPerSecond(rate);
+  const formattedElapsed = formatElapsedTime(elapsedMs);
+  if (formattedRate && formattedElapsed) {
+    return `${formattedRate} · ${formattedElapsed}`;
+  }
+  return formattedRate || formattedElapsed || null;
+}

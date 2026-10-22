@@ -69,7 +69,7 @@ import {
   timeSavedInputsFor,
   formatTimeSavedFromInputs,
 } from "../lib/util/readingTime.js";
-import { formatTokensPerSecond } from "../lib/util/throughput.js";
+import { formatRunMetrics } from "../lib/util/throughput.js";
 import {
   saveViewState,
   saveViewStateIfJobMatches,
@@ -983,6 +983,13 @@ chrome.runtime.onMessage.addListener((message, sender) => {
         );
       }
     }
+    if (p.text) {
+      if (summaryText?.querySelector(".loading-state")) {
+        setLoadingIndicator(summaryText, p.text);
+      } else if (answerBox?.querySelector(".loading-state")) {
+        setLoadingIndicator(answerBox, p.text);
+      }
+    }
   }
 
   if (message.type === "live-offscreen-log" && message.log) {
@@ -1398,8 +1405,8 @@ async function getTimeSavedInputsForTab(tab, state) {
   }
 }
 
-function setTokensPerSecBadge(el, rate) {
-  setBadgeLabel(el, rate != null ? formatTokensPerSecond(rate) : null);
+function setTokensPerSecBadge(el, rate, elapsedMs) {
+  setBadgeLabel(el, formatRunMetrics(rate, elapsedMs));
 }
 
 function setSummaryCopyButtonsVisible(hasText) {
@@ -2005,7 +2012,8 @@ async function summarizeActivePage() {
         translationEngine: settings.translationEngine,
         focusKeyword,
         finalize,
-        onStats: (rate) => setTokensPerSecBadge(tokensPerSecBadgeSummary, rate),
+        onStats: (rate, elapsedMs) =>
+          setTokensPerSecBadge(tokensPerSecBadgeSummary, rate, elapsedMs),
       };
       // The whole attempt runs inside the fallback (#415): local HTTP
       // engines report failure mid-stream, after the start handshake
@@ -2151,7 +2159,8 @@ async function submitQuestion(question) {
       question: trimmed,
       language: settings.summaryLanguage,
       translationEngine: settings.translationEngine,
-      onStats: (rate) => setTokensPerSecBadge(tokensPerSecBadgeAsk, rate),
+      onStats: (rate, elapsedMs) =>
+        setTokensPerSecBadge(tokensPerSecBadgeAsk, rate, elapsedMs),
     };
     const kind = INPUT_KINDS.ASK;
     const tokenCount = estimateTokens((content || "") + " " + trimmed);
@@ -2425,8 +2434,12 @@ document.addEventListener("DOMContentLoaded", async () => {
               await getPageData(tab);
               await consumeSummaryStream(
                 attachToStream(state.streamId, {
-                  onStats: (rate) =>
-                    setTokensPerSecBadge(tokensPerSecBadgeSummary, rate),
+                  onStats: (rate, elapsedMs) =>
+                    setTokensPerSecBadge(
+                      tokensPerSecBadgeSummary,
+                      rate,
+                      elapsedMs,
+                    ),
                 }),
                 {
                   tab,
@@ -2476,8 +2489,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             try {
               await consumeAnswerStream(
                 attachToStream(state.streamId, {
-                  onStats: (rate) =>
-                    setTokensPerSecBadge(tokensPerSecBadgeAsk, rate),
+                  onStats: (rate, elapsedMs) =>
+                    setTokensPerSecBadge(tokensPerSecBadgeAsk, rate, elapsedMs),
                 }),
                 {
                   tab,
@@ -2741,7 +2754,8 @@ async function summarizeCustomContent(title, content, url = "") {
       language: settings.summaryLanguage,
       customInstructions: settings.customInstructions,
       translationEngine: settings.translationEngine,
-      onStats: (rate) => setTokensPerSecBadge(tokensPerSecBadgeSummary, rate),
+      onStats: (rate, elapsedMs) =>
+        setTokensPerSecBadge(tokensPerSecBadgeSummary, rate, elapsedMs),
       finalize: {
         customContent: true,
         tabId: tab?.id,
