@@ -3,6 +3,8 @@ import { embedTexts as embedTextsDefault, dot } from "../engines/embeddings.js";
 import { cyrb53 } from "../util/hash.js";
 
 export const RETRIEVAL_CHUNK_CHARS = 1000;
+// Same value as MAX_CHUNK_CHARS (lib/summarize/chunk.js) today, but not
+// coupled to it: this budgets Q&A context, that sizes summary chunks.
 const DEFAULT_MAX_CONTEXT_CHARS = 6000;
 const DEFAULT_TOP_K = 8;
 

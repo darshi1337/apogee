@@ -1,5 +1,7 @@
 const DEVTO_MAX_COMMENTS = 80;
 const DEVTO_MAX_DEPTH = 8;
+// Matches the other discussion caps and MAX_MATCH_TEXT_CHARS today;
+// the values are independent and can diverge.
 const DEVTO_MAX_COMMENT_CHARS = 1500;
 
 const DEVTO_NON_ARTICLE_PATHS = [

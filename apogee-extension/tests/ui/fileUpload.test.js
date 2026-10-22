@@ -9,6 +9,7 @@ import {
   readTextHead,
   UPLOAD_MIME_TYPES,
 } from "../../lib/extract/fileLimits.js";
+import { toUserMessage } from "../../lib/util/userError.js";
 
 const appCode = readFileSync(
   new URL("../../ui/app.js", import.meta.url),
@@ -25,7 +26,7 @@ const uploadCode = appCode.slice(
   appCode.indexOf('sendBtn?.addEventListener("click"'),
 );
 
-function uploadHarness() {
+function uploadHarness({ summarize } = {}) {
   const handlers = {};
   const notices = [];
   const summaries = [];
@@ -63,13 +64,14 @@ function uploadHarness() {
     assertUploadOk,
     assertUploadSizeOk,
     readTextHead,
+    toUserMessage,
     renderError: (target, message) => {
       target.textContent = message;
     },
     announce: (message) => notices.push(message),
     showOnlyView: () => {},
-    summarizeCustomContent: async (name, text) =>
-      summaries.push({ name, text }),
+    summarizeCustomContent:
+      summarize ?? (async (name, text) => summaries.push({ name, text })),
     console: { error: () => {} },
   });
   return {
@@ -150,5 +152,19 @@ for (const method of ["change", "drop"]) {
     assert.equal(harness.error.textContent, "");
     assert.equal(harness.error.classList.contains("hidden"), true);
     assert.equal(harness.input.value, "");
+  });
+}
+
+for (const method of ["change", "drop"]) {
+  test(`${method} never shows a raw library error in the file note`, async () => {
+    const harness = uploadHarness({
+      summarize: async () => {
+        throw new Error("EIO: i/o error, read at 0x7f3a (pdfium)");
+      },
+    });
+    await harness.upload(method, new File(["hello"], "notes.txt"));
+    assert.equal(harness.error.classList.contains("hidden"), false);
+    assert.doesNotMatch(harness.error.textContent, /EIO|0x7f3a|Failed to read/);
+    assert.ok(harness.error.textContent.length > 0);
   });
 }

@@ -12,6 +12,7 @@ import {
   selectSalientChunks,
 } from "../lib/retrieval/rag.js";
 import { createLock } from "../lib/util/mutex.js";
+import { toUserMessage } from "../lib/util/userError.js";
 import { WEBLLM_MODELS, isKnownWebLLMModelId } from "../lib/constants.js";
 import {
   OFFSCREEN_STALL_NOTE_MS,
@@ -696,7 +697,7 @@ async function runStream(streamId, pending, stream) {
       .sendMessage({
         target: "service-worker",
         type: "model-progress",
-        progress: { text: `Error: ${err.message}`, progress: 0 },
+        progress: { text: toUserMessage(err), progress: 0 },
       })
       .catch(() => {});
   } finally {
@@ -728,6 +729,7 @@ chrome.runtime.onConnect.addListener((port) => {
       error:
         "This response is no longer available (its stream expired). " +
         "Try summarizing again.",
+      userFacing: true,
     });
     safeDisconnect(port);
     return;
@@ -829,12 +831,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             provider,
             language,
             translationEngine,
+            customInstructions,
+            focusKeyword,
           } = message.payload;
           const prompts = await getPrompts();
           const prompt = prompts.buildSuggestQuestionsPrompt(
             title,
             url,
             summary,
+            customInstructions,
+            focusKeyword,
           );
           const qLanguage = await resolveEffectiveLanguage(summary, language);
           const translateFn = opusTranslateFnFor(

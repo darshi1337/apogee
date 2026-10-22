@@ -83,12 +83,12 @@ test("cache key helpers embed the hashed url and are namespaced by kind", async 
     `summary:bullets:es:model-x:opus:${hash}`,
   );
   assert.strictEqual(
-    await getPromptsCacheKey(url, "bullets", "model-x"),
-    `suggested-prompts:bullets:auto:model-x:opus:${hash}`,
+    await getPromptsCacheKey(url, "model-x"),
+    `suggested-prompts:auto:model-x:opus:${hash}`,
   );
   assert.strictEqual(
-    await getPromptsCacheKey(url, "bullets", "model-x", "es"),
-    `suggested-prompts:bullets:es:model-x:opus:${hash}`,
+    await getPromptsCacheKey(url, "model-x", "es"),
+    `suggested-prompts:es:model-x:opus:${hash}`,
   );
   assert.strictEqual(await getContentCacheKey(url), `content:${hash}`);
 });
@@ -137,11 +137,13 @@ test("parseSummaryCacheKey falls back to empty strings for foreign keys", () => 
 
 test("cache keys change with the translation engine that shaped the output", async () => {
   const args = ["https://example.com/article", "bullets", "model-x", "bg", ""];
+  // The questions' key carries no response format (#498), so it takes its own args.
+  const promptArgs = ["https://example.com/article", "model-x", "bg", ""];
 
   const llmSummary = await getSummaryCacheKey(...args, "llm");
   const opusSummary = await getSummaryCacheKey(...args, "opus");
-  const llmPrompts = await getPromptsCacheKey(...args, "llm");
-  const opusPrompts = await getPromptsCacheKey(...args, "opus");
+  const llmPrompts = await getPromptsCacheKey(...promptArgs, "llm");
+  const opusPrompts = await getPromptsCacheKey(...promptArgs, "opus");
 
   assert.notStrictEqual(llmSummary, opusSummary);
   assert.notStrictEqual(llmPrompts, opusPrompts);
@@ -181,14 +183,8 @@ test("cache keys change with the custom instructions that shaped the prompt", as
   );
 
   assert.notStrictEqual(
-    await getPromptsCacheKey(
-      url,
-      "bullets",
-      "model-x",
-      "auto",
-      "Focus on the numbers",
-    ),
-    await getPromptsCacheKey(url, "bullets", "model-x", "auto"),
+    await getPromptsCacheKey(url, "model-x", "auto", "Focus on the numbers"),
+    await getPromptsCacheKey(url, "model-x", "auto"),
   );
 });
 
@@ -202,8 +198,8 @@ test("empty or whitespace-only instructions omit the instructions suffix", async
       `summary:bullets:auto:model-x:opus:${hash}`,
     );
     assert.strictEqual(
-      await getPromptsCacheKey(url, "bullets", "model-x", "auto", instructions),
-      `suggested-prompts:bullets:auto:model-x:opus:${hash}`,
+      await getPromptsCacheKey(url, "model-x", "auto", instructions),
+      `suggested-prompts:auto:model-x:opus:${hash}`,
     );
   }
 });
@@ -267,14 +263,13 @@ test("cache keys change with the focus keyword that shaped the prompt (#161)", a
   assert.notStrictEqual(
     await getPromptsCacheKey(
       url,
-      "bullets",
       "model-x",
       "auto",
       "",
       "opus",
       "battery pricing",
     ),
-    await getPromptsCacheKey(url, "bullets", "model-x", "auto", "", "opus"),
+    await getPromptsCacheKey(url, "model-x", "auto", "", "opus"),
   );
 });
 
@@ -509,12 +504,12 @@ test("clearCachedPages removes stored history and leaves settings alone", async 
 
   await persistSummary(
     "summary:bullets:auto:m:abc",
-    "suggested-prompts:bullets:auto:m:abc",
+    "suggested-prompts:auto:m:abc",
     "The board approved the merger.",
     "Board notes",
   );
   await chrome.storage.local.set({
-    "suggested-prompts:bullets:auto:m:abc": ["What did they decide?"],
+    "suggested-prompts:auto:m:abc": ["What did they decide?"],
   });
   await persistContent("https://example.com/article", {
     title: "Board notes",

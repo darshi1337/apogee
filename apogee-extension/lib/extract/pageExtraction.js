@@ -76,7 +76,7 @@ export function injectionErrorMessage(err) {
   ) {
     return "Apogee can't read this page. The browser blocks extensions from running here, try a regular webpage instead.";
   }
-  return raw || "Apogee couldn't read this page.";
+  return "Apogee couldn't read this page.";
 }
 
 // True for failures a user grant can fix (expired tab grant on persistent

@@ -156,3 +156,23 @@ test("toUserMessage handles an error with no message", () => {
     "An unexpected error occurred. Try summarizing again.",
   );
 });
+
+test("toUserMessage uses a caller-supplied fallback when nothing matches", () => {
+  assert.strictEqual(
+    toUserMessage(
+      new Error("EIO: weird disk thing"),
+      "Couldn't read this file.",
+    ),
+    "Couldn't read this file.",
+  );
+});
+
+test("toUserMessage still prefers a matching pattern over the caller fallback", () => {
+  assert.strictEqual(
+    toUserMessage(
+      new Error("Failed to fetch (Ollama)"),
+      "Couldn't read this file.",
+    ),
+    "Could not connect to Ollama. Make sure Ollama is running and check your Settings.",
+  );
+});

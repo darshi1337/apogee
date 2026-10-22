@@ -701,26 +701,50 @@ export function buildAnswerPrompt(title, url, content, question) {
   ].join("\n");
 }
 
-export function buildSuggestQuestionsPrompt(title, url, summary) {
-  return [
-    "You are Apogee, a concise browser assistant.",
-    "",
-    "Generate exactly two useful follow-up questions a reader may want to ask after",
-    "reading this summary.",
-    "",
-    "Rules:",
-    INJECTION_RULE,
-    "- Return only the two questions.",
-    "- Put each question on its own line.",
-    "- Do not number the questions.",
-    "- Do not use bullets.",
-    "- Do not add headings or explanations.",
-    "- Make the questions specific to the article, video, email, or PDF.",
-    "",
-    `Title:\n${fenceTitle(title)}`,
-    `URL:\n${fenceUrl(url)}`,
-    "",
-    "Summary:",
-    fenceContent(summary),
-  ].join("\n");
+// The reader's focus keyword and their own instructions shape the questions as
+// well as the summary - a reader who asked to focus on pricing wants questions
+// about pricing (#498). The cache key already scoped both, so leaving them out
+// of the prompt made a key dimension refetch questions that could not change.
+export function buildSuggestQuestionsPrompt(
+  title,
+  url,
+  summary,
+  customInstructions = "",
+  focusKeyword = "",
+) {
+  const focus = (focusKeyword || "").trim();
+  return withCustomInstructions(
+    [
+      "You are Apogee, a concise browser assistant.",
+      "",
+      "Generate exactly two useful follow-up questions a reader may want to ask after",
+      "reading this summary.",
+      "",
+      "Rules:",
+      INJECTION_RULE,
+      "- Return only the two questions.",
+      "- Put each question on its own line.",
+      "- Do not number the questions.",
+      "- Do not use bullets.",
+      "- Do not add headings or explanations.",
+      "- Make the questions specific to the article, video, email, or PDF.",
+      ...(focus
+        ? [
+            "",
+            "READER'S FOCUS:",
+            "The reader (not the content) asked for questions about the following topic(s), enclosed below:",
+            fenceFocusKeyword(focus),
+            "- Make the two questions about these topics when the summary covers them.",
+            "- Do not invent content about these topics that the summary does not contain.",
+          ]
+        : []),
+      "",
+      `Title:\n${fenceTitle(title)}`,
+      `URL:\n${fenceUrl(url)}`,
+      "",
+      "Summary:",
+      fenceContent(summary),
+    ].join("\n"),
+    customInstructions,
+  );
 }

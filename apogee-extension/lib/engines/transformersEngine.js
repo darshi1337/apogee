@@ -9,7 +9,7 @@ import { getTransformers } from "./transformersLib.js";
 import { ortWasmUrl, ortWasmBinary } from "./onnxWasm.js";
 import { createLock } from "../util/mutex.js";
 
-export const ENGINE_LOCK_TIMEOUT_MS = 20 * 60 * 1000;
+const ENGINE_LOCK_TIMEOUT_MS = 20 * 60 * 1000;
 const LOAD_MAX_ATTEMPTS = 3;
 
 export function isTransientLoadError(err) {
@@ -226,6 +226,11 @@ export function disposeTranslatorNow() {
   return false;
 }
 
+// Test-only role (#500): reports the cached translator's model id and whether
+// an idle dispose is scheduled. No live caller - the offscreen document asks
+// for the text engine's status via getTransformersStatus() - but the test uses
+// this to observe the translator lifecycle, together with
+// __setTranslatorForTest below.
 export function getTranslatorStatus() {
   return {
     currentModelId: translatorModelId,

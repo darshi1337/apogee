@@ -8,6 +8,8 @@
 // fetch rationale.
 const REDDIT_MAX_COMMENTS = 60;
 const REDDIT_MAX_DEPTH = 8;
+// Matches the other discussion caps and MAX_MATCH_TEXT_CHARS today;
+// the values are independent and can diverge.
 const REDDIT_MAX_COMMENT_CHARS = 1500;
 const REDDIT_MAX_SELFTEXT_CHARS = 12000;
 

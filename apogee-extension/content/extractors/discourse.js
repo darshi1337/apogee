@@ -1,4 +1,6 @@
 const DISCOURSE_MAX_POSTS = 80;
+// Matches the other discussion caps and MAX_MATCH_TEXT_CHARS today;
+// the values are independent and can diverge.
 const DISCOURSE_MAX_POST_CHARS = 1500;
 
 function isDiscoursePage() {
