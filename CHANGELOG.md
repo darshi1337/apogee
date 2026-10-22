@@ -313,6 +313,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Map internal errors to plain messages in model bar, PDF, file and host notes (#470) (#493) ([b67c1c3](https://github.com/darshi1337/apogee/commit/b67c1c368fe2a6aee4902df88de093a65c6a19ff))
 - Keep the summary when the content cache write fails (#495) (#524) ([4ebfb02](https://github.com/darshi1337/apogee/commit/4ebfb02fae6941b5f54ace3a58bdf9d3f6d74600))
 - Use focus and instructions in fresh prompts (#498) (#523) ([dd677bc](https://github.com/darshi1337/apogee/commit/dd677bc9a94df8e60daa8401b7243bbc911ddcee))
+- Skip multi-tab ready notification when view state is not saved (#496) ([1bb1398](https://github.com/darshi1337/apogee/commit/1bb1398e9c60be15af181e53c7bf07ff3720ec08))
 
 ## [0.2.1] - 2026-08-19
 
