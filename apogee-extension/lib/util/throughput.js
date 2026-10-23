@@ -40,13 +40,14 @@ export function formatTokensPerSecond(rate) {
 
 export function formatElapsedTime(ms) {
   if (!Number.isFinite(ms) || ms <= 0) return null;
-  const s = ms / 1000;
-  if (s < 60) {
-    return `${s.toFixed(1)}s`;
+  const tenths = Math.round(ms / 100);
+  const totalSeconds = tenths / 10;
+  if (totalSeconds < 60) {
+    return `${totalSeconds.toFixed(1)}s`;
   }
-  const mins = Math.floor(s / 60);
-  const remSec = Math.round(s % 60);
-  return remSec > 0 ? `${mins}m ${remSec}s` : `${mins}m`;
+  const mins = Math.floor(totalSeconds / 60);
+  const remSec = Math.round(totalSeconds % 60);
+  return `${mins}m ${remSec}s`;
 }
 
 export function formatRunMetrics(rate, elapsedMs) {
