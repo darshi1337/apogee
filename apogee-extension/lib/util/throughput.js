@@ -41,12 +41,12 @@ export function formatTokensPerSecond(rate) {
 export function formatElapsedTime(ms) {
   if (!Number.isFinite(ms) || ms <= 0) return null;
   const tenths = Math.round(ms / 100);
-  const totalSeconds = tenths / 10;
-  if (totalSeconds < 60) {
-    return `${totalSeconds.toFixed(1)}s`;
+  if (tenths < 600) {
+    return `${(tenths / 10).toFixed(1)}s`;
   }
-  const mins = Math.floor(totalSeconds / 60);
-  const remSec = Math.round(totalSeconds % 60);
+  const totalSec = Math.round(ms / 1000);
+  const mins = Math.floor(totalSec / 60);
+  const remSec = totalSec % 60;
   return `${mins}m ${remSec}s`;
 }
 

@@ -91,7 +91,12 @@ test("formatElapsedTime formats elapsed milliseconds to concise strings", () => 
   assert.strictEqual(formatElapsedTime(59999), "1m 0s");
   assert.strictEqual(formatElapsedTime(60000), "1m 0s");
   assert.strictEqual(formatElapsedTime(65000), "1m 5s");
+  assert.strictEqual(formatElapsedTime(119499), "1m 59s");
+  assert.strictEqual(formatElapsedTime(119500), "2m 0s");
+  assert.strictEqual(formatElapsedTime(119949), "2m 0s");
+  assert.strictEqual(formatElapsedTime(119950), "2m 0s");
   assert.strictEqual(formatElapsedTime(120000), "2m 0s");
+  assert.strictEqual(formatElapsedTime(179500), "3m 0s");
 });
 
 test("formatElapsedTime returns null for invalid or non-positive durations", () => {
