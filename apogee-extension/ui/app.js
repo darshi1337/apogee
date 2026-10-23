@@ -494,6 +494,39 @@ function startSuggestedQuestionsBg(
     .catch(() => {});
 }
 
+// Show the saved suggested prompts for a restored summary, or ask the worker
+// for fresh ones. useStored=false skips the storage read: a multi-tab
+// synthesis has no prompts key of its own (the worker saves null, #494), so
+// the key rebuilt from the owner URL is the single-tab key and its cached
+// prompts belong to another summary. The key is then only used to match the
+// worker's broadcast.
+async function restoreSuggestedPrompts({
+  promptsCacheKey,
+  tab,
+  summary,
+  settings,
+  persist,
+  focusKeyword = "",
+  useStored = true,
+}) {
+  if (useStored && promptsCacheKey) {
+    const stored = await chrome.storage.local.get(promptsCacheKey);
+    if (stored[promptsCacheKey] !== undefined) {
+      showSummaryContext(stored[promptsCacheKey]);
+      return;
+    }
+  }
+  showSummaryContext([]);
+  setSuggestedQuestionsLoading();
+  startSuggestedQuestionsBg(
+    promptsCacheKey,
+    { title: tab.title || "", url: tab.url, summary },
+    settings,
+    persist,
+    focusKeyword,
+  );
+}
+
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
   if (changes.settings) {
@@ -2567,26 +2600,29 @@ document.addEventListener("DOMContentLoaded", async () => {
                 state.summaryText,
               );
               showOnlyView("summaryView");
-              const selPromptsKey = state.promptsCacheKey;
-              const stored = selPromptsKey
-                ? await chrome.storage.local.get(selPromptsKey)
-                : {};
-              if (selPromptsKey && stored[selPromptsKey] !== undefined) {
-                showSummaryContext(stored[selPromptsKey]);
-              } else {
-                showSummaryContext([]);
-                setSuggestedQuestionsLoading();
-                startSuggestedQuestionsBg(
-                  selPromptsKey,
-                  {
-                    title: tab.title || "",
-                    url: tab.url,
-                    summary: state.summaryText,
-                  },
-                  settings,
-                  false,
-                );
-              }
+              // Multi-tab saves promptsCacheKey: null so a stale single-tab
+              // key is not inherited (#494). Rebuild it from the tab URL so
+              // the popup listens on the key the worker broadcasts, but do
+              // not read it from storage: it is the single-tab key. The
+              // focus keyword is always empty for a multi-tab synthesis.
+              const isMultiTab = !state.promptsCacheKey;
+              await restoreSuggestedPrompts({
+                promptsCacheKey:
+                  state.promptsCacheKey ||
+                  (tab.url
+                    ? await getPromptsCacheKeyForSettings(
+                        tab.url,
+                        settings,
+                        getModelForSettings(settings),
+                        "",
+                      )
+                    : null),
+                tab,
+                summary: state.summaryText,
+                settings,
+                persist: false,
+                useStored: !isMultiTab,
+              });
               return;
             }
           }
@@ -2620,23 +2656,14 @@ document.addEventListener("DOMContentLoaded", async () => {
               : null;
           showTimeSavedFromInputs(badgeInputs, cached[cacheKey]);
           showOnlyView("summaryView");
-          if (cached[promptsCacheKey] !== undefined) {
-            showSummaryContext(cached[promptsCacheKey]);
-          } else {
-            showSummaryContext([]);
-            setSuggestedQuestionsLoading();
-            startSuggestedQuestionsBg(
-              promptsCacheKey,
-              {
-                title: tab.title || "",
-                url: tab.url,
-                summary: cached[cacheKey],
-              },
-              settings,
-              await shouldPersist(tab.url),
-              focusKeyword,
-            );
-          }
+          await restoreSuggestedPrompts({
+            promptsCacheKey,
+            tab,
+            summary: cached[cacheKey],
+            settings,
+            persist: await shouldPersist(tab.url),
+            focusKeyword,
+          });
           return;
         }
       } catch (error) {
