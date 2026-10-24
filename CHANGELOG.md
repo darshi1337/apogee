@@ -4,6 +4,55 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0](https://github.com/darshi1337/apogee/compare/v0.2.4...v0.3.0) (2026-10-24)
+
+
+### Added
+
+* Add config download and trim settings copy ([#551](https://github.com/darshi1337/apogee/issues/551)) ([2c69014](https://github.com/darshi1337/apogee/commit/2c69014c71d9c171d63455dc32d3ab16d3ab4abd))
+* Add extract-only copy-text action ([#414](https://github.com/darshi1337/apogee/issues/414)) ([#449](https://github.com/darshi1337/apogee/issues/449)) ([001c4bd](https://github.com/darshi1337/apogee/commit/001c4bd16d7364acb32e9a1526170b97060301d0))
+* Effective-config view with keys hidden ([#461](https://github.com/darshi1337/apogee/issues/461)) ([ebceca6](https://github.com/darshi1337/apogee/commit/ebceca6cf9d39aa5827bb1f3f39ba8168c6d1e85))
+* Locale catalog check in CI plus shared glossary ([#465](https://github.com/darshi1337/apogee/issues/465)) ([6f5cb78](https://github.com/darshi1337/apogee/commit/6f5cb7840d12723ff440d7bc7dc089f79deddde6))
+* Provider fallback chain across engines ([#459](https://github.com/darshi1337/apogee/issues/459)) ([1a2f83b](https://github.com/darshi1337/apogee/commit/1a2f83b3dc02689366b5ae5165ec04e8f2e741db))
+* Rules-based engine selection by input kind and context size ([#437](https://github.com/darshi1337/apogee/issues/437)) ([#482](https://github.com/darshi1337/apogee/issues/482)) ([f42ec94](https://github.com/darshi1337/apogee/commit/f42ec94b8455c85295f4ab6dd478d283f868cd1d))
+* Show stage progress and elapsed time in run metrics ([#442](https://github.com/darshi1337/apogee/issues/442)) ([b28a74f](https://github.com/darshi1337/apogee/commit/b28a74f14137d83c31ccaadab925d6b10be93866))
+
+
+### Fixed
+
+* **background:** Keep the summary when the content cache write fails ([#495](https://github.com/darshi1337/apogee/issues/495)) ([#524](https://github.com/darshi1337/apogee/issues/524)) ([4ebfb02](https://github.com/darshi1337/apogee/commit/4ebfb02fae6941b5f54ace3a58bdf9d3f6d74600))
+* Cap selected text at the pasted-text ceiling ([#471](https://github.com/darshi1337/apogee/issues/471)) ([#481](https://github.com/darshi1337/apogee/issues/481)) ([965f5d6](https://github.com/darshi1337/apogee/commit/965f5d6e6a8c13704eb94d53c92549bd62ac63ae))
+* Clamp sub-minute STREAM_CLEANUP alarm delays to Chrome's minimum ([#447](https://github.com/darshi1337/apogee/issues/447)) ([07fa5f5](https://github.com/darshi1337/apogee/commit/07fa5f51db1dce8d70fecbc14dc1644ec205bbc6))
+* Clear a stale focus keyword on a fresh open on a new page ([#413](https://github.com/darshi1337/apogee/issues/413)) ([#446](https://github.com/darshi1337/apogee/issues/446)) ([cb26b44](https://github.com/darshi1337/apogee/commit/cb26b44f836b7f2116d7cc49ba388abf3493577c))
+* Disconnect offscreen ports on cancel via shared helper ([ea6a38a](https://github.com/darshi1337/apogee/commit/ea6a38abb5e8ad825c2ff98f537313506455a35f))
+* Disconnect offscreen ports on cancel via shared helper ([7e43a98](https://github.com/darshi1337/apogee/commit/7e43a9847adbc028a3faed74d59810e517430461))
+* Do not read the single-tab prompts key when restoring a multi-tab summary ([#494](https://github.com/darshi1337/apogee/issues/494)) ([d08f872](https://github.com/darshi1337/apogee/commit/d08f8724ca8417635e710698ae78aa853c10c3ee))
+* Empty multi-tab short-circuits with nothing-to-summarize ([#468](https://github.com/darshi1337/apogee/issues/468)) ([163e47b](https://github.com/darshi1337/apogee/commit/163e47b09309a272ed0a0722d6c11657a54780d9))
+* Empty multi-tab short-circuits with nothing-to-summarize ([#468](https://github.com/darshi1337/apogee/issues/468)) ([ec7c36e](https://github.com/darshi1337/apogee/commit/ec7c36ee2340ffd16861bed887cc7427387099a0))
+* End stream on settings-load failure ([#466](https://github.com/darshi1337/apogee/issues/466)) ([#474](https://github.com/darshi1337/apogee/issues/474)) ([6a245b4](https://github.com/darshi1337/apogee/commit/6a245b4a4d2f7e2af5be36ed9c4bb3fca2f8a434))
+* Evict pending finalizes without timestamp and document lazy TTL ([#342](https://github.com/darshi1337/apogee/issues/342)) ([e3b89c3](https://github.com/darshi1337/apogee/commit/e3b89c3371f5bbdfaf0d82a338a20baa54c77782))
+* Expire stream subscribers on cleanup ([cdf59ee](https://github.com/darshi1337/apogee/commit/cdf59ee98fd8f79026f49498a48ac62acf99cadc))
+* Expire stream subscribers on cleanup ([#386](https://github.com/darshi1337/apogee/issues/386)) ([fa56fae](https://github.com/darshi1337/apogee/commit/fa56fae2edadbdb4863da8068bd5e8f312a2dde1))
+* Honor focusKeyword in video summarize path ([8c2593e](https://github.com/darshi1337/apogee/commit/8c2593edbc6e1617a18dc25c65bbe9e2dbf1cf7a))
+* Honor focusKeyword in video summarize path ([#388](https://github.com/darshi1337/apogee/issues/388)) ([0276c1e](https://github.com/darshi1337/apogee/commit/0276c1eca211c1fc0e7e46a237260f765d923c87))
+* Keep aborted multi-tab runs silent ([#468](https://github.com/darshi1337/apogee/issues/468)) ([d6bd87e](https://github.com/darshi1337/apogee/commit/d6bd87ed9c44ebd2b7d879f6df21a4bc12f9cd4f))
+* Map internal errors to plain messages in model bar, PDF, file and host notes ([#470](https://github.com/darshi1337/apogee/issues/470)) ([#493](https://github.com/darshi1337/apogee/issues/493)) ([b67c1c3](https://github.com/darshi1337/apogee/commit/b67c1c368fe2a6aee4902df88de093a65c6a19ff))
+* Pass translationEngine in llama.cpp suggest path ([#411](https://github.com/darshi1337/apogee/issues/411)) ([712b300](https://github.com/darshi1337/apogee/commit/712b3003f4c0464eaa88a2a0265c115ce4ac0c19))
+* Rebuild prompts key when restoring multi-tab summary ([#494](https://github.com/darshi1337/apogee/issues/494)) ([c2977bb](https://github.com/darshi1337/apogee/commit/c2977bba2dff1108bbd6fba2e5afb9f620de1fdb))
+* Rebuild prompts key when restoring multi-tab summary ([#494](https://github.com/darshi1337/apogee/issues/494)) ([578d3b8](https://github.com/darshi1337/apogee/commit/578d3b863454efdf3c63abce5bceb0e25a694dd2))
+* Reject unsupported file uploads ([#472](https://github.com/darshi1337/apogee/issues/472)) ([#480](https://github.com/darshi1337/apogee/issues/480)) ([8035fa7](https://github.com/darshi1337/apogee/commit/8035fa7668fcce1b148ef2875c070d6df8e90de8))
+* Report run-expired guidance when opening an expired stream ([#473](https://github.com/darshi1337/apogee/issues/473)) ([#492](https://github.com/darshi1337/apogee/issues/492)) ([a4f34bd](https://github.com/darshi1337/apogee/commit/a4f34bd1b77d92a9f548f5ecdc9c6afa3a674948))
+* Scope suggest-questions-bg cache key by focusKeyword ([#392](https://github.com/darshi1337/apogee/issues/392)) ([b88e867](https://github.com/darshi1337/apogee/commit/b88e86744b8d310148c22c159f877074a307dfdc))
+* Scope suggest-questions-bg cache key by focusKeyword ([#392](https://github.com/darshi1337/apogee/issues/392)) ([4ddcc9a](https://github.com/darshi1337/apogee/commit/4ddcc9a9d82a8f6be1902fba2e20a9752c75e394))
+* Show empty-result fault on blank summary output ([#467](https://github.com/darshi1337/apogee/issues/467)) ([#479](https://github.com/darshi1337/apogee/issues/479)) ([e53e164](https://github.com/darshi1337/apogee/commit/e53e16409d8f5d5ab0b9c84c7eebd06247ac9f3d))
+* Show focus keyword for video and discussion, gate cache on multi-tab only ([03fdf7d](https://github.com/darshi1337/apogee/commit/03fdf7d53e2c9c76d0c80dbb7808d56b39c4e6fe))
+* Show focus keyword for video and discussion, gate cache on multi-tab only ([#390](https://github.com/darshi1337/apogee/issues/390)) ([4c42680](https://github.com/darshi1337/apogee/commit/4c42680910e121683ee2f7027427fdb3bf70969d))
+* Skip multi-tab ready notification when view state is not saved ([#496](https://github.com/darshi1337/apogee/issues/496)) ([f63ce80](https://github.com/darshi1337/apogee/commit/f63ce809bc51ce8629296e869ebb17869eaa3c44))
+* Skip multi-tab ready notification when view state is not saved ([#496](https://github.com/darshi1337/apogee/issues/496)) ([1bb1398](https://github.com/darshi1337/apogee/commit/1bb1398e9c60be15af181e53c7bf07ff3720ec08))
+* **suggest-questions:** Use focus and instructions in fresh prompts ([#498](https://github.com/darshi1337/apogee/issues/498)) ([#523](https://github.com/darshi1337/apogee/issues/523)) ([dd677bc](https://github.com/darshi1337/apogee/commit/dd677bc9a94df8e60daa8401b7243bbc911ddcee))
+* Surface offscreen-ready timeout error via shared withTimeout ([b8a3cb4](https://github.com/darshi1337/apogee/commit/b8a3cb47361ba11be9ed67b47ca3d448272ed9fc))
+* Surface offscreen-ready timeout error via shared withTimeout ([f8d8a3e](https://github.com/darshi1337/apogee/commit/f8d8a3ecc1858de0ac8704f04f22c76e2ab440db))
+
 ## [0.2.4](https://github.com/darshi1337/apogee/compare/v0.2.3...v0.2.4) (2026-10-05)
 
 ### Fixed
