@@ -292,6 +292,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Effective-config view with keys hidden (#461) ([ebceca6](https://github.com/darshi1337/apogee/commit/ebceca6cf9d39aa5827bb1f3f39ba8168c6d1e85))
 - Locale catalog check in CI plus shared glossary (#465) ([6f5cb78](https://github.com/darshi1337/apogee/commit/6f5cb7840d12723ff440d7bc7dc089f79deddde6))
 - Rules-based engine selection by input kind and context size (#437) (#482) ([f42ec94](https://github.com/darshi1337/apogee/commit/f42ec94b8455c85295f4ab6dd478d283f868cd1d))
+- Show stage progress and elapsed time in run metrics (#442) ([b28a74f](https://github.com/darshi1337/apogee/commit/b28a74f14137d83c31ccaadab925d6b10be93866))
 
 ### Fixed
 
