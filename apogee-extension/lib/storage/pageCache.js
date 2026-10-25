@@ -98,6 +98,8 @@ export function parseSummaryCacheKey(cacheKey) {
 // the reader's own instructions and their focus keyword. The summary's response
 // format is not one of them - the questions are always two plain lines and the
 // parser strips list markers, so a format change cannot change them (#498).
+// Provider, page type, and a hash of the selected text scope pages that share a
+// URL; selection text itself never appears in the key.
 export async function getPromptsCacheKey(
   url,
   model,
@@ -105,8 +107,9 @@ export async function getPromptsCacheKey(
   customInstructions = "",
   translationEngine = TRANSLATION_ENGINES.OPUS,
   focusKeyword = "",
+  context = {},
 ) {
-  return makeCacheKey(
+  const baseKey = await makeCacheKey(
     "suggested-prompts",
     url,
     "",
@@ -116,6 +119,22 @@ export async function getPromptsCacheKey(
     translationEngine,
     focusKeyword,
   );
+
+  const provider =
+    typeof context.providerType === "string" ? context.providerType : "";
+  const pageType = typeof context.pageType === "string" ? context.pageType : "";
+  // A selection hash only means anything alongside the "selection" page type.
+  // Keeping the two together stops a stray selectionText from fragmenting a
+  // normal page's key.
+  const selection =
+    pageType === "selection"
+      ? await hashedSuffix(context.selectionText, "s")
+      : "";
+
+  // Preserve the existing key format for callers that supply no context.
+  if (!provider && !pageType && !selection) return baseKey;
+
+  return `${baseKey}:p${provider}:t${pageType}${selection}`;
 }
 // Focus keywords are untrusted: only real strings scope the key (#392).
 export function asFocusKeyword(value) {
@@ -128,6 +147,7 @@ export async function getPromptsCacheKeyForSettings(
   settings,
   model,
   focusKeyword = "",
+  context = {},
 ) {
   return getPromptsCacheKey(
     url,
@@ -136,6 +156,7 @@ export async function getPromptsCacheKeyForSettings(
     settings.customInstructions,
     settings.translationEngine,
     focusKeyword,
+    context,
   );
 }
 export async function getContentCacheKey(url) {

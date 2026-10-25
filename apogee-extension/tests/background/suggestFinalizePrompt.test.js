@@ -50,6 +50,8 @@ globalThis.chrome = chrome;
 
 const { buildTrustedFinalize, finalizeSummaryJob } =
   await import("../../background/finalize.js");
+const { customContentPromptsCacheKey, getSummaryAndPromptsCacheKeys } =
+  await import("../../ui/promptsContext.js");
 
 const url = "https://example.com/article-498";
 const model = "Qwen2.5-0.5B-Instruct-q4f16_1-MLC";
@@ -108,4 +110,93 @@ test("finalize carries focus and instructions into the suggest job (#498)", asyn
   ).payload;
   assert.strictEqual(payload.customInstructions, customInstructions);
   assert.strictEqual(payload.focusKeyword, focusKeyword);
+});
+
+// --- #497: the UI and the trusted finalizer must agree on the prompts key ---
+//
+// The finalizer stores the questions; the UI listens on the key it computed.
+// Provider and page type are part of the key, so a call site that omits them
+// leaves the questions in an entry the UI never hears about.
+
+test("a normal page's UI key equals the trusted finalizer's key (#497)", async () => {
+  const { settings } = await chrome.storage.local.get("settings");
+  const trusted = await buildTrustedFinalize({
+    url,
+    title: "Example",
+    model,
+    content: "Article text.",
+    type: "article",
+    focusKeyword,
+  });
+  assert.ok(trusted, "trusted finalize is built");
+  assert.strictEqual(trusted.pageType, "article");
+
+  const ui = await getSummaryAndPromptsCacheKeys(
+    url,
+    settings,
+    model,
+    focusKeyword,
+    { pageType: "article" },
+  );
+  assert.strictEqual(ui.promptsCacheKey, trusted.promptsCacheKey);
+  assert.strictEqual(ui.cacheKey, trusted.cacheKey);
+});
+
+test("custom content: the UI key equals the trusted finalizer's key (#497)", async () => {
+  const { settings } = await chrome.storage.local.get("settings");
+  const content = "Pasted text for the custom-content key check.";
+  const uiKey = await customContentPromptsCacheKey({
+    url: "",
+    content,
+    settings,
+    model,
+  });
+  const trusted = await buildTrustedFinalize({
+    url: "",
+    title: "Pasted Text",
+    model,
+    content,
+    finalize: {
+      customContent: true,
+      tabId: 497,
+      jobId: "custom-content-497",
+    },
+  });
+
+  assert.ok(trusted, "trusted finalize is built");
+  assert.strictEqual(trusted.pageType, "");
+  assert.strictEqual(uiKey, trusted.promptsCacheKey);
+});
+
+test("a selection: the UI key equals the trusted finalizer's key (#497)", async () => {
+  const { settings } = await chrome.storage.local.get("settings");
+  const selectionText = "The board approved the merger after a long debate.";
+  const trusted = await buildTrustedFinalize({
+    url,
+    title: "Selection Example",
+    model,
+    content: selectionText,
+    type: "selection",
+    focusKeyword,
+    finalize: {
+      isSelection: true,
+      selectionText,
+      tabId: 497,
+      jobId: "selection-497",
+    },
+  });
+
+  assert.ok(trusted, "trusted finalize is built");
+  assert.strictEqual(trusted.isSelection, true);
+  assert.strictEqual(trusted.pageType, "selection");
+  assert.strictEqual(trusted.selectionText, selectionText);
+
+  const ui = await getSummaryAndPromptsCacheKeys(
+    url,
+    settings,
+    model,
+    focusKeyword,
+    { pageType: "selection", selectionText },
+  );
+  assert.strictEqual(ui.promptsCacheKey, trusted.promptsCacheKey);
 });

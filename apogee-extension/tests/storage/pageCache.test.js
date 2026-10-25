@@ -204,6 +204,90 @@ test("empty or whitespace-only instructions omit the instructions suffix", async
   }
 });
 
+test("suggested-prompts keys differ by provider", async () => {
+  const url = "https://example.com/article";
+
+  const localKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { providerType: "local", pageType: "article" },
+  );
+  const webllmKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { providerType: "webllm", pageType: "article" },
+  );
+
+  assert.notStrictEqual(localKey, webllmKey);
+});
+
+test("suggested-prompts keys differ by page type", async () => {
+  const url = "https://example.com/article";
+
+  const articleKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { providerType: "local", pageType: "article" },
+  );
+  const selectionKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { providerType: "local", pageType: "selection" },
+  );
+
+  assert.notStrictEqual(articleKey, selectionKey);
+});
+
+test("suggested-prompts keys differ by selected text without exposing it", async () => {
+  const url = "https://example.com/article";
+  const context = {
+    providerType: "local",
+    pageType: "selection",
+  };
+
+  const firstText = "The first selected paragraph";
+  const secondText = "A completely different paragraph";
+
+  const firstKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { ...context, selectionText: firstText },
+  );
+  const secondKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { ...context, selectionText: secondText },
+  );
+
+  assert.notStrictEqual(firstKey, secondKey);
+  assert.ok(!firstKey.includes(firstText));
+  assert.ok(!secondKey.includes(secondText));
+});
+
 test("cache keys keep no readable trace of the instructions they came from", async () => {
   const key = await getSummaryCacheKey(
     "https://example.com/article",

@@ -674,7 +674,11 @@ export async function runBackgroundSummarize(
   }
 
   const persist = isSelection ? false : await shouldPersist(tab.url);
+  // The summary key keeps its selection fragment. The prompts key uses the
+  // plain URL, matching the UI and the suggest-questions handler; page type
+  // plus the selected-text hash isolate selections (#497).
   const cacheUrl = isSelection ? `${tab.url}#apogee-selection` : tab.url;
+  const pageType = isSelection ? "selection" : pageData.type || "";
 
   if (!isSelection && CACHEABLE_PAGE_TYPES.has(pageData.type) && persist) {
     // Caching the page is a convenience, not a precondition for the summary:
@@ -707,10 +711,17 @@ export async function runBackgroundSummarize(
   const finalize = {
     cacheKey: await getSummaryCacheKeyForSettings(cacheUrl, settings, model),
     promptsCacheKey: await getPromptsCacheKeyForSettings(
-      cacheUrl,
+      tab.url,
       settings,
       model,
+      "",
+      {
+        providerType,
+        pageType,
+        selectionText: isSelection ? selection : "",
+      },
     ),
+    pageType,
     persist,
     persistUrl: tab.url,
     isSelection,
@@ -770,6 +781,7 @@ export async function runBackgroundSummarize(
     summaryText: "",
     timeSaved: null,
     promptsCacheKey: finalize.promptsCacheKey,
+    pageType: finalize.pageType,
     summaryLanguage: settings.summaryLanguage,
     translationEngine: settings.translationEngine,
     ...(isSelection ? { isSelection: true, selectionText: selection } : {}),
@@ -1605,12 +1617,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const rawUrl =
             typeof message.payload?.url === "string" ? message.payload.url : "";
           const model = message.payload?.model || getModelForSettings(settings);
+          const pageType =
+            typeof message.payload?.pageType === "string"
+              ? message.payload.pageType
+              : "";
+          const selectionText =
+            typeof message.payload?.selectionText === "string"
+              ? message.payload.selectionText
+              : "";
           const promptsCacheKey = rawUrl
             ? await getPromptsCacheKeyForSettings(
                 rawUrl,
                 settings,
                 model,
                 asFocusKeyword(message.payload?.focusKeyword),
+                {
+                  providerType: getProviderType(settings),
+                  pageType,
+                  // Only a selection carries selected text; a stray value must
+                  // not fragment a normal page's key.
+                  selectionText: pageType === "selection" ? selectionText : "",
+                },
               )
             : message.payload?.promptsCacheKey;
           runSuggestQuestionsJob(

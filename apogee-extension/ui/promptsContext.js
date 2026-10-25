@@ -1,0 +1,123 @@
+import { getProviderType } from "../lib/engines/providers.js";
+import {
+  getCachedContent,
+  getPromptsCacheKeyForSettings,
+  getSummaryCacheKeyForSettings,
+  hashUrl,
+} from "../lib/storage/pageCache.js";
+
+// The suggested-prompts key has one extra dimension the summary key does not:
+// the provider that generated the summary, plus the page type (and, for a
+// selection, a hash of the selected text). The trusted finalizer includes it,
+// so every UI path must include it too or the questions land under a key the
+// UI never listens on (#497).
+export function promptsKeyContext(
+  settings,
+  { pageType = "", selectionText = "" } = {},
+) {
+  return {
+    providerType: getProviderType(settings),
+    pageType,
+    // The key builder ignores a selection hash without the selection page
+    // type; keep the context honest at the source as well.
+    selectionText: pageType === "selection" ? selectionText : "",
+  };
+}
+
+export async function getUiPromptsCacheKey(
+  identityUrl,
+  settings,
+  model,
+  focusKeyword = "",
+  context = {},
+) {
+  return getPromptsCacheKeyForSettings(
+    identityUrl,
+    settings,
+    model,
+    focusKeyword,
+    promptsKeyContext(settings, context),
+  );
+}
+
+export async function getSummaryAndPromptsCacheKeys(
+  url,
+  settings,
+  model,
+  focusKeyword = "",
+  context = {},
+) {
+  return {
+    cacheKey: await getSummaryCacheKeyForSettings(
+      url,
+      settings,
+      model,
+      focusKeyword,
+    ),
+    promptsCacheKey: await getUiPromptsCacheKey(
+      url,
+      settings,
+      model,
+      focusKeyword,
+      context,
+    ),
+  };
+}
+
+// Pasted content has no page type; its identity is the source URL when there
+// is one, else a hash of the text (mirrors buildTrustedFinalize).
+export async function customContentPromptsCacheKey({
+  url,
+  content,
+  settings,
+  model,
+  focusKeyword = "",
+}) {
+  const identityUrl = url || `local:${await hashUrl(content)}`;
+  return getUiPromptsCacheKey(identityUrl, settings, model, focusKeyword, {
+    pageType: "",
+  });
+}
+
+// Restore has to rebuild the same context the generation run used. Persisted
+// view state is authoritative (an empty pageType is meaningful for pasted
+// content). Older states have no pageType, so fall back to in-memory data that
+// provably belongs to this URL, then the content cache for this URL. Never
+// borrow page data from another tab.
+export async function restorePromptsContext({
+  url,
+  state = null,
+  currentPageData = null,
+  loadCachedPage = getCachedContent,
+}) {
+  const inMemory =
+    currentPageData && currentPageData.url === url ? currentPageData : null;
+  const isSelection = Boolean(state?.isSelection);
+  const hasStatePageType = typeof state?.pageType === "string";
+
+  let pageType;
+  if (isSelection) {
+    pageType = "selection";
+  } else if (hasStatePageType) {
+    pageType = state.pageType;
+  } else if (inMemory) {
+    pageType = inMemory.type || "";
+  } else {
+    pageType = (await loadCachedPage(url))?.type || "";
+  }
+
+  let selectionText =
+    typeof state?.selectionText === "string" ? state.selectionText : "";
+  if (
+    !selectionText &&
+    pageType === "selection" &&
+    inMemory?.type === "selection"
+  ) {
+    selectionText = inMemory.content || "";
+  }
+
+  return {
+    pageType,
+    selectionText: pageType === "selection" ? selectionText : "",
+  };
+}

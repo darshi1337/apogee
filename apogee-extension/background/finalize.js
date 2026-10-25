@@ -164,9 +164,23 @@ export async function buildTrustedFinalize(payload) {
   const model = payload.model || getModelForSettings(settings);
   const providerType = getProviderType(settings);
   const isSelection = Boolean(rawFinalize.isSelection);
-  const cacheUrl = isSelection
-    ? `${rawUrl}#apogee-selection`
-    : rawUrl || `local:${await hashUrl(payload.content || "")}`;
+  // The summary key keeps the selection fragment (unchanged behavior). The
+  // prompts key uses the plain page identity: the page type and the selected
+  // text hash already isolate selections, and the UI/handler rebuild it from
+  // the plain URL (#497).
+  const identityUrl = rawUrl || `local:${await hashUrl(payload.content || "")}`;
+  const cacheUrl = isSelection ? `${rawUrl}#apogee-selection` : identityUrl;
+  const pageType = isSelection
+    ? "selection"
+    : typeof rawFinalize.pageType === "string" && rawFinalize.pageType
+      ? rawFinalize.pageType
+      : typeof payload.type === "string"
+        ? payload.type
+        : "";
+  const selectionText =
+    isSelection && typeof rawFinalize.selectionText === "string"
+      ? rawFinalize.selectionText
+      : "";
 
   const cacheKey = await getSummaryCacheKeyForSettings(
     cacheUrl,
@@ -175,10 +189,15 @@ export async function buildTrustedFinalize(payload) {
     asFocusKeyword(payload.focusKeyword),
   );
   const promptsCacheKey = await getPromptsCacheKeyForSettings(
-    cacheUrl,
+    identityUrl,
     settings,
     model,
     asFocusKeyword(payload.focusKeyword),
+    {
+      providerType,
+      pageType,
+      selectionText,
+    },
   );
 
   const persist = isSelection ? false : await shouldPersist(rawUrl);
@@ -203,6 +222,8 @@ export async function buildTrustedFinalize(payload) {
     isSelection,
     customContent,
     providerType,
+    pageType,
+    selectionText,
     host: settings.ollamaHost,
     notifyOnFinish,
     sensitive,
@@ -231,6 +252,11 @@ export async function recordPopupSummaryStream(payload, streamId) {
     {
       streamId,
       promptsCacheKey: finalize.promptsCacheKey,
+      pageType: finalize.pageType,
+      focusKeyword: finalize.focusKeyword,
+      ...(finalize.isSelection
+        ? { isSelection: true, selectionText: finalize.selectionText }
+        : {}),
       summaryLanguage: finalize.language,
       translationEngine: finalize.translationEngine,
     },
@@ -257,6 +283,8 @@ export async function finalizeSummaryJob(
     persistUrl,
     isSelection,
     providerType,
+    pageType,
+    selectionText,
     host,
     notifyOnFinish,
     sensitive,
@@ -292,6 +320,9 @@ export async function finalizeSummaryJob(
           streamId: null,
           summaryText: text,
           promptsCacheKey,
+          pageType,
+          focusKeyword,
+          ...(isSelection ? { isSelection: true, selectionText } : {}),
           summaryLanguage: language,
           translationEngine,
         },
