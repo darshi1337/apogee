@@ -321,6 +321,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Skip multi-tab ready notification when view state is not saved (#496) ([1bb1398](https://github.com/darshi1337/apogee/commit/1bb1398e9c60be15af181e53c7bf07ff3720ec08))
 - Do not read the single-tab prompts key when restoring a multi-tab summary (#494) ([d08f872](https://github.com/darshi1337/apogee/commit/d08f8724ca8417635e710698ae78aa853c10c3ee))
 - Guard summarizeActivePage against double-click runs (#554) ([a45259a](https://github.com/darshi1337/apogee/commit/a45259a2b2097beb4fdb3cc5d2afa110be56f15e))
+- Keep pre-1.0 feature commits on patch versions (#558) ([78faf65](https://github.com/darshi1337/apogee/commit/78faf65c96042b4b4664179eec660cc5e9a71a45))
 
 ## [0.2.1] - 2026-08-19
 
