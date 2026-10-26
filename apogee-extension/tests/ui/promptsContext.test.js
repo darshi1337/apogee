@@ -91,6 +91,36 @@ test("a persisted empty page type is authoritative for custom content (#497)", a
   assert.deepStrictEqual(context, { pageType: "", selectionText: "" });
 });
 
+test("a non-selection page type wins over stale selection flags (#497)", async () => {
+  const context = await restorePromptsContext({
+    url,
+    // A normal summary written after a selection can inherit the old flags.
+    // The persisted page type is the authority: do not restore selection text
+    // for an article.
+    state: {
+      pageType: "article",
+      isSelection: true,
+      selectionText: "Text selected before the article summary.",
+    },
+    currentPageData: null,
+    loadCachedPage: noCachedPage,
+  });
+
+  assert.deepStrictEqual(context, { pageType: "article", selectionText: "" });
+});
+
+test("legacy selection state without a page type still restores selection (#497)", async () => {
+  const selectionText = "Selected text from an older saved state.";
+  const context = await restorePromptsContext({
+    url,
+    state: { isSelection: true, selectionText },
+    currentPageData: null,
+    loadCachedPage: noCachedPage,
+  });
+
+  assert.deepStrictEqual(context, { pageType: "selection", selectionText });
+});
+
 test("restore ignores another tab's in-memory page data (#497)", async () => {
   const context = await restorePromptsContext({
     url,
@@ -243,35 +273,34 @@ test("the custom-content UI builds its listen key through the provider-aware hel
   );
 });
 
-test("restore paths resolve context through the shared helper (#497)", () => {
+test("the cached-summary restore resolves page context through the shared helper (#497)", () => {
   const appCode = readFileSync(
     new URL("../../ui/app.js", import.meta.url),
     "utf8",
   );
-  const restoreCalls = appCode.match(/restorePromptsContext\(/g) || [];
+  // The saved-state path already carries the key generation used; only the
+  // cache-hit path has to rebuild context from storage and page data.
+  const contextBlock = appCode.match(
+    /const restoredContext = await restorePromptsContext\(\{[\s\S]*?\n\s*\}\);/,
+  );
   assert.ok(
-    restoreCalls.length >= 2,
-    "both restored summaries and cached summaries must use the helper",
+    contextBlock,
+    "the cached-summary restore asks the shared helper for its context",
   );
 });
 
-test("the restored-summary suggest call passes the resolved context (#497)", () => {
+test("restoreSuggestedPrompts forwards the resolved context to the suggest job (#497)", () => {
   const appCode = readFileSync(
     new URL("../../ui/app.js", import.meta.url),
     "utf8",
   );
-  const r1Call = appCode.match(
-    /startSuggestedQuestionsBg\(\s*selPromptsKey,[\s\S]*?\n\s*\);/,
+  const helper = appCode.match(
+    /async function restoreSuggestedPrompts\(\{[\s\S]*?\n\}\n/,
   );
-  assert.ok(r1Call, "restored-summary suggest call found");
+  assert.ok(helper, "restoreSuggestedPrompts helper found");
   assert.match(
-    r1Call[0],
-    /\.\.\.restoredContext/,
-    "the R1 call must pass the resolved page type and selection text",
-  );
-  assert.match(
-    r1Call[0],
-    /restoredFocusKeyword/,
-    "the R1 call must pass the persisted focus keyword",
+    helper[0],
+    /startSuggestedQuestionsBg\([\s\S]*?pageType,\s*selectionText\s*\}/,
+    "the helper must pass page type and selection text to the worker",
   );
 });

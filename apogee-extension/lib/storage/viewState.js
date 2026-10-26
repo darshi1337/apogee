@@ -76,6 +76,11 @@ async function writeViewState(tabId, partial, expectedJob = null) {
       delete state.question;
       delete state.answerText;
       delete state.summaryText;
+      // Raw reader inputs are page content too. Keep promptsCacheKey: it is
+      // already a hash-scoped identity, and without it a restored job could
+      // not regenerate its suggested prompts.
+      delete state.selectionText;
+      delete state.focusKeyword;
     }
 
     const order = viewStateOrder.filter((k) => k !== key);

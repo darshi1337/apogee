@@ -782,9 +782,14 @@ export async function runBackgroundSummarize(
     timeSaved: null,
     promptsCacheKey: finalize.promptsCacheKey,
     pageType: finalize.pageType,
+    // Background summaries have no focus input; clear any value left by a
+    // popup job in this tab. Selection fields are explicit for the same
+    // reason: the view-state write merges into the previous job's entry.
+    focusKeyword: "",
+    isSelection,
+    selectionText: isSelection ? selection : "",
     summaryLanguage: settings.summaryLanguage,
     translationEngine: settings.translationEngine,
-    ...(isSelection ? { isSelection: true, selectionText: selection } : {}),
   });
 
   if (providerType === PROVIDERS.LOCAL) {
@@ -1625,21 +1630,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             typeof message.payload?.selectionText === "string"
               ? message.payload.selectionText
               : "";
-          const promptsCacheKey = rawUrl
-            ? await getPromptsCacheKeyForSettings(
-                rawUrl,
-                settings,
-                model,
-                asFocusKeyword(message.payload?.focusKeyword),
-                {
-                  providerType: getProviderType(settings),
-                  pageType,
-                  // Only a selection carries selected text; a stray value must
-                  // not fragment a normal page's key.
-                  selectionText: pageType === "selection" ? selectionText : "",
-                },
-              )
-            : message.payload?.promptsCacheKey;
+          // A caller-supplied key is authoritative: custom content, legacy
+          // restores, and multi-tab rebuilds can compute a key this handler
+          // cannot reconstruct from the URL. Recompute only as a fallback.
+          const suppliedPromptsCacheKey =
+            typeof message.payload?.promptsCacheKey === "string"
+              ? message.payload.promptsCacheKey
+              : "";
+          const promptsCacheKey =
+            suppliedPromptsCacheKey ||
+            (rawUrl
+              ? await getPromptsCacheKeyForSettings(
+                  rawUrl,
+                  settings,
+                  model,
+                  asFocusKeyword(message.payload?.focusKeyword),
+                  {
+                    providerType: getProviderType(settings),
+                    pageType,
+                    // Only a selection carries selected text; a stray value
+                    // must not fragment a normal page's key.
+                    selectionText:
+                      pageType === "selection" ? selectionText : "",
+                  },
+                )
+              : "");
           runSuggestQuestionsJob(
             {
               ...message.payload,
@@ -2127,8 +2142,14 @@ export async function summarizeMultiTab(tabsToSummarize, opts = {}) {
       streamId: null,
       summaryText: summaryResult,
       // No per-tab prompts key exists for a multi-tab synthesis; null clears
-      // any stale single-tab key the merge would otherwise inherit.
+      // any stale single-tab key the merge would otherwise inherit. The
+      // synthesis has no page type, selection text, or focus keyword either,
+      // so clear those rather than inherit the owner tab's previous job.
       promptsCacheKey: null,
+      pageType: "",
+      focusKeyword: "",
+      isSelection: false,
+      selectionText: "",
       summaryLanguage: settings.summaryLanguage,
       translationEngine: settings.translationEngine,
     });

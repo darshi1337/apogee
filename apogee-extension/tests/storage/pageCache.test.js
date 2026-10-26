@@ -288,6 +288,32 @@ test("suggested-prompts keys differ by selected text without exposing it", async
   assert.ok(!secondKey.includes(secondText));
 });
 
+test("a non-string selectionText cannot throw or scope a key (#497)", async () => {
+  const url = "https://example.com/article";
+  const context = { providerType: "local", pageType: "selection" };
+
+  const emptyKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { ...context, selectionText: "" },
+  );
+  const numericKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { ...context, selectionText: 42 },
+  );
+
+  assert.strictEqual(numericKey, emptyKey);
+});
+
 test("cache keys keep no readable trace of the instructions they came from", async () => {
   const key = await getSummaryCacheKey(
     "https://example.com/article",

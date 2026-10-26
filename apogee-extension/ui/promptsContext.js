@@ -92,11 +92,17 @@ export async function restorePromptsContext({
 }) {
   const inMemory =
     currentPageData && currentPageData.url === url ? currentPageData : null;
-  const isSelection = Boolean(state?.isSelection);
   const hasStatePageType = typeof state?.pageType === "string";
+  // A persisted page type is authoritative, including the empty one custom
+  // content writes. The legacy isSelection flag only decides for older states
+  // that predate pageType; otherwise a stale flag from a prior selection could
+  // relabel a normal article.
+  const stateIsSelection = hasStatePageType
+    ? state.pageType === "selection"
+    : Boolean(state?.isSelection);
 
   let pageType;
-  if (isSelection) {
+  if (stateIsSelection) {
     pageType = "selection";
   } else if (hasStatePageType) {
     pageType = state.pageType;

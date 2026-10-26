@@ -193,6 +193,44 @@ test("selection generation and the handler rebuild the same promptsCacheKey (#49
   }
 });
 
+// --- #497: a supplied key is authoritative ---
+//
+// Callers can compute a key the worker cannot reconstruct (custom content,
+// legacy restores, multi-tab rebuilds). Recomputing from the URL overwrote it
+// and the questions landed under a key the popup was not listening on.
+
+test("suggest-questions-bg honors a supplied promptsCacheKey (#497)", async () => {
+  const { original, local } = await useLocalProvider();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error("no local model in tests");
+  };
+  try {
+    const url = "https://example.com/supplied-key-497";
+    const suppliedKey = "suggested-prompts:caller-owned:key";
+    const announcedKey = await announcedPromptsKey({
+      url,
+      promptsCacheKey: suppliedKey,
+      title: "Supplied Key",
+      summary: "A summary.",
+      model: getModelForSettings(local),
+      language: local.summaryLanguage,
+      translationEngine: local.translationEngine,
+      pageType: "article",
+      selectionText: "",
+    });
+
+    assert.strictEqual(
+      announcedKey,
+      suppliedKey,
+      "the handler must not replace the caller's key",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    await chrome.storage.local.set({ settings: original });
+  }
+});
+
 test("two selections on one URL cannot share suggested questions (#497)", async () => {
   const { original, local } = await useLocalProvider();
   const originalFetch = globalThis.fetch;

@@ -22,7 +22,9 @@ export async function hashUrl(url) {
 // answer comes back and the change looks ignored. Legacy keys without an
 // engine stay out of engine-aware lookups until eviction or wipe.
 async function hashedSuffix(value, tag) {
-  const extra = (value || "").trim();
+  // Inputs crossing a message or storage boundary can be the wrong type; a
+  // non-string must not throw while building a key (or silently scope one).
+  const extra = typeof value === "string" ? value.trim() : "";
   if (!extra) return "";
   return `:${tag}${(await sha256Hex(extra)).slice(0, 12)}`;
 }

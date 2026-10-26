@@ -48,10 +48,12 @@ chrome.action = {};
 
 globalThis.chrome = chrome;
 
-const { buildTrustedFinalize, finalizeSummaryJob } =
+const { buildTrustedFinalize, finalizeSummaryJob, recordPopupSummaryStream } =
   await import("../../background/finalize.js");
 const { customContentPromptsCacheKey, getSummaryAndPromptsCacheKeys } =
   await import("../../ui/promptsContext.js");
+const { saveViewState, loadViewState } =
+  await import("../../lib/storage/viewState.js");
 
 const url = "https://example.com/article-498";
 const model = "Qwen2.5-0.5B-Instruct-q4f16_1-MLC";
@@ -166,6 +168,102 @@ test("custom content: the UI key equals the trusted finalizer's key (#497)", asy
   assert.ok(trusted, "trusted finalize is built");
   assert.strictEqual(trusted.pageType, "");
   assert.strictEqual(uiKey, trusted.promptsCacheKey);
+});
+
+test("a caller-supplied empty page type stays authoritative (#497)", async () => {
+  const trusted = await buildTrustedFinalize({
+    url,
+    title: "Example",
+    model,
+    content: "Article text.",
+    type: "article",
+    finalize: { pageType: "" },
+  });
+
+  assert.ok(trusted, "trusted finalize is built");
+  assert.strictEqual(
+    trusted.pageType,
+    "",
+    "pasted content persists an empty page type meaningfully",
+  );
+});
+
+test("recordPopupSummaryStream clears stale selection fields and defaults missing ones (#497)", async () => {
+  const tabId = 4973;
+  const jobId = "normal-after-selection-497";
+  await saveViewState(tabId, {
+    view: "summaryView",
+    subview: "summarizing",
+    url,
+    streamId: null,
+    jobId,
+    isSelection: true,
+    selectionText: "The old selection must not survive.",
+    pageType: "selection",
+    focusKeyword: "the old keyword",
+  });
+
+  await recordPopupSummaryStream(
+    {
+      model,
+      title: "Example",
+      url,
+      finalize: {
+        jobId,
+        tabId,
+        promptsCacheKey: "suggested-prompts:normal-key",
+        language: "auto",
+        translationEngine: "opus",
+      },
+    },
+    "stream-normal-497",
+  );
+
+  const state = await loadViewState(tabId);
+  assert.strictEqual(state.isSelection, false);
+  assert.strictEqual(state.selectionText, "");
+  assert.strictEqual(state.pageType, "");
+  assert.strictEqual(state.focusKeyword, "");
+});
+
+test("finalizeSummaryJob persists the normal page type and clears selection fields (#497)", async () => {
+  const tabId = 4974;
+  const jobId = "finalize-normal-after-selection-497";
+  await saveViewState(tabId, {
+    view: "summaryView",
+    subview: "summarizing",
+    url,
+    streamId: null,
+    jobId,
+    isSelection: true,
+    selectionText: "The old selection must not survive.",
+    pageType: "selection",
+    focusKeyword: "the old keyword",
+  });
+
+  const trusted = await buildTrustedFinalize({
+    url,
+    title: "Example",
+    model,
+    content: "Article text.",
+    type: "article",
+  });
+  trusted.jobId = jobId;
+  trusted.tabId = tabId;
+  trusted.notifyOnFinish = false;
+
+  const result = await finalizeSummaryJob(
+    { finalize: trusted, model, title: "Example", url, text: "" },
+    { ensureOffscreenDocument: async () => {} },
+  );
+  assert.strictEqual(result.ok, true);
+
+  const state = await loadViewState(tabId);
+  assert.strictEqual(state.subview, "summary");
+  assert.strictEqual(state.pageType, "article");
+  assert.strictEqual(state.isSelection, false);
+  assert.strictEqual(state.selectionText, "");
+  assert.strictEqual(state.focusKeyword, "");
 });
 
 test("a selection: the UI key equals the trusted finalizer's key (#497)", async () => {

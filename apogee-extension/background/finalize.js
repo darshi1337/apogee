@@ -166,13 +166,13 @@ export async function buildTrustedFinalize(payload) {
   const isSelection = Boolean(rawFinalize.isSelection);
   // The summary key keeps the selection fragment (unchanged behavior). The
   // prompts key uses the plain page identity: the page type and the selected
-  // text hash already isolate selections, and the UI/handler rebuild it from
-  // the plain URL (#497).
+  // text hash already isolate selections. The UI supplies that key to the
+  // suggest-questions handler, which treats it as authoritative (#497).
   const identityUrl = rawUrl || `local:${await hashUrl(payload.content || "")}`;
   const cacheUrl = isSelection ? `${rawUrl}#apogee-selection` : identityUrl;
   const pageType = isSelection
     ? "selection"
-    : typeof rawFinalize.pageType === "string" && rawFinalize.pageType
+    : typeof rawFinalize.pageType === "string"
       ? rawFinalize.pageType
       : typeof payload.type === "string"
         ? payload.type
@@ -252,11 +252,16 @@ export async function recordPopupSummaryStream(payload, streamId) {
     {
       streamId,
       promptsCacheKey: finalize.promptsCacheKey,
-      pageType: finalize.pageType,
-      focusKeyword: finalize.focusKeyword,
-      ...(finalize.isSelection
-        ? { isSelection: true, selectionText: finalize.selectionText }
-        : {}),
+      pageType: typeof finalize.pageType === "string" ? finalize.pageType : "",
+      focusKeyword: asFocusKeyword(finalize.focusKeyword),
+      // A normal summary merges into the previous job's state, so clear the
+      // selection fields explicitly instead of inheriting another summary's.
+      isSelection: finalize.isSelection === true,
+      selectionText:
+        finalize.isSelection === true &&
+        typeof finalize.selectionText === "string"
+          ? finalize.selectionText
+          : "",
       summaryLanguage: finalize.language,
       translationEngine: finalize.translationEngine,
     },
@@ -320,9 +325,15 @@ export async function finalizeSummaryJob(
           streamId: null,
           summaryText: text,
           promptsCacheKey,
-          pageType,
-          focusKeyword,
-          ...(isSelection ? { isSelection: true, selectionText } : {}),
+          pageType: typeof pageType === "string" ? pageType : "",
+          focusKeyword: asFocusKeyword(focusKeyword),
+          // Explicitly normalise, so a normal summary never inherits a prior
+          // selection's flag or text through the view-state merge.
+          isSelection: isSelection === true,
+          selectionText:
+            isSelection === true && typeof selectionText === "string"
+              ? selectionText
+              : "",
           summaryLanguage: language,
           translationEngine,
         },

@@ -102,6 +102,37 @@ test("view state scrubs page content when history is turned off", async () => {
   assert.strictEqual(state.summaryText, undefined);
 });
 
+test("history off scrubs selected text and focus keyword but keeps the prompts key (#497)", async () => {
+  installFakeStorage({ settings: { saveHistory: false } });
+  const promptsCacheKey =
+    "suggested-prompts:auto:model:opus:abc:pwebllm:tselection:s123";
+
+  const state = await saveViewState(7, {
+    view: "summaryView",
+    subview: "summary",
+    url: "https://example.com/article",
+    summaryText: "The board approved the merger.",
+    question: "What did they decide?",
+    answerText: "They approved it.",
+    pageType: "selection",
+    isSelection: true,
+    selectionText: "The confidential paragraph the reader selected.",
+    focusKeyword: "the CEO's private notes",
+    promptsCacheKey,
+  });
+
+  assert.strictEqual(state.summaryText, undefined);
+  assert.strictEqual(state.question, undefined);
+  assert.strictEqual(state.answerText, undefined);
+  assert.strictEqual(state.selectionText, undefined);
+  assert.strictEqual(state.focusKeyword, undefined);
+  assert.strictEqual(
+    state.promptsCacheKey,
+    promptsCacheKey,
+    "the computed key survives so prompts can still be regenerated",
+  );
+});
+
 test("clearAllViewStates drops every tab's state and leaves settings alone", async () => {
   const settings = { saveHistory: true };
   const data = installFakeStorage({ settings });

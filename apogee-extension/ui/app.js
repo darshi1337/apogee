@@ -82,6 +82,7 @@ import {
 } from "../lib/storage/viewState.js";
 import {
   hashUrl,
+  getPromptsCacheKeyForSettings,
   parseSummaryCacheKey,
   persistContent,
   getCachedContent,
@@ -1938,6 +1939,12 @@ async function summarizeActivePage() {
       summaryText: "",
       timeSaved: null,
       promptsCacheKey: null,
+      // Start every job from a clean context: a previous selection summary in
+      // this tab must not relabel or leak into this one.
+      pageType: "",
+      focusKeyword: "",
+      isSelection: false,
+      selectionText: "",
     });
     const settings = await getSettings();
     const model = getModelForSettings(settings);
@@ -2053,6 +2060,8 @@ async function summarizeActivePage() {
               promptsCacheKey,
               pageType,
               focusKeyword,
+              isSelection: pageType === "selection",
+              selectionText,
               summaryLanguage: settings.summaryLanguage,
               translationEngine: settings.translationEngine,
             },
@@ -2651,10 +2660,9 @@ document.addEventListener("DOMContentLoaded", async () => {
           makeSummaryPassagesFocusable();
           setSummaryCopyButtonsVisible(!!cached[cacheKey].trim());
           updateResummarizeHint(settings);
-          const badgeInputs =
-            state && state.urlHash === (await hashUrl(tab.url))
-              ? await getTimeSavedInputsForTab(tab, state)
-              : null;
+          const badgeInputs = urlState
+            ? await getTimeSavedInputsForTab(tab, urlState)
+            : null;
           showTimeSavedFromInputs(badgeInputs, cached[cacheKey]);
           showOnlyView("summaryView");
           await restoreSuggestedPrompts({
@@ -2810,6 +2818,8 @@ async function summarizeCustomContent(title, content, url = "") {
             promptsCacheKey,
             pageType: "",
             focusKeyword: "",
+            isSelection: false,
+            selectionText: "",
           });
         }
         return "done";
