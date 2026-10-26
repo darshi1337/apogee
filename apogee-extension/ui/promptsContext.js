@@ -7,11 +7,11 @@ import {
   hashUrl,
 } from "../lib/storage/pageCache.js";
 
-// The suggested-prompts key has one extra dimension the summary key does not:
-// the provider that generated the summary, plus the page type (and, for a
-// selection, a hash of the selected text). The trusted finalizer includes it,
-// so every UI path must include it too or the questions land under a key the
-// UI never listens on (#497).
+// The suggested-prompts key has dimensions the summary key does not: the
+// provider that generated the summary, the page type, and, for a selection, a
+// hash of the selected text. The trusted finalizer includes them, so every UI
+// path must include them too or the questions land under a key the UI never
+// listens on (#497).
 export function promptsKeyContext(
   settings,
   { pageType = "", selectionText = "" } = {},
@@ -87,6 +87,22 @@ export function restoreFocusKeyword({ state = null, multiTab = false } = {}) {
   if (multiTab) return "";
   const raw = typeof state?.focusKeyword === "string" ? state.focusKeyword : "";
   return gateFocusKeyword(raw, state?.pageType);
+}
+
+// Decide which key and focus keyword a restored summary uses. A real persisted
+// key owns its stored prompts; a multi-tab synthesis saves null and rebuilds
+// the owner URL's single-tab key only to match the worker's broadcast, so it
+// must neither read stored prompts nor inherit a keyword (#494).
+export function savedSummaryRestorePlan({
+  state = null,
+  fallbackPromptsCacheKey = null,
+} = {}) {
+  const isMultiTab = !state?.promptsCacheKey;
+  return {
+    promptsCacheKey: state?.promptsCacheKey || fallbackPromptsCacheKey,
+    useStored: !isMultiTab,
+    focusKeyword: restoreFocusKeyword({ state, multiTab: isMultiTab }),
+  };
 }
 
 // Restore has to rebuild the same context the generation run used. Persisted

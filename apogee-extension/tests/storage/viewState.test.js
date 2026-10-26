@@ -133,6 +133,30 @@ test("history off scrubs selected text and focus keyword but keeps the prompts k
   );
 });
 
+test("history off scrubs selected text and focus keyword without a url (#497)", async () => {
+  installFakeStorage({ settings: { saveHistory: false } });
+  const promptsCacheKey =
+    "suggested-prompts:auto:model:opus:abc:pwebllm:tselection:s123";
+
+  const state = await saveViewState(7, {
+    view: "summaryView",
+    subview: "summary",
+    pageType: "selection",
+    isSelection: true,
+    selectionText: "The confidential paragraph the reader selected.",
+    focusKeyword: "the CEO's private notes",
+    promptsCacheKey,
+  });
+
+  assert.strictEqual(state.selectionText, undefined);
+  assert.strictEqual(state.focusKeyword, undefined);
+  assert.strictEqual(
+    state.promptsCacheKey,
+    promptsCacheKey,
+    "the stream-start write keeps the computed key",
+  );
+});
+
 test("clearAllViewStates drops every tab's state and leaves settings alone", async () => {
   const settings = { saveHistory: true };
   const data = installFakeStorage({ settings });

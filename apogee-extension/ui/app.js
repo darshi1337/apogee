@@ -25,8 +25,8 @@ import { formatEffectiveConfigJSON } from "./effectiveConfig.js";
 import {
   customContentPromptsCacheKey,
   getSummaryAndPromptsCacheKeys,
-  restoreFocusKeyword,
   restorePromptsContext,
+  savedSummaryRestorePlan,
 } from "./promptsContext.js";
 import {
   gateFocusKeyword,
@@ -2605,28 +2605,26 @@ document.addEventListener("DOMContentLoaded", async () => {
               // key is not inherited (#494). Rebuild it from the tab URL so
               // the popup listens on the key the worker broadcasts, but do
               // not read it from storage: it is the single-tab key. The
-              // focus keyword is always empty for a multi-tab synthesis.
-              const isMultiTab = !state.promptsCacheKey;
+              // restored summary's key/focus policy lives in one helper.
+              let fallbackPromptsCacheKey = null;
+              if (!state.promptsCacheKey && tab.url) {
+                fallbackPromptsCacheKey = await getPromptsCacheKeyForSettings(
+                  tab.url,
+                  settings,
+                  getModelForSettings(settings),
+                  "",
+                );
+              }
+              const restorePlan = savedSummaryRestorePlan({
+                state,
+                fallbackPromptsCacheKey,
+              });
               await restoreSuggestedPrompts({
-                promptsCacheKey:
-                  state.promptsCacheKey ||
-                  (tab.url
-                    ? await getPromptsCacheKeyForSettings(
-                        tab.url,
-                        settings,
-                        getModelForSettings(settings),
-                        "",
-                      )
-                    : null),
+                ...restorePlan,
                 tab,
                 summary: state.summaryText,
                 settings,
                 persist: false,
-                focusKeyword: restoreFocusKeyword({
-                  state,
-                  multiTab: isMultiTab,
-                }),
-                useStored: !isMultiTab,
               });
               return;
             }

@@ -251,6 +251,13 @@ export async function recordPopupSummaryStream(payload, streamId) {
     finalize.jobId,
     {
       streamId,
+      // Normal/selection summaries can repeat the tab URL so the write also
+      // honors sensitive/private-host scrubbing. Pasted content has no tab
+      // identity; sending its source URL would change urlHash and break the
+      // restore match, so it relies on the global history-off scrub.
+      url: finalize.customContent
+        ? undefined
+        : finalize.persistUrl || payload.url,
       promptsCacheKey: finalize.promptsCacheKey,
       pageType: typeof finalize.pageType === "string" ? finalize.pageType : "",
       focusKeyword: asFocusKeyword(finalize.focusKeyword),
@@ -288,8 +295,8 @@ export async function finalizeSummaryJob(
     persistUrl,
     isSelection,
     providerType,
-    pageType,
-    selectionText,
+    pageType = "",
+    selectionText = "",
     host,
     notifyOnFinish,
     sensitive,
@@ -299,7 +306,7 @@ export async function finalizeSummaryJob(
     language,
     translationEngine,
     customInstructions,
-    focusKeyword,
+    focusKeyword = "",
   } = finalize;
 
   try {

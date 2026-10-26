@@ -1,12 +1,13 @@
 import test from "node:test";
 import assert from "node:assert";
-import { readFileSync } from "node:fs";
+import { readSource, functionBody } from "../helpers/readSource.js";
 import {
   customContentPromptsCacheKey,
   getSummaryAndPromptsCacheKeys,
   getUiPromptsCacheKey,
   restoreFocusKeyword,
   restorePromptsContext,
+  savedSummaryRestorePlan,
 } from "../../ui/promptsContext.js";
 import {
   getPromptsCacheKey,
@@ -33,6 +34,7 @@ const settings = {
 const model = "qwen3:8b";
 const url = "https://example.com/prompts-context";
 const noCachedPage = async () => null;
+const appCode = readSource("../../ui/app.js", import.meta.url);
 
 test("restored page type reproduces the generation-time prompts key (#497)", async () => {
   const generationKey = await getUiPromptsCacheKey(url, settings, model, "", {
@@ -164,6 +166,65 @@ test("restored focus keyword ignores non-string or missing state (#161)", () => 
     restoreFocusKeyword({ state: { pageType: "article", focusKeyword: 42 } }),
     "",
   );
+});
+
+test("saved summary restore plan reuses the persisted key and focus keyword (#161)", () => {
+  assert.deepStrictEqual(
+    savedSummaryRestorePlan({
+      state: {
+        pageType: "article",
+        promptsCacheKey: "suggested-prompts:stored-key",
+        focusKeyword: "  battery pricing  ",
+      },
+      fallbackPromptsCacheKey: "suggested-prompts:rebuilt-key",
+    }),
+    {
+      promptsCacheKey: "suggested-prompts:stored-key",
+      useStored: true,
+      focusKeyword: "battery pricing",
+    },
+  );
+});
+
+test("multi-tab saved summary plan rebuilds the key but skips stored prompts and focus (#494)", () => {
+  assert.deepStrictEqual(
+    savedSummaryRestorePlan({
+      state: {
+        pageType: "article",
+        promptsCacheKey: null,
+        focusKeyword: "must not leak",
+      },
+      fallbackPromptsCacheKey: "suggested-prompts:rebuilt-key",
+    }),
+    {
+      promptsCacheKey: "suggested-prompts:rebuilt-key",
+      useStored: false,
+      focusKeyword: "",
+    },
+  );
+});
+
+test("saved summary restore plan tolerates legacy states and missing keys (#494)", () => {
+  assert.deepStrictEqual(
+    savedSummaryRestorePlan({
+      state: {
+        promptsCacheKey: "suggested-prompts:legacy-key",
+        isSelection: true,
+        focusKeyword: "merger terms",
+      },
+    }),
+    {
+      promptsCacheKey: "suggested-prompts:legacy-key",
+      useStored: true,
+      focusKeyword: "merger terms",
+    },
+    "a legacy state keeps its keyword unless the type is multi-tab",
+  );
+  assert.deepStrictEqual(savedSummaryRestorePlan(), {
+    promptsCacheKey: null,
+    useStored: false,
+    focusKeyword: "",
+  });
 });
 
 test("restore ignores another tab's in-memory page data (#497)", async () => {
@@ -303,26 +364,19 @@ test("different selections on one URL get different prompts keys (#497)", async 
 });
 
 test("the custom-content UI builds its listen key through the provider-aware helper (#497)", () => {
-  const appCode = readFileSync(
-    new URL("../../ui/app.js", import.meta.url),
-    "utf8",
+  const body = functionBody(
+    appCode,
+    "summarizeCustomContent",
+    'document.getElementById("pasteTextBtn")',
   );
-  const body = appCode.match(
-    /async function summarizeCustomContent\([\s\S]*?\n\}\n/,
-  );
-  assert.ok(body, "summarizeCustomContent function found");
-  assert.match(body[0], /customContentPromptsCacheKey\(/);
+  assert.match(body, /customContentPromptsCacheKey\(/);
   assert.ok(
-    !body[0].includes("getPromptsCacheKeyForSettings("),
+    !body.includes("getPromptsCacheKeyForSettings("),
     "the custom-content path must not build a context-free key",
   );
 });
 
 test("the cached-summary restore resolves page context through the shared helper (#497)", () => {
-  const appCode = readFileSync(
-    new URL("../../ui/app.js", import.meta.url),
-    "utf8",
-  );
   // The saved-state path already carries the key generation used; only the
   // cache-hit path has to rebuild context from storage and page data.
   const contextBlock = appCode.match(
@@ -334,34 +388,33 @@ test("the cached-summary restore resolves page context through the shared helper
   );
 });
 
-test("the saved-summary restore forwards the persisted focus keyword (#161)", () => {
-  const appCode = readFileSync(
-    new URL("../../ui/app.js", import.meta.url),
-    "utf8",
-  );
-  const savedRestore = appCode.match(
-    /const isMultiTab = !state\.promptsCacheKey;([\s\S]*?)useStored: !isMultiTab,/,
-  );
-  assert.ok(savedRestore, "the saved-summary restore call is found");
+test("the saved-summary restore uses the shared key and focus plan (#161)", () => {
   assert.match(
-    savedRestore[1],
-    /focusKeyword: restoreFocusKeyword\(\{[\s\S]*?state,[\s\S]*?multiTab: isMultiTab,[\s\S]*?\}\)/,
-    "the persisted keyword must reach the suggest job",
+    appCode,
+    /const restorePlan = savedSummaryRestorePlan\(\{[\s\S]*?state,[\s\S]*?fallbackPromptsCacheKey,/,
+    "the saved-summary path must delegate to the tested helper",
+  );
+  assert.match(
+    appCode,
+    /restoreSuggestedPrompts\(\{\s*\.\.\.restorePlan,/,
+    "the plan's key, stored-prompt guard, and keyword must reach the restore",
   );
 });
 
 test("restoreSuggestedPrompts forwards the resolved context to the suggest job (#497)", () => {
-  const appCode = readFileSync(
-    new URL("../../ui/app.js", import.meta.url),
-    "utf8",
+  const helper = functionBody(
+    appCode,
+    "restoreSuggestedPrompts",
+    "chrome.storage.onChanged.addListener",
   );
-  const helper = appCode.match(
-    /async function restoreSuggestedPrompts\(\{[\s\S]*?\n\}\n/,
-  );
-  assert.ok(helper, "restoreSuggestedPrompts helper found");
   assert.match(
-    helper[0],
+    helper,
     /startSuggestedQuestionsBg\([\s\S]*?pageType,\s*selectionText\s*\}/,
     "the helper must pass page type and selection text to the worker",
+  );
+  assert.match(
+    helper,
+    /startSuggestedQuestionsBg\([\s\S]*?persist,\s*focusKeyword,/,
+    "the helper must pass the restored focus keyword",
   );
 });

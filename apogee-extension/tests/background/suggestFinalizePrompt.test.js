@@ -129,6 +129,7 @@ test("a normal page's UI key equals the trusted finalizer's key (#497)", async (
     content: "Article text.",
     type: "article",
     focusKeyword,
+    finalize: { pageType: "article" },
   });
   assert.ok(trusted, "trusted finalize is built");
   assert.strictEqual(trusted.pageType, "article");
@@ -160,6 +161,7 @@ test("custom content: the UI key equals the trusted finalizer's key (#497)", asy
     content,
     finalize: {
       customContent: true,
+      pageType: "",
       tabId: 497,
       jobId: "custom-content-497",
     },
@@ -224,6 +226,93 @@ test("recordPopupSummaryStream clears stale selection fields and defaults missin
   assert.strictEqual(state.selectionText, "");
   assert.strictEqual(state.pageType, "");
   assert.strictEqual(state.focusKeyword, "");
+});
+
+test("recordPopupSummaryStream scrubs selection text when history is off (#497)", async () => {
+  const { settings } = await chrome.storage.local.get("settings");
+  await chrome.storage.local.set({
+    settings: { ...settings, saveHistory: false },
+  });
+  try {
+    const tabId = 4975;
+    const jobId = "history-off-record-497";
+    await saveViewState(tabId, {
+      view: "summaryView",
+      subview: "summarizing",
+      url,
+      streamId: null,
+      jobId,
+    });
+
+    await recordPopupSummaryStream(
+      {
+        model,
+        title: "Selection Example",
+        url,
+        finalize: {
+          jobId,
+          tabId,
+          promptsCacheKey: "suggested-prompts:history-off-key",
+          pageType: "selection",
+          isSelection: true,
+          selectionText: "The confidential paragraph the reader selected.",
+          focusKeyword: "the CEO's private notes",
+          language: "auto",
+          translationEngine: "opus",
+        },
+      },
+      "stream-history-off-497",
+    );
+
+    const state = await loadViewState(tabId);
+    assert.strictEqual(state.selectionText, undefined);
+    assert.strictEqual(state.focusKeyword, undefined);
+    assert.strictEqual(
+      state.promptsCacheKey,
+      "suggested-prompts:history-off-key",
+      "the key survives so prompts can still be regenerated",
+    );
+  } finally {
+    await chrome.storage.local.set({ settings });
+  }
+});
+
+test("recordPopupSummaryStream scrubs on a sensitive host even with history on (#497)", async () => {
+  const tabId = 4976;
+  const jobId = "sensitive-record-497";
+  const sensitiveUrl = "https://mail.google.com/mail/u/0/#inbox/abc";
+  await saveViewState(tabId, {
+    view: "summaryView",
+    subview: "summarizing",
+    url: sensitiveUrl,
+    streamId: null,
+    jobId,
+  });
+
+  await recordPopupSummaryStream(
+    {
+      model,
+      title: "Mail",
+      url: sensitiveUrl,
+      finalize: {
+        jobId,
+        tabId,
+        promptsCacheKey: "suggested-prompts:sensitive-key",
+        pageType: "selection",
+        isSelection: true,
+        selectionText: "The confidential paragraph the reader selected.",
+        focusKeyword: "the CEO's private notes",
+        language: "auto",
+        translationEngine: "opus",
+      },
+    },
+    "stream-sensitive-497",
+  );
+
+  const state = await loadViewState(tabId);
+  assert.strictEqual(state.selectionText, undefined);
+  assert.strictEqual(state.focusKeyword, undefined);
+  assert.strictEqual(state.promptsCacheKey, "suggested-prompts:sensitive-key");
 });
 
 test("finalizeSummaryJob persists the normal page type and clears selection fields (#497)", async () => {

@@ -40,7 +40,7 @@ const MAX_VIEW_STATE_BYTES = 1_000_000;
 const acquireViewStateLock = createLock();
 
 async function preparePartial(partial) {
-  let scrubContent = false;
+  let scrubContent;
   if (partial.url) {
     const url = partial.url;
     scrubContent = !(await shouldPersist(url));
@@ -49,6 +49,13 @@ async function preparePartial(partial) {
       url: undefined,
       urlHash: await hashUrl(url),
     };
+  } else {
+    // Stream-start and finalize writes can merge content into an existing tab
+    // state without repeating the URL. History-off still has to scrub page
+    // content on those writes; shouldPersist("") applies the global policy
+    // without inventing a page identity (sensitive/private hosts need a URL
+    // and are handled by callers that have one).
+    scrubContent = !(await shouldPersist(""));
   }
   return { partial, scrubContent };
 }
