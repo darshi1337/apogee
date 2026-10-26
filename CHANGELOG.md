@@ -322,6 +322,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Do not read the single-tab prompts key when restoring a multi-tab summary (#494) ([d08f872](https://github.com/darshi1337/apogee/commit/d08f8724ca8417635e710698ae78aa853c10c3ee))
 - Guard summarizeActivePage against double-click runs (#554) ([a45259a](https://github.com/darshi1337/apogee/commit/a45259a2b2097beb4fdb3cc5d2afa110be56f15e))
 - Keep pre-1.0 feature commits on patch versions (#558) ([78faf65](https://github.com/darshi1337/apogee/commit/78faf65c96042b4b4664179eec660cc5e9a71a45))
+- Align prompts cache keys across UI and background (#497) (#555) ([41a0d94](https://github.com/darshi1337/apogee/commit/41a0d94d1f14b69319845f2c17c82e7479a0399a))
 
 ## [0.2.1] - 2026-08-19
 
