@@ -12,32 +12,25 @@ import {
 // hash of the selected text. The trusted finalizer includes them, so every UI
 // path must include them too or the questions land under a key the UI never
 // listens on (#497).
-export function promptsKeyContext(
-  settings,
-  { pageType = "", selectionText = "" } = {},
-) {
-  return {
-    providerType: getProviderType(settings),
-    pageType,
-    // The key builder ignores a selection hash without the selection page
-    // type; keep the context honest at the source as well.
-    selectionText: pageType === "selection" ? selectionText : "",
-  };
-}
-
 export async function getUiPromptsCacheKey(
   identityUrl,
   settings,
   model,
   focusKeyword = "",
-  context = {},
+  { pageType = "", selectionText = "" } = {},
 ) {
   return getPromptsCacheKeyForSettings(
     identityUrl,
     settings,
     model,
     focusKeyword,
-    promptsKeyContext(settings, context),
+    {
+      providerType: getProviderType(settings),
+      pageType,
+      // The key builder ignores a selection hash without the selection page
+      // type; keep the context honest at the source as well.
+      selectionText: pageType === "selection" ? selectionText : "",
+    },
   );
 }
 
@@ -80,28 +73,28 @@ export async function customContentPromptsCacheKey({
   });
 }
 
-// A restored summary must regenerate its questions with the same focus
-// keyword that scoped the key, even though the live input is empty on a fresh
-// popup. The keyword rides in view state; multi-tab syntheses never use one.
-export function restoreFocusKeyword({ state = null, multiTab = false } = {}) {
-  if (multiTab) return "";
-  const raw = typeof state?.focusKeyword === "string" ? state.focusKeyword : "";
-  return gateFocusKeyword(raw, state?.pageType);
-}
-
 // Decide which key and focus keyword a restored summary uses. A real persisted
 // key owns its stored prompts; a multi-tab synthesis saves null and rebuilds
 // the owner URL's single-tab key only to match the worker's broadcast, so it
-// must neither read stored prompts nor inherit a keyword (#494).
+// must neither read stored prompts nor inherit a keyword (#494). The restored
+// keyword is gated the same way the live input is.
 export function savedSummaryRestorePlan({
   state = null,
   fallbackPromptsCacheKey = null,
 } = {}) {
-  const isMultiTab = !state?.promptsCacheKey;
+  const persistedPromptsCacheKey =
+    typeof state?.promptsCacheKey === "string" && state.promptsCacheKey
+      ? state.promptsCacheKey
+      : null;
+  const isMultiTab = !persistedPromptsCacheKey;
+  const focusKeyword =
+    !isMultiTab && typeof state?.focusKeyword === "string"
+      ? state.focusKeyword
+      : "";
   return {
-    promptsCacheKey: state?.promptsCacheKey || fallbackPromptsCacheKey,
+    promptsCacheKey: persistedPromptsCacheKey || fallbackPromptsCacheKey,
     useStored: !isMultiTab,
-    focusKeyword: restoreFocusKeyword({ state, multiTab: isMultiTab }),
+    focusKeyword: gateFocusKeyword(focusKeyword, state?.pageType),
   };
 }
 

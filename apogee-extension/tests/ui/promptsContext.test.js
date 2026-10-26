@@ -5,7 +5,6 @@ import {
   customContentPromptsCacheKey,
   getSummaryAndPromptsCacheKeys,
   getUiPromptsCacheKey,
-  restoreFocusKeyword,
   restorePromptsContext,
   savedSummaryRestorePlan,
 } from "../../ui/promptsContext.js";
@@ -124,50 +123,6 @@ test("legacy selection state without a page type still restores selection (#497)
   assert.deepStrictEqual(context, { pageType: "selection", selectionText });
 });
 
-test("a restored summary keeps the focus keyword that scoped its key (#161)", () => {
-  assert.strictEqual(
-    restoreFocusKeyword({
-      state: {
-        pageType: "article",
-        focusKeyword: "  battery pricing  ",
-        promptsCacheKey: "suggested-prompts:key",
-      },
-    }),
-    "battery pricing",
-  );
-  assert.strictEqual(
-    restoreFocusKeyword({
-      state: { pageType: "selection", focusKeyword: "merger terms" },
-    }),
-    "merger terms",
-  );
-});
-
-test("restored focus keyword is empty for a multi-tab synthesis (#494)", () => {
-  assert.strictEqual(
-    restoreFocusKeyword({
-      state: { pageType: "multi-tab", focusKeyword: "must not leak" },
-    }),
-    "",
-  );
-  assert.strictEqual(
-    restoreFocusKeyword({
-      state: { pageType: "article", focusKeyword: "must not leak" },
-      multiTab: true,
-    }),
-    "",
-    "a synthesis never carries the owner tab's keyword",
-  );
-});
-
-test("restored focus keyword ignores non-string or missing state (#161)", () => {
-  assert.strictEqual(restoreFocusKeyword({ state: null }), "");
-  assert.strictEqual(
-    restoreFocusKeyword({ state: { pageType: "article", focusKeyword: 42 } }),
-    "",
-  );
-});
-
 test("saved summary restore plan reuses the persisted key and focus keyword (#161)", () => {
   assert.deepStrictEqual(
     savedSummaryRestorePlan({
@@ -202,6 +157,17 @@ test("multi-tab saved summary plan rebuilds the key but skips stored prompts and
       focusKeyword: "",
     },
   );
+});
+
+test("saved summary restore plan ignores non-string focus keywords (#161)", () => {
+  const plan = savedSummaryRestorePlan({
+    state: {
+      pageType: "article",
+      promptsCacheKey: "suggested-prompts:key",
+      focusKeyword: 42,
+    },
+  });
+  assert.strictEqual(plan.focusKeyword, "");
 });
 
 test("saved summary restore plan tolerates legacy states and missing keys (#494)", () => {
