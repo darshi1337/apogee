@@ -5,6 +5,7 @@ import {
   customContentPromptsCacheKey,
   getSummaryAndPromptsCacheKeys,
   getUiPromptsCacheKey,
+  restoreFocusKeyword,
   restorePromptsContext,
 } from "../../ui/promptsContext.js";
 import {
@@ -119,6 +120,50 @@ test("legacy selection state without a page type still restores selection (#497)
   });
 
   assert.deepStrictEqual(context, { pageType: "selection", selectionText });
+});
+
+test("a restored summary keeps the focus keyword that scoped its key (#161)", () => {
+  assert.strictEqual(
+    restoreFocusKeyword({
+      state: {
+        pageType: "article",
+        focusKeyword: "  battery pricing  ",
+        promptsCacheKey: "suggested-prompts:key",
+      },
+    }),
+    "battery pricing",
+  );
+  assert.strictEqual(
+    restoreFocusKeyword({
+      state: { pageType: "selection", focusKeyword: "merger terms" },
+    }),
+    "merger terms",
+  );
+});
+
+test("restored focus keyword is empty for a multi-tab synthesis (#494)", () => {
+  assert.strictEqual(
+    restoreFocusKeyword({
+      state: { pageType: "multi-tab", focusKeyword: "must not leak" },
+    }),
+    "",
+  );
+  assert.strictEqual(
+    restoreFocusKeyword({
+      state: { pageType: "article", focusKeyword: "must not leak" },
+      multiTab: true,
+    }),
+    "",
+    "a synthesis never carries the owner tab's keyword",
+  );
+});
+
+test("restored focus keyword ignores non-string or missing state (#161)", () => {
+  assert.strictEqual(restoreFocusKeyword({ state: null }), "");
+  assert.strictEqual(
+    restoreFocusKeyword({ state: { pageType: "article", focusKeyword: 42 } }),
+    "",
+  );
 });
 
 test("restore ignores another tab's in-memory page data (#497)", async () => {
@@ -286,6 +331,22 @@ test("the cached-summary restore resolves page context through the shared helper
   assert.ok(
     contextBlock,
     "the cached-summary restore asks the shared helper for its context",
+  );
+});
+
+test("the saved-summary restore forwards the persisted focus keyword (#161)", () => {
+  const appCode = readFileSync(
+    new URL("../../ui/app.js", import.meta.url),
+    "utf8",
+  );
+  const savedRestore = appCode.match(
+    /const isMultiTab = !state\.promptsCacheKey;([\s\S]*?)useStored: !isMultiTab,/,
+  );
+  assert.ok(savedRestore, "the saved-summary restore call is found");
+  assert.match(
+    savedRestore[1],
+    /focusKeyword: restoreFocusKeyword\(\{[\s\S]*?state,[\s\S]*?multiTab: isMultiTab,[\s\S]*?\}\)/,
+    "the persisted keyword must reach the suggest job",
   );
 });
 

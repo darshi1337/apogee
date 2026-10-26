@@ -1,4 +1,5 @@
 import { getProviderType } from "../lib/engines/providers.js";
+import { gateFocusKeyword } from "./focusKeyword.js";
 import {
   getCachedContent,
   getPromptsCacheKeyForSettings,
@@ -77,6 +78,15 @@ export async function customContentPromptsCacheKey({
   return getUiPromptsCacheKey(identityUrl, settings, model, focusKeyword, {
     pageType: "",
   });
+}
+
+// A restored summary must regenerate its questions with the same focus
+// keyword that scoped the key, even though the live input is empty on a fresh
+// popup. The keyword rides in view state; multi-tab syntheses never use one.
+export function restoreFocusKeyword({ state = null, multiTab = false } = {}) {
+  if (multiTab) return "";
+  const raw = typeof state?.focusKeyword === "string" ? state.focusKeyword : "";
+  return gateFocusKeyword(raw, state?.pageType);
 }
 
 // Restore has to rebuild the same context the generation run used. Persisted

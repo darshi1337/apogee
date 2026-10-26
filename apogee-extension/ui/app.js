@@ -25,6 +25,7 @@ import { formatEffectiveConfigJSON } from "./effectiveConfig.js";
 import {
   customContentPromptsCacheKey,
   getSummaryAndPromptsCacheKeys,
+  restoreFocusKeyword,
   restorePromptsContext,
 } from "./promptsContext.js";
 import {
@@ -2621,6 +2622,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                 summary: state.summaryText,
                 settings,
                 persist: false,
+                focusKeyword: restoreFocusKeyword({
+                  state,
+                  multiTab: isMultiTab,
+                }),
                 useStored: !isMultiTab,
               });
               return;
