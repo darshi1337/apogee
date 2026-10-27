@@ -1,6 +1,6 @@
 name: Store Users Sync
 
-# Keeps the self-hosted Chrome and Firefox user badges current.
+# Keeps the self-hosted combined Chrome + Firefox user badge current.
 # Chrome has no public stats API; Shields.io maintains the listing scrape.
 # Firefox uses the public AMO API via Shields.io. Main is protected, so
 # SYNC_TOKEN opens a PR and auto-merge lands it after the required checks.
@@ -40,62 +40,90 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Refresh user badges
+      - name: Refresh user badge
         run: |
-          set -euo pipefail
-          tmp="$(mktemp -d)"
-          curl -fsSL "https://img.shields.io/chrome-web-store/users/${CHROME_ID}?label=chrome&color=green" -o "$tmp/chrome.svg"
-          curl -fsSL "https://img.shields.io/amo/users/${AMO_SLUG}?label=firefox&color=orange" -o "$tmp/firefox.svg"
-          python3 - "$tmp/chrome.svg" "$tmp/firefox.svg" <<'EOF'
+          python3 - <<'EOF'
+          import os
           import re
-          import sys
+          import urllib.request
           from pathlib import Path
 
-          VALUE = re.compile(r"^[0-9][0-9.,]*[kKmM]?\+?$")
-          counts = {}
-          for path, label in [(sys.argv[1], "chrome"), (sys.argv[2], "firefox")]:
-              svg = Path(path).read_text()
-              match = re.search(rf"<title>{label}: ([^<]+)</title>", svg)
-              if not match or not VALUE.fullmatch(match.group(1)):
-                  raise SystemExit(
-                      f"{label} badge did not contain a user count: {svg[:200]!r}"
-                  )
-              counts[label] = match.group(1)
+          BADGE = Path(".github/assets/badge-users.svg")
+          SUMMARY = Path("/tmp/store-users.md")
 
-          summary = (
-              "| Store | Users |\n"
-              "| --- | ---: |\n"
-              f"| Chrome (weekly) | {counts['chrome']} |\n"
-              f"| Firefox (avg. daily) | {counts['firefox']} |\n"
+          def fetch(url):
+              request = urllib.request.Request(
+                  url, headers={"User-Agent": "apogee-store-users-sync"}
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return response.read().decode("utf-8")
+
+          def read_count(svg, label):
+              match = re.search(rf"<title>{label}: ([^<]+)</title>", svg)
+              if not match:
+                  raise SystemExit(f"{label} badge has no title: {svg[:200]!r}")
+              value = match.group(1)
+              parsed = re.fullmatch(
+                  r"([0-9]+(?:\.[0-9]+)?)([kKmM]?)",
+                  value.replace(",", "").rstrip("+"),
+              )
+              if not parsed:
+                  raise SystemExit(f"{label} badge has no user count: {value!r}")
+              scale = {"": 1, "k": 1_000, "m": 1_000_000}[parsed.group(2).lower()]
+              return round(float(parsed.group(1)) * scale)
+
+          chrome = read_count(
+              fetch(
+                  "https://img.shields.io/chrome-web-store/users/"
+                  f"{os.environ['CHROME_ID']}?label=chrome"
+              ),
+              "chrome",
           )
-          Path("/tmp/store-users.md").write_text(summary)
+          firefox = read_count(
+              fetch(
+                  f"https://img.shields.io/amo/users/{os.environ['AMO_SLUG']}?label=firefox"
+              ),
+              "firefox",
+          )
+          total = chrome + firefox
+          badge = fetch(f"https://img.shields.io/badge/users-{total}-blue")
+          if read_count(badge, "users") != total:
+              raise SystemExit(f"combined badge does not show {total}: {badge[:200]!r}")
+
+          BADGE.write_text(badge)
+          summary = (
+              "| Source | Users |\n"
+              "| --- | ---: |\n"
+              f"| Chrome (weekly) | {chrome} |\n"
+              f"| Firefox (avg. daily) | {firefox} |\n"
+              f"| **Total** | **{total}** |\n"
+          )
+          SUMMARY.write_text(summary)
           print(summary)
           EOF
           cat /tmp/store-users.md >> "$GITHUB_STEP_SUMMARY"
-          mv "$tmp/chrome.svg" .github/assets/badge-users-chrome.svg
-          mv "$tmp/firefox.svg" .github/assets/badge-users-firefox.svg
 
       - name: Open or update the sync PR
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
-          if git diff --quiet -- .github/assets/badge-users-chrome.svg .github/assets/badge-users-firefox.svg; then
-            echo "Store user badges already current."
+          if git diff --quiet -- .github/assets/badge-users.svg; then
+            echo "Store user badge already current."
             exit 0
           fi
           branch="automation/store-users-sync"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
-          git add .github/assets/badge-users-chrome.svg .github/assets/badge-users-firefox.svg
-          git commit -m "docs: refresh store user badges"
+          git add .github/assets/badge-users.svg
+          git commit -m "docs: refresh store user badge"
           git remote set-url origin "https://x-access-token:${SYNC_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin "$branch"
           pr=$(gh pr list --head "$branch" --state open --json number -q '.[0].number')
           if [ -z "$pr" ]; then
             {
-              echo "Refreshes the self-hosted Chrome and Firefox user badges."
+              echo "Refreshes the self-hosted combined Chrome + Firefox user badge."
               echo
               echo "Chrome shows weekly users; Firefox shows average daily users."
               echo
@@ -104,7 +132,7 @@ jobs:
             gh pr create \
               --base main \
               --head "$branch" \
-              --title "docs: refresh store user badges" \
+              --title "docs: refresh store user badge" \
               --body-file /tmp/store-users-pr.md
             pr=$(gh pr list --head "$branch" --state open --json number -q '.[0].number')
           fi
