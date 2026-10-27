@@ -122,5 +122,6 @@ export function createExtensionApiMock(initialStorage = {}) {
       permissions: mockPermissions,
     },
     getStorageData: () => ({ ...storageData }),
+    getMessageListeners: () => messageListeners.listeners,
   };
 }

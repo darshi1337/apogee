@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert";
 import { createExtensionApiMock } from "../helpers/extensionApiMock.js";
+import {
+  waitForNewStream,
+  waitForStreamDone,
+} from "../helpers/streamTestUtils.js";
 
 // --- #466: a prefs-load failure at stream start must end the stream ---
 //
@@ -11,7 +15,9 @@ import { createExtensionApiMock } from "../helpers/extensionApiMock.js";
 // The load now sits inside the run's try, so the failure finishes the
 // stream with a terminal error instead.
 
-const { chrome } = createExtensionApiMock({ settings: {} });
+const { chrome, getMessageListeners } = createExtensionApiMock({
+  settings: {},
+});
 chrome.scripting = {
   executeScript: async () => [{ result: null }],
 };
@@ -34,49 +40,18 @@ chrome.storage.local.get = async (...args) => {
   return realStorageGet(...args);
 };
 
-const routerListeners = [];
-const realAddListener = chrome.runtime.onMessage.addListener;
-chrome.runtime.onMessage.addListener = (fn) => {
-  routerListeners.push(fn);
-  realAddListener(fn);
-};
 globalThis.chrome = chrome;
 
 await import("../../background/service-worker.js");
 const { activeStreams } = await import("../../background/streams.js");
 
+const routerListeners = getMessageListeners();
 assert.ok(
   routerListeners.length > 0,
   "service worker must register its message router",
 );
 const router = routerListeners[0];
 const SENDER = { id: "mock-extension-id-12345" };
-
-async function waitForNewStream(before, label) {
-  const deadline = Date.now() + 2000;
-  for (;;) {
-    const streamId = [...activeStreams.keys()].find((id) => !before.has(id));
-    if (streamId) return streamId;
-    if (Date.now() > deadline) {
-      assert.fail(`${label}: router never registered a stream`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-}
-
-async function waitForStream(streamId, label) {
-  const deadline = Date.now() + 2000;
-  for (;;) {
-    const stream = activeStreams.get(streamId);
-    if (stream?.done) return stream;
-    if (Date.now() > deadline) {
-      assert.fail(
-        `${label}: stream ${streamId} never reached a terminal state`,
-      );
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-}
 
 function startPayload(extra = {}) {
   return {
@@ -106,9 +81,17 @@ test("ollama-stream ends the stream when settings fail to load (#466)", async ()
     SENDER,
     () => {},
   );
-  const streamId = await waitForNewStream(before, "ollama-stream");
+  const streamId = await waitForNewStream(
+    activeStreams,
+    before,
+    "ollama-stream",
+  );
   assert.ok(streamId, "router must register a stream before the failure");
-  const stream = await waitForStream(streamId, "ollama-stream");
+  const stream = await waitForStreamDone(
+    activeStreams,
+    streamId,
+    "ollama-stream",
+  );
   assert.strictEqual(typeof stream.error, "string");
   assert.ok(stream.error.length > 0, "terminal error must say something");
 });
@@ -124,9 +107,17 @@ test("transformers-stream ends the stream when settings fail to load (#466)", as
     SENDER,
     () => {},
   );
-  const streamId = await waitForNewStream(before, "transformers-stream");
+  const streamId = await waitForNewStream(
+    activeStreams,
+    before,
+    "transformers-stream",
+  );
   assert.ok(streamId, "router must register a stream before the failure");
-  const stream = await waitForStream(streamId, "transformers-stream");
+  const stream = await waitForStreamDone(
+    activeStreams,
+    streamId,
+    "transformers-stream",
+  );
   assert.strictEqual(typeof stream.error, "string");
   assert.ok(stream.error.length > 0, "terminal error must say something");
 });

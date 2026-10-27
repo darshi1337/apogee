@@ -293,6 +293,10 @@ function createBufferedStream(streamId, { finalize, model, title, url }) {
     controller: new AbortController(),
   });
   activeStreams.set(streamId, stream);
+  // Deadline from creation, not first chunk: a local HTTP request that hangs
+  // before its first token would otherwise stay in activeStreams forever and
+  // keep the worker awake. Progress re-slides this same window below.
+  scheduleStreamCleanup(streamId);
   startKeepAlive();
 
   const finish = (msg) => {

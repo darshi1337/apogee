@@ -30,6 +30,43 @@ export async function collectAsync(gen) {
   return out;
 }
 
+// Poll the worker's stream registry for a stream registered after `before`,
+// so tests can await asynchronous message-router startup without fixed sleeps.
+export async function waitForNewStream(
+  activeStreams,
+  before,
+  label = "router",
+  timeoutMs = 2000,
+) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const streamId = [...activeStreams.keys()].find((id) => !before.has(id));
+    if (streamId) return streamId;
+    if (Date.now() > deadline) {
+      throw new Error(`${label}: router never registered a stream`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+// Poll a stream until it reaches its terminal state.
+export async function waitForStreamDone(
+  activeStreams,
+  streamId,
+  label = "stream",
+  timeoutMs = 2000,
+) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const stream = activeStreams.get(streamId);
+    if (stream?.done) return stream;
+    if (Date.now() > deadline) {
+      throw new Error(`${label}: stream ${streamId} never finished`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
 // Canned chat-stream stub shared by the summarize and language tests:
 // replays one output per call and records each invocation. Tolerates both
 // lib call conventions — chatStreamFn(host, model, prompt, opts) in the
