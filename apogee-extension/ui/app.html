@@ -807,9 +807,9 @@
           <div class="settings-card">
             <div class="card-title">
               <span class="ico" data-ico="globe" aria-hidden="true"></span>
-              <span data-i18n="summaryLanguage">Summary Language</span>
+              <span id="summaryLanguageTitle" data-i18n="summaryLanguage">Summary Language</span>
             </div>
-            <select id="summaryLanguageSelect" class="settings-select"></select>
+            <select id="summaryLanguageSelect" class="settings-select" aria-labelledby="summaryLanguageTitle"></select>
           </div>
 
           <div class="settings-card">
@@ -858,10 +858,11 @@
           <div class="settings-card">
             <div class="card-title">
               <span class="ico" data-ico="pencil" aria-hidden="true"></span>
-              <span data-i18n="customInstructions">Custom Instructions</span>
+              <span id="customInstructionsTitle" data-i18n="customInstructions">Custom Instructions</span>
             </div>
             <textarea
               id="customInstructionsInput"
+              aria-labelledby="customInstructionsTitle"
               class="settings-textarea"
               rows="4"
               maxlength="2000"
@@ -895,7 +896,7 @@
           <div class="settings-card">
             <div class="card-title">
               <span class="ico" data-ico="shield" aria-hidden="true"></span>
-              <span data-i18n="privacy">Privacy</span>
+              <span id="privacyTitle" data-i18n="privacy">Privacy</span>
             </div>
 
             <label class="radio-option">
@@ -932,11 +933,12 @@
               </div>
             </div>
 
-            <p class="settings-hint" data-i18n="privateHostsHint">
+            <p id="privateHostsHint" class="settings-hint" data-i18n="privateHostsHint">
               Add other hosts to never save, one per line.
             </p>
             <textarea
               id="privateHostsInput"
+              aria-labelledby="privacyTitle privateHostsHint"
               class="settings-textarea"
               rows="3"
               maxlength="1000"
