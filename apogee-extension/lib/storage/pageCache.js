@@ -46,9 +46,8 @@ async function makeCacheKey(
   translationEngine,
   focusKeyword,
 ) {
-  // An empty `fmt` leaves the format out of the key: the suggested-questions
-  // prompt cannot change with the summary's response format, so a format change
-  // must not refetch questions that come out identical (#498).
+  // An empty `fmt` leaves the segment out for callers whose key has no format
+  // dimension. Summaries and suggested prompts both pass one.
   const head = fmt ? `${prefix}:${fmt}` : prefix;
   return `${head}:${lang}:${model}:${translationEngineKey(translationEngine)}:${await hashUrl(url)}${await hashedSuffix(customInstructions, "i")}${await hashedSuffix(focusKeyword, "k")}`;
 }
@@ -97,9 +96,9 @@ export function parseSummaryCacheKey(cacheKey) {
 }
 // The suggested-questions key carries what the questions actually depend on:
 // the page, the model, the language they are written in, the translation engine,
-// the reader's own instructions and their focus keyword. The summary's response
-// format is not one of them - the questions are always two plain lines and the
-// parser strips list markers, so a format change cannot change them (#498).
+// the response format that shaped the summary text, the reader's own
+// instructions and their focus keyword. The prompt embeds the formatted
+// summary, so a format change can change the questions (#498).
 // Provider, page type, and a hash of the selected text scope pages that share a
 // URL; selection text itself never appears in the key.
 export async function getPromptsCacheKey(
@@ -111,10 +110,12 @@ export async function getPromptsCacheKey(
   focusKeyword = "",
   context = {},
 ) {
+  const responseFormat =
+    typeof context.responseFormat === "string" ? context.responseFormat : "";
   const baseKey = await makeCacheKey(
     "suggested-prompts",
     url,
-    "",
+    responseFormat,
     model,
     lang,
     customInstructions,
@@ -158,7 +159,7 @@ export async function getPromptsCacheKeyForSettings(
     settings.customInstructions,
     settings.translationEngine,
     focusKeyword,
-    context,
+    { ...context, responseFormat: settings.responseFormat },
   );
 }
 export async function getContentCacheKey(url) {

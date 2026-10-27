@@ -263,7 +263,11 @@ test("custom-content keys include the provider the finalizer uses (#497)", async
     settings.customInstructions,
     settings.translationEngine,
     "",
-    { providerType: "local", pageType: "" },
+    {
+      providerType: "local",
+      pageType: "",
+      responseFormat: settings.responseFormat,
+    },
   );
 
   assert.strictEqual(
@@ -272,7 +276,7 @@ test("custom-content keys include the provider the finalizer uses (#497)", async
   );
 });
 
-test("summary keys stay response-format scoped while prompts keys do not (#498)", async () => {
+test("summary and prompts keys are both response-format scoped (#498)", async () => {
   const bullets = { ...settings, responseFormat: "bullets" };
   const prose = { ...settings, responseFormat: "prose" };
 
@@ -288,7 +292,11 @@ test("summary keys stay response-format scoped while prompts keys do not (#498)"
   });
 
   assert.notStrictEqual(bulletKeys.cacheKey, proseKeys.cacheKey);
-  assert.strictEqual(bulletKeys.promptsCacheKey, proseKeys.promptsCacheKey);
+  assert.notStrictEqual(
+    bulletKeys.promptsCacheKey,
+    proseKeys.promptsCacheKey,
+    "the prompt embeds the formatted summary text",
+  );
   assert.strictEqual(
     bulletKeys.cacheKey,
     await getSummaryCacheKeyForSettings(url, bullets, model, ""),

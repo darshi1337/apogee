@@ -61,6 +61,7 @@ test("suggest-questions-bg scopes the rebuilt promptsCacheKey by focusKeyword (#
       providerType: getProviderType(settings),
       pageType: "",
       selectionText: "",
+      responseFormat: settings.responseFormat,
     },
   );
   const unscopedKey = await getPromptsCacheKey(
