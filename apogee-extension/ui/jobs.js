@@ -3,6 +3,22 @@ import {
   cancelStream,
 } from "../lib/engines/providers.js";
 
+// Blocks a second start until the first run has a stream, so double clicks
+// cannot spawn parallel jobs. A stale release from a superseded run is a no-op.
+export function createJobStartGate() {
+  let owner = null;
+  return {
+    tryStart() {
+      if (owner) return null;
+      owner = {};
+      return owner;
+    },
+    release(token) {
+      if (owner === token) owner = null;
+    },
+  };
+}
+
 // One runner for every streaming popup job: page summarize, custom-content
 // summarize, and ask. Each attempt resets the UI, starts the engine,
 // persists per-attempt state, shows cancel, and consumes the stream. Engine
@@ -19,6 +35,7 @@ export async function runStreamingJob({
   reset,
   start,
   persistStream,
+  onStreamStart,
   showCancel,
   hideCancel,
   consume,
@@ -34,11 +51,12 @@ export async function runStreamingJob({
         cancelStream(streamId);
         return "superseded";
       }
+      onStreamStart?.(streamId);
       showCancel(streamId);
       try {
         await consume(stream, index);
       } finally {
-        hideCancel();
+        hideCancel(streamId);
       }
       return "done";
     },

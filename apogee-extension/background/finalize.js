@@ -164,9 +164,23 @@ export async function buildTrustedFinalize(payload) {
   const model = payload.model || getModelForSettings(settings);
   const providerType = getProviderType(settings);
   const isSelection = Boolean(rawFinalize.isSelection);
-  const cacheUrl = isSelection
-    ? `${rawUrl}#apogee-selection`
-    : rawUrl || `local:${await hashUrl(payload.content || "")}`;
+  // The summary key keeps the selection fragment (unchanged behavior). The
+  // prompts key uses the plain page identity: the page type and the selected
+  // text hash already isolate selections. The UI supplies that key to the
+  // suggest-questions handler, which treats it as authoritative (#497).
+  const identityUrl = rawUrl || `local:${await hashUrl(payload.content || "")}`;
+  const cacheUrl = isSelection ? `${rawUrl}#apogee-selection` : identityUrl;
+  const pageType = isSelection
+    ? "selection"
+    : typeof rawFinalize.pageType === "string"
+      ? rawFinalize.pageType
+      : typeof payload.type === "string"
+        ? payload.type
+        : "";
+  const selectionText =
+    isSelection && typeof rawFinalize.selectionText === "string"
+      ? rawFinalize.selectionText
+      : "";
 
   const cacheKey = await getSummaryCacheKeyForSettings(
     cacheUrl,
@@ -175,10 +189,15 @@ export async function buildTrustedFinalize(payload) {
     asFocusKeyword(payload.focusKeyword),
   );
   const promptsCacheKey = await getPromptsCacheKeyForSettings(
-    cacheUrl,
+    identityUrl,
     settings,
     model,
     asFocusKeyword(payload.focusKeyword),
+    {
+      providerType,
+      pageType,
+      selectionText,
+    },
   );
 
   const persist = isSelection ? false : await shouldPersist(rawUrl);
@@ -203,6 +222,8 @@ export async function buildTrustedFinalize(payload) {
     isSelection,
     customContent,
     providerType,
+    pageType,
+    selectionText,
     host: settings.ollamaHost,
     notifyOnFinish,
     sensitive,
@@ -230,7 +251,24 @@ export async function recordPopupSummaryStream(payload, streamId) {
     finalize.jobId,
     {
       streamId,
+      // Normal/selection summaries can repeat the tab URL so the write also
+      // honors sensitive/private-host scrubbing. Pasted content has no tab
+      // identity; sending its source URL would change urlHash and break the
+      // restore match, so it relies on the global history-off scrub.
+      url: finalize.customContent
+        ? undefined
+        : finalize.persistUrl || payload.url,
       promptsCacheKey: finalize.promptsCacheKey,
+      pageType: typeof finalize.pageType === "string" ? finalize.pageType : "",
+      focusKeyword: asFocusKeyword(finalize.focusKeyword),
+      // A normal summary merges into the previous job's state, so clear the
+      // selection fields explicitly instead of inheriting another summary's.
+      isSelection: finalize.isSelection === true,
+      selectionText:
+        finalize.isSelection === true &&
+        typeof finalize.selectionText === "string"
+          ? finalize.selectionText
+          : "",
       summaryLanguage: finalize.language,
       translationEngine: finalize.translationEngine,
     },
@@ -257,6 +295,8 @@ export async function finalizeSummaryJob(
     persistUrl,
     isSelection,
     providerType,
+    pageType = "",
+    selectionText = "",
     host,
     notifyOnFinish,
     sensitive,
@@ -266,7 +306,7 @@ export async function finalizeSummaryJob(
     language,
     translationEngine,
     customInstructions,
-    focusKeyword,
+    focusKeyword = "",
   } = finalize;
 
   try {
@@ -292,6 +332,15 @@ export async function finalizeSummaryJob(
           streamId: null,
           summaryText: text,
           promptsCacheKey,
+          pageType: typeof pageType === "string" ? pageType : "",
+          focusKeyword: asFocusKeyword(focusKeyword),
+          // Explicitly normalise, so a normal summary never inherits a prior
+          // selection's flag or text through the view-state merge.
+          isSelection: isSelection === true,
+          selectionText:
+            isSelection === true && typeof selectionText === "string"
+              ? selectionText
+              : "",
           summaryLanguage: language,
           translationEngine,
         },

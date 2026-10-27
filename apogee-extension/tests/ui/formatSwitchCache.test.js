@@ -1,18 +1,16 @@
 import test from "node:test";
 import assert from "node:assert";
-import { readFileSync } from "node:fs";
 
-const popupJs = readFileSync(
-  new URL("../../ui/app.js", import.meta.url),
-  "utf8",
-);
+import { readSource, functionBody } from "../helpers/readSource.js";
+
+const popupJs = readSource("../../ui/app.js", import.meta.url);
 
 function summarizeActivePageBody() {
-  const match = popupJs.match(
-    /async function summarizeActivePage\(\) \{([\s\S]*?)\n\}\n\ncancelSummarizeBtn/,
+  return functionBody(
+    popupJs,
+    "summarizeActivePage",
+    "const EMPTY_ANSWER_MESSAGE",
   );
-  assert.ok(match, "summarizeActivePage function found");
-  return match[1];
 }
 
 // Switching formats only changes the model prompt, so the extraction half is

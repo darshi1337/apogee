@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
-import { readSource } from "../helpers/readSource.js";
+import { readSource, functionBody } from "../helpers/readSource.js";
+import { savedSummaryRestorePlan } from "../../ui/promptsContext.js";
 
 // --- #494: restored multi-tab summary leaves suggested-prompts spinner stuck ---
 //
@@ -15,56 +16,54 @@ import { readSource } from "../helpers/readSource.js";
 // cached single-tab summary supply prompts for the multi-tab synthesis.
 
 const appCode = readSource("../../ui/app.js", import.meta.url);
-
-function restoreCall() {
-  const match = appCode.match(
-    /const isMultiTab = !state\.promptsCacheKey;([\s\S]*?)useStored: !isMultiTab,/,
-  );
-  assert.ok(
-    match,
-    "restore path still derives isMultiTab from state.promptsCacheKey",
-  );
-  return match[1];
-}
+const multiTabState = {
+  promptsCacheKey: null,
+  pageType: "article",
+  focusKeyword: "must not leak",
+};
 
 test("restored summary rebuilds a null promptsCacheKey before suggesting (#494)", () => {
-  assert.match(
-    restoreCall(),
-    /getPromptsCacheKeyForSettings/,
-    "null saved key must be rebuilt from the tab URL before listening",
-  );
+  const plan = savedSummaryRestorePlan({
+    state: multiTabState,
+    fallbackPromptsCacheKey: "suggested-prompts:rebuilt-key",
+  });
+  assert.strictEqual(plan.promptsCacheKey, "suggested-prompts:rebuilt-key");
+  assert.strictEqual(plan.useStored, false);
 });
 
 test("restored multi-tab summary never reads the rebuilt key from storage", () => {
-  assert.match(
-    restoreCall(),
-    /persist: false/,
-    "a multi-tab restore must not persist prompts under the single-tab key",
+  const plan = savedSummaryRestorePlan({
+    state: multiTabState,
+    fallbackPromptsCacheKey: "suggested-prompts:rebuilt-key",
+  });
+  assert.strictEqual(
+    plan.useStored,
+    false,
+    "a multi-tab restore must not read prompts under the single-tab key",
   );
-  const helper = appCode.match(
-    /async function restoreSuggestedPrompts\(\{([\s\S]*?)\r?\n\}\r?\n/,
+  const helper = functionBody(
+    appCode,
+    "restoreSuggestedPrompts",
+    "chrome.storage.onChanged.addListener",
   );
-  assert.ok(helper, "restoreSuggestedPrompts helper exists");
   assert.match(
-    helper[1],
+    helper,
     /if \(useStored && promptsCacheKey\) \{[\s\S]*?chrome\.storage\.local\.get\(promptsCacheKey\)/,
     "the storage read is guarded by useStored",
   );
 });
 
 test("restored multi-tab summary asks for prompts with an empty focus keyword", () => {
-  const rebuilt = restoreCall();
-  assert.match(rebuilt, /getModelForSettings\(settings\),\s*"",/);
-  assert.doesNotMatch(
-    rebuilt,
-    /getGatedFocusKeyword|currentPageData\?\.type/,
-    "a stale page type on restore must not leak a focus keyword",
-  );
+  const plan = savedSummaryRestorePlan({
+    state: multiTabState,
+    fallbackPromptsCacheKey: "suggested-prompts:rebuilt-key",
+  });
+  assert.strictEqual(plan.focusKeyword, "");
 });
 
 test("the stored-prompts-else-generate block lives in one helper", () => {
   const generators = appCode.match(/startSuggestedQuestionsBg\(/g) || [];
-  // the definition, the helper's call, and nothing else
+  // the definition and the helper's call, and nothing else
   assert.strictEqual(generators.length, 2);
   assert.strictEqual(
     (appCode.match(/await restoreSuggestedPrompts\(\{/g) || []).length,

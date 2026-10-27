@@ -320,6 +320,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Keep aborted multi-tab runs silent (#468) ([d6bd87e](https://github.com/darshi1337/apogee/commit/d6bd87ed9c44ebd2b7d879f6df21a4bc12f9cd4f))
 - Skip multi-tab ready notification when view state is not saved (#496) ([1bb1398](https://github.com/darshi1337/apogee/commit/1bb1398e9c60be15af181e53c7bf07ff3720ec08))
 - Do not read the single-tab prompts key when restoring a multi-tab summary (#494) ([d08f872](https://github.com/darshi1337/apogee/commit/d08f8724ca8417635e710698ae78aa853c10c3ee))
+- Guard summarizeActivePage against double-click runs (#554) ([a45259a](https://github.com/darshi1337/apogee/commit/a45259a2b2097beb4fdb3cc5d2afa110be56f15e))
+- Keep pre-1.0 feature commits on patch versions (#558) ([78faf65](https://github.com/darshi1337/apogee/commit/78faf65c96042b4b4664179eec660cc5e9a71a45))
+- Align prompts cache keys across UI and background (#497) (#555) ([41a0d94](https://github.com/darshi1337/apogee/commit/41a0d94d1f14b69319845f2c17c82e7479a0399a))
+- Schedule cleanup when local streams are created (#544) (#564) ([9f53a0e](https://github.com/darshi1337/apogee/commit/9f53a0e1d36986a9ccceaba85eb18394b9a8728f))
+- Scope prompts cache by response format (#498) (#566) ([9cfaa6f](https://github.com/darshi1337/apogee/commit/9cfaa6fb2d3f1dc19158fb3e1c63af4ea7c0cf4c))
 
 ## [0.2.1] - 2026-08-19
 

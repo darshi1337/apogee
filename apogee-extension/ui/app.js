@@ -20,8 +20,14 @@ import {
   resolveCandidateChain,
 } from "../lib/engines/engineRules.js";
 import { estimateTokens } from "../lib/engines/modelLimits.js";
-import { runStreamingJob } from "./jobs.js";
+import { runStreamingJob, createJobStartGate } from "./jobs.js";
 import { formatEffectiveConfigJSON } from "./effectiveConfig.js";
+import {
+  customContentPromptsCacheKey,
+  getSummaryAndPromptsCacheKeys,
+  restorePromptsContext,
+  savedSummaryRestorePlan,
+} from "./promptsContext.js";
 import {
   gateFocusKeyword,
   isFocusKeywordSupportedType,
@@ -77,7 +83,6 @@ import {
 } from "../lib/storage/viewState.js";
 import {
   hashUrl,
-  getSummaryCacheKeyForSettings,
   getPromptsCacheKeyForSettings,
   parseSummaryCacheKey,
   persistContent,
@@ -449,6 +454,8 @@ resummarizeHintBtn?.addEventListener("click", () => {
 let currentAnswerText = "";
 let activeSummarizeStreamId = null;
 let activeAskStreamId = null;
+const summaryStartGate = createJobStartGate();
+const askStartGate = createJobStartGate();
 let settingsEntryView = "homeView";
 
 let activeTabId = null;
@@ -465,7 +472,7 @@ let currentPromptsCacheKey = null;
 
 function startSuggestedQuestionsBg(
   promptsCacheKey,
-  { title, url, summary },
+  { title, url, summary, pageType, selectionText },
   settings,
   persist = true,
   focusKeyword = "",
@@ -478,6 +485,8 @@ function startSuggestedQuestionsBg(
       payload: {
         promptsCacheKey,
         persist,
+        pageType,
+        selectionText,
         providerType: getProviderType(settings),
         host: settings.ollamaHost,
         title,
@@ -506,6 +515,8 @@ async function restoreSuggestedPrompts({
   persist,
   focusKeyword = "",
   useStored = true,
+  pageType = "",
+  selectionText = "",
 }) {
   if (useStored && promptsCacheKey) {
     const stored = await chrome.storage.local.get(promptsCacheKey);
@@ -518,7 +529,7 @@ async function restoreSuggestedPrompts({
   setSuggestedQuestionsLoading();
   startSuggestedQuestionsBg(
     promptsCacheKey,
-    { title: tab.title || "", url: tab.url, summary },
+    { title: tab.title || "", url: tab.url, summary, pageType, selectionText },
     settings,
     persist,
     focusKeyword,
@@ -857,22 +868,7 @@ const EXTRACTOR_INFO = {
 function getGatedFocusKeyword(pageType) {
   return gateFocusKeyword(focusKeywordInput?.value, pageType);
 }
-async function getSummaryCacheKeys(url, settings, model, focusKeyword) {
-  return {
-    cacheKey: await getSummaryCacheKeyForSettings(
-      url,
-      settings,
-      model,
-      focusKeyword,
-    ),
-    promptsCacheKey: await getPromptsCacheKeyForSettings(
-      url,
-      settings,
-      model,
-      focusKeyword,
-    ),
-  };
-}
+
 function updateExtractorChip(pageData) {
   // Visibility lives here so every site that resolves a page's type stays
   // in sync automatically. A visible input that silently does nothing is
@@ -1553,33 +1549,41 @@ copyAnswerBtn?.addEventListener("click", () =>
 );
 resummarizeBtn?.addEventListener("click", () => summarizeActivePage());
 
-// Shared cancel-button state for the summarize/ask streams: same label,
-// enable, and visibility shape — only the button and its active-stream slot
-// differ.
-function setCancelButton(btn, show, streamId, setActiveId) {
-  setActiveId?.(show ? streamId : null);
-  if (show) {
+// One controller per stream slot keeps the cancel button, active stream id,
+// and the hide race in one place. A stale job cannot hide a newer job's button.
+function createCancelControl(btn, getActiveId, setActiveId) {
+  const show = (streamId) => {
+    setActiveId(streamId);
     btn.textContent = "Cancel";
     btn.disabled = false;
     btn.classList.remove("hidden");
-  } else {
+  };
+  const hide = (streamId) => {
+    if (streamId != null && getActiveId() !== streamId) return;
+    setActiveId(null);
     btn.classList.add("hidden");
     modelProgress?.classList.add("hidden");
-  }
+  };
+  btn?.addEventListener("click", () => {
+    const streamId = getActiveId();
+    if (!streamId) return;
+    btn.disabled = true;
+    btn.textContent = "Cancelling...";
+    cancelStream(streamId);
+  });
+  return { show, hide };
 }
 
-function showCancelSummarizeButton(streamId) {
-  setCancelButton(
-    cancelSummarizeBtn,
-    true,
-    streamId,
-    (id) => (activeSummarizeStreamId = id),
-  );
-}
-
-function hideCancelSummarizeButton() {
-  setCancelButton(cancelSummarizeBtn, false);
-}
+const summaryCancel = createCancelControl(
+  cancelSummarizeBtn,
+  () => activeSummarizeStreamId,
+  (id) => (activeSummarizeStreamId = id),
+);
+const askCancel = createCancelControl(
+  cancelAskBtn,
+  () => activeAskStreamId,
+  (id) => (activeAskStreamId = id),
+);
 
 function helpLink(message) {
   const link = document.createElement("a");
@@ -1641,7 +1645,7 @@ function renderExtractedTextFallback(target, fallbackText) {
 // saves the job's per-attempt state and returns "superseded" when a newer
 // job took over, which ends this job silently instead of falling back.
 function summarizeJobRunner(settings, summarizeArgs, opts) {
-  const { tab, jobId, promptsCacheKey, persistStream } = opts;
+  const { tab, jobId, promptsCacheKey, persistStream, onStreamStart } = opts;
   const kind = detectInputKind({
     type: summarizeArgs.type,
     isPdf: opts.isPdf,
@@ -1657,8 +1661,9 @@ function summarizeJobRunner(settings, summarizeArgs, opts) {
     reset: () => setLoadingIndicator(summaryText, randomSummarizeVerb()),
     start: (engine) => engine.summarize(summarizeArgs),
     persistStream,
-    showCancel: showCancelSummarizeButton,
-    hideCancel: hideCancelSummarizeButton,
+    onStreamStart,
+    showCancel: summaryCancel.show,
+    hideCancel: summaryCancel.hide,
     consume: (stream) =>
       consumeSummaryStream(stream, { tab, promptsCacheKey, jobId }),
     renderFallback: (fallbackText) =>
@@ -1742,30 +1747,10 @@ function showAnswerContext(question) {
   setTokensPerSecBadge(tokensPerSecBadgeAsk, null);
 }
 
-function showCancelAskButton(streamId) {
-  setCancelButton(
-    cancelAskBtn,
-    true,
-    streamId,
-    (id) => (activeAskStreamId = id),
-  );
-}
-
-function hideCancelAskButton() {
-  setCancelButton(cancelAskBtn, false);
-}
-
 function returnToAskAfterCancel(tabId) {
   showAskContext();
   saveViewState(tabId, { view: "summaryView", subview: "ask", streamId: null });
 }
-
-cancelAskBtn?.addEventListener("click", () => {
-  if (!activeAskStreamId) return;
-  cancelAskBtn.disabled = true;
-  cancelAskBtn.textContent = "Cancelling...";
-  cancelStream(activeAskStreamId);
-});
 
 async function streamGeneratorIntoElement(generator, element) {
   let fullText = "";
@@ -1927,16 +1912,20 @@ async function extractAndCopyPage() {
 }
 
 async function summarizeActivePage() {
-  if (activeSummarizeStreamId) {
-    cancelStream(activeSummarizeStreamId);
-  }
-  homeView.classList.add("hidden");
-  summaryView.classList.remove("hidden");
-  showSummarizingContext();
-  setLoadingIndicator(summaryText, randomSummarizeVerb());
-
-  const jobId = `summary-${crypto.randomUUID()}`;
+  const startToken = summaryStartGate.tryStart();
+  if (!startToken) return;
+  let startedStreamId = null;
+  let jobId = null;
   try {
+    if (activeSummarizeStreamId) {
+      cancelStream(activeSummarizeStreamId);
+    }
+    homeView.classList.add("hidden");
+    summaryView.classList.remove("hidden");
+    showSummarizingContext();
+    setLoadingIndicator(summaryText, randomSummarizeVerb());
+
+    jobId = `summary-${crypto.randomUUID()}`;
     const [tab] = await chrome.tabs.query({
       active: true,
       currentWindow: true,
@@ -1951,6 +1940,12 @@ async function summarizeActivePage() {
       summaryText: "",
       timeSaved: null,
       promptsCacheKey: null,
+      // Start every job from a clean context: a previous selection summary in
+      // this tab must not relabel or leak into this one.
+      pageType: "",
+      focusKeyword: "",
+      isSelection: false,
+      selectionText: "",
     });
     const settings = await getSettings();
     const model = getModelForSettings(settings);
@@ -1979,15 +1974,22 @@ async function summarizeActivePage() {
     // ignores.
     const focusKeyword = getGatedFocusKeyword(pageData?.type);
 
-    const { cacheKey, promptsCacheKey } = await getSummaryCacheKeys(
+    const pageType = pageData?.type || "";
+    const selectionText =
+      pageType === "selection" ? pageData.content || "" : "";
+
+    const { cacheKey, promptsCacheKey } = await getSummaryAndPromptsCacheKeys(
       tab.url,
       settings,
       model,
       focusKeyword,
+      { pageType, selectionText },
     );
     const finalize = {
       cacheKey,
       promptsCacheKey,
+      pageType,
+      ...(pageType === "selection" ? { isSelection: true, selectionText } : {}),
       persist: await shouldPersist(tab.url),
       persistUrl: tab.url,
       providerType: getProviderType(settings),
@@ -2057,6 +2059,10 @@ async function summarizeActivePage() {
               url: tab.url,
               streamId,
               promptsCacheKey,
+              pageType,
+              focusKeyword,
+              isSelection: pageType === "selection",
+              selectionText,
               summaryLanguage: settings.summaryLanguage,
               translationEngine: settings.translationEngine,
             },
@@ -2067,6 +2073,10 @@ async function summarizeActivePage() {
             if (latestState?.jobId !== jobId) return "superseded";
           }
           return "done";
+        },
+        onStreamStart: (streamId) => {
+          startedStreamId = streamId;
+          summaryStartGate.release(startToken);
         },
       });
       if (result !== "done") return;
@@ -2080,16 +2090,10 @@ async function summarizeActivePage() {
       renderSummaryError(error);
     }
   } finally {
-    hideCancelSummarizeButton();
+    summaryStartGate.release(startToken);
+    summaryCancel.hide(startedStreamId);
   }
 }
-
-cancelSummarizeBtn?.addEventListener("click", () => {
-  if (!activeSummarizeStreamId) return;
-  cancelSummarizeBtn.disabled = true;
-  cancelSummarizeBtn.textContent = "Cancelling...";
-  cancelStream(activeSummarizeStreamId);
-});
 
 const EMPTY_ANSWER_MESSAGE =
   "No answer came back - try rephrasing the question.";
@@ -2132,12 +2136,15 @@ async function submitQuestion(question) {
     questionInput.focus();
     return;
   }
-  if (activeAskStreamId) {
-    cancelStream(activeAskStreamId);
-  }
-  showAnswerContext(trimmed);
-
+  const startToken = askStartGate.tryStart();
+  if (!startToken) return;
+  let startedStreamId = null;
   try {
+    if (activeAskStreamId) {
+      cancelStream(activeAskStreamId);
+    }
+    showAnswerContext(trimmed);
+
     const [tab] = await chrome.tabs.query({
       active: true,
       currentWindow: true,
@@ -2203,8 +2210,12 @@ async function submitQuestion(question) {
         });
         return "done";
       },
-      showCancel: showCancelAskButton,
-      hideCancel: hideCancelAskButton,
+      onStreamStart: (streamId) => {
+        startedStreamId = streamId;
+        askStartGate.release(startToken);
+      },
+      showCancel: askCancel.show,
+      hideCancel: askCancel.hide,
       consume: (stream) =>
         consumeAnswerStream(stream, { tab, question: trimmed }),
       renderFallback: (fallbackText) =>
@@ -2218,7 +2229,8 @@ async function submitQuestion(question) {
       renderError(answerBox, toUserMessage(error));
     }
   } finally {
-    hideCancelAskButton();
+    askStartGate.release(startToken);
+    askCancel.hide(startedStreamId);
   }
 }
 
@@ -2447,10 +2459,11 @@ document.addEventListener("DOMContentLoaded", async () => {
           currentTranslationEngine =
             state.translationEngine ?? settings.translationEngine;
           if (state.subview === "summarizing") {
+            const restoringStreamId = state.streamId;
             showOnlyView("summaryView");
             showSummarizingContext();
             setLoadingIndicator(summaryText, randomSummarizeVerb());
-            showCancelSummarizeButton(state.streamId);
+            summaryCancel.show(restoringStreamId);
             let resumeFromCompletedState = false;
             try {
               await getPageData(tab);
@@ -2493,16 +2506,17 @@ document.addEventListener("DOMContentLoaded", async () => {
                 }
               }
             } finally {
-              if (!stale()) hideCancelSummarizeButton();
+              if (!stale()) summaryCancel.hide(restoringStreamId);
             }
             if (stale()) return;
             if (!resumeFromCompletedState) return;
           }
 
           if (state.subview === "answer") {
+            const restoringStreamId = state.streamId;
             showOnlyView("summaryView");
             showAnswerContext(state.question || "");
-            showCancelAskButton(state.streamId);
+            askCancel.show(restoringStreamId);
             try {
               await consumeAnswerStream(
                 attachToStream(state.streamId, {
@@ -2522,7 +2536,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 await saveViewState(tab.id, { streamId: null });
               }
             } finally {
-              if (!stale()) hideCancelAskButton();
+              if (!stale()) askCancel.hide(restoringStreamId);
             }
             return;
           }
@@ -2591,24 +2605,26 @@ document.addEventListener("DOMContentLoaded", async () => {
               // key is not inherited (#494). Rebuild it from the tab URL so
               // the popup listens on the key the worker broadcasts, but do
               // not read it from storage: it is the single-tab key. The
-              // focus keyword is always empty for a multi-tab synthesis.
-              const isMultiTab = !state.promptsCacheKey;
+              // restored summary's key/focus policy lives in one helper.
+              let fallbackPromptsCacheKey = null;
+              if (!state.promptsCacheKey && tab.url) {
+                fallbackPromptsCacheKey = await getPromptsCacheKeyForSettings(
+                  tab.url,
+                  settings,
+                  getModelForSettings(settings),
+                  "",
+                );
+              }
+              const restorePlan = savedSummaryRestorePlan({
+                state,
+                fallbackPromptsCacheKey,
+              });
               await restoreSuggestedPrompts({
-                promptsCacheKey:
-                  state.promptsCacheKey ||
-                  (tab.url
-                    ? await getPromptsCacheKeyForSettings(
-                        tab.url,
-                        settings,
-                        getModelForSettings(settings),
-                        "",
-                      )
-                    : null),
+                ...restorePlan,
                 tab,
                 summary: state.summaryText,
                 settings,
                 persist: false,
-                useStored: !isMultiTab,
               });
               return;
             }
@@ -2616,13 +2632,23 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         const model = getModelForSettings(settings);
-        const focusKeyword = getGatedFocusKeyword(currentPageData?.type);
-        const { cacheKey, promptsCacheKey } = await getSummaryCacheKeys(
-          tab.url,
-          settings,
-          model,
-          focusKeyword,
-        );
+        const urlState =
+          state?.urlHash === (await hashUrl(tab.url)) ? state : null;
+        const restoredContext = await restorePromptsContext({
+          url: tab.url,
+          state: urlState,
+          currentPageData,
+        });
+        const focusKeyword = getGatedFocusKeyword(restoredContext.pageType);
+
+        const { cacheKey, promptsCacheKey } =
+          await getSummaryAndPromptsCacheKeys(
+            tab.url,
+            settings,
+            model,
+            focusKeyword,
+            restoredContext,
+          );
         const cached = await chrome.storage.local.get([
           cacheKey,
           promptsCacheKey,
@@ -2637,10 +2663,9 @@ document.addEventListener("DOMContentLoaded", async () => {
           makeSummaryPassagesFocusable();
           setSummaryCopyButtonsVisible(!!cached[cacheKey].trim());
           updateResummarizeHint(settings);
-          const badgeInputs =
-            state && state.urlHash === (await hashUrl(tab.url))
-              ? await getTimeSavedInputsForTab(tab, state)
-              : null;
+          const badgeInputs = urlState
+            ? await getTimeSavedInputsForTab(tab, urlState)
+            : null;
           showTimeSavedFromInputs(badgeInputs, cached[cacheKey]);
           showOnlyView("summaryView");
           await restoreSuggestedPrompts({
@@ -2650,6 +2675,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             settings,
             persist: await shouldPersist(tab.url),
             focusKeyword,
+            ...restoredContext,
           });
           return;
         }
@@ -2719,26 +2745,30 @@ document.getElementById("askBtn")?.addEventListener("click", async () => {
 });
 
 async function summarizeCustomContent(title, content, url = "") {
-  if (activeSummarizeStreamId) {
-    cancelStream(activeSummarizeStreamId);
-  }
-  // Cap pasted / plain-text input up front (#211): clipboard and dialog text
-  // reach this choke point unbounded, so truncate with a note before the
-  // content fans out into chunks, cache keys, and stored history.
-  const capped = truncateWithNote(content, MAX_PASTED_CHARS, "pasted");
-  if (capped.truncated) {
-    announce(
-      "Pasted content exceeded the text limit and was truncated to the first 100,000 characters.",
-    );
-  }
-  content = capped.text;
-  currentPageData = { type: "article", content };
-  showOnlyView("summaryView");
-  showSummarizingContext();
-  setLoadingIndicator(summaryText, randomSummarizeVerb());
-
-  const jobId = `summary-${crypto.randomUUID()}`;
+  const startToken = summaryStartGate.tryStart();
+  if (!startToken) return;
+  let startedStreamId = null;
+  let jobId = null;
   try {
+    if (activeSummarizeStreamId) {
+      cancelStream(activeSummarizeStreamId);
+    }
+    // Cap pasted / plain-text input up front (#211): clipboard and dialog text
+    // reach this choke point unbounded, so truncate with a note before the
+    // content fans out into chunks, cache keys, and stored history.
+    const capped = truncateWithNote(content, MAX_PASTED_CHARS, "pasted");
+    if (capped.truncated) {
+      announce(
+        "Pasted content exceeded the text limit and was truncated to the first 100,000 characters.",
+      );
+    }
+    content = capped.text;
+    currentPageData = { type: "article", content };
+    showOnlyView("summaryView");
+    showSummarizingContext();
+    setLoadingIndicator(summaryText, randomSummarizeVerb());
+
+    jobId = `summary-${crypto.randomUUID()}`;
     const [tab] = await chrome.tabs.query({
       active: true,
       currentWindow: true,
@@ -2748,13 +2778,12 @@ async function summarizeCustomContent(title, content, url = "") {
     currentSummaryLanguage = settings.summaryLanguage;
     currentTranslationEngine = settings.translationEngine;
     const sourceUrl = url || "";
-    const cacheIdentity = sourceUrl || `local:${await hashUrl(content)}`;
-
-    const promptsCacheKey = await getPromptsCacheKeyForSettings(
-      cacheIdentity,
+    const promptsCacheKey = await customContentPromptsCacheKey({
+      url: sourceUrl,
+      content,
       settings,
       model,
-    );
+    });
 
     const customArgs = {
       title,
@@ -2770,6 +2799,7 @@ async function summarizeCustomContent(title, content, url = "") {
         tabId: tab?.id,
         jobId,
         persistUrl: "",
+        pageType: "",
         language: settings.summaryLanguage,
         translationEngine: settings.translationEngine,
       },
@@ -2789,9 +2819,17 @@ async function summarizeCustomContent(title, content, url = "") {
             summaryText: "",
             timeSaved: timeSavedInputsFor({ type: "article", content }),
             promptsCacheKey,
+            pageType: "",
+            focusKeyword: "",
+            isSelection: false,
+            selectionText: "",
           });
         }
         return "done";
+      },
+      onStreamStart: (streamId) => {
+        startedStreamId = streamId;
+        summaryStartGate.release(startToken);
       },
     });
   } catch (error) {
@@ -2802,7 +2840,8 @@ async function summarizeCustomContent(title, content, url = "") {
       renderSummaryError(error);
     }
   } finally {
-    hideCancelSummarizeButton();
+    summaryStartGate.release(startToken);
+    summaryCancel.hide(startedStreamId);
   }
 }
 

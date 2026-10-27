@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
 
-import { runStreamingJob } from "../../ui/jobs.js";
+import { runStreamingJob, createJobStartGate } from "../../ui/jobs.js";
 import { StreamCancelledError } from "../../lib/engines/providers.js";
 import { PROVIDERS, DEFAULT_SETTINGS } from "../../lib/constants.js";
 
@@ -57,6 +57,32 @@ test("a first-try success wires reset, cancel, consume in order", async () => {
   ]);
 });
 
+test("onStreamStart runs after persist and before showCancel", async () => {
+  const order = [];
+  const { hooks } = wire({
+    persistStream: async () => {
+      order.push("persist");
+      return "done";
+    },
+    onStreamStart: () => order.push("start"),
+    showCancel: () => order.push("show"),
+    hideCancel: () => order.push("hide"),
+    consume: async () => order.push("consume"),
+  });
+  const result = await runStreamingJob({
+    ...hooks,
+    ...engines({ [LOCAL]: okEngine("s1"), [TRANSFORMERS]: okEngine("s2") }),
+  });
+  assert.equal(result, "done");
+  assert.deepStrictEqual(order, [
+    "persist",
+    "start",
+    "show",
+    "consume",
+    "hide",
+  ]);
+});
+
 test("an engine failure retries the next engine in chain order", async () => {
   const tried = [];
   const { calls, hooks } = wire({
@@ -108,6 +134,7 @@ test("every engine failing renders the extracted text fallback", async () => {
 
 test("a superseded attempt cancels its stream and ends silently", async () => {
   const cancelled = [];
+  const started = [];
   globalThis.chrome = {
     runtime: {
       sendMessage: (msg) => void cancelled.push(msg),
@@ -115,13 +142,17 @@ test("a superseded attempt cancels its stream and ends silently", async () => {
     },
   };
   try {
-    const { calls, hooks } = wire({ persistStream: async () => "superseded" });
+    const { calls, hooks } = wire({
+      persistStream: async () => "superseded",
+      onStreamStart: (streamId) => started.push(streamId),
+    });
     const result = await runStreamingJob({
       ...hooks,
       ...engines({ [LOCAL]: okEngine("s1"), [TRANSFORMERS]: okEngine("s2") }),
     });
     assert.equal(result, "superseded");
     assert.equal(cancelled.length, 1);
+    assert.deepStrictEqual(started, []);
     assert.ok(!calls.includes("consume"));
   } finally {
     delete globalThis.chrome;
@@ -142,4 +173,37 @@ test("cancellation skips the fallback and still hides cancel", async () => {
     StreamCancelledError,
   );
   assert.deepStrictEqual(calls, ["reset", "showCancel", "hideCancel"]);
+});
+
+test("a start gate admits one run and ignores a stale release", () => {
+  const gate = createJobStartGate();
+  const first = gate.tryStart();
+  assert.ok(first);
+  assert.equal(gate.tryStart(), null);
+
+  gate.release({});
+  assert.equal(gate.tryStart(), null);
+
+  gate.release(first);
+  const second = gate.tryStart();
+  assert.ok(second);
+  assert.notEqual(second, first);
+  gate.release(second);
+  assert.ok(gate.tryStart());
+});
+
+test("onStreamStart and hideCancel receive the stream id", async () => {
+  const started = [];
+  const hidden = [];
+  const { hooks } = wire({
+    onStreamStart: (streamId) => started.push(streamId),
+    hideCancel: (streamId) => hidden.push(streamId),
+  });
+  const result = await runStreamingJob({
+    ...hooks,
+    ...engines({ [LOCAL]: okEngine("s1"), [TRANSFORMERS]: okEngine("s2") }),
+  });
+  assert.equal(result, "done");
+  assert.deepStrictEqual(started, ["s1"]);
+  assert.deepStrictEqual(hidden, ["s1"]);
 });

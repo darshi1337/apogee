@@ -137,13 +137,22 @@ test("parseSummaryCacheKey falls back to empty strings for foreign keys", () => 
 
 test("cache keys change with the translation engine that shaped the output", async () => {
   const args = ["https://example.com/article", "bullets", "model-x", "bg", ""];
-  // The questions' key carries no response format (#498), so it takes its own args.
-  const promptArgs = ["https://example.com/article", "model-x", "bg", ""];
+  // Prompts take their own argument list and read the format from context.
+  const promptsKey = (translationEngine) =>
+    getPromptsCacheKey(
+      "https://example.com/article",
+      "model-x",
+      "bg",
+      "",
+      translationEngine,
+      "",
+      { responseFormat: "bullets" },
+    );
 
   const llmSummary = await getSummaryCacheKey(...args, "llm");
   const opusSummary = await getSummaryCacheKey(...args, "opus");
-  const llmPrompts = await getPromptsCacheKey(...promptArgs, "llm");
-  const opusPrompts = await getPromptsCacheKey(...promptArgs, "opus");
+  const llmPrompts = await promptsKey("llm");
+  const opusPrompts = await promptsKey("opus");
 
   assert.notStrictEqual(llmSummary, opusSummary);
   assert.notStrictEqual(llmPrompts, opusPrompts);
@@ -202,6 +211,143 @@ test("empty or whitespace-only instructions omit the instructions suffix", async
       `suggested-prompts:auto:model-x:opus:${hash}`,
     );
   }
+});
+
+test("suggested-prompts keys differ by provider", async () => {
+  const url = "https://example.com/article";
+
+  const localKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { providerType: "local", pageType: "article" },
+  );
+  const webllmKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { providerType: "webllm", pageType: "article" },
+  );
+
+  assert.notStrictEqual(localKey, webllmKey);
+});
+
+test("suggested-prompts keys differ by page type", async () => {
+  const url = "https://example.com/article";
+
+  const articleKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { providerType: "local", pageType: "article" },
+  );
+  const selectionKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { providerType: "local", pageType: "selection" },
+  );
+
+  assert.notStrictEqual(articleKey, selectionKey);
+});
+
+test("suggested-prompts keys differ by selected text without exposing it", async () => {
+  const url = "https://example.com/article";
+  const context = {
+    providerType: "local",
+    pageType: "selection",
+  };
+
+  const firstText = "The first selected paragraph";
+  const secondText = "A completely different paragraph";
+
+  const firstKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { ...context, selectionText: firstText },
+  );
+  const secondKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { ...context, selectionText: secondText },
+  );
+
+  assert.notStrictEqual(firstKey, secondKey);
+  assert.ok(!firstKey.includes(firstText));
+  assert.ok(!secondKey.includes(secondText));
+});
+
+test("suggested-prompts keys differ by the response format that shaped the summary (#498)", async () => {
+  const url = "https://example.com/article";
+
+  const bulletsKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { responseFormat: "bullets" },
+  );
+  const proseKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { responseFormat: "prose" },
+  );
+
+  assert.notStrictEqual(bulletsKey, proseKey);
+  assert.match(bulletsKey, /^suggested-prompts:bullets:/);
+  assert.match(proseKey, /^suggested-prompts:prose:/);
+});
+
+test("a non-string selectionText cannot throw or scope a key (#497)", async () => {
+  const url = "https://example.com/article";
+  const context = { providerType: "local", pageType: "selection" };
+
+  const emptyKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { ...context, selectionText: "" },
+  );
+  const numericKey = await getPromptsCacheKey(
+    url,
+    "model-x",
+    "auto",
+    "",
+    undefined,
+    "",
+    { ...context, selectionText: 42 },
+  );
+
+  assert.strictEqual(numericKey, emptyKey);
 });
 
 test("cache keys keep no readable trace of the instructions they came from", async () => {

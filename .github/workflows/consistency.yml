@@ -1,7 +1,7 @@
 name: Consistency
 
-# Catches the drift that blocks store review: versions in 4 files,
-# STORE-LISTING version stamp, required store assets, locale catalog
+# Catches the drift that blocks store review: versions in 4 files plus the
+# release badge, STORE-LISTING version stamp, required store assets, locale catalog
 # completeness plus shared glossary terms. Read-only, fast,
 # no dependencies to install.
 
@@ -36,6 +36,18 @@ jobs:
             assert.strictEqual(ext, root, "apogee-extension/package.json must match package.json");
             assert.strictEqual(manifest, root, "apogee-extension/manifest.json must match package.json");
             assert.strictEqual(pinned, root, ".release-please-manifest.json must match package.json");
+          '
+
+      - name: Release badge matches root version
+        run: |
+          node -e '
+            const fs = require("fs");
+            const assert = require("assert");
+            const root = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
+            const badge = fs.readFileSync(".github/assets/badge-release.svg", "utf8");
+            const escaped = root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const matches = badge.match(new RegExp(`v${escaped}(?![0-9.])`, "g")) || [];
+            assert.strictEqual(matches.length, 5, "release badge must show the package version in aria-label, title, and 3 text nodes");
           '
 
   store-listing:

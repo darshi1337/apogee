@@ -22,7 +22,9 @@ export async function hashUrl(url) {
 // answer comes back and the change looks ignored. Legacy keys without an
 // engine stay out of engine-aware lookups until eviction or wipe.
 async function hashedSuffix(value, tag) {
-  const extra = (value || "").trim();
+  // Inputs crossing a message or storage boundary can be the wrong type; a
+  // non-string must not throw while building a key (or silently scope one).
+  const extra = typeof value === "string" ? value.trim() : "";
   if (!extra) return "";
   return `:${tag}${(await sha256Hex(extra)).slice(0, 12)}`;
 }
@@ -44,9 +46,8 @@ async function makeCacheKey(
   translationEngine,
   focusKeyword,
 ) {
-  // An empty `fmt` leaves the format out of the key: the suggested-questions
-  // prompt cannot change with the summary's response format, so a format change
-  // must not refetch questions that come out identical (#498).
+  // An empty `fmt` leaves the segment out for callers whose key has no format
+  // dimension. Summaries and suggested prompts both pass one.
   const head = fmt ? `${prefix}:${fmt}` : prefix;
   return `${head}:${lang}:${model}:${translationEngineKey(translationEngine)}:${await hashUrl(url)}${await hashedSuffix(customInstructions, "i")}${await hashedSuffix(focusKeyword, "k")}`;
 }
@@ -95,9 +96,11 @@ export function parseSummaryCacheKey(cacheKey) {
 }
 // The suggested-questions key carries what the questions actually depend on:
 // the page, the model, the language they are written in, the translation engine,
-// the reader's own instructions and their focus keyword. The summary's response
-// format is not one of them - the questions are always two plain lines and the
-// parser strips list markers, so a format change cannot change them (#498).
+// the response format that shaped the summary text, the reader's own
+// instructions and their focus keyword. The prompt embeds the formatted
+// summary, so a format change can change the questions (#498).
+// Provider, page type, and a hash of the selected text scope pages that share a
+// URL; selection text itself never appears in the key.
 export async function getPromptsCacheKey(
   url,
   model,
@@ -105,17 +108,36 @@ export async function getPromptsCacheKey(
   customInstructions = "",
   translationEngine = TRANSLATION_ENGINES.OPUS,
   focusKeyword = "",
+  context = {},
 ) {
-  return makeCacheKey(
+  const responseFormat =
+    typeof context.responseFormat === "string" ? context.responseFormat : "";
+  const baseKey = await makeCacheKey(
     "suggested-prompts",
     url,
-    "",
+    responseFormat,
     model,
     lang,
     customInstructions,
     translationEngine,
     focusKeyword,
   );
+
+  const provider =
+    typeof context.providerType === "string" ? context.providerType : "";
+  const pageType = typeof context.pageType === "string" ? context.pageType : "";
+  // A selection hash only means anything alongside the "selection" page type.
+  // Keeping the two together stops a stray selectionText from fragmenting a
+  // normal page's key.
+  const selection =
+    pageType === "selection"
+      ? await hashedSuffix(context.selectionText, "s")
+      : "";
+
+  // Preserve the existing key format for callers that supply no context.
+  if (!provider && !pageType && !selection) return baseKey;
+
+  return `${baseKey}:p${provider}:t${pageType}${selection}`;
 }
 // Focus keywords are untrusted: only real strings scope the key (#392).
 export function asFocusKeyword(value) {
@@ -128,6 +150,7 @@ export async function getPromptsCacheKeyForSettings(
   settings,
   model,
   focusKeyword = "",
+  context = {},
 ) {
   return getPromptsCacheKey(
     url,
@@ -136,6 +159,7 @@ export async function getPromptsCacheKeyForSettings(
     settings.customInstructions,
     settings.translationEngine,
     focusKeyword,
+    { ...context, responseFormat: settings.responseFormat },
   );
 }
 export async function getContentCacheKey(url) {
