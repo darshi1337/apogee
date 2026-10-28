@@ -400,11 +400,11 @@ async function startLocalHttpStream(
     }
   }
 
-  const reportProgress = (text) => {
+  const reportProgress = (text, kind) => {
     chrome.runtime
       .sendMessage({
         type: "model-progress",
-        progress: { progress: 0, text },
+        progress: { progress: 0, text, ...(kind ? { kind } : {}) },
         modelId: model,
       })
       .catch(() => {});
@@ -414,7 +414,7 @@ async function startLocalHttpStream(
   );
 
   const translateFn = opusTranslateFnFor(translationEngine, (p) =>
-    reportProgress(p.text),
+    reportProgress(p.text, p.kind),
   );
 
   try {
@@ -506,9 +506,7 @@ async function startTransformersStream(
       .catch(() => {});
   };
 
-  const translateFn = opusTranslateFnFor(translationEngine, (p) =>
-    onProgress({ progress: p.progress ?? 0, text: p.text }),
-  );
+  const translateFn = opusTranslateFnFor(translationEngine, onProgress);
 
   const tracker = createSummarizeProgressTracker((text) =>
     onProgress({ progress: 0, text }),
@@ -520,7 +518,7 @@ async function startTransformersStream(
     const { customInstructions } = await getSettings();
     await withTransformersEngine(
       model,
-      onProgress,
+      (progress) => onProgress({ ...progress, kind: "download" }),
       async (eng) => {
         if (action === "summarize") {
           const effectiveLanguage = await resolveEffectiveLanguage(
