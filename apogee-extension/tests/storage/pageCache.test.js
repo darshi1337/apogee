@@ -631,17 +631,65 @@ test("persistSummary re-persisting the same cacheKey doesn't duplicate its order
   assert.strictEqual(data.k1, "updated");
 });
 
-test("persistSummary stores vector embedding if provided or generated", async () => {
+test("persistSummary saves without a vector or embedder by default", async () => {
   const data = installFakeStorage();
-  const fakeEmbed = async (_texts) => [[0.1, 0.2, 0.3]];
 
-  await persistSummary("k1", "p1", "summary text", "Title 1", [0.5, 0.6]);
-  assert.deepStrictEqual(data.cacheOrder[0].v, [0.5, 0.6]);
+  await persistSummary("k1", "p1", "summary text", "Title 1");
 
-  await persistSummary("k2", "p2", "summary text 2", "Title 2", null, {
-    embedTextsFn: fakeEmbed,
+  assert.strictEqual(data.k1, "summary text");
+  assert.strictEqual(data.cacheOrder.length, 1);
+  assert.deepStrictEqual(data.cacheOrder[0], {
+    s: "k1",
+    p: "p1",
+    t: "Title 1",
+    b: estimateByteSize("summary text") + estimateByteSize("Title 1"),
   });
-  assert.deepStrictEqual(data.cacheOrder[1].v, [0.1, 0.2, 0.3]);
+});
+
+test("persistSummary never calls an embedder supplied in options", async (t) => {
+  const data = installFakeStorage();
+  const embedTextsFn = t.mock.fn(async () => [[0.1, 0.2, 0.3]]);
+
+  await persistSummary("k1", "p1", "summary text", "Private title", null, {
+    embedTextsFn,
+    sensitive: true,
+  });
+
+  assert.strictEqual(embedTextsFn.mock.callCount(), 0);
+  assert.strictEqual(data.k1, "summary text");
+  assert.strictEqual(data.cacheOrder[0].t, "");
+  assert.ok(!Object.hasOwn(data.cacheOrder[0], "v"));
+});
+
+test("persistSummary stores and accounts for a supplied vector", async () => {
+  const data = installFakeStorage();
+  const vector = [0.5, 0.6];
+
+  await persistSummary("k1", "p1", "summary text", "Title 1", vector);
+
+  assert.deepStrictEqual(data.cacheOrder[0].v, vector);
+  assert.strictEqual(
+    data.cacheOrder[0].b,
+    estimateByteSize("summary text") +
+      estimateByteSize("Title 1") +
+      estimateByteSize(vector),
+  );
+});
+
+test("persistSummary discards a stale vector when overwriting without one", async () => {
+  const data = installFakeStorage();
+  await persistSummary("k1", "p1", "first summary", "Title 1", [0.5, 0.6]);
+
+  await persistSummary("k1", "p1", "updated summary", "Title 2");
+
+  assert.strictEqual(data.k1, "updated summary");
+  assert.strictEqual(data.cacheOrder.length, 1);
+  assert.deepStrictEqual(data.cacheOrder[0], {
+    s: "k1",
+    p: "p1",
+    t: "Title 2",
+    b: estimateByteSize("updated summary") + estimateByteSize("Title 2"),
+  });
 });
 
 test("clearCachedPages removes stored history and leaves settings alone", async () => {
