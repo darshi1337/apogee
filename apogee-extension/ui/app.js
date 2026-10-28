@@ -1187,13 +1187,14 @@ function pastSummaryToExportItem(entry, text, stored = {}) {
 // One past-summary card for the history list. Shared by the recent-8 list
 // and full-index search results so both stay in sync.
 function buildPastSummaryCard(entry, text) {
+  // A group, not a button: the card holds real buttons
+  // Button must not contain other button elements
   const card = document.createElement("div");
   card.className = "past-summary-card";
-  card.setAttribute("role", "button");
-  card.setAttribute("tabindex", "0");
+  card.setAttribute("role", "group");
+  card.setAttribute("aria-label", entry.t || firstLineOf(text));
   card.dataset.title = (entry.t || "").toLowerCase();
   card.dataset.cacheKey = entry.s;
-  card.setAttribute("aria-expanded", "false");
 
   const textWrap = document.createElement("div");
   textWrap.className = "past-summary-text";
@@ -1209,24 +1210,28 @@ function buildPastSummaryCard(entry, text) {
   preview.className = "past-summary-preview";
   preview.textContent = firstLineOf(text);
   textWrap.appendChild(preview);
-  card.appendChild(textWrap);
+
+  const toggleBtn = document.createElement("button");
+  toggleBtn.type = "button";
+  toggleBtn.className = "past-summary-toggle";
+  toggleBtn.setAttribute("aria-label", "Full summary");
+  toggleBtn.setAttribute("aria-expanded", "false");
+  toggleBtn.title = "Show or hide full summary";
+  toggleBtn.innerHTML = icon("chevron");
+  card.append(toggleBtn, textWrap);
 
   const toggleExpanded = () => {
     const expanded = card.classList.toggle("expanded");
-    card.setAttribute("aria-expanded", String(expanded));
+    toggleBtn.setAttribute("aria-expanded", String(expanded));
     if (expanded) setMarkdownHtml(preview, text, { stored: true });
     else preview.textContent = firstLineOf(text);
   };
+  // Enter and space toggle a normal click, so no keydown code needed
+  // to handle them
+  toggleBtn.addEventListener("click", toggleExpanded);
   card.addEventListener("click", (e) => {
     if (e.target.closest("a, button")) return;
     toggleExpanded();
-  });
-  card.addEventListener("keydown", (e) => {
-    if (e.target.closest("button")) return;
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      toggleExpanded();
-    }
   });
 
   const copyMdBtn = document.createElement("button");
@@ -1270,7 +1275,7 @@ function buildPastSummaryCard(entry, text) {
   // delete button serves both the collapsed (off) and expanded (open)
   // card states: inline in the row when collapsed, pinned top-right via
   // CSS when the card is expanded. Clicking anywhere else on the card
-  // toggles it open (see the card click/keydown handlers above).
+  // toggles it open (see the card click handler above).
   const deleteBtn = document.createElement("button");
   deleteBtn.type = "button";
   deleteBtn.className = "delete-btn";

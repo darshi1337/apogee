@@ -305,6 +305,7 @@ body {
 .send-btn,
 .copy-btn,
 .delete-btn,
+.past-summary-toggle,
 .prompts-toggle {
   position: relative;
 }
@@ -313,6 +314,7 @@ body {
 .send-btn::after,
 .copy-btn::after,
 .delete-btn::after,
+.past-summary-toggle::after,
 .prompts-toggle::after {
   content: "";
   position: absolute;
@@ -1121,6 +1123,37 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 .past-summary-text {
   flex: 1;
   min-width: 0;
+}
+
+.past-summary-toggle {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--card-border);
+  background: var(--btn-bg);
+  color: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.past-summary-toggle:hover {
+  background: var(--btn-hover-bg);
+  border-color: var(--btn-hover-border);
+}
+
+.past-summary-toggle .ico svg {
+  width: 12px;
+  height: 12px;
+  transform: rotate(180deg);
+  transition: transform 0.2s ease;
+}
+
+.past-summary-card.expanded .past-summary-toggle .ico svg {
+  transform: none;
 }
 
 .past-summary-title {
