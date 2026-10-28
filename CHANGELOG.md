@@ -326,6 +326,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Schedule cleanup when local streams are created (#544) (#564) ([9f53a0e](https://github.com/darshi1337/apogee/commit/9f53a0e1d36986a9ccceaba85eb18394b9a8728f))
 - Scope prompts cache by response format (#498) (#566) ([9cfaa6f](https://github.com/darshi1337/apogee/commit/9cfaa6fb2d3f1dc19158fb3e1c63af4ea7c0cf4c))
 
+### Changed
+
+- Build history embeddings on demand (#571) ([cf82d64](https://github.com/darshi1337/apogee/commit/cf82d649f89868b5c2b5e7ab5e67b49dba3bb24f))
+
 ## [0.2.1] - 2026-08-19
 
 ### Added
