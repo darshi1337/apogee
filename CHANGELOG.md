@@ -345,10 +345,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Fixed
-
-- Keep loading verbs during model progress (#584) ([60fedb8](https://github.com/darshi1337/apogee/commit/60fedb8f540705f6faf80408012077925f1bb597))
-
 ## [0.2.1] - 2026-08-19
 
 ### Added
