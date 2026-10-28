@@ -986,10 +986,11 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     window.location.reload();
     return;
   }
+  // Download progress belongs to the top card only. Stage progress must not
+  // replace the verb in the summary or answer loading text.
   if (message.type === "model-progress" && message.progress) {
     const p = message.progress;
-    const isDownload = p.kind === "download";
-    if (isDownload) {
+    if (p.kind === "download") {
       clearTimeout(modelProgressHideTimer);
       modelProgress?.classList.remove("hidden");
       modelProgressText.textContent = p.text || "Loading model...";
@@ -1005,12 +1006,10 @@ chrome.runtime.onMessage.addListener((message, sender) => {
           );
         }
       }
-    } else if (p.text) {
-      if (summaryText?.querySelector(".apogee-loading")) {
-        setLoadingIndicator(summaryText, p.text);
-      } else if (answerBox?.querySelector(".apogee-loading")) {
-        setLoadingIndicator(answerBox, p.text);
-      }
+    } else {
+      // The first stage event means the download is done.
+      clearTimeout(modelProgressHideTimer);
+      modelProgress?.classList.add("hidden");
     }
   }
 

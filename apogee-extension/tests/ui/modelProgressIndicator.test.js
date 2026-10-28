@@ -8,16 +8,7 @@ const appCode = fs.readFileSync(
   "utf-8",
 );
 
-test("model-progress listener queries the real loading class from setLoadingIndicator (#442)", () => {
-  const loadingClassMatch = appCode.match(
-    /function setLoadingIndicator\([^)]*\)\s*\{[\s\S]*?wrapper\.className\s*=\s*"([^"]+)";/,
-  );
-  assert.ok(
-    loadingClassMatch,
-    "setLoadingIndicator defines loading wrapper class",
-  );
-  const loadingClass = loadingClassMatch[1];
-
+test("model-progress listener sends downloads to the top card only (#442)", () => {
   const progressBlockMatch = appCode.match(
     /if\s*\(\s*message\.type\s*===\s*"model-progress"[\s\S]*?\n\s{2}\}/,
   );
@@ -25,24 +16,24 @@ test("model-progress listener queries the real loading class from setLoadingIndi
   const progressBlock = progressBlockMatch[0];
 
   assert.ok(
-    progressBlock.includes(`summaryText?.querySelector(".${loadingClass}")`),
-    `model-progress listener must query summaryText with .${loadingClass}`,
-  );
-  assert.ok(
-    progressBlock.includes(`answerBox?.querySelector(".${loadingClass}")`),
-    `model-progress listener must query answerBox with .${loadingClass}`,
-  );
-  assert.ok(
-    progressBlock.includes('const isDownload = p.kind === "download"'),
+    progressBlock.includes('p.kind === "download"'),
     "model-progress listener must separate download progress",
   );
   assert.ok(
-    progressBlock.includes("if (isDownload)"),
-    "download progress must update the top card only",
+    progressBlock.includes('modelProgress?.classList.add("hidden")'),
+    "stage progress must hide the download card",
   );
   assert.ok(
-    progressBlock.includes("else if (p.text)"),
-    "stage progress must update the loading text only",
+    !progressBlock.includes("setLoadingIndicator"),
+    "progress must not replace the summary or answer loading verb",
+  );
+  assert.ok(
+    !progressBlock.includes("summaryText"),
+    "progress must not touch the summary loading text",
+  );
+  assert.ok(
+    !progressBlock.includes("answerBox"),
+    "progress must not touch the answer loading text",
   );
   assert.ok(
     !appCode.includes(".loading-state"),
@@ -51,10 +42,11 @@ test("model-progress listener queries the real loading class from setLoadingIndi
 });
 
 // Behavior simulation of the model-progress indicator update (not an import of app.js globals)
-test("download progress stays on top; stage progress updates while loading, ignored after first output", () => {
+test("download progress stays on top; stage progress keeps the loading verb", () => {
   const { document } = parseHTML("<div></div>");
   const container = document.createElement("div");
   let topText = "";
+  let topHidden = false;
 
   const setLoading = (el, text) => {
     el.innerHTML = `<span class="apogee-loading"><span class="apogee-loading-text">${text}</span></span>`;
@@ -62,13 +54,11 @@ test("download progress stays on top; stage progress updates while loading, igno
   const routeProgress = (progress) => {
     if (progress.kind === "download") {
       topText = progress.text;
+      topHidden = false;
       return "top";
     }
-    if (progress.text && container.querySelector(".apogee-loading")) {
-      setLoading(container, progress.text);
-      return "bottom";
-    }
-    return "none";
+    topHidden = true;
+    return "hide-top";
   };
 
   // 1. Initial loading state present: download progress stays on the top card
@@ -93,23 +83,24 @@ test("download progress stays on top; stage progress updates while loading, igno
     "Synthesizing...",
   );
 
-  // 2. Stage progress still updates the loading text
+  // 2. Stage progress hides the download card and keeps the main box verb
   const stageTarget = routeProgress({
     text: "Summarizing part 1 of 3...",
   });
-  assert.strictEqual(stageTarget, "bottom");
+  assert.strictEqual(stageTarget, "hide-top");
+  assert.strictEqual(topHidden, true);
   assert.strictEqual(
     container.querySelector(".apogee-loading-text").textContent,
-    "Summarizing part 1 of 3...",
+    "Synthesizing...",
   );
 
   // 3. First token arrives: loading state cleared and streamed text replaces it
   container.textContent = "Here is the streamed summary text.";
   assert.strictEqual(container.querySelector(".apogee-loading"), null);
 
-  // 4. Late progress message arrives: ignored and does not overwrite output
+  // 4. Late progress message arrives: only hides the card, never the output
   const lateTarget = routeProgress({ text: "Merging summary..." });
-  assert.strictEqual(lateTarget, "none");
+  assert.strictEqual(lateTarget, "hide-top");
   assert.strictEqual(
     container.textContent,
     "Here is the streamed summary text.",
