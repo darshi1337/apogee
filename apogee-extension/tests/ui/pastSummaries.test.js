@@ -144,7 +144,7 @@ test("toggle button expands and collapses the card", () => {
   assert.strictEqual(toggle.getAttribute("aria-expanded"), "false");
 });
 
-test("clicking the card expands it, clicking an action does not", () => {
+test("clicking the card expands it, clicking an action does not", async () => {
   const card = makeCard();
   click(card.querySelector(".past-summary-preview"));
   assert.ok(card.classList.contains("expanded"));
@@ -152,5 +152,6 @@ test("clicking the card expands it, clicking an action does not", () => {
   assert.ok(!card.classList.contains("expanded"));
   click(card.querySelector(".copy-btn"));
   click(card.querySelector(".delete-btn"));
+  await new Promise(setImmediate);
   assert.ok(!card.classList.contains("expanded"));
 });
