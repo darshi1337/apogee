@@ -92,7 +92,11 @@ import {
   removeCachedSummary,
   CACHEABLE_PAGE_TYPES,
 } from "../lib/storage/pageCache.js";
-import { searchPastSummaries } from "../lib/retrieval/pastSummariesSearch.js";
+import {
+  searchPastSummaries,
+  clearPastSummariesSearchCache,
+} from "../lib/retrieval/pastSummariesSearch.js";
+import { createPastSummariesController } from "./pastSummaries.js";
 import {
   extractFromActiveTab,
   extractPdfContent,
@@ -982,29 +986,30 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     window.location.reload();
     return;
   }
+  // Download progress belongs to the top card only. Stage progress must not
+  // replace the verb in the summary or answer loading text.
   if (message.type === "model-progress" && message.progress) {
     const p = message.progress;
-    clearTimeout(modelProgressHideTimer);
-    modelProgress?.classList.remove("hidden");
-    modelProgressText.textContent = p.text || "Loading model...";
-    if (typeof p.progress === "number") {
-      const pct = Math.round(p.progress * 100);
-      modelProgressPercent.textContent = `${pct}%`;
-      renderModelProgressBlocks(pct);
-      modelProgressFill.parentElement?.setAttribute("aria-valuenow", pct);
-      if (pct >= 100) {
-        modelProgressHideTimer = setTimeout(
-          () => modelProgress?.classList.add("hidden"),
-          1500,
-        );
+    if (p.kind === "download") {
+      clearTimeout(modelProgressHideTimer);
+      modelProgress?.classList.remove("hidden");
+      modelProgressText.textContent = p.text || "Loading model...";
+      if (typeof p.progress === "number") {
+        const pct = Math.round(p.progress * 100);
+        modelProgressPercent.textContent = `${pct}%`;
+        renderModelProgressBlocks(pct);
+        modelProgressFill.parentElement?.setAttribute("aria-valuenow", pct);
+        if (pct >= 100) {
+          modelProgressHideTimer = setTimeout(
+            () => modelProgress?.classList.add("hidden"),
+            1500,
+          );
+        }
       }
-    }
-    if (p.text) {
-      if (summaryText?.querySelector(".apogee-loading")) {
-        setLoadingIndicator(summaryText, p.text);
-      } else if (answerBox?.querySelector(".apogee-loading")) {
-        setLoadingIndicator(answerBox, p.text);
-      }
+    } else {
+      // The first stage event means the download is done.
+      clearTimeout(modelProgressHideTimer);
+      modelProgress?.classList.add("hidden");
     }
   }
 
@@ -1284,6 +1289,7 @@ function buildPastSummaryCard(entry, text) {
   deleteBtn.innerHTML = icon("trash");
   deleteBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
+    pastSummariesController.invalidate({ clearCache: true });
     try {
       // One read-modify-write inside the storage module: a summary saved
       // between the key delete and the index update can no longer resurrect
@@ -1325,58 +1331,51 @@ function showPastSummariesEmpty() {
   pastSummariesList.appendChild(msg);
 }
 
+const pastSummariesController = createPastSummariesController({
+  async readIndex() {
+    const { cacheOrder = [] } = await chrome.storage.local.get("cacheOrder");
+    return cacheOrder;
+  },
+  readTexts: fetchPastSummaryTexts,
+  search: searchPastSummaries,
+  clearSearchCache: clearPastSummariesSearchCache,
+  recentCount: PAST_SUMMARIES_SHOWN,
+  renderRecent(entries, stored) {
+    renderPastSummaryCards(entries, stored);
+    const hasCards = pastSummariesList.children.length > 0;
+    pastSummariesSection.classList.toggle("hidden", !hasCards);
+    if (pastSummariesFilter) {
+      pastSummariesFilter.value = "";
+      pastSummariesFilter.classList.toggle("hidden", !hasCards);
+    }
+  },
+  renderResults(entries, stored) {
+    renderPastSummaryCards(entries, stored);
+    if (pastSummariesList.children.length === 0) showPastSummariesEmpty();
+  },
+  onError: (err) => console.error("Past summaries filter error:", err),
+});
+
 async function loadPastSummaries() {
-  const { cacheOrder = [] } = await chrome.storage.local.get("cacheOrder");
-  if (cacheOrder.length === 0) {
-    pastSummariesSection.classList.add("hidden");
-    pastSummariesList.innerHTML = "";
-    return;
-  }
-
-  const recent = cacheOrder.slice(-PAST_SUMMARIES_SHOWN).reverse();
-  const stored = await fetchPastSummaryTexts(recent);
-  renderPastSummaryCards(recent, stored);
-
-  const hasCards = pastSummariesList.children.length > 0;
-  pastSummariesSection.classList.toggle("hidden", !hasCards);
-
-  if (pastSummariesFilter) {
-    pastSummariesFilter.value = "";
-    pastSummariesFilter.classList.toggle("hidden", !hasCards);
-  }
+  if (pastSummariesFilter) pastSummariesFilter.value = "";
+  await pastSummariesController.loadRecent();
 }
 
-async function filterPastSummaries(query) {
-  const q = (query || "").trim();
-  // An empty query restores the recent-8 display list.
-  if (!q) {
-    await loadPastSummaries();
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  if (
+    !changes.cacheOrder &&
+    !Object.keys(changes).some((key) => key.startsWith("summary:"))
+  ) {
     return;
   }
-  // Search the full index, not just the displayed recent 8, so older saved
-  // summaries stay findable. Bounded by the cache cap (50 entries).
-  const { cacheOrder = [] } = await chrome.storage.local.get("cacheOrder");
-  const stored = await fetchPastSummaryTexts(cacheOrder);
-
-  const searchResults = await searchPastSummaries({
-    query: q,
-    cacheOrder,
-    storedSummaries: stored,
-  });
-
-  renderPastSummaryCards(searchResults, stored);
-  if (pastSummariesList.children.length === 0) showPastSummariesEmpty();
-}
+  pastSummariesController.invalidate({ clearCache: true });
+  loadPastSummaries().catch((err) => console.error(err));
+});
 
 if (pastSummariesFilter) {
-  let filterTimeout = null;
   pastSummariesFilter.addEventListener("input", () => {
-    clearTimeout(filterTimeout);
-    filterTimeout = setTimeout(() => {
-      filterPastSummaries(pastSummariesFilter.value).catch((err) =>
-        console.error("Past summaries filter error:", err),
-      );
-    }, 150);
+    pastSummariesController.input(pastSummariesFilter.value);
   });
 }
 
@@ -3259,6 +3258,7 @@ debugLogsRadios.forEach((radio) => {
 
 // Both halves clear under their own module's lock, so a write landing at the same moment can't leave an order index pointing at a deleted key.
 async function clearCachedData() {
+  pastSummariesController.invalidate({ clearCache: true });
   const pages = await clearCachedPages();
   const viewStates = await clearAllViewStates();
   currentSummaryText = "";
