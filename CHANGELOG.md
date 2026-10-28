@@ -345,52 +345,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Added
-
-- Add extract-only copy-text action (#414) (#449) ([001c4bd](https://github.com/darshi1337/apogee/commit/001c4bd16d7364acb32e9a1526170b97060301d0))
-- Provider fallback chain across engines (#459) ([1a2f83b](https://github.com/darshi1337/apogee/commit/1a2f83b3dc02689366b5ae5165ec04e8f2e741db))
-- Effective-config view with keys hidden (#461) ([ebceca6](https://github.com/darshi1337/apogee/commit/ebceca6cf9d39aa5827bb1f3f39ba8168c6d1e85))
-- Locale catalog check in CI plus shared glossary (#465) ([6f5cb78](https://github.com/darshi1337/apogee/commit/6f5cb7840d12723ff440d7bc7dc089f79deddde6))
-- Rules-based engine selection by input kind and context size (#437) (#482) ([f42ec94](https://github.com/darshi1337/apogee/commit/f42ec94b8455c85295f4ab6dd478d283f868cd1d))
-- Show stage progress and elapsed time in run metrics (#442) ([b28a74f](https://github.com/darshi1337/apogee/commit/b28a74f14137d83c31ccaadab925d6b10be93866))
-- Add config download and trim settings copy (#551) ([2c69014](https://github.com/darshi1337/apogee/commit/2c69014c71d9c171d63455dc32d3ab16d3ab4abd))
-
-### Fixed
-
-- Surface offscreen-ready timeout error via shared withTimeout ([f8d8a3e](https://github.com/darshi1337/apogee/commit/f8d8a3ecc1858de0ac8704f04f22c76e2ab440db))
-- Disconnect offscreen ports on cancel via shared helper ([7e43a98](https://github.com/darshi1337/apogee/commit/7e43a9847adbc028a3faed74d59810e517430461))
-- Evict pending finalizes without timestamp and document lazy TTL (#342) ([e3b89c3](https://github.com/darshi1337/apogee/commit/e3b89c3371f5bbdfaf0d82a338a20baa54c77782))
-- Expire stream subscribers on cleanup (#386) ([fa56fae](https://github.com/darshi1337/apogee/commit/fa56fae2edadbdb4863da8068bd5e8f312a2dde1))
-- Honor focusKeyword in video summarize path (#388) ([0276c1e](https://github.com/darshi1337/apogee/commit/0276c1eca211c1fc0e7e46a237260f765d923c87))
-- Show focus keyword for video and discussion, gate cache on multi-tab only (#390) ([4c42680](https://github.com/darshi1337/apogee/commit/4c42680910e121683ee2f7027427fdb3bf70969d))
-- Pass translationEngine in llama.cpp suggest path (#411) ([712b300](https://github.com/darshi1337/apogee/commit/712b3003f4c0464eaa88a2a0265c115ce4ac0c19))
-- Scope suggest-questions-bg cache key by focusKeyword (#392) ([4ddcc9a](https://github.com/darshi1337/apogee/commit/4ddcc9a9d82a8f6be1902fba2e20a9752c75e394))
-- Clear a stale focus keyword on a fresh open on a new page (#413) (#446) ([cb26b44](https://github.com/darshi1337/apogee/commit/cb26b44f836b7f2116d7cc49ba388abf3493577c))
-- Clamp sub-minute STREAM_CLEANUP alarm delays to Chrome's minimum (#447) ([07fa5f5](https://github.com/darshi1337/apogee/commit/07fa5f51db1dce8d70fecbc14dc1644ec205bbc6))
-- End stream on settings-load failure (#466) (#474) ([6a245b4](https://github.com/darshi1337/apogee/commit/6a245b4a4d2f7e2af5be36ed9c4bb3fca2f8a434))
-- Show empty-result fault on blank summary output (#467) (#479) ([e53e164](https://github.com/darshi1337/apogee/commit/e53e16409d8f5d5ab0b9c84c7eebd06247ac9f3d))
-- Reject unsupported file uploads (#472) (#480) ([8035fa7](https://github.com/darshi1337/apogee/commit/8035fa7668fcce1b148ef2875c070d6df8e90de8))
-- Cap selected text at the pasted-text ceiling (#471) (#481) ([965f5d6](https://github.com/darshi1337/apogee/commit/965f5d6e6a8c13704eb94d53c92549bd62ac63ae))
-- Report run-expired guidance when opening an expired stream (#473) (#492) ([a4f34bd](https://github.com/darshi1337/apogee/commit/a4f34bd1b77d92a9f548f5ecdc9c6afa3a674948))
-- Map internal errors to plain messages in model bar, PDF, file and host notes (#470) (#493) ([b67c1c3](https://github.com/darshi1337/apogee/commit/b67c1c368fe2a6aee4902df88de093a65c6a19ff))
-- Keep the summary when the content cache write fails (#495) (#524) ([4ebfb02](https://github.com/darshi1337/apogee/commit/4ebfb02fae6941b5f54ace3a58bdf9d3f6d74600))
-- Use focus and instructions in fresh prompts (#498) (#523) ([dd677bc](https://github.com/darshi1337/apogee/commit/dd677bc9a94df8e60daa8401b7243bbc911ddcee))
-- Rebuild prompts key when restoring multi-tab summary (#494) ([578d3b8](https://github.com/darshi1337/apogee/commit/578d3b863454efdf3c63abce5bceb0e25a694dd2))
-- Empty multi-tab short-circuits with nothing-to-summarize (#468) ([ec7c36e](https://github.com/darshi1337/apogee/commit/ec7c36ee2340ffd16861bed887cc7427387099a0))
-- Keep aborted multi-tab runs silent (#468) ([d6bd87e](https://github.com/darshi1337/apogee/commit/d6bd87ed9c44ebd2b7d879f6df21a4bc12f9cd4f))
-- Skip multi-tab ready notification when view state is not saved (#496) ([1bb1398](https://github.com/darshi1337/apogee/commit/1bb1398e9c60be15af181e53c7bf07ff3720ec08))
-- Do not read the single-tab prompts key when restoring a multi-tab summary (#494) ([d08f872](https://github.com/darshi1337/apogee/commit/d08f8724ca8417635e710698ae78aa853c10c3ee))
-- Guard summarizeActivePage against double-click runs (#554) ([a45259a](https://github.com/darshi1337/apogee/commit/a45259a2b2097beb4fdb3cc5d2afa110be56f15e))
-- Keep pre-1.0 feature commits on patch versions (#558) ([78faf65](https://github.com/darshi1337/apogee/commit/78faf65c96042b4b4664179eec660cc5e9a71a45))
-- Align prompts cache keys across UI and background (#497) (#555) ([41a0d94](https://github.com/darshi1337/apogee/commit/41a0d94d1f14b69319845f2c17c82e7479a0399a))
-- Schedule cleanup when local streams are created (#544) (#564) ([9f53a0e](https://github.com/darshi1337/apogee/commit/9f53a0e1d36986a9ccceaba85eb18394b9a8728f))
-- Scope prompts cache by response format (#498) (#566) ([9cfaa6f](https://github.com/darshi1337/apogee/commit/9cfaa6fb2d3f1dc19158fb3e1c63af4ea7c0cf4c))
-- Settings language, custom instructions and private hosts fields have accessible names (#549) (#572) ([15b8a80](https://github.com/darshi1337/apogee/commit/15b8a80e7b87735c1b81ab474385b5a6aba4e56a))
-
-### Changed
-
-- Build history embeddings on demand (#571) ([cf82d64](https://github.com/darshi1337/apogee/commit/cf82d649f89868b5c2b5e7ab5e67b49dba3bb24f))
-
 ## [0.2.1] - 2026-08-19
 
 ### Added
