@@ -345,10 +345,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Fixed
-
-- Keep model download logs in the top card (#580) ([f420023](https://github.com/darshi1337/apogee/commit/f420023f4c51ec19962e29332c2a83cc914e4b02))
-
 ## [0.2.1] - 2026-08-19
 
 ### Added
