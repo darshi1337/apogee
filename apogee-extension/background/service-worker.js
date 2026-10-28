@@ -520,7 +520,7 @@ async function startTransformersStream(
     const { customInstructions } = await getSettings();
     await withTransformersEngine(
       model,
-      onProgress,
+      (progress) => onProgress({ ...progress, kind: "download" }),
       async (eng) => {
         if (action === "summarize") {
           const effectiveLanguage = await resolveEffectiveLanguage(
@@ -1314,6 +1314,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         type: "model-progress",
         progress: message.progress,
         modelId: message.modelId,
+        kind: message.kind,
       })
       .catch(() => {});
     return false;

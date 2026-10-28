@@ -988,22 +988,24 @@ chrome.runtime.onMessage.addListener((message, sender) => {
   }
   if (message.type === "model-progress" && message.progress) {
     const p = message.progress;
-    clearTimeout(modelProgressHideTimer);
-    modelProgress?.classList.remove("hidden");
-    modelProgressText.textContent = p.text || "Loading model...";
-    if (typeof p.progress === "number") {
-      const pct = Math.round(p.progress * 100);
-      modelProgressPercent.textContent = `${pct}%`;
-      renderModelProgressBlocks(pct);
-      modelProgressFill.parentElement?.setAttribute("aria-valuenow", pct);
-      if (pct >= 100) {
-        modelProgressHideTimer = setTimeout(
-          () => modelProgress?.classList.add("hidden"),
-          1500,
-        );
+    const isDownload = p.kind === "download";
+    if (isDownload) {
+      clearTimeout(modelProgressHideTimer);
+      modelProgress?.classList.remove("hidden");
+      modelProgressText.textContent = p.text || "Loading model...";
+      if (typeof p.progress === "number") {
+        const pct = Math.round(p.progress * 100);
+        modelProgressPercent.textContent = `${pct}%`;
+        renderModelProgressBlocks(pct);
+        modelProgressFill.parentElement?.setAttribute("aria-valuenow", pct);
+        if (pct >= 100) {
+          modelProgressHideTimer = setTimeout(
+            () => modelProgress?.classList.add("hidden"),
+            1500,
+          );
+        }
       }
-    }
-    if (p.text) {
+    } else if (p.text) {
       if (summaryText?.querySelector(".apogee-loading")) {
         setLoadingIndicator(summaryText, p.text);
       } else if (answerBox?.querySelector(".apogee-loading")) {

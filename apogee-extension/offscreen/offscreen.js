@@ -192,6 +192,7 @@ async function ensureEngine(modelId) {
         type: "model-progress",
         progress,
         modelId,
+        kind: "download",
       })
       .catch(() => {});
   };
@@ -495,6 +496,7 @@ async function runTransformersJob(
         type: "model-progress",
         progress,
         modelId: pending.model,
+        kind: "download",
       })
       .catch(() => {});
   };
