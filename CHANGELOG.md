@@ -348,6 +348,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - Past-summary cards no longer put buttons inside a button (#550) (#588) ([1962a69](https://github.com/darshi1337/apogee/commit/1962a69efc1696327184ef3935f2ded8ecb6f28f))
+- Include contributors in release notes (#591) ([086a7ad](https://github.com/darshi1337/apogee/commit/086a7add3754b50afb12fa877d054b973e1542ef))
 
 ## [0.2.1] - 2026-08-19
 
