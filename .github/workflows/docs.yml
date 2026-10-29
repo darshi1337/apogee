@@ -28,10 +28,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: docs-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   links:
     name: Lychee link check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -50,6 +55,7 @@ jobs:
   spelling:
     name: CSpell (markdown only)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -64,4 +70,4 @@ jobs:
         # identifier (fcard, fcol, ...) as a typo. CHANGELOG.md is generated
         # from commit subjects and is excluded in cspell.json for the same
         # reason. New project terms go in .cspell-project-words.txt.
-        run: npx -y cspell lint --no-progress --no-summary --config ./cspell.json "**/*.md"
+        run: npx --yes cspell@10.4.0 lint --no-progress --no-summary --config ./cspell.json "**/*.md"

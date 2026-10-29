@@ -1,6 +1,7 @@
 # Path-to-label map for the Labeler workflow (actions/labeler v7 object
 # syntax). Keep in sync with the labels that exist in the repo: bug,
-# documentation, enhancement, extractor, test, javascript.
+# documentation, enhancement, extractor, test, javascript, github_actions,
+# dependencies.
 documentation:
   - changed-files:
       - any-glob-to-any-file: ["**/*.md", "docs/**"]
@@ -18,3 +19,19 @@ test:
 javascript:
   - changed-files:
       - any-glob-to-any-file: ["**/*.js"]
+
+github_actions:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/**"
+          - ".github/dependabot.yml"
+          - ".github/labeler.yml"
+          - "scripts/**"
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "package.json"
+          - "package-lock.json"
+          - "apogee-extension/package.json"
+          - "apogee-extension/package-lock.json"

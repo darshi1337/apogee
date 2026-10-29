@@ -11,6 +11,7 @@
     "build": "npm run build --prefix apogee-extension",
     "test": "npm test --prefix apogee-extension",
     "lint": "npm run lint --prefix apogee-extension",
+    "check:consistency": "node scripts/check-consistency.mjs",
     "format": "npm run format --prefix apogee-extension",
     "build:watch": "npm run build:watch --prefix apogee-extension",
     "package": "npm run package --prefix apogee-extension"

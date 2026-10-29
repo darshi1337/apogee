@@ -1,29 +1,35 @@
 version: 2
 updates:
   - package-ecosystem: "npm"
-    directory: "/"
-    schedule:
-      interval: "daily"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-
-  - package-ecosystem: "npm"
     directory: "/apogee-extension"
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "daily"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "github-actions"
+    cooldown:
+      default-days: 7
     groups:
       github-actions:
         patterns:

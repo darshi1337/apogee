@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 defaults:
   run:
     working-directory: apogee-extension
@@ -16,6 +20,9 @@ jobs:
   build-and-release:
     name: Build & Publish Release
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: release
     permissions:
       contents: write # create the GitHub Release and upload zips
       id-token: write # keyless Sigstore signing via GitHub OIDC
@@ -25,6 +32,42 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+
+      - name: Check store credentials
+        env:
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          AMO_API_KEY: ${{ secrets.AMO_API_KEY }}
+          AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+        run: |
+          set -euo pipefail
+
+          require_group() {
+            local any=0
+            local missing=0
+            local name
+            for name in "$@"; do
+              if [ -n "${!name}" ]; then
+                any=1
+              else
+                missing=1
+              fi
+            done
+            if [ "$any" -eq 1 ] && [ "$missing" -eq 1 ]; then
+              for name in "$@"; do
+                if [ -z "${!name}" ]; then
+                  echo "::error::$name is not set but other values in its store group are"
+                fi
+              done
+              return 1
+            fi
+          }
+
+          require_group CWS_EXTENSION_ID CWS_PUBLISHER_ID CWS_CLIENT_ID CWS_CLIENT_SECRET CWS_REFRESH_TOKEN
+          require_group AMO_API_KEY AMO_API_SECRET
 
       # No dependency cache here on purpose: setup-node caches by default
       # via packageManager detection, and a poisoned cache in the release
@@ -40,6 +83,7 @@ jobs:
         run: npm ci
 
       - name: Build and package extension
+        id: package
         run: npm run package
 
       # Keyless signing with Cosign: Fulcio issues a short-lived cert bound
@@ -92,7 +136,7 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          PREV_TAG=$(gh release list --exclude-drafts --limit 10 --json tagName --jq '.[].tagName' | grep -vxF "$TAG" | head -n 1 || true)
+          PREV_TAG=$(gh release list --exclude-drafts --limit 100 --json tagName --jq '.[].tagName' | grep -vxF "$TAG" | head -n 1 || true)
           if [ -n "$PREV_TAG" ]; then
             NOTES=$(gh api -X POST "repos/$REPO/releases/generate-notes" -f tag_name="$TAG" -f previous_tag_name="$PREV_TAG" --jq .body)
           else
@@ -101,8 +145,12 @@ jobs:
           printf '%s\n' "$NOTES" | gh release edit "$TAG" --notes-file -
 
       - name: Publish to Chrome Web Store
+        id: cws
         if: env.CWS_CLIENT_ID != ''
+        continue-on-error: true
+        timeout-minutes: 10
         run: |
+          set -euo pipefail
           ZIP_FILE=$(find .. -maxdepth 1 -name 'apogee-*-chrome.zip' 2>/dev/null | head -n 1)
           if [ -z "$ZIP_FILE" ]; then
             echo "Chrome zip not found: ../apogee-*-chrome.zip"
@@ -110,7 +158,7 @@ jobs:
             exit 1
           fi
           echo "Uploading $ZIP_FILE to Chrome Web Store"
-          npx chrome-webstore-upload-cli@4 --source "$ZIP_FILE" --extension-id "$EXTENSION_ID" --publisher-id "$PUBLISHER_ID"
+          npx --yes chrome-webstore-upload-cli@4.0.2 --source "$ZIP_FILE" --extension-id "$EXTENSION_ID" --publisher-id "$PUBLISHER_ID"
         env:
           EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
           PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
@@ -120,13 +168,23 @@ jobs:
           CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
 
       - name: Publish to Mozilla Add-ons (AMO)
-        if: env.AMO_API_KEY != ''
+        id: amo
+        if: always() && steps.package.outcome == 'success' && env.AMO_API_KEY != ''
+        continue-on-error: true
+        timeout-minutes: 15
         run: |
           npx web-ext sign \
             --source-dir dist/firefox \
-            --api-key ${{ secrets.AMO_API_KEY }} \
-            --api-secret ${{ secrets.AMO_API_SECRET }}
+            --channel listed \
+            --approval-timeout 0 \
+            --api-key "$AMO_API_KEY" \
+            --api-secret "$AMO_API_SECRET"
         env:
           AMO_API_KEY: ${{ secrets.AMO_API_KEY }}
           AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
-          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+
+      - name: Fail if a store publish failed
+        if: always() && (steps.cws.outcome == 'failure' || steps.amo.outcome == 'failure')
+        run: |
+          echo "::error::One or more store publishes failed. Check the logs above."
+          exit 1

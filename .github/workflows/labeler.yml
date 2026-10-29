@@ -11,12 +11,17 @@ permissions:
   contents: read
   pull-requests: write
 
+concurrency:
+  group: labeler-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   label:
     name: Apply path labels
     # PR content runs nowhere here: pull_request_target executes the base
     # workflow, and this job only reads the file list via the API.
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7.0.0
         with:

@@ -25,10 +25,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   gitleaks:
     name: Gitleaks secret scan
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -44,7 +49,10 @@ jobs:
   vulns:
     name: OSV + npm audit (report-only)
     runs-on: ubuntu-latest
-    continue-on-error: true
+    timeout-minutes: 20
+    env:
+      OSV_VERSION: v2.5.1
+      OSV_SHA256: f9f25499a2c8cc367b3af45df2ea7eeca7fbccceab9c35079968f4b3652194be
     defaults:
       run:
         working-directory: apogee-extension
@@ -67,23 +75,28 @@ jobs:
       - name: OSV scan (report-only)
         continue-on-error: true
         run: |
-          curl -sL https://github.com/google/osv-scanner/releases/download/v2.5.1/osv-scanner_linux_amd64 -o /tmp/osv-scanner
-          chmod +x /tmp/osv-scanner
-          /tmp/osv-scanner scan --lockfile=package-lock.json --format=json > /tmp/osv-report.json || true
-          /tmp/osv-scanner scan --lockfile=package-lock.json --format=table || true
+          curl -fsSL "https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}/osv-scanner_linux_amd64" -o "$RUNNER_TEMP/osv-scanner"
+          echo "${OSV_SHA256}  ${RUNNER_TEMP}/osv-scanner" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/osv-scanner"
+          "$RUNNER_TEMP/osv-scanner" scan --lockfile=package-lock.json --format=json > "$RUNNER_TEMP/osv-report.json" || true
 
       - name: npm audit report
+        continue-on-error: true
+        env:
+          NPM_AUDIT_JSON: ${{ runner.temp }}/npm-audit.json
         run: |
-          npm audit --audit-level=high --json > /tmp/npm-audit.json || true
-          HIGH=$(node -e 'const r=require("/tmp/npm-audit.json"); const v=(r.metadata&&r.metadata.vulnerabilities)||{}; console.log((v.high||0)+" high, "+(v.critical||0)+" critical")')
+          npm audit --audit-level=high --json > "$NPM_AUDIT_JSON" || true
+          HIGH=$(node -e 'const r=require(process.env.NPM_AUDIT_JSON); const v=(r.metadata&&r.metadata.vulnerabilities)||{}; console.log((v.high||0)+" high, "+(v.critical||0)+" critical")')
           echo "### npm audit (report-only): $HIGH" >> "$GITHUB_STEP_SUMMARY"
           echo "Known issues, both unpatched upstream and dev-only (never in dist/): adm-zip via onnxruntime-node/firefox-profile, image-size via addons-linter/web-ext. Triage before promoting to blocking." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload audit reports
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: audit-reports
           path: |
-            /tmp/npm-audit.json
-            /tmp/osv-report.json
+            ${{ runner.temp }}/npm-audit.json
+            ${{ runner.temp }}/osv-report.json
+          if-no-files-found: warn
           retention-days: 14
