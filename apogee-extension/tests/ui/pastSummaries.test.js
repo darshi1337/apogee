@@ -270,6 +270,7 @@ function makeCard(entry = { s: "k1", p: "p1", t: "My Title" }) {
     "removeCachedSummary",
     "loadPastSummaries",
     "chrome",
+    "pastSummariesController",
     fnSource + "\nreturn buildPastSummaryCard;",
   )(
     document,
@@ -285,6 +286,7 @@ function makeCard(entry = { s: "k1", p: "p1", t: "My Title" }) {
     async () => {},
     async () => {},
     {},
+    { invalidate: () => {} },
   );
 
   const card = build(entry, "First line\nSecond line");
