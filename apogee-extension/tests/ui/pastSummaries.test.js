@@ -2,6 +2,11 @@ import test from "node:test";
 import assert from "node:assert";
 import fs from "node:fs";
 import { searchPastSummaries } from "../../lib/retrieval/pastSummariesSearch.js";
+import { parseHTML } from "linkedom";
+
+// app.js owns DOM globals at import time, so these tests assert on its
+// source (same precedent as finalizeFailure.test.js) plus the search
+// behavior the popup now relies on.
 import { createPastSummariesController } from "../../ui/pastSummaries.js";
 import { deferred } from "../helpers/deferred.js";
 
@@ -242,4 +247,103 @@ test("search finds summaries older than the last 8 (#313)", async () => {
 
   assert.strictEqual(results.length, 1);
   assert.strictEqual(results[0].s, "k0");
+});
+
+// buildPastSummaryCard needs a browser, so pull its source and run it
+// against linkedom with simple stand-ins for everything it calls
+
+function makeCard(entry = { s: "k1", p: "p1", t: "My Title" }) {
+  const start = appSource.indexOf("function buildPastSummaryCard");
+  const end = appSource.indexOf("// One targeted read", start);
+  const fnSource = appSource.slice(start, end);
+
+  const { document } = parseHTML("<html><body></body></html>");
+  const build = new Function(
+    "document",
+    "icon",
+    "firstLineOf",
+    "setMarkdownHtml",
+    "copyToClipboard",
+    "formatSummaryAsMarkdown",
+    "formatSummaryAsJSON",
+    "pastSummaryToExportItem",
+    "removeCachedSummary",
+    "loadPastSummaries",
+    "chrome",
+    "pastSummariesController",
+    fnSource + "\nreturn buildPastSummaryCard;",
+  )(
+    document,
+    () => "",
+    (text) => text.split("\n")[0],
+    (el, text) => {
+      el.textContent = text;
+    },
+    () => {},
+    () => "",
+    () => "",
+    () => ({}),
+    async () => {},
+    async () => {},
+    {},
+    { invalidate: () => {} },
+  );
+
+  const card = build(entry, "First line\nSecond line");
+  document.body.appendChild(card);
+  return card;
+}
+
+function click(el) {
+  const Event = el.ownerDocument.defaultView.Event;
+  el.dispatchEvent(new Event("click", { bubbles: true }));
+}
+
+test("past summary card is a group with a name, not a button", () => {
+  const card = makeCard();
+  assert.strictEqual(card.getAttribute("role"), "group");
+  assert.strictEqual(card.getAttribute("aria-label"), "My Title");
+  assert.strictEqual(card.getAttribute("tabindex"), null);
+  assert.strictEqual(card.getAttribute("aria-expanded"), null);
+});
+
+test("past summary card uses the first line as its name when untitled", () => {
+  const card = makeCard({ s: "k2", p: "p2", t: "" });
+  assert.strictEqual(card.getAttribute("aria-label"), "First line");
+});
+
+test("copy and delete buttons are not inside the toggle", () => {
+  const card = makeCard();
+  const toggle = card.querySelector(".past-summary-toggle");
+  assert.strictEqual(toggle.tagName, "BUTTON");
+  assert.strictEqual(toggle.querySelector("button"), null);
+  const others = card.querySelectorAll(".copy-btn, .delete-btn");
+  assert.strictEqual(others.length, 3);
+  for (const btn of others) {
+    assert.strictEqual(toggle.contains(btn), false);
+  }
+});
+
+test("toggle button expands and collapses the card", () => {
+  const card = makeCard();
+  const toggle = card.querySelector(".past-summary-toggle");
+  assert.strictEqual(toggle.getAttribute("aria-expanded"), "false");
+  click(toggle);
+  assert.ok(card.classList.contains("expanded"));
+  assert.strictEqual(toggle.getAttribute("aria-expanded"), "true");
+  click(toggle);
+  assert.ok(!card.classList.contains("expanded"));
+  assert.strictEqual(toggle.getAttribute("aria-expanded"), "false");
+});
+
+test("clicking the card expands it, clicking an action does not", async () => {
+  const card = makeCard();
+  click(card.querySelector(".past-summary-preview"));
+  assert.ok(card.classList.contains("expanded"));
+  click(card.querySelector(".past-summary-preview"));
+  assert.ok(!card.classList.contains("expanded"));
+  click(card.querySelector(".copy-btn"));
+  click(card.querySelector(".delete-btn"));
+  await new Promise(setImmediate);
+  assert.ok(!card.classList.contains("expanded"));
 });

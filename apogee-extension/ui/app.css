@@ -305,6 +305,7 @@ body {
 .send-btn,
 .copy-btn,
 .delete-btn,
+.past-summary-toggle,
 .prompts-toggle {
   position: relative;
 }
@@ -313,6 +314,7 @@ body {
 .send-btn::after,
 .copy-btn::after,
 .delete-btn::after,
+.past-summary-toggle::after,
 .prompts-toggle::after {
   content: "";
   position: absolute;
@@ -329,6 +331,7 @@ body {
   inset: -9px;
 }
 
+.past-summary-toggle::after,
 .prompts-toggle::after {
   inset: -10px;
 }
@@ -959,8 +962,8 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
   margin: 0;
 }
 
-.prompts-toggle {
-  border: none;
+.prompts-toggle,
+.past-summary-toggle {
   background: var(--btn-bg);
   border: 1px solid var(--card-border);
   cursor: pointer;
@@ -972,12 +975,14 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
   transition: all 0.2s ease;
 }
 
-.prompts-toggle:hover {
+.prompts-toggle:hover,
+.past-summary-toggle:hover {
   background: var(--btn-hover-bg);
   border-color: var(--btn-hover-border);
 }
 
-.prompts-toggle .ico svg {
+.prompts-toggle .ico svg,
+.past-summary-toggle .ico svg {
   width: 12px;
   height: 12px;
 }
@@ -1121,6 +1126,21 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 .past-summary-text {
   flex: 1;
   min-width: 0;
+}
+
+.past-summary-toggle {
+  padding: 0;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.past-summary-toggle .ico svg {
+  transform: rotate(180deg);
+  transition: transform 0.2s ease;
+}
+
+.past-summary-card.expanded .past-summary-toggle .ico svg {
+  transform: none;
 }
 
 .past-summary-title {
