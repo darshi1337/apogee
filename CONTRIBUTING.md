@@ -6,7 +6,7 @@ By taking part you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Start by using it
 
-Install the extension and use it for real work before you change code. Read [ARCHITECTURE.md](ARCHITECTURE.md) to learn how the four contexts fit together. Write down what breaks, what confuses you, and what feels slow. Then look at the [`help wanted`](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) and [`good first issue`][gfi] lists. Reported bugs land there with the files they touch and what done means, so you can go from a bug report to your first fix.
+Install the extension and use it for real work before you change code. Read [ARCHITECTURE.md](docs/ARCHITECTURE.md) to learn how the four contexts fit together. Write down what breaks, what confuses you, and what feels slow. Then look at the [`help wanted`](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) and [`good first issue`][gfi] lists. Reported bugs land there with the files they touch and what done means, so you can go from a bug report to your first fix.
 
 ## Your first contribution
 
@@ -51,9 +51,9 @@ npm install
 npm run build:watch  # watch mode, rebuilds dist/chrome and dist/firefox on save
 ```
 
-Load `apogee-extension/dist/chrome` (or `dist/firefox`) as an unpacked/temporary extension in your browser. See the main [README](README.md#get-started) for the project overview and [BROWSERS.md](BROWSERS.md) for per-browser notes.
+Load `apogee-extension/dist/chrome` (or `dist/firefox`) as an unpacked/temporary extension in your browser. See the main [README](README.md#get-started) for the project overview and [BROWSERS.md](docs/BROWSERS.md) for per-browser notes.
 
-If you work on the **Local Ollama** provider, you also need Ollama installed and running. The extension reaches it straight with no `OLLAMA_ORIGINS` setup (see the [Local Ollama Guide](OLLAMA.md)).
+If you work on the **Local Ollama** provider, you also need Ollama installed and running. The extension reaches it straight with no `OLLAMA_ORIGINS` setup (see the [Local Ollama Guide](docs/OLLAMA.md)).
 
 ## Before opening a PR
 
@@ -66,7 +66,15 @@ npm test               # node --test
 npm run build           # builds both dist/chrome and dist/firefox
 ```
 
-CI runs the same four checks on each push and pull request. A PR cannot merge until they pass. On your first PR to the repo, CI waits for a maintainer to approve the run. A workflow sitting at "pending" for a long time is normal. It means nothing you did wrong.
+From the repo root, also run the consistency check:
+
+```bash
+npm run check:consistency
+```
+
+It verifies version sync across the four release files, the release badge, the store-listing stamp, required store assets, and that permissions match `PRIVACY.md` and `docs/STORE-LISTING.md`.
+
+CI runs these checks plus the package, CodeQL, dependency-review, secret-scan, and workflow lint jobs. A PR cannot merge until all required checks pass. On your first PR to the repo, CI waits for a maintainer to approve the run. A workflow sitting at "pending" for a long time is normal. It means nothing you did wrong.
 
 If `format:check` fails, run `npm run format` to fix it on its own.
 
@@ -108,7 +116,7 @@ Four places state permissions and network use, and they must match. A claim that
 
 - [PRIVACY.md](PRIVACY.md), the published policy the store listing links to
 
-- `STORE-LISTING.md`, which carries a reason per permission
+- `docs/STORE-LISTING.md`, which carries a reason per permission
 
 Adding, removing, or reusing a permission or a host means editing all four in the same PR.
 

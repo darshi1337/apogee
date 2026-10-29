@@ -176,7 +176,7 @@ Certify all three disclosures (no selling/transfer, no unrelated use, no creditw
 
 ### The images
 
-Each listing image lives committed in `.github/assets/`. Each store gets the same file reviewers see here. HTML and CSS built them in the design language of the marketing site (`docs/`).
+Each listing image lives committed in `.github/assets/`. Each store gets the same file reviewers see here. HTML and CSS built them in the design language of the marketing site (`site/`).
 
 Type uses Mozilla Headline and Mozilla Text. Purple is `#5855ff`. Grounds are `#f7f7f7` and `#161616`. Cards use lilac tints. Four vertical hairlines run through each image.
 
@@ -193,23 +193,23 @@ Shown here at 1280x800, the size uploaded to the Chrome Web Store.
 
 **1. Cover.** Headline, one-paragraph pitch, install CTA, and the popup in its default state.
 
-![Cover slide](.github/assets/apogee-deck-1280x800-1.png)
+![Cover slide](../.github/assets/apogee-deck-1280x800-1.png)
 
 **2. Why Apogee.** The common summarizer versus apogee, side by side, over the strip of supported sites.
 
-![Why apogee slide](.github/assets/apogee-deck-1280x800-2.png)
+![Why apogee slide](../.github/assets/apogee-deck-1280x800-2.png)
 
 **3. How it works.** WebGPU, WebAssembly, and Ollama. A crop of the real AI Provider settings. The four-step local pipeline.
 
-![How it works slide](.github/assets/apogee-deck-1280x800-3.png)
+![How it works slide](../.github/assets/apogee-deck-1280x800-3.png)
 
 **4. In the browser.** Three cropped screenshots as a numbered flow: start the summary, read it, then ask follow-up questions.
 
-![In the browser slide](.github/assets/apogee-deck-1280x800-4.png)
+![In the browser slide](../.github/assets/apogee-deck-1280x800-4.png)
 
 **5. Get started.** Install CTA, the zero servers / 100% on device / MIT stats, and the outlined wordmark.
 
-![Get started slide](.github/assets/apogee-deck-1280x800-5.png)
+![Get started slide](../.github/assets/apogee-deck-1280x800-5.png)
 
 Slide 4 and the cover use crops of the popup captures in `.github/assets`. CSS crops from the 684px-wide originals with a `--y` offset in source pixels. Re-cropping takes a one-number edit instead of an image edit. Each crop fades out at the bottom in the panel own background color so a cut never lands mid-sentence.
 
@@ -217,25 +217,25 @@ Slide 4 and the cover use crops of the popup captures in `.github/assets`. CSS c
 
 Small tile, 440x280. Text stays light on purpose. Tiles often show small.
 
-![Small promo tile](.github/assets/apogee-promo-tile-440x280.png)
+![Small promo tile](../.github/assets/apogee-promo-tile-440x280.png)
 
 Marquee, 1400x560. The wider canvas has room for the popup next to the pitch.
 
-![Marquee promo tile](.github/assets/apogee-marquee-1400x560.png)
+![Marquee promo tile](../.github/assets/apogee-marquee-1400x560.png)
 
 ### Firefox Add-ons set
 
 The same five slides at 2400x1800, carrying the Firefox CTA instead of the Chrome one. Uploaded to AMO, not to the Chrome Web Store.
 
-![Cover slide, Firefox](.github/assets/apogee-deck-2400x1800-1.png)
+![Cover slide, Firefox](../.github/assets/apogee-deck-2400x1800-1.png)
 
-![Why apogee slide, Firefox](.github/assets/apogee-deck-2400x1800-2.png)
+![Why apogee slide, Firefox](../.github/assets/apogee-deck-2400x1800-2.png)
 
-![How it works slide, Firefox](.github/assets/apogee-deck-2400x1800-3.png)
+![How it works slide, Firefox](../.github/assets/apogee-deck-2400x1800-3.png)
 
-![In the browser slide, Firefox](.github/assets/apogee-deck-2400x1800-4.png)
+![In the browser slide, Firefox](../.github/assets/apogee-deck-2400x1800-4.png)
 
-![Get started slide, Firefox](.github/assets/apogee-deck-2400x1800-5.png)
+![Get started slide, Firefox](../.github/assets/apogee-deck-2400x1800-5.png)
 
 ### Notes on the two sizes
 

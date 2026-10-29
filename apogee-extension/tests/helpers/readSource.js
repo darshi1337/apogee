@@ -4,7 +4,9 @@ import fs from "node:fs";
 // offscreenKeepAlive.test.js): tests assert on the shipped source to lock
 // cross-runtime call sites together.
 export function readSource(relPath, baseUrl) {
-  return fs.readFileSync(new URL(relPath, baseUrl), "utf-8");
+  return fs
+    .readFileSync(new URL(relPath, baseUrl), "utf-8")
+    .replace(/\r\n?/g, "\n");
 }
 
 // Extract a function body between its opening brace and the next marker, so

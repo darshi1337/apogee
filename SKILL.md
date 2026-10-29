@@ -30,6 +30,7 @@ Run from the repo root:
 
 ```text
 npx prettier --check SKILL.md
+npm run check:consistency
 ```
 
 Run from `apogee-extension/`:

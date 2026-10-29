@@ -1,14 +1,14 @@
 name: Deploy site to GitHub Pages
 
-# Publishes the docs/ marketing site to GitHub Pages on every push to main
+# Publishes the site/ marketing site to GitHub Pages on every push to main
 # that touches it (plus a manual trigger). It's a static site, so there is
-# no build step - the docs/ folder is uploaded and deployed as-is.
+# no build step - the site/ folder is uploaded and deployed as-is.
 
 on:
   push:
     branches: [main]
     paths:
-      - "docs/**"
+      - "site/**"
       - ".github/workflows/deploy-pages.yml"
   workflow_dispatch:
 
@@ -40,10 +40,10 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
 
-      - name: Upload docs/ as the Pages artifact
+      - name: Upload site/ as the Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
-          path: docs
+          path: site
 
       - name: Deploy to GitHub Pages
         id: deployment

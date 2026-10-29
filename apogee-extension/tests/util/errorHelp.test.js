@@ -80,9 +80,9 @@ test("errorHelpUrl falls back to the top of the file", () => {
 });
 
 // The anchors are GitHub heading slugs, so a renamed heading silently breaks every link. Check them against the file itself.
-test("every anchor exists as a heading in ERROR.md", () => {
+test("every anchor exists as a heading in docs/ERROR.md", () => {
   const doc = readFileSync(
-    new URL("../../../ERROR.md", import.meta.url),
+    new URL("../../../docs/ERROR.md", import.meta.url),
     "utf8",
   );
   const slugs = new Set(

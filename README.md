@@ -8,7 +8,7 @@ A private AI summarizer in your browser for articles, videos, PDFs, DOCX files, 
 
 <a href="https://chromewebstore.google.com/detail/apogee/pgemlpomhkdcjjjcpnjlebalnfglomog"><img alt="Available in Chrome Web Store" src=".github/assets/chrome-web-store.png" width="206" height="58"></a> &nbsp; <a href="https://addons.mozilla.org/en-US/firefox/addon/apogeeext/"><img alt="Get Add-on for Firefox" src=".github/assets/firefox-add-on.svg" width="152" height="53"></a>
 
-<a href="https://darshi1337.github.io/apogee/">Website</a> | <a href="ARCHITECTURE.md">Architecture</a> | <a href="MODELS.md">Models</a> | <a href="BROWSERS.md">Browsers</a> | <a href="PRIVACY.md">Privacy</a> | <a href="ROADMAP.md">Roadmap</a> | <a href="STORE-LISTING.md">Store listing</a> | <a href="LICENSE">License</a>
+<a href="https://darshi1337.github.io/apogee/">Website</a> | <a href="docs/ARCHITECTURE.md">Architecture</a> | <a href="docs/MODELS.md">Models</a> | <a href="docs/BROWSERS.md">Browsers</a> | <a href="PRIVACY.md">Privacy</a> | <a href="docs/ROADMAP.md">Roadmap</a> | <a href="docs/STORE-LISTING.md">Store listing</a> | <a href="LICENSE">License</a>
 
 [![Release](.github/assets/badge-release.svg)](https://github.com/darshi1337/apogee/releases) [![License: MIT](.github/assets/badge-license-mit.svg)](LICENSE) [![CI](https://github.com/darshi1337/apogee/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/darshi1337/apogee/actions/workflows/ci.yml) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/darshi1337/apogee/badge)](https://scorecard.dev/viewer/?uri=github.com/darshi1337/apogee) [![Chrome + Firefox users](.github/assets/badge-users.svg "Chrome weekly + Firefox average daily users")](#get-started)
 
@@ -42,11 +42,11 @@ Apogee is the point of an orbit farthest from Earth. The word also means the hig
 
 3. Pick a summary format and select **Summarize**.
 
-The first in-browser run downloads the picked model. Cached models run offline after that. For larger models, set up [Ollama](OLLAMA.md) or [llama.cpp](LLAMACPP.md) in Settings.
+The first in-browser run downloads the picked model. Cached models run offline after that. For larger models, set up [Ollama](docs/OLLAMA.md) or [llama.cpp](docs/LLAMACPP.md) in Settings.
 
 ## Contribute
 
-Install the extension and use it each day. Read [ARCHITECTURE.md](ARCHITECTURE.md) to learn how it works. When something breaks, [open a bug report](https://github.com/darshi1337/apogee/issues/new/choose). A clear report is help enough. Each confirmed bug becomes an issue the next person can pick up. To fix a bug yourself, pick a [`first-timers-only`](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3Afirst-timers-only) or [`good first issue`](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) item and follow [CONTRIBUTING.md](CONTRIBUTING.md).
+Install the extension and use it each day. Read [ARCHITECTURE.md](docs/ARCHITECTURE.md) to learn how it works. When something breaks, [open a bug report](https://github.com/darshi1337/apogee/issues/new/choose). A clear report is help enough. Each confirmed bug becomes an issue the next person can pick up. To fix a bug yourself, pick a [`first-timers-only`](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3Afirst-timers-only) or [`good first issue`](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) item and follow [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Why Apogee
 
@@ -138,25 +138,25 @@ Read the full security model in [Privacy and Security Architecture](PRIVACY.md).
 
 ### For Users
 
-- **[Browser Support](BROWSERS.md)**: Browser compatibility table, WebGPU versus WebAssembly execution, and Ollama support.
+- **[Browser Support](docs/BROWSERS.md)**: Browser compatibility table, WebGPU versus WebAssembly execution, and Ollama support.
 
-- **[Model Reference](MODELS.md)**: Full model table, download sizes, context windows, and benchmarks.
+- **[Model Reference](docs/MODELS.md)**: Full model table, download sizes, context windows, and benchmarks.
 
-- **[Local llama.cpp Guide](LLAMACPP.md)**: Setup steps for linking Apogee to your own `llama-server` instance.
+- **[Local llama.cpp Guide](docs/LLAMACPP.md)**: Setup steps for linking Apogee to your own `llama-server` instance.
 
-- **[Local Ollama Guide](OLLAMA.md)**: Setup steps for local models on macOS, Windows, and Linux.
+- **[Local Ollama Guide](docs/OLLAMA.md)**: Setup steps for local models on macOS, Windows, and Linux.
 
-- **[Translation Reference](TRANSLATION.md)**: Overview of 32 supported target languages and Opus-MT model tiers.
+- **[Translation Reference](docs/TRANSLATION.md)**: Overview of 32 supported target languages and Opus-MT model tiers.
 
 - **[Privacy Architecture](PRIVACY.md)**: Full details on network limits, storage, and permissions.
 
-- **[Error Messages Guide](ERROR.md)**: Full list of user-facing messages, causes, fixes, and diagnostics.
+- **[Error Messages Guide](docs/ERROR.md)**: Full list of user-facing messages, causes, fixes, and diagnostics.
 
-- **[Troubleshooting](TROUBLESHOOTING.md)**: Fix the common failures by symptom: no WebGPU, stalled model download, Ollama unreachable, slow Firefox, unreadable page.
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)**: Fix the common failures by symptom: no WebGPU, stalled model download, Ollama unreachable, slow Firefox, unreadable page.
 
 ### For Developers & Contributors
 
-Extractor contributions need no browser, GPU, or model download. The fixture harness runs site extractors against saved HTML in Node.js 22 or newer:
+Extractor contributions need no browser, GPU, or model download. The fixture harness runs site extractors against saved HTML in Node.js 24 or newer:
 
 ```bash
 cd apogee-extension
@@ -166,13 +166,13 @@ npm test
 
 See the [extractor test harness and worked examples](apogee-extension/tests/extractors/README.md) to add a fixture. It shows how to test a site-specific extractor. The [contributing guide](CONTRIBUTING.md) lists available issues and the checks to run before a PR.
 
-- **[Architecture Reference](ARCHITECTURE.md)**: Details on the 4 contexts, how it works, execution flows, and trust limits.
+- **[Architecture Reference](docs/ARCHITECTURE.md)**: Details on the 4 contexts, how it works, execution flows, and trust limits.
 
-- **[Developer Setup](DEVELOPMENT.md)**: Steps to build, run watch mode, run test suites, and format code.
+- **[Developer Setup](docs/DEVELOPMENT.md)**: Steps to build, run watch mode, run test suites, and format code.
 
 - **[Contributing Guide](CONTRIBUTING.md)**: Rules for opening pull requests, sending code changes, and claiming issues.
 
-- **[Project Roadmap](ROADMAP.md)**: Feature roadmap, planned milestones, and completed releases.
+- **[Project Roadmap](docs/ROADMAP.md)**: Feature roadmap, planned milestones, and completed releases.
 
 - **[Changelog](CHANGELOG.md)**: Full release history and version changes.
 

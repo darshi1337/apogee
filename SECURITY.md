@@ -34,7 +34,7 @@ Anything that breaks that claim is a vulnerability here. This holds even if an o
 
 - Anything lets an attacker widen extension permissions or host access.
 
-Please **do** report a mismatch between what the docs promise and what the code does. Report it even if nothing is exploitable yet. The manifest, the README Privacy section, `PRIVACY.md`, and `STORE-LISTING.md` must describe the same permission set. Drift between them is exactly the type of issue that turns into a real problem later.
+Please **do** report a mismatch between what the docs promise and what the code does. Report it even if nothing is exploitable yet. The manifest, the README Privacy section, `PRIVACY.md`, and `docs/STORE-LISTING.md` must describe the same permission set. Drift between them is exactly the type of issue that turns into a real problem later.
 
 ## What Does Not Count
 

@@ -4,7 +4,7 @@
 # dependencies.
 documentation:
   - changed-files:
-      - any-glob-to-any-file: ["**/*.md", "docs/**"]
+      - any-glob-to-any-file: ["**/*.md", "site/**"]
 
 extractor:
   - changed-files:

@@ -1,8 +1,9 @@
 name: Consistency
 
 # Catches the drift that blocks store review: versions in 4 files plus the
-# release badge, STORE-LISTING version stamp, required store assets, locale catalog
-# completeness plus shared glossary terms. Read-only, fast, no dependencies.
+# release badge, docs/STORE-LISTING.md version stamp, required store assets,
+# locale catalog completeness plus shared glossary terms. Also lints the
+# workflows themselves. Read-only, fast, no dependencies.
 
 on:
   push:
@@ -36,6 +37,40 @@ jobs:
 
       - name: Locale catalog complete + glossary shared
         run: node apogee-extension/scripts/check-locales.mjs
+
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Run actionlint
+        uses: reviewdog/action-actionlint@48e36f54d8da326b83ab061aee2cc5e01b5ca46f # v1.80.6
+        with:
+          fail_level: error
+
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      # Annotations instead of Advanced Security: SARIF upload needs
+      # security-events: write, which this read-only workflow must not have.
+      # Per the action docs these two are mutually exclusive.
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+        with:
+          inputs: .github/workflows
+          online-audits: false
+          advanced-security: false
+          annotations: true
 
   pr-title:
     name: PR title looks like a changelog entry (warn-only)

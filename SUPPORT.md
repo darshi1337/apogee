@@ -6,9 +6,9 @@ Open a [Q&A discussion](https://github.com/darshi1337/apogee/discussions/categor
 
 Read the relevant guide first:
 
-- [BROWSERS.md](BROWSERS.md) for per-browser setup
-- [OLLAMA.md](OLLAMA.md) for Local Ollama setup
-- [MODELS.md](MODELS.md) for model choice
+- [BROWSERS.md](docs/BROWSERS.md) for per-browser setup
+- [OLLAMA.md](docs/OLLAMA.md) for Local Ollama setup
+- [MODELS.md](docs/MODELS.md) for model choice
 
 ## Bugs and feature requests
 

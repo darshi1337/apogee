@@ -68,4 +68,4 @@ This document shows what we work on now, what we plan soon, and our long-term pl
 
 ## How to Help
 
-To help us build Apogee, check the open issues on GitHub or read CONTRIBUTING.md.
+To help us build Apogee, check the open issues on GitHub or read [CONTRIBUTING.md](../CONTRIBUTING.md).

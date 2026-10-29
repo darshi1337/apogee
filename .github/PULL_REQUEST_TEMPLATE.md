@@ -10,6 +10,7 @@
 - [ ] `npm run lint`
 - [ ] `npm test`
 - [ ] `npm run build` (both `dist/chrome` and `dist/firefox`)
+- [ ] `npm run check:consistency` (from the repo root)
 - [ ] Manually exercised the change in a loaded browser extension
 
 ## Privacy impact
@@ -21,7 +22,7 @@
 
 <!-- Permissions and network behaviour appear in four places that must
      agree: apogee-extension/manifest.json, README.md (Privacy & Permissions),
-     PRIVACY.md, and STORE-LISTING.md (permission justifications). A claim in
+     PRIVACY.md, and docs/STORE-LISTING.md (permission justifications). A claim in
      one and not the others is what store reviewers catch. -->
 
 - [ ] Permissions unchanged, or all four of manifest / README / PRIVACY / store-listing updated together

@@ -1,7 +1,7 @@
-// Every failure links to ERROR.md by heading slug, so anchors must stay
+// Every failure links to docs/ERROR.md by heading slug, so anchors must stay
 // in sync with that file.
 export const ERROR_HELP_URL =
-  "https://github.com/darshi1337/apogee/blob/main/ERROR.md";
+  "https://github.com/darshi1337/apogee/blob/main/docs/ERROR.md";
 
 export const ERROR_HELP_LABEL = "What does this mean?";
 

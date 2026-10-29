@@ -9,7 +9,7 @@ name: Security scans
 #     * image-size parser DoS (latest 2.0.2 still flagged; latest
 #       addons-linter 10.11.0 still ships it)
 #   Both are dev-only/install-time and never ship in dist/ (enforced by the
-#   "vulnerable dev-only packages" guard in package.yml), so failing the build
+#   "vulnerable dev-only packages" guard in the CI package job), so failing the build
 #   here would keep main red with no actionable upgrade. Triage the uploaded
 #   reports instead, and re-test an addons-linter bump whenever upstream
 #   publishes fixed image-parser dependencies.

@@ -1594,13 +1594,13 @@ function helpLink(message) {
   return link;
 }
 
-// Shared alert-role + ERROR.md help link both error renderers apply.
+// Shared alert-role + docs/ERROR.md help link both error renderers apply.
 function attachErrorAlert(target, message) {
   target.setAttribute("role", "alert");
   target.appendChild(helpLink(message));
 }
 
-// Every failure the user can see goes through here, so each one gets the alert role, the error styling, and a link into ERROR.md.
+// Every failure the user can see goes through here, so each one gets the alert role, the error styling, and a link into docs/ERROR.md.
 function renderError(target, message) {
   const p = document.createElement("p");
   p.className = "error-message";

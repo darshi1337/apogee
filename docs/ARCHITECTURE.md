@@ -40,7 +40,7 @@ Then it scrolls to the passage and highlights it in the live page. It helps you 
 
 Videos (YouTube and Bilibili) get their own path. Apogee pulls the timestamped transcript of the video. It makes a short written gist plus a "Key moments" timeline. The timeline sizes to the video length.
 
-Each entry is a clickable link that jumps the video to that moment. When a video description defines real chapters, the summary follows those chapters instead. Apogee strips sponsor reads and self-promotion from YouTube transcripts first (see the SponsorBlock lookup in PRIVACY.md).
+Each entry is a clickable link that jumps the video to that moment. When a video description defines real chapters, the summary follows those chapters instead. Apogee strips sponsor reads and self-promotion from YouTube transcripts first (see the SponsorBlock lookup in [PRIVACY.md](../PRIVACY.md)).
 
 Social threads get dedicated extractors, so long discussions survive Readability. Reddit, Hacker News, Lobsters, Bluesky, and Mastodon parse titles, authors, scores, and reply trees into Markdown. Lemmy, Discourse, Stack Overflow, GitHub, GitLab, and Dev.to do the same. The thread extractors share one helper module (`thread.js`), and the video extractors share another (`video.js`).
 

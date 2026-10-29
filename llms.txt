@@ -32,6 +32,10 @@ Apogee is an offline-first, private browser extension for Chrome, Edge, and Fire
 
 - `apogee-extension/tests/`: Node-based test suite, extractor tests, and HTML fixtures.
 
+- `docs/`: Architecture, development, browser, model, and troubleshooting guides. Root files hold project-wide policy and community docs.
+
+- `site/`: Static GitHub Pages marketing site. No build step; deployed as-is.
+
 ## Architecture
 
 General processing flow:
@@ -54,7 +58,7 @@ Content
 
 ## Quick Instructions for AI Agents
 
-- **Node Version**: Node.js 22 or newer (.nvmrc pins 22).
+- **Node Version**: Node.js 24 or newer (.nvmrc pins 24).
 
 - **Commands** (run `install:extension`, `build`, `test`, `lint`, `format`, `build:watch`, `package` from root or inside apogee-extension. `format:check`, `build:chrome`, `build:firefox`, `start:*`, `lint:webext` only inside apogee-extension):
 
@@ -86,29 +90,29 @@ Content
 
 - [README](./README.md): Project landing page, quick start, browser matrix, comparison, and features.
 
-- [Architecture](ARCHITECTURE.md): System architecture, 4 contexts, sequence diagrams, and trust boundaries.
+- [Architecture](docs/ARCHITECTURE.md): System architecture, 4 contexts, sequence diagrams, and trust boundaries.
 
-- [Models](MODELS.md): WebLLM, WASM, Ollama models, benchmarks, and context windows.
+- [Models](docs/MODELS.md): WebLLM, WASM, Ollama models, benchmarks, and context windows.
 
-- [Browser Support](BROWSERS.md): Browser compatibility matrix, WebGPU vs WebAssembly execution, and Ollama support.
+- [Browser Support](docs/BROWSERS.md): Browser compatibility matrix, WebGPU vs WebAssembly execution, and Ollama support.
 
-- [Local llama.cpp Guide](LLAMACPP.md): Connecting Apogee to your own `llama-server`.
+- [Local llama.cpp Guide](docs/LLAMACPP.md): Connecting Apogee to your own `llama-server`.
 
-- [Local Ollama Guide](OLLAMA.md): Local Ollama setup for macOS, Windows, and Linux.
+- [Local Ollama Guide](docs/OLLAMA.md): Local Ollama setup for macOS, Windows, and Linux.
 
-- [Translation Reference](TRANSLATION.md): 32-language matrix and Opus-MT model tiers.
+- [Translation Reference](docs/TRANSLATION.md): 32-language matrix and Opus-MT model tiers.
 
 - [Privacy Policy](PRIVACY.md): Detailed privacy, network connections, and permission sandboxing.
 
-- [Error Messages Guide](ERROR.md): Complete catalog of user-facing messages, cause breakdowns, and diagnostic steps.
+- [Error Messages Guide](docs/ERROR.md): Complete catalog of user-facing messages, cause breakdowns, and diagnostic steps.
 
-- [Troubleshooting](TROUBLESHOOTING.md): Common failures by symptom, with fixes and links to the guides above.
+- [Troubleshooting](docs/TROUBLESHOOTING.md): Common failures by symptom, with fixes and links to the guides above.
 
-- [Developer Setup](DEVELOPMENT.md): Build environment, scripts, test suite, and contributing guidelines.
+- [Developer Setup](docs/DEVELOPMENT.md): Build environment, scripts, test suite, and contributing guidelines.
 
 - [Contributing](./CONTRIBUTING.md): Development setup, PR rules, and issue claiming guidelines.
 
-- [Roadmap](./ROADMAP.md): Project goals, completed releases, and planned feature roadmap.
+- [Roadmap](docs/ROADMAP.md): Project goals, completed releases, and planned feature roadmap.
 
 - [Changelog](./CHANGELOG.md): Full release history and detailed version changes.
 

@@ -56,10 +56,10 @@ function checkReleaseBadge(rootVersion) {
 }
 
 function checkStoreListing(manifestVersion) {
-  const listing = read("STORE-LISTING.md");
+  const listing = read("docs/STORE-LISTING.md");
   const stamp = `Version at last edit: ${manifestVersion}`;
   if (!listing.includes(stamp)) {
-    fail(`STORE-LISTING.md stamp must say '${stamp}'`);
+    fail(`docs/STORE-LISTING.md stamp must say '${stamp}'`);
   }
 }
 
@@ -96,7 +96,7 @@ function checkPermissionsDocs() {
   const manifest = readJson("apogee-extension/manifest.json");
   const docs = {
     "PRIVACY.md": read("PRIVACY.md"),
-    "STORE-LISTING.md": read("STORE-LISTING.md"),
+    "docs/STORE-LISTING.md": read("docs/STORE-LISTING.md"),
   };
   const keys = [
     "permissions",

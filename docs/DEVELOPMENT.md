@@ -40,7 +40,7 @@ This guide explains the Apogee codebase layout and repo folder structure. It cov
 
 ## Development and Build Commands
 
-Run `install:extension`, `build`, `test`, `lint`, `format`, `build:watch`, and `package` from the repo root or inside the `apogee-extension` directory. The rest (`format:check`, `build:chrome`, `build:firefox`, `start:firefox`, `start:chrome`, `lint:webext`) live only inside `apogee-extension/`.
+Run `install:extension`, `build`, `test`, `lint`, `format`, `build:watch`, and `package` from the repo root or inside the `apogee-extension` directory. `check:consistency` runs from the repo root only. The rest (`format:check`, `build:chrome`, `build:firefox`, `start:firefox`, `start:chrome`, `lint:webext`) live only inside `apogee-extension/`.
 
 - **Watch Mode (Development)**:
 
@@ -78,7 +78,7 @@ Run `install:extension`, `build`, `test`, `lint`, `format`, `build:watch`, and `
 
 ## Repository Folder Guide and Contribution Rules
 
-The Apogee extension code lives in `apogee-extension/`. Below is what each folder holds, what files it has, and how to contribute to it. File lists are a snapshot; `ls` is the source of truth when they differ.
+The repository root keeps project-wide policy and community docs (`README.md`, `CONTRIBUTING.md`, `PRIVACY.md`, `SECURITY.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`). General guides live in `docs/`, the GitHub Pages site in `site/`, and repo automation in `scripts/`. The Apogee extension code lives in `apogee-extension/`. Below is what each extension folder holds, what files it has, and how to contribute to it. File lists are a snapshot; `ls` is the source of truth when they differ.
 
 ### 1. `content/` (Tab Context Extractor Scripts)
 
@@ -196,6 +196,24 @@ Before you open a pull request, run the full tests and quality checks:
 
   Checks that JavaScript and Markdown files follow Prettier formatting rules.
 
+- **Check Repo Consistency**:
+
+  ```bash
+  npm run check:consistency
+  ```
+
+  Run from the repo root. Verifies version sync across the four release files, the release badge, the store-listing stamp, required store assets, and that permissions match `PRIVACY.md` and `docs/STORE-LISTING.md`.
+
+- **Package Store Artifacts**:
+
+  ```bash
+  npm run package
+  ```
+
+  Builds both browser targets and the Chrome ZIP and Firefox XPI. CI runs this on every pull request, including an artifact-name and manifest-transform check.
+
+CI also runs CodeQL, dependency review, secret scanning, and workflow linting. A pull request must pass all required checks before it can merge.
+
 ## Browser Automation & E2E Testing
 
 Tools such as **Playwright** or **Puppeteer** load and drive Apogee in automated browser test suites. Because Chromium extension APIs need headful runs, set `headless: false` when running browser automation.
@@ -284,4 +302,5 @@ chrome.runtime.sendMessage({
 
 - Keep PRs focused on a single feature, site extractor, or bug fix.
 - Make sure all unit tests pass (`npm test`) and no new linter warnings appear (`npm run lint`).
+- Run `npm run check:consistency` from the repo root.
 - Keep on-device privacy promises by keeping all data handling and inference on your local machine.

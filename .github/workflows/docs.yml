@@ -10,7 +10,7 @@ on:
     branches: [main]
     paths:
       - "**.md"
-      - "docs/**"
+      - "site/**"
       - "lychee.toml"
       - "cspell.json"
       - ".cspell-project-words.txt"
@@ -19,7 +19,7 @@ on:
     branches: [main]
     paths:
       - "**.md"
-      - "docs/**"
+      - "site/**"
       - "lychee.toml"
       - "cspell.json"
       - ".cspell-project-words.txt"
@@ -42,13 +42,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Check markdown + docs links
+      - name: Check markdown + site links
         # Scoped to project prose on purpose: '**/*.md' would also crawl
         # node_modules READMEs (7000+ dependency links). CHANGELOG.md is
         # excluded in lychee.toml (bot-generated commit links).
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
-          args: --config lychee.toml --verbose --no-progress '*.md' 'apogee-extension/tests/extractors/README.md' 'docs/**/*.html'
+          args: --config lychee.toml --verbose --no-progress '*.md' 'docs/**/*.md' 'apogee-extension/tests/extractors/README.md' 'site/**/*.html'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

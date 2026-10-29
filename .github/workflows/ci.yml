@@ -45,3 +45,83 @@ jobs:
       - run: npm run build
 
       - run: npm run lint:webext
+
+  package:
+    name: Build + package smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apogee-extension/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run package
+
+      - name: Verify vulnerable dev-only packages never ship in dist
+        run: |
+          # adm-zip (via onnxruntime-node/firefox-profile) and image-size (via
+          # addons-linter) carry unpatched advisories but must stay dev-only:
+          # Vite only bundles imported modules, so none of these may appear in
+          # the shipped bundles. onnxruntime-web WASM ("ort-wasm") is expected.
+          LEAKED=$(grep -rl --exclude='*.map' -e 'adm-zip' -e 'AdmZip' -e 'image-size' -e 'onnxruntime-node' -e 'firefox-profile' -e 'FirefoxProfile' dist/chrome dist/firefox || true)
+          if [ -n "$LEAKED" ]; then
+            echo "::error::dev-only vulnerable package leaked into dist:"; echo "$LEAKED"; exit 1;
+          fi
+          echo "dist is free of adm-zip/image-size/onnxruntime-node/firefox-profile"
+
+      - name: Verify Firefox manifest transform
+        run: |
+          node -e '
+            const chrome = require("./dist/chrome/manifest.json");
+            const firefox = require("./dist/firefox/manifest.json");
+            const assert = require("assert");
+            assert.ok(!firefox.permissions.includes("offscreen"), "firefox build must strip offscreen");
+            assert.ok(!firefox.permissions.includes("sidePanel"), "firefox build must strip sidePanel");
+            assert.ok(!("side_panel" in firefox), "firefox build must strip side_panel");
+            assert.ok(firefox.sidebar_action, "firefox build must add sidebar_action");
+            assert.ok(chrome.permissions.includes("sidePanel"), "chrome build must keep sidePanel");
+            console.log("manifest transforms OK");
+          '
+
+      - name: Verify artifacts carry the manifest version
+        run: |
+          V=$(node -e 'console.log(require("./manifest.json").version)')
+          test -f "../apogee-${V}-chrome.zip" || { echo "::error::missing ../apogee-${V}-chrome.zip"; ls -la ..; exit 1; }
+          test -f "../apogee-${V}-mozilla.xpi" || { echo "::error::missing ../apogee-${V}-mozilla.xpi"; ls -la ..; exit 1; }
+          echo "artifacts OK for v$V"
+
+      - name: Sizes to job summary (report-only)
+        run: |
+          {
+            echo "### Package sizes"
+            echo ""
+            echo "| artifact | size |"
+            echo "|---|---|"
+            for f in ../apogee-*-chrome.zip ../apogee-*-mozilla.xpi; do
+              echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"
+            done
+            echo ""
+            echo "| dist | unpacked |"
+            echo "|---|---|"
+            for d in dist/chrome dist/firefox; do
+              echo "| $d | $(du -sh "$d" | cut -f1) |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload store artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: store-packages
+          path: |
+            apogee-*-chrome.zip
+            apogee-*-mozilla.xpi
+          retention-days: 7
