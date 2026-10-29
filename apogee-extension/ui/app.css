@@ -962,8 +962,8 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
   margin: 0;
 }
 
-.prompts-toggle {
-  border: none;
+.prompts-toggle,
+.past-summary-toggle {
   background: var(--btn-bg);
   border: 1px solid var(--card-border);
   cursor: pointer;
@@ -975,12 +975,14 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
   transition: all 0.2s ease;
 }
 
-.prompts-toggle:hover {
+.prompts-toggle:hover,
+.past-summary-toggle:hover {
   background: var(--btn-hover-bg);
   border-color: var(--btn-hover-border);
 }
 
-.prompts-toggle .ico svg {
+.prompts-toggle .ico svg,
+.past-summary-toggle .ico svg {
   width: 12px;
   height: 12px;
 }
@@ -1127,28 +1129,12 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 }
 
 .past-summary-toggle {
-  width: 24px;
-  height: 24px;
   padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
-  border: 1px solid var(--card-border);
-  background: var(--btn-bg);
   color: inherit;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.past-summary-toggle:hover {
-  background: var(--btn-hover-bg);
-  border-color: var(--btn-hover-border);
 }
 
 .past-summary-toggle .ico svg {
-  width: 12px;
-  height: 12px;
   transform: rotate(180deg);
   transition: transform 0.2s ease;
 }

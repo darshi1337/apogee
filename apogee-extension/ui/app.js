@@ -1192,6 +1192,16 @@ function pastSummaryToExportItem(entry, text, stored = {}) {
 // One past-summary card for the history list. Shared by the recent-8 list
 // and full-index search results so both stay in sync.
 function buildPastSummaryCard(entry, text) {
+  const makeButton = (className, label, iconName, title = label) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = className;
+    button.setAttribute("aria-label", label);
+    button.title = title;
+    button.innerHTML = icon(iconName);
+    return button;
+  };
+
   // A group, not a button: the card holds real buttons
   // Button must not contain other button elements
   const card = document.createElement("div");
@@ -1216,13 +1226,13 @@ function buildPastSummaryCard(entry, text) {
   preview.textContent = firstLineOf(text);
   textWrap.appendChild(preview);
 
-  const toggleBtn = document.createElement("button");
-  toggleBtn.type = "button";
-  toggleBtn.className = "past-summary-toggle";
-  toggleBtn.setAttribute("aria-label", "Full summary");
+  const toggleBtn = makeButton(
+    "past-summary-toggle",
+    "Full summary",
+    "chevron",
+    "Show or hide full summary",
+  );
   toggleBtn.setAttribute("aria-expanded", "false");
-  toggleBtn.title = "Show or hide full summary";
-  toggleBtn.innerHTML = icon("chevron");
   card.append(toggleBtn, textWrap);
 
   const toggleExpanded = () => {
@@ -1239,12 +1249,7 @@ function buildPastSummaryCard(entry, text) {
     toggleExpanded();
   });
 
-  const copyMdBtn = document.createElement("button");
-  copyMdBtn.type = "button";
-  copyMdBtn.className = "copy-btn";
-  copyMdBtn.setAttribute("aria-label", "Copy as Markdown");
-  copyMdBtn.title = "Copy as Markdown";
-  copyMdBtn.innerHTML = icon("filetext");
+  const copyMdBtn = makeButton("copy-btn", "Copy as Markdown", "filetext");
   copyMdBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     copyToClipboard(
@@ -1257,12 +1262,7 @@ function buildPastSummaryCard(entry, text) {
     );
   });
 
-  const copyJsonBtn = document.createElement("button");
-  copyJsonBtn.type = "button";
-  copyJsonBtn.className = "copy-btn";
-  copyJsonBtn.setAttribute("aria-label", "Copy as JSON");
-  copyJsonBtn.title = "Copy as JSON";
-  copyJsonBtn.innerHTML = icon("download");
+  const copyJsonBtn = makeButton("copy-btn", "Copy as JSON", "download");
   copyJsonBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
     try {
@@ -1281,12 +1281,7 @@ function buildPastSummaryCard(entry, text) {
   // card states: inline in the row when collapsed, pinned top-right via
   // CSS when the card is expanded. Clicking anywhere else on the card
   // toggles it open (see the card click handler above).
-  const deleteBtn = document.createElement("button");
-  deleteBtn.type = "button";
-  deleteBtn.className = "delete-btn";
-  deleteBtn.setAttribute("aria-label", "Delete this summary");
-  deleteBtn.title = "Delete this summary";
-  deleteBtn.innerHTML = icon("trash");
+  const deleteBtn = makeButton("delete-btn", "Delete this summary", "trash");
   deleteBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
     pastSummariesController.invalidate({ clearCache: true });
