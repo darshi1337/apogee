@@ -85,6 +85,21 @@ jobs:
             gh release create "$TAG" --generate-notes --title "$TAG" "${ARTIFACTS[@]}"
           fi
 
+      - name: Regenerate release notes with contributors
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          PREV_TAG=$(gh release list --exclude-drafts --limit 10 --json tagName --jq '.[].tagName' | grep -vxF "$TAG" | head -n 1 || true)
+          if [ -n "$PREV_TAG" ]; then
+            NOTES=$(gh api -X POST "repos/$REPO/releases/generate-notes" -f tag_name="$TAG" -f previous_tag_name="$PREV_TAG" --jq .body)
+          else
+            NOTES=$(gh api -X POST "repos/$REPO/releases/generate-notes" -f tag_name="$TAG" --jq .body)
+          fi
+          printf '%s\n' "$NOTES" | gh release edit "$TAG" --notes-file -
+
       - name: Publish to Chrome Web Store
         if: env.CWS_CLIENT_ID != ''
         run: |
