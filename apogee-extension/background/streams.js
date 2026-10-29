@@ -42,15 +42,29 @@ export function registerStreamJob(streamId, jobData) {
 // Entries live only while a popup is relayed to an offscreen stream; the
 // headless finish path (stream-finished) needs no keep-alive because its
 // message wakes the worker on arrival.
-export const offscreenRelayInflight = new Set();
+export const offscreenRelayInflight = new Map();
 
 export function trackOffscreenRelay(streamId) {
   if (!streamId) return;
-  offscreenRelayInflight.add(streamId);
+  offscreenRelayInflight.set(
+    streamId,
+    (offscreenRelayInflight.get(streamId) || 0) + 1,
+  );
   startKeepAlive();
 }
 
 export function untrackOffscreenRelay(streamId) {
+  const count = offscreenRelayInflight.get(streamId);
+  if (!count) return false;
+  if (count > 1) {
+    offscreenRelayInflight.set(streamId, count - 1);
+    return false;
+  }
+  offscreenRelayInflight.delete(streamId);
+  return true;
+}
+
+export function clearOffscreenRelays(streamId) {
   offscreenRelayInflight.delete(streamId);
 }
 
@@ -148,7 +162,7 @@ export function isOffscreenStream(streamId) {
 
 // Shared cancel forward: the explicit cancel-stream path and the relay
 // popup-disconnect path abort the backing offscreen GPU/engine job the same
-// way, so a closed popup cannot leave a detached generation running.
+// way, so closing the last viewer cannot leave a detached generation running.
 export function forwardCancelToOffscreen(streamId) {
   return chrome.runtime
     .sendMessage({
@@ -163,12 +177,24 @@ export function relayToOffscreenStream(popupPort, streamId) {
   // A live viewer exists, so this offscreen job is work in flight: keep the
   // worker awake until the relay ends, otherwise it sleeps mid-generation
   // and the popup stalls on its spinner.
-  trackOffscreenRelay(streamId);
   const offscreenPort = chrome.runtime.connect({
     name: `offscreen-stream-${streamId}`,
   });
+  trackOffscreenRelay(streamId);
 
   let terminal = false;
+  let released = false;
+  let disconnected = false;
+  const releaseRelay = () => {
+    // A terminal message and either port disconnect can all end this relay.
+    // Release only its own reference, so another viewer keeps the run alive.
+    if (released) return;
+    released = true;
+    const lastRelay = untrackOffscreenRelay(streamId);
+    if (!terminal && lastRelay) {
+      forwardCancelToOffscreen(streamId);
+    }
+  };
 
   offscreenPort.onMessage.addListener((msg) => {
     if (msg.type === "chunk") {
@@ -183,13 +209,15 @@ export function relayToOffscreenStream(popupPort, streamId) {
       msg.type === "cancelled"
     ) {
       terminal = true;
-      untrackOffscreenRelay(streamId);
+      releaseRelay();
     }
     safePost(popupPort, msg);
   });
 
   offscreenPort.onDisconnect.addListener(() => {
-    untrackOffscreenRelay(streamId);
+    if (disconnected) return;
+    disconnected = true;
+    releaseRelay();
     if (!terminal) {
       safePost(popupPort, {
         type: "error",
@@ -200,13 +228,9 @@ export function relayToOffscreenStream(popupPort, streamId) {
   });
 
   popupPort.onDisconnect.addListener(() => {
-    untrackOffscreenRelay(streamId);
-    // The offscreen port's own onDisconnect only drops the subscriber — a
-    // closed popup must also stop the backing job (guarded by !terminal so
-    // a finished stream isn't touched).
-    if (!terminal) {
-      forwardCancelToOffscreen(streamId);
-    }
+    if (disconnected) return;
+    disconnected = true;
+    releaseRelay();
     safeDisconnect(offscreenPort);
   });
 }

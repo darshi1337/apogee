@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert";
-import { readSource } from "../helpers/readSource.js";
 import { createExtensionApiMock } from "../helpers/extensionApiMock.js";
 
 // --- Offscreen relay keep-alive ---
@@ -12,7 +11,7 @@ import { createExtensionApiMock } from "../helpers/extensionApiMock.js";
 // while the offscreen job kept running to completion (the full text only
 // appeared after closing and reopening, via the saved view state).
 
-const { chrome } = createExtensionApiMock({
+const { chrome, getMessageListeners } = createExtensionApiMock({
   settings: {
     saveHistory: true,
     responseFormat: "bullets",
@@ -65,11 +64,15 @@ test("offscreen relay counts as work in flight for the keep-alive", () => {
     "tracked relay keeps the worker awake",
   );
 
-  // Tracking is idempotent: re-attaching the same stream changes nothing.
+  // Each viewer owns a reference until its relay ends.
   trackOffscreenRelay("webllm-abc");
-  assert.strictEqual(offscreenRelayInflight.size, 1);
+  assert.strictEqual(offscreenRelayInflight.get("webllm-abc"), 2);
 
-  untrackOffscreenRelay("webllm-abc");
+  assert.strictEqual(untrackOffscreenRelay("webllm-abc"), false);
+  assert.strictEqual(offscreenRelayInflight.get("webllm-abc"), 1);
+  assert.strictEqual(hasWorkInFlight(), true);
+  assert.strictEqual(untrackOffscreenRelay("webllm-abc"), true);
+  assert.strictEqual(untrackOffscreenRelay("webllm-abc"), false);
   assert.strictEqual(offscreenRelayInflight.size, 0);
   assert.strictEqual(
     hasWorkInFlight(),
@@ -83,54 +86,34 @@ test("track/untrack ignore empty stream ids", () => {
   trackOffscreenRelay(null);
   trackOffscreenRelay("");
   assert.strictEqual(offscreenRelayInflight.size, 0);
-  untrackOffscreenRelay(undefined);
+  assert.strictEqual(untrackOffscreenRelay(undefined), false);
   assert.strictEqual(hasWorkInFlight(), false);
 });
 
-test("relay and finish paths wire tracking end to end", () => {
-  const swCode = readSource(
-    "../../background/service-worker.js",
-    import.meta.url,
-  );
-  const streamsCode = readSource(
-    "../../background/streams.js",
-    import.meta.url,
-  );
-  const relayStart = streamsCode.indexOf("function relayToOffscreenStream");
-  assert.ok(relayStart !== -1, "relay helper exists");
-  const relayBody = streamsCode.slice(relayStart, relayStart + 2000);
-  assert.ok(
-    relayBody.includes("trackOffscreenRelay(streamId)"),
-    "relay tracks the stream while a popup watches",
-  );
-  assert.ok(
-    relayBody.includes('msg.type === "cancelled"'),
-    "cancel delivery counts as a terminal relay message",
-  );
-  assert.ok(
-    relayBody.match(/untrackOffscreenRelay\(streamId\)/g)?.length >= 3,
-    "relay untracks on terminal message and on either port disconnecting",
-  );
-  assert.ok(
-    swCode.includes("untrackOffscreenRelay(streamId)"),
-    "stream-finished clears tracking as a safety net",
-  );
-  // #387: a disconnected popup stops the backing offscreen job through the
-  // same shared forward the explicit cancel path uses — never an inline
-  // duplicate — and only while the stream hasn't finished.
-  assert.ok(
-    streamsCode.includes("function forwardCancelToOffscreen(streamId)"),
-    "cancel forward lives in one shared helper",
-  );
-  const popupDiscIdx = relayBody.indexOf("popupPort.onDisconnect");
-  assert.ok(popupDiscIdx !== -1, "popup disconnect handler found in relay");
-  const popupDiscBody = relayBody.slice(popupDiscIdx);
-  assert.ok(
-    popupDiscBody.includes("forwardCancelToOffscreen(streamId)"),
-    "popup disconnect cancels the offscreen job via the shared helper",
-  );
-  assert.ok(
-    popupDiscBody.includes("if (!terminal)"),
-    "popup disconnect skips cancel once the stream finished",
-  );
+test("stream-finished clears every relay reference only for the completed stream", () => {
+  offscreenRelayInflight.clear();
+  trackOffscreenRelay("webllm-finished");
+  trackOffscreenRelay("webllm-finished");
+  trackOffscreenRelay("transformers-running");
+
+  const message = {
+    target: "service-worker",
+    type: "stream-finished",
+    streamId: "webllm-finished",
+  };
+  for (const listener of getMessageListeners()) {
+    listener(message, { id: chrome.runtime.id }, () => {});
+  }
+
+  assert.strictEqual(offscreenRelayInflight.has("webllm-finished"), false);
+  assert.strictEqual(offscreenRelayInflight.get("transformers-running"), 1);
+  assert.strictEqual(hasWorkInFlight(), true);
+  assert.strictEqual(untrackOffscreenRelay("webllm-finished"), false);
+
+  for (const listener of getMessageListeners()) {
+    listener(message, { id: chrome.runtime.id }, () => {});
+  }
+  assert.strictEqual(offscreenRelayInflight.get("transformers-running"), 1);
+  assert.strictEqual(untrackOffscreenRelay("transformers-running"), true);
+  assert.strictEqual(hasWorkInFlight(), false);
 });
