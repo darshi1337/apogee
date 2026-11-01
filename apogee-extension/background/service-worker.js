@@ -116,7 +116,7 @@ import {
   isOffscreenStream,
   forwardCancelToOffscreen,
   relayToOffscreenStream,
-  clearOffscreenRelays,
+  clearOffscreenRelayRefs,
 } from "./streams.js";
 import {
   OLLAMA_PROVIDER,
@@ -1350,16 +1350,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "stream-finished") {
+    // Safety net for the relay tracking above: a finished job is never work
+    // in flight, even if its relay ports vanished without firing their
+    // disconnect handlers.
+    clearOffscreenRelayRefs(message.streamId);
     if (message.error) return false;
     (async () => {
       const streamId = message.streamId;
       const fallbackTitle = message.title;
       const fallbackUrl = message.url;
       const fallbackText = message.text;
-      // Safety net for the relay tracking above: a finished job is never
-      // work in flight, even if its relay ports vanished without firing
-      // their disconnect handlers.
-      clearOffscreenRelays(streamId);
       try {
         const registeredJob = streamId
           ? registeredStreamJobs.get(streamId)

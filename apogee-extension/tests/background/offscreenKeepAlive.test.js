@@ -45,6 +45,12 @@ const {
   hasWorkInFlight,
 } = await import("../../background/service-worker.js");
 
+function dispatchMessage(message) {
+  for (const listener of getMessageListeners()) {
+    listener(message, { id: chrome.runtime.id }, () => {});
+  }
+}
+
 test("offscreen relay counts as work in flight for the keep-alive", () => {
   offscreenRelayInflight.clear();
   assert.strictEqual(
@@ -101,19 +107,32 @@ test("stream-finished clears every relay reference only for the completed stream
     type: "stream-finished",
     streamId: "webllm-finished",
   };
-  for (const listener of getMessageListeners()) {
-    listener(message, { id: chrome.runtime.id }, () => {});
-  }
+  dispatchMessage(message);
 
   assert.strictEqual(offscreenRelayInflight.has("webllm-finished"), false);
   assert.strictEqual(offscreenRelayInflight.get("transformers-running"), 1);
   assert.strictEqual(hasWorkInFlight(), true);
   assert.strictEqual(untrackOffscreenRelay("webllm-finished"), false);
 
-  for (const listener of getMessageListeners()) {
-    listener(message, { id: chrome.runtime.id }, () => {});
-  }
+  dispatchMessage(message);
   assert.strictEqual(offscreenRelayInflight.get("transformers-running"), 1);
   assert.strictEqual(untrackOffscreenRelay("transformers-running"), true);
   assert.strictEqual(hasWorkInFlight(), false);
+});
+
+test("error stream-finished also clears relay references", () => {
+  offscreenRelayInflight.clear();
+  trackOffscreenRelay("webllm-failed");
+  trackOffscreenRelay("webllm-failed");
+
+  dispatchMessage({
+    target: "service-worker",
+    type: "stream-finished",
+    streamId: "webllm-failed",
+    error: "model crashed",
+  });
+
+  assert.strictEqual(offscreenRelayInflight.has("webllm-failed"), false);
+  assert.strictEqual(hasWorkInFlight(), false);
+  assert.strictEqual(untrackOffscreenRelay("webllm-failed"), false);
 });

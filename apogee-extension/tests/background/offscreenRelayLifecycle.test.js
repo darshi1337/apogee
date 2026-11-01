@@ -2,25 +2,29 @@ import test from "node:test";
 import assert from "node:assert";
 import { createCollectingPort } from "../helpers/streamTestUtils.js";
 
-const connections = [];
-const cancellations = [];
-const alarms = [];
-globalThis.chrome = {
-  runtime: {
-    connect: () => {
-      const port = createCollectingPort();
-      connections.push(port);
-      return port;
+function createChromeMock() {
+  const state = { connections: [], cancellations: [], alarms: [] };
+  globalThis.chrome = {
+    runtime: {
+      connect: () => {
+        const port = createCollectingPort();
+        state.connections.push(port);
+        return port;
+      },
+      sendMessage: async (message) => state.cancellations.push(message),
     },
-    sendMessage: async (message) => cancellations.push(message),
-  },
-  alarms: { create: (...args) => alarms.push(args) },
-};
+    alarms: { create: (...args) => state.alarms.push(args) },
+  };
+  return state;
+}
+
+const mock = createChromeMock();
+const { connections, cancellations, alarms } = mock;
 
 const {
   relayToOffscreenStream,
   offscreenRelayInflight,
-  clearOffscreenRelays,
+  clearOffscreenRelayRefs,
   hasWorkInFlight,
 } = await import("../../background/streams.js");
 
@@ -106,13 +110,50 @@ for (const type of ["done", "error", "cancelled"]) {
   });
 }
 
-test("unexpected offscreen loss releases once and leaves another viewer active", () => {
+test("a terminal message marks the stream complete for every viewer", () => {
+  const first = createCollectingPort();
+  const second = createCollectingPort();
+  relayToOffscreenStream(first, "webllm-shared-terminal");
+  relayToOffscreenStream(second, "webllm-shared-terminal");
+
+  connections[0]._emitMessage({ type: "done" });
+  second._emitDisconnect();
+  connections[1]._emitDisconnect();
+
+  assert.deepStrictEqual(cancellations, []);
+  assert.strictEqual(offscreenRelayInflight.size, 0);
+  assert.strictEqual(hasWorkInFlight(), false);
+});
+
+test("last offscreen disconnect cancels once and reports loss", () => {
+  const popup = createCollectingPort();
+  relayToOffscreenStream(popup, "webllm-offscreen-last");
+  connections[0]._emitDisconnect();
+  connections[0]._emitDisconnect();
+
+  assert.deepStrictEqual(popup.messages, [
+    { type: "error", error: "Connection to local model was lost" },
+  ]);
+  assert.strictEqual(cancellations.length, 1);
+  assert.deepStrictEqual(cancellations[0], {
+    target: "offscreen",
+    action: "cancel-stream",
+    payload: { streamId: "webllm-offscreen-last" },
+  });
+  assert.strictEqual(offscreenRelayInflight.size, 0);
+  assert.strictEqual(hasWorkInFlight(), false);
+
+  popup._emitDisconnect();
+  assert.strictEqual(cancellations.length, 1);
+});
+
+test("unexpected offscreen loss releases once and leaves another viewer active", (t) => {
   const lost = createCollectingPort();
   let disconnects = 0;
-  lost.disconnect = () => {
+  t.mock.method(lost, "disconnect", () => {
     disconnects += 1;
     lost._emitDisconnect();
-  };
+  });
   const remaining = createCollectingPort();
   relayToOffscreenStream(lost, "webllm-lost");
   relayToOffscreenStream(remaining, "webllm-lost");
@@ -163,7 +204,7 @@ test("whole-stream completion tolerates late relay disconnects", () => {
   relayToOffscreenStream(second, "webllm-finished");
   relayToOffscreenStream(independent, "webllm-running");
 
-  clearOffscreenRelays("webllm-finished");
+  clearOffscreenRelayRefs("webllm-finished");
   first._emitDisconnect();
   connections[0]._emitDisconnect();
   connections[1]._emitDisconnect();
@@ -177,20 +218,15 @@ test("whole-stream completion tolerates late relay disconnects", () => {
   assert.strictEqual(hasWorkInFlight(), false);
 });
 
-test("a synchronous offscreen connection failure acquires no relay reference", () => {
-  const connect = chrome.runtime.connect;
-  chrome.runtime.connect = () => {
+test("a synchronous offscreen connection failure acquires no relay reference", (t) => {
+  t.mock.method(chrome.runtime, "connect", () => {
     throw new Error("offscreen unavailable");
-  };
-  try {
-    assert.throws(
-      () => relayToOffscreenStream(createCollectingPort(), "webllm-failed"),
-      /offscreen unavailable/,
-    );
-    assert.strictEqual(offscreenRelayInflight.size, 0);
-    assert.strictEqual(hasWorkInFlight(), false);
-    assert.deepStrictEqual(cancellations, []);
-  } finally {
-    chrome.runtime.connect = connect;
-  }
+  });
+  assert.throws(
+    () => relayToOffscreenStream(createCollectingPort(), "webllm-failed"),
+    /offscreen unavailable/,
+  );
+  assert.strictEqual(offscreenRelayInflight.size, 0);
+  assert.strictEqual(hasWorkInFlight(), false);
+  assert.deepStrictEqual(cancellations, []);
 });

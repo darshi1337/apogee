@@ -43,9 +43,14 @@ export function registerStreamJob(streamId, jobData) {
 // headless finish path (stream-finished) needs no keep-alive because its
 // message wakes the worker on arrival.
 export const offscreenRelayInflight = new Map();
+// A stream finishes once for all viewers, not once per relay. Track terminal
+// state separately so a viewer closing before it sees the terminal message
+// does not cancel work that another viewer already saw complete.
+const offscreenTerminalStreams = new Set();
 
 export function trackOffscreenRelay(streamId) {
   if (!streamId) return;
+  offscreenTerminalStreams.delete(streamId);
   offscreenRelayInflight.set(
     streamId,
     (offscreenRelayInflight.get(streamId) || 0) + 1,
@@ -55,17 +60,23 @@ export function trackOffscreenRelay(streamId) {
 
 export function untrackOffscreenRelay(streamId) {
   const count = offscreenRelayInflight.get(streamId);
-  if (!count) return false;
+  if (!count) {
+    offscreenTerminalStreams.delete(streamId);
+    return false;
+  }
   if (count > 1) {
     offscreenRelayInflight.set(streamId, count - 1);
     return false;
   }
   offscreenRelayInflight.delete(streamId);
+  offscreenTerminalStreams.delete(streamId);
   return true;
 }
 
-export function clearOffscreenRelays(streamId) {
+export function clearOffscreenRelayRefs(streamId) {
+  if (!streamId) return;
   offscreenRelayInflight.delete(streamId);
+  offscreenTerminalStreams.delete(streamId);
 }
 
 // Fire-and-forget background jobs (suggest-questions) with no stream entry:
@@ -184,14 +195,15 @@ export function relayToOffscreenStream(popupPort, streamId) {
 
   let terminal = false;
   let released = false;
-  let disconnected = false;
-  const releaseRelay = () => {
-    // A terminal message and either port disconnect can all end this relay.
+  let disconnectHandled = false;
+  const endRelay = () => {
+    // A terminal message or either port disconnecting ends this relay.
     // Release only its own reference, so another viewer keeps the run alive.
     if (released) return;
     released = true;
+    const streamTerminal = offscreenTerminalStreams.has(streamId);
     const lastRelay = untrackOffscreenRelay(streamId);
-    if (!terminal && lastRelay) {
+    if (!streamTerminal && lastRelay) {
       forwardCancelToOffscreen(streamId);
     }
   };
@@ -209,15 +221,16 @@ export function relayToOffscreenStream(popupPort, streamId) {
       msg.type === "cancelled"
     ) {
       terminal = true;
-      releaseRelay();
+      offscreenTerminalStreams.add(streamId);
+      endRelay();
     }
     safePost(popupPort, msg);
   });
 
   offscreenPort.onDisconnect.addListener(() => {
-    if (disconnected) return;
-    disconnected = true;
-    releaseRelay();
+    if (disconnectHandled) return;
+    disconnectHandled = true;
+    endRelay();
     if (!terminal) {
       safePost(popupPort, {
         type: "error",
@@ -228,9 +241,9 @@ export function relayToOffscreenStream(popupPort, streamId) {
   });
 
   popupPort.onDisconnect.addListener(() => {
-    if (disconnected) return;
-    disconnected = true;
-    releaseRelay();
+    if (disconnectHandled) return;
+    disconnectHandled = true;
+    endRelay();
     safeDisconnect(offscreenPort);
   });
 }
