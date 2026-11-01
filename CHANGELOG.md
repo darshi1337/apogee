@@ -350,6 +350,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Past-summary cards no longer put buttons inside a button (#550) (#588) ([1962a69](https://github.com/darshi1337/apogee/commit/1962a69efc1696327184ef3935f2ded8ecb6f28f))
 - Include contributors in release notes (#591) ([086a7ad](https://github.com/darshi1337/apogee/commit/086a7add3754b50afb12fa877d054b973e1542ef))
 - Preserve shared offscreen runs until the last viewer closes (#595) ([b948cc7](https://github.com/darshi1337/apogee/commit/b948cc777fab6ef6c1e4408186ce8c8806243df0))
+- Keep release PRs passing checks (#598) ([043a520](https://github.com/darshi1337/apogee/commit/043a5207adeba3869bbc4bcdf2af382f81f74a2d))
 
 ## [0.2.1] - 2026-08-19
 
