@@ -33,6 +33,10 @@
         {
           "type": "generic",
           "path": ".github/assets/badge-release.svg"
+        },
+        {
+          "type": "generic",
+          "path": "docs/STORE-LISTING.md"
         }
       ]
     }

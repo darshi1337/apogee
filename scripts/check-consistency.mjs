@@ -61,6 +61,15 @@ function checkStoreListing(manifestVersion) {
   if (!listing.includes(stamp)) {
     fail(`docs/STORE-LISTING.md stamp must say '${stamp}'`);
   }
+
+  const stampLine = listing
+    .split(/\r?\n/)
+    .find((line) => line.includes("Version at last edit:"));
+  if (!stampLine?.includes("x-release-please-version")) {
+    fail(
+      "docs/STORE-LISTING.md stamp must carry x-release-please-version so releases update it",
+    );
+  }
 }
 
 function checkStoreAssets() {
