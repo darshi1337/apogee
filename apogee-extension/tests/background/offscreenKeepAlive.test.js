@@ -51,8 +51,11 @@ function dispatchMessage(message) {
   }
 }
 
-test("offscreen relay counts as work in flight for the keep-alive", () => {
+test.beforeEach(() => {
   offscreenRelayInflight.clear();
+});
+
+test("offscreen relay counts as work in flight for the keep-alive", () => {
   assert.strictEqual(
     hasWorkInFlight(),
     false,
@@ -88,7 +91,6 @@ test("offscreen relay counts as work in flight for the keep-alive", () => {
 });
 
 test("track/untrack ignore empty stream ids", () => {
-  offscreenRelayInflight.clear();
   trackOffscreenRelay(null);
   trackOffscreenRelay("");
   assert.strictEqual(offscreenRelayInflight.size, 0);
@@ -97,7 +99,6 @@ test("track/untrack ignore empty stream ids", () => {
 });
 
 test("stream-finished clears every relay reference only for the completed stream", () => {
-  offscreenRelayInflight.clear();
   trackOffscreenRelay("webllm-finished");
   trackOffscreenRelay("webllm-finished");
   trackOffscreenRelay("transformers-running");
@@ -121,7 +122,6 @@ test("stream-finished clears every relay reference only for the completed stream
 });
 
 test("error stream-finished also clears relay references", () => {
-  offscreenRelayInflight.clear();
   trackOffscreenRelay("webllm-failed");
   trackOffscreenRelay("webllm-failed");
 

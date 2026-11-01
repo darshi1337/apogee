@@ -48,6 +48,11 @@ export const offscreenRelayInflight = new Map();
 // does not cancel work that another viewer already saw complete.
 const offscreenTerminalStreams = new Set();
 
+function forgetOffscreenRelay(streamId) {
+  offscreenRelayInflight.delete(streamId);
+  offscreenTerminalStreams.delete(streamId);
+}
+
 export function trackOffscreenRelay(streamId) {
   if (!streamId) return;
   offscreenTerminalStreams.delete(streamId);
@@ -61,22 +66,20 @@ export function trackOffscreenRelay(streamId) {
 export function untrackOffscreenRelay(streamId) {
   const count = offscreenRelayInflight.get(streamId);
   if (!count) {
-    offscreenTerminalStreams.delete(streamId);
+    forgetOffscreenRelay(streamId);
     return false;
   }
   if (count > 1) {
     offscreenRelayInflight.set(streamId, count - 1);
     return false;
   }
-  offscreenRelayInflight.delete(streamId);
-  offscreenTerminalStreams.delete(streamId);
+  forgetOffscreenRelay(streamId);
   return true;
 }
 
 export function clearOffscreenRelayRefs(streamId) {
   if (!streamId) return;
-  offscreenRelayInflight.delete(streamId);
-  offscreenTerminalStreams.delete(streamId);
+  forgetOffscreenRelay(streamId);
 }
 
 // Fire-and-forget background jobs (suggest-questions) with no stream entry:

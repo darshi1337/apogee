@@ -28,6 +28,24 @@ const {
   hasWorkInFlight,
 } = await import("../../background/streams.js");
 
+function relayViewers(streamId, count = 2) {
+  return Array.from({ length: count }, () => {
+    const popup = createCollectingPort();
+    relayToOffscreenStream(popup, streamId);
+    return popup;
+  });
+}
+
+function assertSingleCancellation(streamId) {
+  assert.deepStrictEqual(cancellations, [
+    {
+      target: "offscreen",
+      action: "cancel-stream",
+      payload: { streamId },
+    },
+  ]);
+}
+
 test.beforeEach(() => {
   connections.length = 0;
   cancellations.length = 0;
@@ -36,10 +54,7 @@ test.beforeEach(() => {
 });
 
 test("closing one of two viewers preserves the remaining relay", (t) => {
-  const first = createCollectingPort();
-  const second = createCollectingPort();
-  relayToOffscreenStream(first, "webllm-shared");
-  relayToOffscreenStream(second, "webllm-shared");
+  const [first, second] = relayViewers("webllm-shared");
   const firstOffscreenDisconnect = t.mock.method(connections[0], "disconnect");
   const secondOffscreenDisconnect = t.mock.method(connections[1], "disconnect");
   const secondPopupDisconnect = t.mock.method(second, "disconnect");
@@ -62,33 +77,24 @@ test("closing one of two viewers preserves the remaining relay", (t) => {
   second._emitDisconnect();
   connections[1]._emitDisconnect();
   assert.strictEqual(secondOffscreenDisconnect.mock.callCount(), 1);
-  assert.strictEqual(cancellations.length, 1);
-  assert.deepStrictEqual(cancellations[0], {
-    target: "offscreen",
-    action: "cancel-stream",
-    payload: { streamId: "webllm-shared" },
-  });
+  assertSingleCancellation("webllm-shared");
   assert.strictEqual(hasWorkInFlight(), false);
 });
 
 test("closing a single viewer cancels once despite repeated disconnects", () => {
-  const popup = createCollectingPort();
-  relayToOffscreenStream(popup, "transformers-single");
+  const [popup] = relayViewers("transformers-single", 1);
   popup._emitDisconnect();
   popup._emitDisconnect();
   connections[0]._emitDisconnect();
   connections[0]._emitDisconnect();
-  assert.strictEqual(cancellations.length, 1);
+  assertSingleCancellation("transformers-single");
   assert.strictEqual(offscreenRelayInflight.size, 0);
   assert.strictEqual(hasWorkInFlight(), false);
 });
 
 for (const type of ["done", "error", "cancelled"]) {
   test(`${type} releases only its relay despite overlapping callbacks`, () => {
-    const finished = createCollectingPort();
-    const remaining = createCollectingPort();
-    relayToOffscreenStream(finished, "webllm-terminal");
-    relayToOffscreenStream(remaining, "webllm-terminal");
+    const [finished, remaining] = relayViewers("webllm-terminal");
     const terminal = { type };
     connections[0]._emitMessage(terminal);
     connections[0]._emitMessage(terminal);
@@ -111,10 +117,7 @@ for (const type of ["done", "error", "cancelled"]) {
 }
 
 test("a terminal message marks the stream complete for every viewer", () => {
-  const first = createCollectingPort();
-  const second = createCollectingPort();
-  relayToOffscreenStream(first, "webllm-shared-terminal");
-  relayToOffscreenStream(second, "webllm-shared-terminal");
+  const [, second] = relayViewers("webllm-shared-terminal");
 
   connections[0]._emitMessage({ type: "done" });
   second._emitDisconnect();
@@ -126,20 +129,14 @@ test("a terminal message marks the stream complete for every viewer", () => {
 });
 
 test("last offscreen disconnect cancels once and reports loss", () => {
-  const popup = createCollectingPort();
-  relayToOffscreenStream(popup, "webllm-offscreen-last");
+  const [popup] = relayViewers("webllm-offscreen-last", 1);
   connections[0]._emitDisconnect();
   connections[0]._emitDisconnect();
 
   assert.deepStrictEqual(popup.messages, [
     { type: "error", error: "Connection to local model was lost" },
   ]);
-  assert.strictEqual(cancellations.length, 1);
-  assert.deepStrictEqual(cancellations[0], {
-    target: "offscreen",
-    action: "cancel-stream",
-    payload: { streamId: "webllm-offscreen-last" },
-  });
+  assertSingleCancellation("webllm-offscreen-last");
   assert.strictEqual(offscreenRelayInflight.size, 0);
   assert.strictEqual(hasWorkInFlight(), false);
 
@@ -148,15 +145,12 @@ test("last offscreen disconnect cancels once and reports loss", () => {
 });
 
 test("unexpected offscreen loss releases once and leaves another viewer active", (t) => {
-  const lost = createCollectingPort();
+  const [lost, remaining] = relayViewers("webllm-lost");
   let disconnects = 0;
   t.mock.method(lost, "disconnect", () => {
     disconnects += 1;
     lost._emitDisconnect();
   });
-  const remaining = createCollectingPort();
-  relayToOffscreenStream(lost, "webllm-lost");
-  relayToOffscreenStream(remaining, "webllm-lost");
 
   connections[0]._emitDisconnect();
   connections[0]._emitDisconnect();
@@ -179,10 +173,8 @@ test("unexpected offscreen loss releases once and leaves another viewer active",
 });
 
 test("disconnecting one stream does not release or cancel another stream", () => {
-  const first = createCollectingPort();
-  const second = createCollectingPort();
-  relayToOffscreenStream(first, "webllm-first");
-  relayToOffscreenStream(second, "transformers-second");
+  const [first] = relayViewers("webllm-first", 1);
+  relayViewers("transformers-second", 1);
   first._emitDisconnect();
   connections[0]._emitDisconnect();
   assert.deepStrictEqual(
@@ -197,12 +189,8 @@ test("disconnecting one stream does not release or cancel another stream", () =>
 });
 
 test("whole-stream completion tolerates late relay disconnects", () => {
-  const first = createCollectingPort();
-  const second = createCollectingPort();
-  const independent = createCollectingPort();
-  relayToOffscreenStream(first, "webllm-finished");
-  relayToOffscreenStream(second, "webllm-finished");
-  relayToOffscreenStream(independent, "webllm-running");
+  const [first, second] = relayViewers("webllm-finished");
+  relayViewers("webllm-running", 1);
 
   clearOffscreenRelayRefs("webllm-finished");
   first._emitDisconnect();
