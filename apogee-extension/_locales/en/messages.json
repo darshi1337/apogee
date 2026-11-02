@@ -452,11 +452,11 @@
     "description": "Remote provider setup preview"
   },
   "remoteOpenCode": {
-    "message": "OpenCode - credits / Go (not free)",
+    "message": "OpenCode Console / Go - credits / Go (paid models only)",
     "description": "Remote provider setup preview"
   },
   "remoteOpenCodeInfo": {
-    "message": "OpenCode uses credits or a Go subscription. These options are not free; usage may incur charges.",
+    "message": "OpenCode Console / Go uses credits or a Go subscription. This preset lists paid models only; OpenCode also offers free models outside this preset.",
     "description": "Remote provider setup preview"
   },
   "remoteDisclosure": {

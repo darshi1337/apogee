@@ -126,7 +126,7 @@ The table below compares Apogee with common cloud-based AI extensions and the di
 
 - **Zero Data Leaks**: Apogee handles page contents, transcripts, PDFs, and summaries locally. Nothing uploads to cloud APIs.
 
-- **Remote-provider setup preview (Stage A)**: OpenRouter and OpenCode Zen/Go are opt-in catalog previews in Settings. Refresh contacts `https://openrouter.ai/api/v1/models` or `https://opencode.ai/inference/v1/models`; a provider key goes only to its own origin. OpenRouter free presets require zero-priced prompt and completion metadata; OpenCode uses credits or Go and is never a free preset. Remote summary and Ask generation remain disabled pending maintainer security review. There is no automatic remote selection or fallback.
+- **Remote-provider setup preview (Stage A)**: OpenRouter and OpenCode Console / Go are opt-in catalog previews in Settings. Refresh contacts `https://openrouter.ai/api/v1/models` or `https://opencode.ai/inference/v1/models`; a provider key goes only to its own origin. OpenRouter free presets require zero-priced prompt and completion metadata; OpenCode Console / Go uses credits or Go; this preset lists paid models only, and OpenCode also offers free models outside this preset. Remote summary and Ask generation remain disabled pending maintainer security review. There is no automatic remote selection or fallback.
 
 - **Local Loopback**: Ollama and llama.cpp connections run strictly over local loopback (`http://127.0.0.1`). Apogee refuses any other host.
 

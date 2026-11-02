@@ -94,7 +94,7 @@ PRIVACY
 
   - For Reddit threads, the thread JSON of the viewed page (same-origin fetch, no extra host).
 
-  - Explicit opt-in catalog previews: `https://openrouter.ai/api/v1/models` and `https://opencode.ai/inference/v1/models`. Requests send connection metadata and, when authenticated, the key only to its provider origin. Keys remain stored locally and are redacted from exports and diagnostics. Stage A sends no prompts or page content and performs no remote summary/Ask generation. OpenRouter free presets require zero prompt and completion prices; OpenCode Zen/Go uses credits or Go, never a free preset.
+  - Explicit opt-in catalog previews: `https://openrouter.ai/api/v1/models` and `https://opencode.ai/inference/v1/models`. Requests send connection metadata and, when authenticated, the key only to its provider origin. Keys remain stored locally and are redacted from exports and diagnostics. Stage A sends no prompts or page content and performs no remote summary/Ask generation. OpenRouter free presets require zero prompt and completion prices; OpenCode Console / Go uses credits or Go; this preset lists paid models only, and OpenCode also offers free models outside this preset.
 
 - Page content stays local. It never uploads.
 

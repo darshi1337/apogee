@@ -93,7 +93,7 @@ Read this first:
 
 ## Remote provider setup
 
-Remote-provider setup in Stage A refreshes model metadata only. It cannot generate summaries or Ask answers. If refresh fails, check setup consent and the selected provider key. On Firefox, allow the optional authentication-data permission before transmitting credentials. Authentication failures require checking the key with the provider; rate limits require waiting before another explicit refresh. OpenCode catalog access may require credits or Go. An empty OpenRouter free list means no returned model has both prompt and completion prices explicitly zero. A failed refresh never falls back to another remote provider. Do not paste API keys into bug reports or logs.
+Remote-provider setup in Stage A refreshes model metadata only. It cannot generate summaries or Ask answers. If refresh fails, check setup consent and the selected provider key. On Firefox, allow the optional authentication-data permission before transmitting credentials. Authentication failures require checking the key with the provider; rate limits require waiting before another explicit refresh. OpenCode Console / Go catalog access may require credits or Go. An empty OpenRouter free list means no returned model has all advertised prices explicitly zero. A failed refresh never falls back to another remote provider. Do not paste API keys into bug reports or logs.
 
 ## Settings, cache, and diagnostics
 
