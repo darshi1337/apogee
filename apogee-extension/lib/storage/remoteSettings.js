@@ -14,6 +14,7 @@ import {
 export const REMOTE_CATALOG_TTL_MS = 60 * 60 * 1000;
 const revisions = new Map();
 let pendingSave = Promise.resolve();
+let pendingInvalidation = Promise.resolve();
 let listenedStorage;
 const refreshes = new Map();
 
@@ -87,7 +88,7 @@ function listenForRevocation() {
           newValue[`${provider}Consent`] !== true) ||
         oldValue[`${provider}ApiKey`] !== newValue[`${provider}ApiKey`]
       )
-        invalidate(provider);
+        void invalidate(provider);
     }
   });
 }
@@ -95,11 +96,16 @@ function listenForRevocation() {
 function invalidate(provider) {
   revisions.set(provider, (revisions.get(provider) || 0) + 1);
   abortRemoteRequests(provider);
-  chrome.storage.local.remove(catalogKey(provider)).catch(() => {});
+  const removal = pendingInvalidation
+    .then(() => chrome.storage.local.remove(catalogKey(provider)))
+    .catch(() => {});
+  pendingInvalidation = removal;
+  return removal;
 }
 
 export async function getRemoteSettings() {
   listenForRevocation();
+  await pendingInvalidation;
   const settings = await getSettings();
   const providers = {};
   for (const provider of REMOTE_PROVIDER_IDS) {
@@ -116,10 +122,7 @@ export async function getRemoteSettings() {
             ? cache.models.map((model) => ({ ...model }))
             : [],
         refreshedAt: consent && hasApiKey && cache ? cache.refreshedAt : null,
-        stale:
-          !consent ||
-          !hasApiKey ||
-          !catalogIsFresh(cache),
+        stale: !consent || !hasApiKey || !catalogIsFresh(cache),
       },
     };
   }
@@ -154,13 +157,22 @@ export async function saveRemoteSettings(payload) {
     !validRemoteModelId(payload.model)
   )
     throw new Error("Invalid remote model.");
-  // Synchronous invalidation makes revocation cancel requests already awaiting
-  // storage or fetch, even when another settings write is still pending.
+  if (has("model") && (has("apiKey") || has("consent")))
+    throw new Error("Save credentials and model separately.");
+  // Holding aborts requests that may still be using the old credentials. The
+  // cache is removed only when a credential actually changes.
   const release = holdRemoteRequests(provider);
-  if (has("apiKey") || has("consent")) invalidate(provider);
   const operation = pendingSave
     .then(async () => {
+      await pendingInvalidation;
       const settings = await getSettings();
+      const apiKey = has("apiKey")
+        ? payload.apiKey.trim()
+        : settings[`${provider}ApiKey`];
+      const keyChanged =
+        has("apiKey") && settings[`${provider}ApiKey`] !== apiKey;
+      const consentChanged =
+        has("consent") && settings[`${provider}Consent`] !== payload.consent;
       if (has("model") && payload.model) {
         const cache = await readCatalog(provider);
         if (
@@ -169,11 +181,8 @@ export async function saveRemoteSettings(payload) {
         )
           throw new Error("Refresh the catalog and select an eligible model.");
       }
-      if (has("apiKey")) {
-        if (settings[`${provider}ApiKey`] !== payload.apiKey.trim())
-          settings[`${provider}Model`] = "";
-        settings[`${provider}ApiKey`] = payload.apiKey.trim();
-      }
+      if (keyChanged) settings[`${provider}Model`] = "";
+      if (has("apiKey")) settings[`${provider}ApiKey`] = apiKey;
       if (has("consent")) settings[`${provider}Consent`] = payload.consent;
       if (has("model")) settings[`${provider}Model`] = payload.model;
       if (!settings[`${provider}Consent`] || !settings[`${provider}ApiKey`])
@@ -186,6 +195,7 @@ export async function saveRemoteSettings(payload) {
           ]),
         ),
       );
+      if (keyChanged || consentChanged) await invalidate(provider);
       return getRemoteSettings();
     })
     .finally(release);
@@ -207,6 +217,7 @@ async function refreshCatalog(provider) {
   listenForRevocation();
   remotePreset(provider);
   await pendingSave;
+  await pendingInvalidation;
   const revision = revisions.get(provider) || 0;
   const before = await getSettings();
   let models;

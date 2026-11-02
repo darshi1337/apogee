@@ -198,6 +198,55 @@ test("catalog setup returns redacted state, persists lastgood data and marks fai
   assert.equal((await getRemoteSettings()).providers.openrouter.model, "");
 });
 
+test("saving unchanged credentials keeps the cached catalog", async () => {
+  const store = install(authorized());
+  globalThis.fetch = async () => catalog();
+  await refreshRemoteModels("openrouter");
+  assert.ok(store["remoteCatalog:openrouter"]);
+  await saveRemoteSettings({
+    provider: "openrouter",
+    apiKey: "router-secret",
+    consent: true,
+  });
+  assert.ok(store["remoteCatalog:openrouter"]);
+  const view = await getRemoteSettings();
+  assert.equal(view.providers.openrouter.catalog.stale, false);
+  assert.equal(view.providers.openrouter.catalog.models[0].id, "test/free");
+});
+
+test("combined credential and model saves are rejected", async () => {
+  const store = install(authorized());
+  globalThis.fetch = async () => catalog();
+  await refreshRemoteModels("openrouter");
+  await assert.rejects(
+    saveRemoteSettings({
+      provider: "openrouter",
+      apiKey: "router-secret",
+      model: "test/free",
+    }),
+    /separately/,
+  );
+  assert.equal(store.settings.openrouterApiKey, "router-secret");
+  assert.equal(store["remoteCatalog:openrouter"].models[0].id, "test/free");
+});
+
+test("changing a key clears the catalog and a later refresh replaces it", async () => {
+  const store = install(authorized());
+  globalThis.fetch = async () => catalog();
+  await refreshRemoteModels("openrouter");
+  await saveRemoteSettings({
+    provider: "openrouter",
+    apiKey: "replacement",
+  });
+  assert.equal(store["remoteCatalog:openrouter"], undefined);
+  assert.deepEqual(
+    (await getRemoteSettings()).providers.openrouter.catalog.models,
+    [],
+  );
+  await refreshRemoteModels("openrouter");
+  assert.equal(store["remoteCatalog:openrouter"].models[0].id, "test/free");
+});
+
 test("settings revoke aborts in-flight catalogs and prevents cache repopulation", async () => {
   install(authorized());
   let started;
