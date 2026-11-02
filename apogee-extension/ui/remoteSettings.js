@@ -85,6 +85,8 @@ export async function initRemoteSettings({
     )
       throw new Error("Invalid remote settings response");
     panel.state = state;
+    if (state.consent || state.hasApiKey || state.catalog.models.length)
+      panel.element.setAttribute("open", "");
     const c = controls(panel);
     c.consent.checked = state.consent;
     c.model.replaceChildren();

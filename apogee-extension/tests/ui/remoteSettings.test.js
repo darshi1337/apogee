@@ -67,10 +67,23 @@ test("startup reads only local settings and remote providers are absent from the
     document.querySelector('input[type="radio"][value="opencode"]'),
     null,
   );
-  assert.match(
+  const remote = document.querySelector("#remoteSettings");
+  assert.equal(
     document.querySelector("#remoteSetupTitle").textContent,
-    /preview/,
+    "Remote providers",
   );
+  assert.match(remote.textContent, /preview/i);
+  assert.ok(
+    remote.closest(".settings-card").querySelector("#autoEngineCheckbox"),
+  );
+});
+
+test("a configured provider opens its details row", async () => {
+  const initial = view();
+  initial.providers.openrouter.consent = true;
+  const { panel } = await setup(initial);
+  assert.equal(panel("openrouter").hasAttribute("open"), true);
+  assert.equal(panel("opencode").hasAttribute("open"), false);
 });
 
 test("empty catalogs report empty even when the stale flag is set", async () => {
