@@ -1,3 +1,4 @@
+import { onRemoteCredentialChange } from "../engines/remoteCredentials.js";
 import { getSettings, updateSettings } from "./settings.js";
 import {
   abortRemoteRequests,
@@ -13,10 +14,10 @@ import {
 } from "../engines/remoteModels.js";
 
 export const REMOTE_CATALOG_TTL_MS = 60 * 60 * 1000;
+
 const revisions = new Map();
 let pendingSave = Promise.resolve();
 let pendingInvalidation = Promise.resolve();
-let listenedStorage;
 const refreshes = new Map();
 
 function catalogIsFresh(cache, now = Date.now()) {
@@ -76,22 +77,11 @@ async function readCatalog(provider) {
   };
 }
 
+let listening = false;
 function listenForRevocation() {
-  const events = chrome.storage.onChanged;
-  if (!events?.addListener || listenedStorage === events) return;
-  listenedStorage = events;
-  events.addListener((changes, area) => {
-    if (area !== "local" || !changes.settings) return;
-    const { oldValue = {}, newValue = {} } = changes.settings;
-    for (const provider of REMOTE_PROVIDER_IDS) {
-      if (
-        (oldValue[`${provider}Consent`] === true &&
-          newValue[`${provider}Consent`] !== true) ||
-        oldValue[`${provider}ApiKey`] !== newValue[`${provider}ApiKey`]
-      )
-        void invalidate(provider);
-    }
-  });
+  if (listening) return;
+  listening = true;
+  onRemoteCredentialChange((provider) => void invalidate(provider));
 }
 
 function invalidate(provider) {

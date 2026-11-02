@@ -1,4 +1,5 @@
 import { getSettings } from "../storage/settings.js";
+import { onRemoteCredentialChange } from "./remoteCredentials.js";
 import {
   REMOTE_PROVIDER_IDS,
   normalizeRemoteModels,
@@ -11,23 +12,12 @@ const holds = new Map();
 export const REMOTE_REQUEST_TIMEOUT_MS = 30000;
 export const REMOTE_RESPONSE_MAX_BYTES = 4 * 1024 * 1024;
 const MAX_EVENT_CHARS = 65536;
-let storageEvents;
+let watchedCredentials = false;
 
 function watchCredentials() {
-  const events = chrome.storage.onChanged;
-  if (!events?.addListener || events === storageEvents) return;
-  storageEvents = events;
-  events.addListener((changes, area) => {
-    if (area !== "local" || !changes.settings) return;
-    const { oldValue = {}, newValue = {} } = changes.settings;
-    for (const provider of REMOTE_PROVIDER_IDS) {
-      if (
-        newValue[`${provider}Consent`] !== true ||
-        oldValue[`${provider}ApiKey`] !== newValue[`${provider}ApiKey`]
-      )
-        abortRemoteRequests(provider);
-    }
-  });
+  if (watchedCredentials) return;
+  watchedCredentials = true;
+  onRemoteCredentialChange((provider) => abortRemoteRequests(provider));
 }
 
 export function abortRemoteRequests(provider) {
