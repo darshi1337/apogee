@@ -67,7 +67,9 @@ export async function getActivityAuditSummary() {
   const sponsorBlockActive =
     settings.useSponsorBlock !== false && settings.useSponsorBlock !== "off";
   const remoteCatalogActive = REMOTE_PROVIDER_IDS.some(
-    (provider) => settings[`${provider}Consent`] === true,
+    (provider) =>
+      settings[`${provider}Consent`] === true &&
+      Boolean(settings[`${provider}ApiKey`]),
   );
   const externalRequestsAllowed = sponsorBlockActive || remoteCatalogActive;
 

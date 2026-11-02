@@ -91,7 +91,11 @@ for (const provider of ["openrouter", "opencode"]) {
   test(`audit identifies ${provider} catalog access without claiming remote inference`, async () => {
     storageMap.clear();
     await chrome.storage.local.set({
-      settings: { useSponsorBlock: false, [`${provider}Consent`]: true },
+      settings: {
+        useSponsorBlock: false,
+        [`${provider}Consent`]: true,
+        [`${provider}ApiKey`]: "secret",
+      },
     });
     const { networkEgress } = await getActivityAuditSummary();
     assert.equal(networkEgress.zeroEgress, false);
@@ -103,9 +107,22 @@ for (const provider of ["openrouter", "opencode"]) {
   });
 }
 
+test("audit does not claim catalog access when consent has no key", async () => {
+  storageMap.clear();
+  await chrome.storage.local.set({
+    settings: { useSponsorBlock: false, openrouterConsent: true },
+  });
+  const { networkEgress } = await getActivityAuditSummary();
+  assert.equal(networkEgress.zeroEgress, true);
+  assert.equal(networkEgress.remoteCatalogActive, false);
+  assert.equal(networkEgress.statusMessage, "100% local");
+});
+
 test("audit includes both optional catalog and SponsorBlock access", async () => {
   storageMap.clear();
-  await chrome.storage.local.set({ settings: { openrouterConsent: true } });
+  await chrome.storage.local.set({
+    settings: { openrouterConsent: true, openrouterApiKey: "secret" },
+  });
   const { networkEgress } = await getActivityAuditSummary();
   assert.equal(
     networkEgress.statusMessage,
