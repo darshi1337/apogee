@@ -88,9 +88,12 @@ Read this first:
 | Connection to local model was lost | The browser tore down the offscreen document while WebLLM generated. | Summarize again. |
 | This response is no longer available (its stream expired). Try summarizing again. | The popup reopened and asked to resume a job with dropped buffered output. The summary text itself disappeared. | Summarize again. A cached page returns the result at once. |
 | Generation was cancelled. | Ollama dropped the request from its side. Popup cancellation takes another path and shows no error. So this message means the server dropped the request. | Check if Ollama restarted or ran out of memory. Then try again. |
-| Unknown error during streaming | The stream reported a failure with no detail tied to it. | Remote-provider setup in Stage A refreshes model metadata only; it cannot generate summaries or Ask answers. If refresh fails, check setup consent and the selected provider key. On Firefox, allow the optional authentication-data permission before transmitting credentials. Authentication failures require checking the key with the provider; rate limits require waiting before another explicit refresh. OpenCode catalog access may require credits or Go. An empty OpenRouter free list means no returned model has both prompt and completion prices explicitly zero. A failed refresh never falls back to another remote provider. Do not paste API keys into bug reports or logs. |
+| Unknown error during streaming | The stream reported a failure with no detail tied to it. | Turn on debug logs in Settings. Reproduce the failure. Then use Copy diagnostics. The raw cause is often in the log. |
+| Something went wrong summarizing this page. (notification, titled "Summarize failed") | This is fallback text for the desktop note. It appears when a context-menu or keyboard-shortcut job failed without a usable message. | Open the popup. Summarize again there. The popup shows the exact error. |
 
-Turn on debug logs in Settings. Reproduce the failure. Then use Copy diagnostics. The raw cause is often in the log. | | Something went wrong summarizing this page. (notification, titled "Summarize failed") | This is fallback text for the desktop note. It appears when a context-menu or keyboard-shortcut job failed without a usable message. | Open the popup. Summarize again there. The popup shows the exact error. |
+## Remote provider setup
+
+Remote-provider setup in Stage A refreshes model metadata only. It cannot generate summaries or Ask answers. If refresh fails, check setup consent and the selected provider key. On Firefox, allow the optional authentication-data permission before transmitting credentials. Authentication failures require checking the key with the provider; rate limits require waiting before another explicit refresh. OpenCode catalog access may require credits or Go. An empty OpenRouter free list means no returned model has both prompt and completion prices explicitly zero. A failed refresh never falls back to another remote provider. Do not paste API keys into bug reports or logs.
 
 ## Settings, cache, and diagnostics
 
@@ -134,8 +137,6 @@ These should never reach the UI. If one does, report it as a bug with the steps 
 ## Reporting one
 
 If your symptom matches a known failure, the [Troubleshooting](TROUBLESHOOTING.md) page may fix it faster than a report.
-
-Remote-provider setup in Stage A refreshes model metadata only; it cannot generate summaries or Ask answers. If refresh fails, check setup consent and the selected provider key. On Firefox, allow the optional authentication-data permission before transmitting credentials. Authentication failures require checking the key with the provider; rate limits require waiting before another explicit refresh. OpenCode catalog access may require credits or Go. An empty OpenRouter free list means no returned model has both prompt and completion prices explicitly zero. A failed refresh never falls back to another remote provider. Do not paste API keys into bug reports or logs.
 
 Turn on debug logs in Settings. Reproduce the failure. Then use Copy diagnostics. That copies the browser, provider, model, WebGPU state, and recent log lines. It also copies the raw base error. The raw error is often more exact than the message shown in the popup.
 
