@@ -33,12 +33,16 @@ const paidModel = (id = "test/paid") => ({
   limit: { context: 32768 },
 });
 
+const storageListeners = [];
+const storageOnChanged = {
+  addListener: (listener) => storageListeners.push(listener),
+};
+
 function install(settings = {}) {
   const store = { settings: structuredClone(settings) };
-  const listeners = [];
   globalThis.chrome = {
     storage: {
-      onChanged: { addListener: (listener) => listeners.push(listener) },
+      onChanged: storageOnChanged,
       local: {
         get: async (key) => ({ [key]: structuredClone(store[key]) }),
         set: async (values) => {
@@ -50,7 +54,7 @@ function install(settings = {}) {
             };
             store[key] = structuredClone(value);
           }
-          for (const listener of listeners) listener(changes, "local");
+          for (const listener of storageListeners) listener(changes, "local");
         },
         remove: async (key) => {
           delete store[key];
