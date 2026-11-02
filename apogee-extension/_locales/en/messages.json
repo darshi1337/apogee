@@ -448,7 +448,7 @@
     "description": "Remote provider setup preview"
   },
   "remoteOpenRouterInfo": {
-    "message": "This preset lists only models with zero-priced input and output. Provider availability and terms may change.",
+    "message": "This preset lists only models whose advertised prices are all zero. Provider availability and terms may change.",
     "description": "Remote provider setup preview"
   },
   "remoteOpenCode": {
