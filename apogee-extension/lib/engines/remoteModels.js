@@ -41,6 +41,18 @@ function zero(value) {
   );
 }
 
+function supportsChatCompletions(entry) {
+  const endpoints = Array.isArray(entry.endpoints)
+    ? entry.endpoints
+    : Array.isArray(entry.supported_endpoints)
+      ? entry.supported_endpoints
+      : null;
+  if (!endpoints) return true;
+  return endpoints.some((endpoint) =>
+    ["/api/v1/chat/completions", "chat/completions", "chat"].includes(endpoint),
+  );
+}
+
 export function normalizeRemoteModels(provider, payload) {
   remotePreset(provider);
   if (!Array.isArray(payload?.data))
@@ -58,15 +70,7 @@ export function normalizeRemoteModels(provider, payload) {
         !entry.architecture?.output_modalities?.includes("text")
       )
         continue;
-      if (
-        Array.isArray(entry.supported_endpoints) &&
-        !entry.supported_endpoints.some((endpoint) =>
-          ["chat", "chat/completions", "/v1/chat/completions"].includes(
-            endpoint,
-          ),
-        )
-      )
-        continue;
+      if (!supportsChatCompletions(entry)) continue;
     } else {
       // Credits and Go are billing plans, never a claim that inference is free.
       if (

@@ -19,6 +19,7 @@ const freeModel = (id = "test/free") => ({
   name: "Test",
   pricing: { prompt: "0", completion: "0" },
   architecture: { input_modalities: ["text"], output_modalities: ["text"] },
+  endpoints: ["/api/v1/chat/completions"],
   context_length: 8192,
 });
 const paidModel = (id = "test/paid") => ({
@@ -79,7 +80,12 @@ test("remote model normalization enforces free OpenRouter and paid compatible Op
         ...freeModel("fee"),
         pricing: { prompt: "0", completion: "0", request: "1" },
       },
-      { ...freeModel("not-chat"), supported_endpoints: ["responses"] },
+      { ...freeModel("not-chat"), endpoints: ["/api/v1/responses"] },
+      {
+        ...freeModel("legacy-not-chat"),
+        endpoints: undefined,
+        supported_endpoints: ["responses"],
+      },
     ],
   });
   assert.deepEqual(router, [
