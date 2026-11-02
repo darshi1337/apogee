@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
 import { initRemoteSettings } from "../../ui/remoteSettings.js";
+import { REMOTE_PROVIDER_IDS } from "../../lib/engines/remoteModels.js";
 
 const html = readFileSync(
   new URL("../../ui/app.html", import.meta.url),
@@ -252,7 +253,17 @@ test("loading is announced, duplicate refresh is blocked, errors do not expose b
   assert.doesNotMatch(panel().textContent, /secret-key/);
 });
 
-test("invalid startup response fails closed", async () => {
+test("both remote providers expose the same control set", () => {
+  const { document } = parseHTML(html);
+  const panels = REMOTE_PROVIDER_IDS.map((provider) =>
+    document.querySelector(`[data-remote-provider="${provider}"]`),
+  );
+  const controls = (panel) =>
+    [...panel.querySelectorAll("[data-remote]")]
+      .map((element) => element.getAttribute("data-remote"))
+      .sort();
+  assert.deepEqual(controls(panels[0]), controls(panels[1]));
+});
   const { calls, control, fire } = await setup({ error: "unavailable" });
   assert.equal(control("save").disabled, true);
   assert.equal(control("refresh").disabled, true);
