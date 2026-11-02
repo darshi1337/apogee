@@ -184,7 +184,7 @@ test("fresh catalog models are selectable and save provider scoped", async () =>
   const initial = view({
     consent: true,
     hasApiKey: true,
-    model: "",
+    model: "model-a",
     catalog: {
       stale: false,
       models: [{ id: "model-a", label: "Model A", contextTokens: 1000 }],
@@ -192,7 +192,6 @@ test("fresh catalog models are selectable and save provider scoped", async () =>
   });
   const { calls, control, fire } = await setup(initial);
   assert.equal(control("model").disabled, false);
-  control("model").selectedIndex = 1;
   fire("model", "change");
   await tick();
   assert.deepEqual(calls[1].payload, {
@@ -219,13 +218,13 @@ test("failed model saves report a save error, not a refresh error", async () => 
   const initial = view({
     consent: true,
     hasApiKey: true,
+    model: "model-a",
     catalog: {
       stale: false,
       models: [{ id: "model-a", label: "Model A", contextTokens: 1000 }],
     },
   });
   const { control, fire } = await setup(initial, () => ({ error: "secret" }));
-  control("model").value = "model-a";
   fire("model", "change");
   await tick();
   assert.equal(control("status").textContent, "remoteSettingsError");
