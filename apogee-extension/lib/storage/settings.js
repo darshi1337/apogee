@@ -4,7 +4,10 @@ import {
   isKnownWebLLMModelId,
 } from "../constants.js";
 import { validateLlamaHost, validateOllamaHost } from "../util/ollamaHost.js";
-import { hasRemoteControlCharacters } from "../engines/remoteModels.js";
+import {
+  hasRemoteControlCharacters,
+  validRemoteModelId,
+} from "../engines/remoteModels.js";
 
 const PROVIDER_VALUES = new Set(Object.values(PROVIDERS));
 
@@ -20,11 +23,7 @@ function sanitizeSettings(settings) {
         ? key.trim()
         : "";
     const model = clean[`${provider}Model`];
-    clean[`${provider}Model`] =
-      typeof model === "string" &&
-      /^[a-zA-Z0-9][a-zA-Z0-9._:/@+-]{0,199}$/.test(model)
-        ? model
-        : "";
+    clean[`${provider}Model`] = validRemoteModelId(model) ? model : "";
   }
   // Corrupted stores must not flip provider or hosts: fall back to
   // defaults and revalidate through the shared loopback validator.
