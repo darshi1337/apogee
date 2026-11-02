@@ -23,11 +23,11 @@ const refreshes = new Map();
 function catalogIsFresh(cache, now = Date.now()) {
   return Boolean(
     cache &&
-      !cache.failed &&
-      Number.isFinite(cache.refreshedAt) &&
-      cache.refreshedAt > 0 &&
-      cache.refreshedAt <= now &&
-      now - cache.refreshedAt < REMOTE_CATALOG_TTL_MS,
+    !cache.failed &&
+    Number.isFinite(cache.refreshedAt) &&
+    cache.refreshedAt > 0 &&
+    cache.refreshedAt <= now &&
+    now - cache.refreshedAt < REMOTE_CATALOG_TTL_MS,
   );
 }
 
@@ -114,8 +114,7 @@ export async function getRemoteSettings() {
             : [],
         refreshedAt: consent && hasApiKey && cache ? cache.refreshedAt : null,
         stale:
-          Boolean(cache) &&
-          (!consent || !hasApiKey || !catalogIsFresh(cache)),
+          Boolean(cache) && (!consent || !hasApiKey || !catalogIsFresh(cache)),
       },
     };
   }
