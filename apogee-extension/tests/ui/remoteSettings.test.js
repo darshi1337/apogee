@@ -125,7 +125,7 @@ test("browser permission denial does not persist consent and leaves refresh bloc
   assert.equal(control("status").textContent, "remotePermissionDenied");
 });
 
-test("model selection never includes a blank password and untrusted labels remain text", async () => {
+test("stale catalog labels remain inert and cannot be selected", async () => {
   const initial = view({
     consent: true,
     hasApiKey: true,
@@ -143,8 +143,27 @@ test("model selection never includes a blank password and untrusted labels remai
   });
   const { calls, control, fire } = await setup(initial);
   assert.equal(control("status").textContent, "remoteModelsStale");
+  assert.equal(control("model").disabled, true);
   assert.equal(control("model").querySelector("img"), null);
   assert.match(control("model").textContent, /<img/);
+  fire("model", "change");
+  await tick();
+  assert.equal(calls.length, 1);
+});
+
+test("fresh catalog models are selectable and save provider scoped", async () => {
+  const initial = view({
+    consent: true,
+    hasApiKey: true,
+    model: "",
+    catalog: {
+      stale: false,
+      models: [{ id: "model-a", label: "Model A", contextTokens: 1000 }],
+    },
+  });
+  const { calls, control, fire } = await setup(initial);
+  assert.equal(control("model").disabled, false);
+  control("model").value = "model-a";
   fire("model", "change");
   await tick();
   assert.deepEqual(calls[1].payload, {

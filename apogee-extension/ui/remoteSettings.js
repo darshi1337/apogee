@@ -61,7 +61,9 @@ export async function initRemoteSettings({
     c.clearKey.disabled = state?.hasApiKey !== true;
     c.refresh.disabled ||= !canRefresh(state, c.consent.checked);
     c.model.disabled ||=
-      state?.consent !== true || !state?.catalog?.models?.length;
+      state?.consent !== true ||
+      state?.catalog?.stale === true ||
+      !state?.catalog?.models?.length;
     c.keyStatus.textContent = translate(
       state?.hasApiKey ? "remoteKeySaved" : "remoteKeyMissing",
     );
@@ -214,7 +216,12 @@ export async function initRemoteSettings({
         panel.busy || !canRefresh(panel.state, c.consent.checked);
     });
     c.model.addEventListener("change", () => {
-      if (panel.state?.consent !== true || !c.model.value) return;
+      if (
+        panel.state?.consent !== true ||
+        panel.state?.catalog?.stale === true ||
+        !c.model.value
+      )
+        return;
       void run(panel, "remote-settings-save", {
         provider: panel.provider,
         model: c.model.value,
