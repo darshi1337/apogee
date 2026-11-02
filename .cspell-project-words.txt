@@ -1,4 +1,11 @@
 adbkit
+advertised
+credentials
+endpoints
+invalidation
+metadata
+revalidation
+separately
 ajay
 autonumber
 bartowski
