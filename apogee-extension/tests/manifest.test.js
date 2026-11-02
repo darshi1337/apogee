@@ -330,6 +330,7 @@ test("Firefox CSP and data permissions preserve the remote setup boundary", () =
       "'self'",
       "http://127.0.0.1:*",
       "http://localhost:*",
+      "http://[::1]:*",
       "https://huggingface.co",
       "https://*.huggingface.co",
       "https://*.hf.co",
