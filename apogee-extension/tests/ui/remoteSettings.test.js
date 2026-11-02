@@ -263,7 +263,7 @@ test("both remote providers expose the same control set", () => {
       .map((element) => element.getAttribute("data-remote"))
       .sort();
   assert.deepEqual(controls(panels[0]), controls(panels[1]));
-});
+test("invalid startup response fails closed", async () => {
   const { calls, control, fire } = await setup({ error: "unavailable" });
   assert.equal(control("save").disabled, true);
   assert.equal(control("refresh").disabled, true);

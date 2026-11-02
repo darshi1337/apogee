@@ -1,7 +1,6 @@
 import { getSettings } from "../storage/settings.js";
 import { onRemoteCredentialChange } from "./remoteCredentials.js";
 import {
-  REMOTE_PROVIDER_IDS,
   normalizeRemoteModels,
   remotePreset,
   validRemoteModelId,
