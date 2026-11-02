@@ -193,6 +193,22 @@ test("revoke and key removal are distinct explicit actions", async () => {
   assert.deepEqual(calls[2].payload, { provider: "openrouter", apiKey: "" });
 });
 
+test("failed model saves report a save error, not a refresh error", async () => {
+  const initial = view({
+    consent: true,
+    hasApiKey: true,
+    catalog: {
+      stale: false,
+      models: [{ id: "model-a", label: "Model A", contextTokens: 1000 }],
+    },
+  });
+  const { control, fire } = await setup(initial, () => ({ error: "secret" }));
+  control("model").value = "model-a";
+  fire("model", "change");
+  await tick();
+  assert.equal(control("status").textContent, "remoteSettingsError");
+});
+
 test("loading is announced, duplicate refresh is blocked, errors do not expose backend text", async () => {
   let finish;
   const pending = new Promise((resolve) => {

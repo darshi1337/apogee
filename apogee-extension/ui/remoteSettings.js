@@ -140,15 +140,17 @@ export async function initRemoteSettings({
         } catch {
           // Keep the last local view when the worker cannot be read.
         }
+        if (panel.epoch !== epoch) return;
+        render(
+          panel,
+          panel.state?.catalog?.models?.length
+            ? "remoteModelsRefreshError"
+            : "remoteSettingsError",
+        );
+      } else {
+        // Do not echo backend errors: a credential might be included in one.
+        render(panel, "remoteSettingsError");
       }
-      if (panel.epoch !== epoch) return;
-      // Do not echo backend errors: a credential might be included in one.
-      render(
-        panel,
-        panel.state?.catalog?.models?.length
-          ? "remoteModelsRefreshError"
-          : "remoteSettingsError",
-      );
     } finally {
       if (panel.epoch === epoch) {
         panel.busy = false;
