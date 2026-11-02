@@ -39,6 +39,14 @@ export async function initRemoteSettings({
     };
   }
 
+  function canRefresh(state, consentChecked) {
+    return (
+      state?.consent === true &&
+      state?.hasApiKey === true &&
+      consentChecked === true
+    );
+  }
+
   function render(panel, statusKey) {
     const c = controls(panel);
     const state = panel.state;
@@ -51,10 +59,7 @@ export async function initRemoteSettings({
     // Revocation remains available while a catalog request is in flight.
     c.revoke.disabled = state?.consent !== true;
     c.clearKey.disabled = state?.hasApiKey !== true;
-    c.refresh.disabled ||=
-      state?.consent !== true ||
-      state?.hasApiKey !== true ||
-      !c.consent.checked;
+    c.refresh.disabled ||= !canRefresh(state, c.consent.checked);
     c.model.disabled ||=
       state?.consent !== true || !state?.catalog?.models?.length;
     c.keyStatus.textContent = translate(
@@ -200,21 +205,13 @@ export async function initRemoteSettings({
         }),
     );
     c.refresh.addEventListener("click", () => {
-      if (
-        panel.state?.consent !== true ||
-        panel.state?.hasApiKey !== true ||
-        !c.consent.checked
-      )
-        return;
+      if (!canRefresh(panel.state, c.consent.checked)) return;
       void run(panel, "remote-models-refresh", { provider: panel.provider });
     });
     c.consent.addEventListener("change", () => {
       // Unchecking immediately blocks refresh; Save or Revoke persists the choice.
       c.refresh.disabled =
-        panel.busy ||
-        !c.consent.checked ||
-        panel.state?.consent !== true ||
-        panel.state?.hasApiKey !== true;
+        panel.busy || !canRefresh(panel.state, c.consent.checked);
     });
     c.model.addEventListener("change", () => {
       if (panel.state?.consent !== true || !c.model.value) return;
