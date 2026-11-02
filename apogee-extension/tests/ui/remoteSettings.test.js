@@ -192,7 +192,7 @@ test("fresh catalog models are selectable and save provider scoped", async () =>
   });
   const { calls, control, fire } = await setup(initial);
   assert.equal(control("model").disabled, false);
-  control("model").value = "model-a";
+  control("model").selectedIndex = 1;
   fire("model", "change");
   await tick();
   assert.deepEqual(calls[1].payload, {
