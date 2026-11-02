@@ -35,11 +35,15 @@ export function abortRemoteRequests(provider) {
   for (const controller of active.get(provider) || []) controller.abort();
 }
 
-export function holdRemoteRequests(provider) {
+export function holdRemoteRequests(provider, { abort = true } = {}) {
   remotePreset(provider);
   holds.set(provider, (holds.get(provider) || 0) + 1);
-  abortRemoteRequests(provider);
+  if (abort) abortRemoteRequests(provider);
   return () => holds.set(provider, Math.max(0, (holds.get(provider) || 0) - 1));
+}
+
+export function remoteRequestsHeld(provider) {
+  return (holds.get(provider) || 0) > 0;
 }
 
 async function withRemoteRequest(

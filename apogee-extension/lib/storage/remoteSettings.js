@@ -3,6 +3,7 @@ import {
   abortRemoteRequests,
   fetchRemoteModels,
   holdRemoteRequests,
+  remoteRequestsHeld,
 } from "../engines/remoteClient.js";
 import {
   REMOTE_PROVIDER_IDS,
@@ -163,7 +164,9 @@ export async function saveRemoteSettings(payload) {
     throw new Error("Save credentials and model separately.");
   // Holding aborts requests that may still be using the old credentials. The
   // cache is removed only when a credential actually changes.
-  const release = holdRemoteRequests(provider);
+  const release = holdRemoteRequests(provider, {
+    abort: has("apiKey") || has("consent"),
+  });
   const operation = pendingSave
     .then(async () => {
       await pendingInvalidation;
@@ -227,7 +230,11 @@ async function refreshCatalog(provider) {
     models = await fetchRemoteModels(provider);
   } catch (error) {
     const cache = await readCatalog(provider);
-    if (cache && revision === (revisions.get(provider) || 0)) {
+    if (
+      cache &&
+      revision === (revisions.get(provider) || 0) &&
+      !remoteRequestsHeld(provider)
+    ) {
       await chrome.storage.local.set({
         [catalogKey(provider)]: { ...cache, failed: true },
       });
