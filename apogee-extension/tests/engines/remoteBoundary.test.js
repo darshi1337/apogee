@@ -95,6 +95,13 @@ test("remote model normalization enforces free OpenRouter and paid compatible Op
         endpoints: undefined,
         supported_endpoints: ["responses"],
       },
+      {
+        ...freeModel("music"),
+        architecture: {
+          input_modalities: ["text"],
+          output_modalities: ["text", "audio"],
+        },
+      },
     ],
   });
   assert.deepEqual(router, [
@@ -105,11 +112,27 @@ test("remote model normalization enforces free OpenRouter and paid compatible Op
     normalizeRemoteModels("opencode", { data: [paid] })[0].contextTokens,
     32768,
   );
+  const trailingSlash = {
+    ...paid,
+    api: {
+      "chat-completions": {
+        base_url: "https://opencode.ai/inference/openai/v1/",
+      },
+    },
+  };
+  assert.equal(
+    normalizeRemoteModels("opencode", { data: [trailingSlash] }).length,
+    1,
+  );
   for (const invalid of [
     { ...paid, type: "image" },
     { ...paid, api: { "chat-completions": { base_url: "https://evil.test" } } },
     { ...paid, cost: { text: { input: { price: 0 }, output: { price: 0 } } } },
     { ...paid, modalities: { input: ["image"], output: ["text"] } },
+    {
+      ...paid,
+      modalities: { input: ["text"], output: ["text", "audio"] },
+    },
   ])
     assert.deepEqual(
       normalizeRemoteModels("opencode", { data: [invalid] }),
@@ -459,5 +482,19 @@ test("changed credentials between model validation and POST cannot send a stale 
     return catalog();
   };
   await assert.rejects(streamRemoteChat("openrouter", "private prompt"));
+  assert.equal(posts, 0);
+});
+
+test("a cached model missing from the fresh catalog cannot reach the chat endpoint", async () => {
+  install({ ...authorized(), openrouterModel: "test/removed" });
+  let posts = 0;
+  globalThis.fetch = async (url) => {
+    if (!url.endsWith("/models")) posts++;
+    return catalog();
+  };
+  await assert.rejects(
+    streamRemoteChat("openrouter", "private prompt"),
+    /Select an eligible remote model/,
+  );
   assert.equal(posts, 0);
 });

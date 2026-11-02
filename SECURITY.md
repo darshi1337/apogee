@@ -16,7 +16,7 @@ If you want credit in the release notes and the advisory, say so. Tell me the na
 
 ## What Counts
 
-Apogee makes one central claim. Page content, summaries, and answers never leave your device. Two kinds of exception exist. One is your own Ollama or llama.cpp server over loopback. The other is the documented fetches in `PRIVACY.md`: model weights, site transcripts, subtitles, threads, the SponsorBlock hash-prefix lookup, and opt-in remote model-catalog metadata. Catalog refreshes send a provider API key and ordinary connection metadata to the matching provider origin. They never send page content, prompts, summaries, or answers.
+Apogee makes one central claim. For local generation, page content, summaries, and answers stay on your device. Two kinds of exception exist. One is your own Ollama or llama.cpp server over loopback. The other is the documented fetches in `PRIVACY.md`: model weights, site transcripts, subtitles, threads, the SponsorBlock hash-prefix lookup, and opt-in remote model-catalog metadata. Catalog refreshes send a provider API key and ordinary connection metadata to the matching provider origin. They never send page content, prompts, summaries, or answers.
 
 Anything that breaks that claim is a vulnerability here. This holds even if an ordinary extension does not treat it as one. Examples:
 

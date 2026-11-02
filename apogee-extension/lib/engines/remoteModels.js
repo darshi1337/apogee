@@ -53,10 +53,25 @@ function supportsChatCompletions(entry) {
   );
 }
 
+// A summarizer needs a text answer. Models that also emit audio or images can
+// carry per-clip charges that the token pricing fields do not show.
+function textOnlyOutput(modalities) {
+  return (
+    Array.isArray(modalities) &&
+    modalities.length > 0 &&
+    modalities.every((modality) => modality === "text")
+  );
+}
+
+function normalizedBaseUrl(value) {
+  return typeof value === "string" ? value.trim().replace(/\/+$/, "") : "";
+}
+
 export function normalizeRemoteModels(provider, payload) {
   remotePreset(provider);
   if (!Array.isArray(payload?.data))
     throw new Error("Remote catalog is unavailable.");
+  const opencodeBase = normalizedBaseUrl(PRESETS.opencode.base);
   const models = new Map();
   for (const entry of payload.data.slice(0, 10000)) {
     if (!validRemoteModelId(entry?.id)) continue;
@@ -67,7 +82,7 @@ export function normalizeRemoteModels(provider, payload) {
       if (Object.values(entry.pricing).some((value) => !zero(value))) continue;
       if (
         !entry.architecture?.input_modalities?.includes("text") ||
-        !entry.architecture?.output_modalities?.includes("text")
+        !textOnlyOutput(entry.architecture?.output_modalities)
       )
         continue;
       if (!supportsChatCompletions(entry)) continue;
@@ -75,12 +90,13 @@ export function normalizeRemoteModels(provider, payload) {
       // Credits and Go are billing plans, never a claim that inference is free.
       if (
         entry.type !== "chat" ||
-        entry.api?.["chat-completions"]?.base_url !== PRESETS.opencode.base
+        normalizedBaseUrl(entry.api?.["chat-completions"]?.base_url) !==
+          opencodeBase
       )
         continue;
       if (
         !entry.modalities?.input?.includes("text") ||
-        !entry.modalities?.output?.includes("text")
+        !textOnlyOutput(entry.modalities?.output)
       )
         continue;
       const input = entry.cost?.text?.input?.price;

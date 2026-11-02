@@ -56,7 +56,7 @@ Apogee fixes the design and privacy problems of Orbit by staying local-first:
 
 - **Local by default**: Tokenization, inference, retrieval, and caching happen on your device.
 
-- **Private by design**: Page content, transcripts, files, and summaries never go to cloud APIs.
+- **Private by design**: Page content, transcripts, files, and summaries stay on your device for local generation. Optional remote-provider setup is limited to catalog previews in this release.
 
 - **No account needed for local generation**: Optional remote-provider setup uses your own provider key. Apogee has no telemetry service or backend.
 
@@ -124,7 +124,7 @@ The table below compares Apogee with common cloud-based AI extensions and the di
 
 ## Privacy
 
-- **Zero Data Leaks**: Apogee handles page contents, transcripts, PDFs, and summaries locally. Nothing uploads to cloud APIs.
+- **Zero Data Leaks**: Apogee handles page contents, transcripts, PDFs, and summaries locally. In this release, nothing uploads to cloud APIs; the optional remote-provider preview sends only a provider key and connection metadata to refresh model catalogs.
 
 - **Remote-provider setup preview (Stage A)**: OpenRouter and OpenCode Console / Go are opt-in catalog previews in Settings. Refresh contacts `https://openrouter.ai/api/v1/models` or `https://opencode.ai/inference/v1/models`; a provider key goes only to its own origin. OpenRouter free presets require all advertised prices to be zero; OpenCode Console / Go uses credits or Go; this preset lists paid models only, and OpenCode also offers free models outside this preset. Remote summary and Ask generation remain disabled pending maintainer security review. There is no automatic remote selection or fallback.
 

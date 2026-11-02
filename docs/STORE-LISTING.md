@@ -28,7 +28,7 @@ Apogee is a private, in-browser AI assistant for articles, YouTube videos, PDFs,
 
 WHY APOGEE
 
-Most "AI summarizer" extensions send the page you read to company servers. Apogee does not. It runs compact language models straight inside your browser. It uses your GPU through WebGPU or your CPU through WebAssembly. The text you summarize stays local and drops after. There is no login and no leak.
+Most "AI summarizer" extensions send the page you read to company servers. Apogee does not send the page for local generation. It runs compact language models straight inside your browser. It uses your GPU through WebGPU or your CPU through WebAssembly. The text you summarize stays local and drops after. There is no login and no page-content upload.
 
 The discontinued Orbit project from Mozilla inspired Apogee. It offered browser summarization but sent all through central cloud servers. Apogee fixes that by staying fully local-first. No server need means no data leaks and no subscription. Nothing shuts down or retires.
 
@@ -74,7 +74,7 @@ Any model you pulled shows up on its own. Still fully local. Nothing leaves your
 
 PRIVACY
 
-- No cloud inference. Models run on your device.
+- No cloud inference by default. Models run on your device.
 
 - Local generation needs no API key, sign-in, or account. Optional remote-provider catalog setup uses your own provider key.
 
@@ -94,9 +94,9 @@ PRIVACY
 
   - For Reddit threads, the thread JSON of the viewed page (same-origin fetch, no extra host).
 
-  - Explicit opt-in catalog previews: `https://openrouter.ai/api/v1/models` and `https://opencode.ai/inference/v1/models`. Requests send connection metadata and, when authenticated, the key only to its provider origin. Keys remain stored locally and are redacted from exports and diagnostics. Stage A sends no prompts or page content and performs no remote summary/Ask generation. OpenRouter free presets require all advertised prices to be zero; OpenCode Console / Go uses credits or Go; this preset lists paid models only, and OpenCode also offers free models outside this preset.
+  - Explicit opt-in catalog previews: `https://openrouter.ai/api/v1/models` and `https://opencode.ai/inference/v1/models`. Requests send connection metadata and, when authenticated, the key only to its provider origin. Keys remain stored locally in extension storage, which is not encrypted at rest, and are redacted from exports and diagnostics. Stage A sends no prompts or page content and performs no remote summary/Ask generation. OpenRouter free presets require all advertised prices to be zero; OpenCode Console / Go uses credits or Go; this preset lists paid models only, and OpenCode also offers free models outside this preset.
 
-- Page content stays local. It never uploads.
+- Page content stays local in this release. It never uploads. The optional remote-provider catalog preview sends only your provider key and connection metadata.
 
 REQUIREMENTS
 
