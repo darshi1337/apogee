@@ -38,12 +38,11 @@ export function remoteRequestsHeld(provider) {
 
 async function withRemoteRequest(
   provider,
-  endpoint,
-  { signal, body, expected } = {},
+  { signal, url, method, body, expected } = {},
   consume,
 ) {
   watchCredentials();
-  const preset = remotePreset(provider);
+  remotePreset(provider);
   const controller = new AbortController();
   if (!active.has(provider)) active.set(provider, new Set());
   active.get(provider).add(controller);
@@ -75,24 +74,19 @@ async function withRemoteRequest(
     )
       throw new Error();
     if (controller.signal.aborted || holds.get(provider)) throw new Error();
-    const response = await fetch(
-      endpoint === "catalog"
-        ? preset.catalog
-        : `${preset.base}/chat/completions`,
-      {
-        method: body ? "POST" : "GET",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          ...(body ? { "Content-Type": "application/json" } : {}),
-        },
-        ...(body ? { body: JSON.stringify(body) } : {}),
-        signal: controller.signal,
-        redirect: "error",
-        credentials: "omit",
-        cache: "no-store",
-        referrerPolicy: "no-referrer",
+    const response = await fetch(url, {
+      method: method || (body ? "POST" : "GET"),
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        ...(body ? { "Content-Type": "application/json" } : {}),
       },
-    );
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      signal: controller.signal,
+      redirect: "error",
+      credentials: "omit",
+      cache: "no-store",
+      referrerPolicy: "no-referrer",
+    });
     if (!response.ok) {
       if (response.status === 401)
         safeFailure = "Remote authentication failed. Check your API key.";
@@ -141,16 +135,26 @@ async function withRemoteRequest(
 }
 
 export async function fetchRemoteModels(provider, { signal } = {}) {
-  return withRemoteRequest(provider, "catalog", { signal }, async (read) => {
-    const decoder = new TextDecoder();
-    let text = "";
-    while (true) {
-      const { value, done } = await read();
-      if (done) break;
-      text += decoder.decode(value, { stream: true });
-    }
-    return normalizeRemoteModels(provider, JSON.parse(text + decoder.decode()));
-  });
+  const preset = remotePreset(provider);
+  return withRemoteRequest(
+    provider,
+    { signal, url: preset.catalog, method: "GET" },
+    async (read) => {
+      const text = await readText(read);
+      return normalizeRemoteModels(provider, JSON.parse(text));
+    },
+  );
+}
+
+async function readText(read) {
+  const decoder = new TextDecoder();
+  let text = "";
+  while (true) {
+    const { value, done } = await read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+  }
+  return text + decoder.decode();
 }
 
 // Deliberately unregistered: Stage A exposes setup only. Future callers supply
@@ -190,11 +194,13 @@ export async function streamRemoteChat(
       ? { provider: { max_price: { prompt: 0, completion: 0, request: 0 } } }
       : {}),
   };
+  const preset = remotePreset(provider);
   return withRemoteRequest(
     provider,
-    "chat",
     {
       signal,
+      url: `${preset.base}/chat/completions`,
+      method: "POST",
       body,
       expected: { apiKey: settings[`${provider}ApiKey`], model },
     },
