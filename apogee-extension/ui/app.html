@@ -804,6 +804,230 @@
             <div id="llamaModelStatus" class="clear-data-status"></div>
           </div>
 
+          <section
+            id="remoteSettings"
+            class="settings-card remote-settings"
+            aria-labelledby="remoteSetupTitle"
+          >
+            <h2
+              id="remoteSetupTitle"
+              class="card-title"
+              data-i18n="remoteSetupTitle"
+            >
+              Remote provider setup preview
+            </h2>
+            <p data-i18n="remoteSetupPreview">
+              Setup preview only. Remote generation is unavailable pending
+              review. Your generation engine selection stays local.
+            </p>
+            <fieldset
+              data-remote-provider="openrouter"
+              class="remote-provider"
+              aria-busy="true"
+            >
+              <legend data-i18n="remoteOpenRouter">
+                OpenRouter FREE - zero-priced preset
+              </legend>
+              <p data-i18n="remoteOpenRouterInfo">
+                This preset lists only models with zero-priced input and output.
+                Provider availability and terms may change.
+              </p>
+              <p id="openrouterDisclosure" data-i18n="remoteDisclosure">
+                Before any request, including refreshing the model list, save
+                your consent for this provider. When remote generation becomes
+                available, content, titles, URLs, questions, custom
+                instructions, and summaries may be sent to the selected provider
+                and its upstream model providers. Refresh sends your API key to
+                the selected provider to retrieve models. Consent here does not
+                enable generation.
+              </p>
+              <label class="remote-consent">
+                <input
+                  data-remote="consent"
+                  type="checkbox"
+                  aria-describedby="openrouterDisclosure"
+                  disabled
+                />
+                <span data-i18n="remoteConsent"
+                  >I consent to requests to this provider and its upstream model
+                  providers as described above.</span
+                >
+              </label>
+              <label class="settings-field">
+                <span data-i18n="remoteApiKey">Provider API key</span>
+                <input
+                  data-remote="key"
+                  type="password"
+                  autocomplete="off"
+                  spellcheck="false"
+                  aria-describedby="openrouterKeyStatus"
+                  disabled
+                />
+              </label>
+              <p
+                id="openrouterKeyStatus"
+                data-remote="key-status"
+                data-i18n="remoteKeyMissing"
+              >
+                No API key saved.
+              </p>
+              <div class="remote-actions">
+                <button
+                  type="button"
+                  data-remote="save"
+                  data-i18n="remoteSave"
+                  disabled
+                >
+                  Save key and consent
+                </button>
+                <button
+                  type="button"
+                  data-remote="revoke"
+                  data-i18n="remoteRevoke"
+                  disabled
+                >
+                  Revoke consent
+                </button>
+                <button
+                  type="button"
+                  data-remote="clear-key"
+                  data-i18n="remoteClearKey"
+                  disabled
+                >
+                  Remove saved key
+                </button>
+              </div>
+              <label class="settings-field">
+                <span data-i18n="remoteModel">Model preset</span>
+                <select
+                  data-remote="model"
+                  class="settings-select"
+                  disabled
+                ></select>
+              </label>
+              <button
+                type="button"
+                data-remote="refresh"
+                data-i18n="remoteRefresh"
+                disabled
+              >
+                Refresh models
+              </button>
+              <p
+                data-remote="status"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                data-i18n="remoteSettingsLoading"
+              >
+                Loading saved remote settings...
+              </p>
+            </fieldset>
+            <fieldset
+              data-remote-provider="opencode"
+              class="remote-provider"
+              aria-busy="true"
+            >
+              <legend data-i18n="remoteOpenCode">
+                OpenCode - credits / Go (not free)
+              </legend>
+              <p data-i18n="remoteOpenCodeInfo">
+                OpenCode uses credits or a Go subscription. These options are
+                not free; usage may incur charges.
+              </p>
+              <p id="opencodeDisclosure" data-i18n="remoteDisclosure">
+                Before any request, including refreshing the model list, save
+                your consent for this provider. When remote generation becomes
+                available, content, titles, URLs, questions, custom
+                instructions, and summaries may be sent to the selected provider
+                and its upstream model providers. Refresh sends your API key to
+                the selected provider to retrieve models. Consent here does not
+                enable generation.
+              </p>
+              <label class="remote-consent">
+                <input
+                  data-remote="consent"
+                  type="checkbox"
+                  aria-describedby="opencodeDisclosure"
+                  disabled
+                />
+                <span data-i18n="remoteConsent"
+                  >I consent to requests to this provider and its upstream model
+                  providers as described above.</span
+                >
+              </label>
+              <label class="settings-field">
+                <span data-i18n="remoteApiKey">Provider API key</span>
+                <input
+                  data-remote="key"
+                  type="password"
+                  autocomplete="off"
+                  spellcheck="false"
+                  aria-describedby="opencodeKeyStatus"
+                  disabled
+                />
+              </label>
+              <p
+                id="opencodeKeyStatus"
+                data-remote="key-status"
+                data-i18n="remoteKeyMissing"
+              >
+                No API key saved.
+              </p>
+              <div class="remote-actions">
+                <button
+                  type="button"
+                  data-remote="save"
+                  data-i18n="remoteSave"
+                  disabled
+                >
+                  Save key and consent
+                </button>
+                <button
+                  type="button"
+                  data-remote="revoke"
+                  data-i18n="remoteRevoke"
+                  disabled
+                >
+                  Revoke consent
+                </button>
+                <button
+                  type="button"
+                  data-remote="clear-key"
+                  data-i18n="remoteClearKey"
+                  disabled
+                >
+                  Remove saved key
+                </button>
+              </div>
+              <label class="settings-field">
+                <span data-i18n="remoteModel">Model preset</span>
+                <select
+                  data-remote="model"
+                  class="settings-select"
+                  disabled
+                ></select>
+              </label>
+              <button
+                type="button"
+                data-remote="refresh"
+                data-i18n="remoteRefresh"
+                disabled
+              >
+                Refresh models
+              </button>
+              <p
+                data-remote="status"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                data-i18n="remoteSettingsLoading"
+              >
+                Loading saved remote settings...
+              </p>
+            </fieldset>
+          </section>
+
           <div class="settings-card">
             <div class="card-title">
               <span class="ico" data-ico="globe" aria-hidden="true"></span>

@@ -434,5 +434,109 @@
   "summarizeVerb": {
     "message": "Summarize",
     "description": "Paste dialog submit"
+  },
+  "remoteSetupTitle": {
+    "message": "Remote provider setup preview",
+    "description": "Remote provider setup preview"
+  },
+  "remoteSetupPreview": {
+    "message": "Setup preview only. Remote generation is unavailable pending review. Your generation engine selection stays local.",
+    "description": "Remote provider setup preview"
+  },
+  "remoteOpenRouter": {
+    "message": "OpenRouter FREE - zero-priced preset",
+    "description": "Remote provider setup preview"
+  },
+  "remoteOpenRouterInfo": {
+    "message": "This preset lists only models with zero-priced input and output. Provider availability and terms may change.",
+    "description": "Remote provider setup preview"
+  },
+  "remoteOpenCode": {
+    "message": "OpenCode - credits / Go (not free)",
+    "description": "Remote provider setup preview"
+  },
+  "remoteOpenCodeInfo": {
+    "message": "OpenCode uses credits or a Go subscription. These options are not free; usage may incur charges.",
+    "description": "Remote provider setup preview"
+  },
+  "remoteDisclosure": {
+    "message": "Before any request, including refreshing the model list, save your consent for this provider. When remote generation becomes available, content, titles, URLs, questions, custom instructions, and summaries may be sent to the selected provider and its upstream model providers. Refresh sends your API key to the selected provider to retrieve models. Consent here does not enable generation.",
+    "description": "Remote provider setup preview"
+  },
+  "remoteConsent": {
+    "message": "I consent to requests to this provider and its upstream model providers as described above.",
+    "description": "Remote provider setup preview"
+  },
+  "remoteApiKey": {
+    "message": "Provider API key",
+    "description": "Remote provider setup preview"
+  },
+  "remoteSave": {
+    "message": "Save key and consent",
+    "description": "Remote provider setup preview"
+  },
+  "remoteRevoke": {
+    "message": "Revoke consent",
+    "description": "Remote provider setup preview"
+  },
+  "remoteClearKey": {
+    "message": "Remove saved key",
+    "description": "Remote provider setup preview"
+  },
+  "remoteModel": {
+    "message": "Model preset",
+    "description": "Remote provider setup preview"
+  },
+  "remoteRefresh": {
+    "message": "Refresh models",
+    "description": "Remote provider setup preview"
+  },
+  "remoteChooseModel": {
+    "message": "Choose a model after refresh",
+    "description": "Remote provider setup preview"
+  },
+  "remoteKeySaved": {
+    "message": "An API key is saved. Leave the field empty to keep it.",
+    "description": "Remote provider setup preview"
+  },
+  "remoteKeyMissing": {
+    "message": "No API key saved.",
+    "description": "Remote provider setup preview"
+  },
+  "remoteModelsStale": {
+    "message": "Saved model list is stale. Refresh manually after saving consent and an API key.",
+    "description": "Remote provider setup preview"
+  },
+  "remoteModelsReady": {
+    "message": "Saved model list loaded. Refresh manually to check availability.",
+    "description": "Remote provider setup preview"
+  },
+  "remoteModelsEmpty": {
+    "message": "No models available. Save consent and an API key, then refresh manually.",
+    "description": "Remote provider setup preview"
+  },
+  "remoteModelsLoading": {
+    "message": "Refreshing models...",
+    "description": "Remote provider setup preview"
+  },
+  "remoteSaving": {
+    "message": "Saving remote settings...",
+    "description": "Remote provider setup preview"
+  },
+  "remoteSettingsLoading": {
+    "message": "Loading saved remote settings...",
+    "description": "Remote provider setup preview"
+  },
+  "remoteSettingsError": {
+    "message": "Could not complete remote setup. Check your settings and try again. No generation is available.",
+    "description": "Remote provider setup preview"
+  },
+  "remotePermissionDenied": {
+    "message": "Browser permission to send authentication information was not granted. Consent was not saved. Allow the permission and save consent to continue.",
+    "description": "Remote provider setup permission denial"
+  },
+  "remoteModelsRefreshError": {
+    "message": "Refresh failed. The saved model list is retained and may be stale. Check your key and consent, then try again.",
+    "description": "Remote catalog refresh error with retained last good models"
   }
 }

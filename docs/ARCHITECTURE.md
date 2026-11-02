@@ -2,6 +2,14 @@
 
 Apogee is an offline-first browser extension built for full data privacy. All text analysis, summarization, and question answering runs on your own machine. It uses in-browser AI engines or a local Ollama server.
 
+## Remote-provider setup boundary (Stage A)
+
+The shared remote client and Settings support explicit consent, local provider-key storage, and model-catalog refresh only. These requests target `https://openrouter.ai/api/v1/models` and `https://opencode.ai/inference/v1/models`. A key may be sent only to its matching provider origin. Firefox additionally gates credential transmission on the optional `authenticationInfo` data permission. No prompt, page text, summary, or Ask question reaches these endpoints.
+
+OpenRouter uses the `https://openrouter.ai/api/v1` base. OpenCode Zen/Go uses `https://opencode.ai/inference/openai/v1` for future chat and its separate catalog path above. OpenRouter free presets filter for explicitly zero prompt and completion prices; OpenCode is credits/Go only and never a free preset. Both exact origins are allowed by the source and Firefox CSP; existing all-sites host access already covers them. Local inference, loopback validation, and the local fallback chain retain their boundaries. Remote inference is disabled pending maintainer security review, with no automatic remote selection or fallback.
+
+The Activity & Privacy Audit badge describes inference and enabled network features, not a measured traffic log. With remote setup enabled it reads **Local inference + remote model catalog**, with SponsorBlock appended when enabled. Catalog refreshes use the network, but no remote prompt inference takes place.
+
 ## Overview
 
 Apogee uses four cooperating execution contexts. They talk to each other with standard WebExtension messaging.

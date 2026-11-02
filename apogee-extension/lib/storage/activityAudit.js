@@ -65,7 +65,9 @@ export async function getActivityAuditSummary() {
 
   const sponsorBlockActive =
     settings.useSponsorBlock !== false && settings.useSponsorBlock !== "off";
-  const externalRequestsAllowed = sponsorBlockActive;
+  const remoteCatalogActive =
+    settings.openrouterConsent === true || settings.opencodeConsent === true;
+  const externalRequestsAllowed = sponsorBlockActive || remoteCatalogActive;
 
   return {
     pageAccessCount: logs.length,
@@ -73,9 +75,12 @@ export async function getActivityAuditSummary() {
     networkEgress: {
       zeroEgress: !externalRequestsAllowed,
       sponsorBlockActive,
-      statusMessage: !externalRequestsAllowed
-        ? "100% local"
-        : "Local + SponsorBlock API",
+      remoteCatalogActive,
+      statusMessage: remoteCatalogActive
+        ? `Local inference + remote model catalog${sponsorBlockActive ? " + SponsorBlock API" : ""}`
+        : !externalRequestsAllowed
+          ? "100% local"
+          : "Local + SponsorBlock API",
     },
     storageRetention: {
       saveHistory: settings.saveHistory !== false,

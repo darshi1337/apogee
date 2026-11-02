@@ -2649,3 +2649,39 @@ html[data-surface="side-panel"] .chat-box:has(#questionInput:not(.hidden)) {
 html[data-surface="side-panel"] .open-side-panel-btn {
   display: none !important;
 }
+
+/* Remote configuration preview remains separate from generation controls. */
+.remote-settings p {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.remote-provider {
+  min-width: 0;
+  margin: 16px 0 0;
+  padding: 12px;
+  border: 1px solid var(--border-color, #888);
+  border-radius: 8px;
+}
+.remote-provider legend {
+  font-weight: 600;
+  font-size: 13px;
+}
+.remote-consent {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+}
+.remote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.remote-provider button {
+  padding: 6px 8px;
+}
+.remote-provider button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

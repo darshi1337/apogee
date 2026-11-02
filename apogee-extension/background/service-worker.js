@@ -52,6 +52,11 @@ import {
   transformersChatStream,
 } from "../lib/engines/transformersEngine.js";
 import { getSettings } from "../lib/storage/settings.js";
+import {
+  getRemoteSettings,
+  saveRemoteSettings,
+  refreshRemoteModels,
+} from "../lib/storage/remoteSettings.js";
 import { initDebugLogging, sanitizeLogMessage } from "../lib/util/log.js";
 import {
   asFocusKeyword,
@@ -1277,6 +1282,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (sender?.id !== chrome.runtime.id) return false;
 
+  const remoteSetupAction = new Set([
+    "remote-settings-get",
+    "remote-settings-save",
+    "remote-models-refresh",
+  ]).has(message.action);
+  // Extension tabs have sender.tab too. Authenticate the setup document by
+  // its extension URL rather than confusing it with a webpage content script.
+  const remoteSetupPage =
+    typeof sender.url === "string" &&
+    sender.url.split(/[?#]/, 1)[0] === chrome.runtime.getURL("ui/app.html");
+  if (remoteSetupAction && !remoteSetupPage) return false;
+
   const ALLOWED_CONTENT_SCRIPT_ACTIONS = new Set([
     "sponsorblock-segments",
     "bilibili-subtitles",
@@ -1284,6 +1301,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   ]);
   if (
     sender.tab &&
+    !(remoteSetupAction && remoteSetupPage) &&
     (!message.action || !ALLOWED_CONTENT_SCRIPT_ACTIONS.has(message.action))
   ) {
     return false;
@@ -1422,6 +1440,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const handler = async () => {
     try {
       switch (message.action) {
+        case "remote-settings-get": {
+          sendResponse(await getRemoteSettings());
+          break;
+        }
+        case "remote-settings-save": {
+          sendResponse(await saveRemoteSettings(message.payload));
+          break;
+        }
+        case "remote-models-refresh": {
+          // The provider is the sole accepted selector. Keys and URLs always
+          // come from the trusted store and fixed preset definitions.
+          if (
+            !message.payload ||
+            Object.keys(message.payload).some((key) => key !== "provider")
+          )
+            throw new Error("Invalid remote catalog request.");
+          sendResponse(await refreshRemoteModels(message.payload.provider));
+          break;
+        }
         case "summarize":
         case "ask": {
           await ensureOffscreenDocument();

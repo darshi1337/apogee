@@ -51,7 +51,7 @@ import {
   MODEL_NAME_MAX_CHARS,
   isVideoType,
 } from "../lib/constants.js";
-import { getSettings } from "../lib/storage/settings.js";
+import { getSettings, updateSettings } from "../lib/storage/settings.js";
 import {
   validateLoopbackUrl,
   validateOllamaHost,
@@ -128,6 +128,7 @@ import {
   COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG,
   PDF_TOO_LARGE_ERROR_MSG,
 } from "../lib/util/messages.js";
+import { initRemoteSettings } from "./remoteSettings.js";
 import { t, applyI18nToDom } from "../lib/util/i18n.js";
 import { safeDisconnect } from "../lib/util/streamBroadcast.js";
 import { tryParseUrl } from "../lib/util/url.js";
@@ -563,9 +564,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 });
 
 async function saveSettings(partial) {
-  const settings = { ...(await getSettings()), ...partial };
-  await chrome.storage.local.set({ settings });
-  return settings;
+  return updateSettings(partial);
 }
 
 let _webgpuSupported = null;
@@ -2366,6 +2365,7 @@ async function updateSummarizeShortcutHint() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+  void initRemoteSettings();
   try {
     applyI18nToDom(document);
   } catch (err) {

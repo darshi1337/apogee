@@ -87,6 +87,32 @@ test("getActivityAuditSummary reports SponsorBlock active by default", async () 
   assert.equal(summary.networkEgress.zeroEgress, false);
 });
 
+for (const provider of ["openrouter", "opencode"]) {
+  test(`audit identifies ${provider} catalog access without claiming remote inference`, async () => {
+    storageMap.clear();
+    await chrome.storage.local.set({
+      settings: { useSponsorBlock: false, [`${provider}Consent`]: true },
+    });
+    const { networkEgress } = await getActivityAuditSummary();
+    assert.equal(networkEgress.zeroEgress, false);
+    assert.equal(networkEgress.remoteCatalogActive, true);
+    assert.equal(
+      networkEgress.statusMessage,
+      "Local inference + remote model catalog",
+    );
+  });
+}
+
+test("audit includes both optional catalog and SponsorBlock access", async () => {
+  storageMap.clear();
+  await chrome.storage.local.set({ settings: { openrouterConsent: true } });
+  const { networkEgress } = await getActivityAuditSummary();
+  assert.equal(
+    networkEgress.statusMessage,
+    "Local inference + remote model catalog + SponsorBlock API",
+  );
+});
+
 test("recordPageAccessEvent skips sensitive pages even with history on (#181)", async () => {
   storageMap.clear();
   await recordPageAccessEvent({
