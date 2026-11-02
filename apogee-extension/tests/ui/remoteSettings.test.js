@@ -115,6 +115,27 @@ test("explicit save carries key and consent; key field clears; refresh stays pro
   });
 });
 
+test("a typed key survives refresh", async () => {
+  const approved = view({ consent: true, hasApiKey: true });
+  const { control, fire } = await setup(
+    view({ consent: true, hasApiKey: true }),
+    () => approved,
+  );
+  control("key").value = "pending-key";
+  fire("refresh");
+  await tick();
+  assert.equal(control("key").value, "pending-key");
+});
+
+test("a typed key survives a failed save", async () => {
+  const { control, fire } = await setup(view(), () => ({ error: "secret" }));
+  control("consent").checked = true;
+  control("key").value = "pending-key";
+  fire("save");
+  await tick();
+  assert.equal(control("key").value, "pending-key");
+});
+
 test("browser permission denial does not persist consent and leaves refresh blocked", async () => {
   const { calls, control, fire } = await setup(
     view(),

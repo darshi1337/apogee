@@ -108,10 +108,14 @@ export async function initRemoteSettings({
     const interrupts =
       action === "remote-settings-save" &&
       (payload.consent === false || payload.apiKey === "");
+    const clearsKey =
+      action === "remote-settings-save" &&
+      (Object.hasOwn(payload, "apiKey") || payload.consent === false);
     if ((panel.busy && !interrupts) || !panel.state) return;
     const epoch = ++panel.epoch;
     if (payload.consent === false) controls(panel).consent.checked = false;
     panel.busy = true;
+    let completed = false;
     render(
       panel,
       action === "remote-models-refresh"
@@ -127,6 +131,7 @@ export async function initRemoteSettings({
       if (panel.epoch !== epoch) return;
       if (response?.error) throw new Error("Remote settings request failed");
       apply(panel, response);
+      completed = true;
     } catch {
       if (panel.epoch !== epoch) return;
       if (action === "remote-models-refresh") {
@@ -154,7 +159,7 @@ export async function initRemoteSettings({
     } finally {
       if (panel.epoch === epoch) {
         panel.busy = false;
-        controls(panel).key.value = "";
+        if (completed && clearsKey) controls(panel).key.value = "";
         render(panel);
       }
     }
