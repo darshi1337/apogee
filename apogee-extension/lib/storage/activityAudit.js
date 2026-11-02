@@ -1,5 +1,6 @@
 import { getSettings } from "./settings.js";
 import { parsePrivateHosts, shouldPersist } from "./pageCache.js";
+import { REMOTE_PROVIDER_IDS } from "../engines/remoteModels.js";
 
 const AUDIT_LOG_KEY = "apogee_activity_audit_log";
 const MAX_AUDIT_ENTRIES = 20;
@@ -65,8 +66,9 @@ export async function getActivityAuditSummary() {
 
   const sponsorBlockActive =
     settings.useSponsorBlock !== false && settings.useSponsorBlock !== "off";
-  const remoteCatalogActive =
-    settings.openrouterConsent === true || settings.opencodeConsent === true;
+  const remoteCatalogActive = REMOTE_PROVIDER_IDS.some(
+    (provider) => settings[`${provider}Consent`] === true,
+  );
   const externalRequestsAllowed = sponsorBlockActive || remoteCatalogActive;
 
   return {

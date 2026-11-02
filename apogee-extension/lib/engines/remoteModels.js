@@ -10,6 +10,8 @@ const PRESETS = Object.freeze({
   }),
 });
 
+export const REMOTE_PROVIDER_IDS = Object.freeze(Object.keys(PRESETS));
+
 export function remotePreset(provider) {
   if (!Object.hasOwn(PRESETS, provider))
     throw new Error("Unknown remote preset.");

@@ -1,6 +1,5 @@
 import { t } from "../lib/util/i18n.js";
-
-const PROVIDERS = ["openrouter", "opencode"];
+import { REMOTE_PROVIDER_IDS } from "../lib/engines/remoteModels.js";
 
 // This preview only configures the worker. It never makes provider requests or
 // adds remote engines to the generation picker. The worker enforces consent.
@@ -15,7 +14,7 @@ export async function initRemoteSettings({
         })
       : Promise.resolve(true),
 } = {}) {
-  const panels = PROVIDERS.map((provider) => ({
+  const panels = REMOTE_PROVIDER_IDS.map((provider) => ({
     provider,
     element: root.querySelector(`[data-remote-provider="${provider}"]`),
     state: null,

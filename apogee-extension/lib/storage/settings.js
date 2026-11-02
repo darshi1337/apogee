@@ -5,6 +5,7 @@ import {
 } from "../constants.js";
 import { validateLlamaHost, validateOllamaHost } from "../util/ollamaHost.js";
 import {
+  REMOTE_PROVIDER_IDS,
   hasRemoteControlCharacters,
   validRemoteModelId,
 } from "../engines/remoteModels.js";
@@ -13,7 +14,7 @@ const PROVIDER_VALUES = new Set(Object.values(PROVIDERS));
 
 function sanitizeSettings(settings) {
   const clean = { ...settings };
-  for (const provider of ["openrouter", "opencode"]) {
+  for (const provider of REMOTE_PROVIDER_IDS) {
     clean[`${provider}Consent`] = clean[`${provider}Consent`] === true;
     const key = clean[`${provider}ApiKey`];
     clean[`${provider}ApiKey`] =

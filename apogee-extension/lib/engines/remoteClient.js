@@ -1,5 +1,6 @@
 import { getSettings } from "../storage/settings.js";
 import {
+  REMOTE_PROVIDER_IDS,
   normalizeRemoteModels,
   remotePreset,
   validRemoteModelId,
@@ -19,7 +20,7 @@ function watchCredentials() {
   events.addListener((changes, area) => {
     if (area !== "local" || !changes.settings) return;
     const { oldValue = {}, newValue = {} } = changes.settings;
-    for (const provider of ["openrouter", "opencode"]) {
+    for (const provider of REMOTE_PROVIDER_IDS) {
       if (
         newValue[`${provider}Consent`] !== true ||
         oldValue[`${provider}ApiKey`] !== newValue[`${provider}ApiKey`]

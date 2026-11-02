@@ -5,12 +5,12 @@ import {
   holdRemoteRequests,
 } from "../engines/remoteClient.js";
 import {
+  REMOTE_PROVIDER_IDS,
   remotePreset,
   validRemoteModelId,
   hasRemoteControlCharacters,
 } from "../engines/remoteModels.js";
 
-const PROVIDER_IDS = ["openrouter", "opencode"];
 export const REMOTE_CATALOG_TTL_MS = 60 * 60 * 1000;
 const revisions = new Map();
 let pendingSave = Promise.resolve();
@@ -62,7 +62,7 @@ function listenForRevocation() {
   events.addListener((changes, area) => {
     if (area !== "local" || !changes.settings) return;
     const { oldValue = {}, newValue = {} } = changes.settings;
-    for (const provider of PROVIDER_IDS) {
+    for (const provider of REMOTE_PROVIDER_IDS) {
       if (
         (oldValue[`${provider}Consent`] === true &&
           newValue[`${provider}Consent`] !== true) ||
@@ -83,7 +83,7 @@ export async function getRemoteSettings() {
   listenForRevocation();
   const settings = await getSettings();
   const providers = {};
-  for (const provider of PROVIDER_IDS) {
+  for (const provider of REMOTE_PROVIDER_IDS) {
     const cache = await readCatalog(provider);
     const consent = settings[`${provider}Consent`] === true;
     const hasApiKey = !!settings[`${provider}ApiKey`];
