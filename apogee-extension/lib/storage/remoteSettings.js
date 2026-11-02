@@ -17,6 +17,25 @@ let pendingSave = Promise.resolve();
 let listenedStorage;
 const refreshes = new Map();
 
+function catalogIsFresh(cache, now = Date.now()) {
+  return Boolean(
+    cache &&
+      !cache.failed &&
+      Number.isFinite(cache.refreshedAt) &&
+      cache.refreshedAt > 0 &&
+      cache.refreshedAt <= now &&
+      now - cache.refreshedAt < REMOTE_CATALOG_TTL_MS,
+  );
+}
+
+function settingsStillMatch(settings, before, provider, revision) {
+  return (
+    revision === (revisions.get(provider) || 0) &&
+    settings[`${provider}Consent`] === true &&
+    settings[`${provider}ApiKey`] === before[`${provider}ApiKey`]
+  );
+}
+
 const catalogKey = (provider) => `remoteCatalog:${provider}`;
 async function readCatalog(provider) {
   const key = catalogKey(provider);
@@ -100,9 +119,7 @@ export async function getRemoteSettings() {
         stale:
           !consent ||
           !hasApiKey ||
-          !cache ||
-          cache.failed ||
-          Date.now() - cache.refreshedAt >= REMOTE_CATALOG_TTL_MS,
+          !catalogIsFresh(cache),
       },
     };
   }
@@ -147,9 +164,7 @@ export async function saveRemoteSettings(payload) {
       if (has("model") && payload.model) {
         const cache = await readCatalog(provider);
         if (
-          !cache ||
-          cache.failed ||
-          Date.now() - cache.refreshedAt >= REMOTE_CATALOG_TTL_MS ||
+          !catalogIsFresh(cache) ||
           !cache.models.some((entry) => entry.id === payload.model)
         )
           throw new Error("Refresh the catalog and select an eligible model.");
@@ -209,31 +224,18 @@ async function refreshCatalog(provider) {
     throw error;
   }
   const after = await getSettings();
-  if (
-    revision !== (revisions.get(provider) || 0) ||
-    !after[`${provider}Consent`] ||
-    before[`${provider}ApiKey`] !== after[`${provider}ApiKey`]
-  )
+  if (!settingsStillMatch(after, before, provider, revision))
     throw new Error("Remote settings changed. Refresh again.");
   await chrome.storage.local.set({
     [catalogKey(provider)]: { models, refreshedAt: Date.now(), failed: false },
   });
   const committed = await getSettings();
-  if (
-    revision !== (revisions.get(provider) || 0) ||
-    !committed[`${provider}Consent`] ||
-    committed[`${provider}ApiKey`] !== before[`${provider}ApiKey`]
-  ) {
+  if (!settingsStillMatch(committed, before, provider, revision)) {
     await chrome.storage.local.remove(catalogKey(provider));
     throw new Error("Remote settings changed. Refresh again.");
   }
   await updateSettings((current) => {
-    if (
-      revision !== (revisions.get(provider) || 0) ||
-      !current[`${provider}Consent`] ||
-      current[`${provider}ApiKey`] !== before[`${provider}ApiKey`]
-    )
-      return {};
+    if (!settingsStillMatch(current, before, provider, revision)) return {};
     return current[`${provider}Model`] &&
       !models.some((entry) => entry.id === current[`${provider}Model`])
       ? { [`${provider}Model`]: "" }
