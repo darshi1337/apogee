@@ -47,6 +47,11 @@ export async function initRemoteSettings({
     );
   }
 
+  function statusKeyFor(state) {
+    if (!state?.catalog?.models?.length) return "remoteModelsEmpty";
+    return state.catalog.stale ? "remoteModelsStale" : "remoteModelsReady";
+  }
+
   function render(panel, statusKey) {
     const c = controls(panel);
     const state = panel.state;
@@ -96,14 +101,7 @@ export async function initRemoteSettings({
       option.selected = model.id === state.model;
       c.model.append(option);
     }
-    render(
-      panel,
-      state.catalog.stale
-        ? "remoteModelsStale"
-        : state.catalog.models.length
-          ? "remoteModelsReady"
-          : "remoteModelsEmpty",
-    );
+    render(panel, statusKeyFor(state));
   }
 
   async function run(panel, action, payload) {

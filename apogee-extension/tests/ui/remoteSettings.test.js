@@ -72,6 +72,13 @@ test("startup reads only local settings and remote providers are absent from the
   );
 });
 
+test("empty catalogs report empty even when the stale flag is set", async () => {
+  const { control } = await setup(
+    view({ catalog: { models: [], stale: true, refreshedAt: null } }),
+  );
+  assert.equal(control("status").textContent, "remoteModelsEmpty");
+});
+
 test("refresh cannot send before persisted provider consent and key", async () => {
   const { calls, fire, control } = await setup();
   control("consent").checked = true;

@@ -122,7 +122,9 @@ export async function getRemoteSettings() {
             ? cache.models.map((model) => ({ ...model }))
             : [],
         refreshedAt: consent && hasApiKey && cache ? cache.refreshedAt : null,
-        stale: !consent || !hasApiKey || !catalogIsFresh(cache),
+        stale:
+          Boolean(cache) &&
+          (!consent || !hasApiKey || !catalogIsFresh(cache)),
       },
     };
   }

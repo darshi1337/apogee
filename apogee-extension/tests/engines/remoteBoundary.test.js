@@ -70,6 +70,15 @@ const authorized = () => ({
 });
 const catalog = () => Response.json({ data: [freeModel()] });
 
+test("fresh remote state has an empty, non-stale catalog", async () => {
+  install({});
+  const view = await getRemoteSettings();
+  assert.equal(view.providers.openrouter.catalog.stale, false);
+  assert.deepEqual(view.providers.openrouter.catalog.models, []);
+  assert.equal(view.providers.opencode.catalog.stale, false);
+  assert.deepEqual(view.providers.opencode.catalog.models, []);
+});
+
 test("remote model normalization enforces free OpenRouter and paid compatible OpenCode catalogs", () => {
   const router = normalizeRemoteModels("openrouter", {
     data: [
