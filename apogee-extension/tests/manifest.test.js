@@ -145,11 +145,12 @@ test("declared network egress matches the documented allow-list (#180)", () => {
   // This test fails closed: adding a new egress host requires updating the
   // docs and this list together, so an undisclosed call like the former
   // api.github.com fetch cannot slip back in.
+  // Bracketed IPv6 literals are not valid CSP host sources and browsers
+  // ignore them with a console warning; loopback stays on IPv4 and localhost.
   const documentedConnectSrc = new Set([
     "'self'",
     "http://127.0.0.1:*",
     "http://localhost:*",
-    "http://[::1]:*",
     "https://huggingface.co",
     "https://*.huggingface.co",
     "https://*.hf.co",
@@ -330,7 +331,6 @@ test("Firefox CSP and data permissions preserve the remote setup boundary", () =
       "'self'",
       "http://127.0.0.1:*",
       "http://localhost:*",
-      "http://[::1]:*",
       "https://huggingface.co",
       "https://*.huggingface.co",
       "https://*.hf.co",
