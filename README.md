@@ -40,7 +40,7 @@ Apogee is the point of an orbit farthest from Earth. The word also means the hig
 
 2. Open a page, video, PDF, or DOCX file, or paste text into the Apogee popup.
 
-3. Pick a summary format and select **Summarize**.
+3. Pick a summary format and select **Summarize**, or select the **Copy text** chip to extract and copy cleaned page text directly without running an AI model.
 
 The first in-browser run downloads the picked model. Cached models run offline after that. For larger models, set up [Ollama](docs/OLLAMA.md) or [llama.cpp](docs/LLAMACPP.md) in Settings.
 
@@ -100,6 +100,8 @@ The table below compares Apogee with common cloud-based AI extensions and the di
 - **Per-Page Focus Keywords**: Enter an optional topic or keyword (up to 200 characters) in the **Focus on... (optional)** field. Find the field below the response format selector in the home view. Use it before you summarize articles, PDFs, DOCX files, or pasted text. It steers emphasis toward specific themes without inventing facts. The input stays hidden on video, discussion (Hacker News, Reddit, Stack Overflow), and multi-tab pages.
 
 - **Multi-Language Translation**: Summarize pages into 32 target languages with the default Helsinki-NLP Opus-MT engine or direct LLM translation.
+
+- **Extract-only "Copy text"**: Click the **Copy text** chip in the popup to extract and copy cleaned page text (including PDFs) straight to your clipboard with no AI inference or model download.
 
 ## Screenshots
 

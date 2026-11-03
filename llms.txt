@@ -1,6 +1,6 @@
 # Apogee
 
-Apogee is an offline-first, private browser extension for Chrome, Edge, and Firefox. It runs LLM inference on-device using WebGPU (WebLLM), WebAssembly (Transformers.js), or local servers over loopback (Ollama, llama.cpp). It summarizes web content, YouTube/Bilibili videos, and PDFs, and answers questions using on-device retrieval.
+Apogee is an offline-first, private browser extension for Chrome, Edge, and Firefox. It runs LLM inference on-device using WebGPU (WebLLM), WebAssembly (Transformers.js), or local servers over loopback (Ollama, llama.cpp). It summarizes web content, YouTube/Bilibili videos, and PDFs, answers questions using on-device retrieval, and provides an extract-only "Copy text" action to copy cleaned page text without running an AI model.
 
 ## Important Files
 
