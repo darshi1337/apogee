@@ -65,6 +65,29 @@ test("worker accepts its own settings tab while retaining content-script restric
   assert.equal(view.providers.openrouter.hasApiKey, true);
 });
 
+test("worker accepts non-remote actions from its own UI page in a tab", async () => {
+  const audit = await new Promise((resolve) => {
+    const result = router(
+      { target: "service-worker", action: "get-activity-audit" },
+      { ...sender, tab: { id: 1 }, url: `${sender.url}?surface=side-panel` },
+      resolve,
+    );
+    assert.equal(result, true);
+  });
+  assert.equal(typeof audit, "object");
+});
+
+test("worker still denies non-remote actions from content scripts", () => {
+  let replies = 0;
+  const result = router(
+    { target: "service-worker", action: "get-activity-audit" },
+    { ...sender, tab: { id: 1 }, url: "https://example.com/" },
+    () => replies++,
+  );
+  assert.equal(result, false);
+  assert.equal(replies, 0);
+});
+
 test("worker returns redacted settings and rejects unknown presets or host/key refresh overrides", async () => {
   let requests = 0;
   globalThis.fetch = async () => {

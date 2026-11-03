@@ -1287,12 +1287,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     "remote-settings-save",
     "remote-models-refresh",
   ]).has(message.action);
-  // Extension tabs have sender.tab too. Authenticate the setup document by
-  // its extension URL rather than confusing it with a webpage content script.
-  const remoteSetupPage =
+  // Extension tabs have sender.tab too. Authenticate Apogee's own UI document
+  // by its extension URL rather than confusing it with a webpage content script.
+  const extensionPage =
     typeof sender.url === "string" &&
     sender.url.split(/[?#]/, 1)[0] === chrome.runtime.getURL("ui/app.html");
-  if (remoteSetupAction && !remoteSetupPage) return false;
+  if (remoteSetupAction && !extensionPage) return false;
 
   const ALLOWED_CONTENT_SCRIPT_ACTIONS = new Set([
     "sponsorblock-segments",
@@ -1301,7 +1301,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   ]);
   if (
     sender.tab &&
-    !(remoteSetupAction && remoteSetupPage) &&
+    !extensionPage &&
     (!message.action || !ALLOWED_CONTENT_SCRIPT_ACTIONS.has(message.action))
   ) {
     return false;
