@@ -91,6 +91,10 @@ Read this first:
 | Unknown error during streaming | The stream reported a failure with no detail tied to it. | Turn on debug logs in Settings. Reproduce the failure. Then use Copy diagnostics. The raw cause is often in the log. |
 | Something went wrong summarizing this page. (notification, titled "Summarize failed") | This is fallback text for the desktop note. It appears when a context-menu or keyboard-shortcut job failed without a usable message. | Open the popup. Summarize again there. The popup shows the exact error. |
 
+## Remote provider setup
+
+Remote-provider setup in Stage A refreshes model metadata only. It cannot generate summaries or Ask answers. If refresh fails, check setup consent and the selected provider key. On Firefox, allow the optional authentication-data permission before transmitting credentials. Authentication failures require checking the key with the provider; rate limits require waiting before another explicit refresh. OpenCode Console / Go catalog access may require credits or Go. An empty OpenRouter free list means no returned model has all advertised prices explicitly zero. A failed refresh never falls back to another remote provider. Do not paste API keys into bug reports or logs.
+
 ## Settings, cache, and diagnostics
 
 | Error message | Meaning | What to do |

@@ -145,11 +145,12 @@ test("declared network egress matches the documented allow-list (#180)", () => {
   // This test fails closed: adding a new egress host requires updating the
   // docs and this list together, so an undisclosed call like the former
   // api.github.com fetch cannot slip back in.
+  // Bracketed IPv6 literals are not valid CSP host sources and browsers
+  // ignore them with a console warning; loopback stays on IPv4 and localhost.
   const documentedConnectSrc = new Set([
     "'self'",
     "http://127.0.0.1:*",
     "http://localhost:*",
-    "http://[::1]:*",
     "https://huggingface.co",
     "https://*.huggingface.co",
     "https://*.hf.co",
@@ -157,6 +158,8 @@ test("declared network egress matches the documented allow-list (#180)", () => {
     "https://api.bilibili.com",
     "https://*.hdslb.com",
     "https://public.api.bsky.app",
+    "https://openrouter.ai",
+    "https://opencode.ai",
   ]);
 
   const csp = manifest.content_security_policy?.extension_pages || "";
@@ -310,5 +313,39 @@ test("every extractor fetch host is declared or same-origin-documented (#205)", 
     privacyText,
     /Reddit Thread JSON/,
     "PRIVACY.md must document the reddit same-origin thread fetch",
+  );
+});
+
+test("Firefox CSP and data permissions preserve the remote setup boundary", () => {
+  const source = readFileSync(resolve(manifestDir, "vite.config.js"), "utf8");
+  const firefoxCsp = source.match(/extension_pages:\s*"([^"]+)"/);
+  assert.ok(firefoxCsp, "Firefox override must declare extension_pages CSP");
+  const connect = firefoxCsp[1]
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith("connect-src "));
+  assert.ok(connect, "Firefox CSP must declare connect-src");
+  assert.deepStrictEqual(
+    new Set(connect.replace(/^connect-src\s+/, "").split(/\s+/)),
+    new Set([
+      "'self'",
+      "http://127.0.0.1:*",
+      "http://localhost:*",
+      "https://huggingface.co",
+      "https://*.huggingface.co",
+      "https://*.hf.co",
+      "https://sponsor.ajay.app",
+      "https://api.bilibili.com",
+      "https://*.hdslb.com",
+      "https://public.api.bsky.app",
+      "https://openrouter.ai",
+      "https://opencode.ai",
+    ]),
+    "Firefox connect-src must exactly match its documented egress allow-list",
+  );
+  assert.deepStrictEqual(
+    manifest.browser_specific_settings.gecko.data_collection_permissions,
+    { required: ["none"], optional: ["authenticationInfo"] },
+    "Remote catalog setup may optionally transmit credentials, never website content",
   );
 });

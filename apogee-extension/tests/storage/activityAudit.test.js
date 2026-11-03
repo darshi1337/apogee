@@ -87,6 +87,49 @@ test("getActivityAuditSummary reports SponsorBlock active by default", async () 
   assert.equal(summary.networkEgress.zeroEgress, false);
 });
 
+for (const provider of ["openrouter", "opencode"]) {
+  test(`audit identifies ${provider} catalog access without claiming remote inference`, async () => {
+    storageMap.clear();
+    await chrome.storage.local.set({
+      settings: {
+        useSponsorBlock: false,
+        [`${provider}Consent`]: true,
+        [`${provider}ApiKey`]: "secret",
+      },
+    });
+    const { networkEgress } = await getActivityAuditSummary();
+    assert.equal(networkEgress.zeroEgress, false);
+    assert.equal(networkEgress.remoteCatalogActive, true);
+    assert.equal(
+      networkEgress.statusMessage,
+      "Local inference + remote model catalog",
+    );
+  });
+}
+
+test("audit does not claim catalog access when consent has no key", async () => {
+  storageMap.clear();
+  await chrome.storage.local.set({
+    settings: { useSponsorBlock: false, openrouterConsent: true },
+  });
+  const { networkEgress } = await getActivityAuditSummary();
+  assert.equal(networkEgress.zeroEgress, true);
+  assert.equal(networkEgress.remoteCatalogActive, false);
+  assert.equal(networkEgress.statusMessage, "100% local");
+});
+
+test("audit includes both optional catalog and SponsorBlock access", async () => {
+  storageMap.clear();
+  await chrome.storage.local.set({
+    settings: { openrouterConsent: true, openrouterApiKey: "secret" },
+  });
+  const { networkEgress } = await getActivityAuditSummary();
+  assert.equal(
+    networkEgress.statusMessage,
+    "Local inference + remote model catalog + SponsorBlock API",
+  );
+});
+
 test("recordPageAccessEvent skips sensitive pages even with history on (#181)", async () => {
   storageMap.clear();
   await recordPageAccessEvent({

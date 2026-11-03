@@ -106,7 +106,7 @@ Use `security:` for security fixes rather than `fix(security):` so they land in 
 
 ## Privacy is the point
 
-The core promise of Apogee: page content and generated summaries and answers never leave your device. Exceptions: your own local Ollama or llama.cpp server over loopback, plus the documented fetches in `PRIVACY.md`. If a change would add a new outbound network call, say so clearly in the PR text.
+The core promise of Apogee: page content and generated summaries and answers never leave your device. Local Ollama and llama.cpp use loopback. Stage A remote-provider setup can send credentials and connection metadata to the matching provider only after opt-in for catalog refresh; remote summary and Ask generation remain disabled pending maintainer security review. Other documented fetches appear in `PRIVACY.md`. If a change would add a new outbound network call, say so clearly in the PR text.
 
 Four places state permissions and network use, and they must match. A claim that lives in one and not the others is exactly what store reviewers catch:
 

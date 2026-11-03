@@ -63,11 +63,11 @@ This document shows what we work on now, what we plan soon, and our long-term pl
 
 ## Things We Will Not Do
 
-- **Cloud Servers**: Apogee will never send, store, or process text from websites on remote servers.
+- **Cloud Servers**: Apogee will never send, store, or process page text or generated summaries on remote servers. Optional Stage A remote-provider setup sends only catalog metadata and your provider credential to the matching provider origin.
 
 - **Tracking Users**: We will not track you or use special tools to collect data about your browsing habits.
 
-- **API Keys**: You need no keys to use Apogee. It works directly in your browser.
+- **API Keys**: Local generation needs no key. Optional remote-provider catalog setup uses your own provider key.
 
 ## How to Help
 
