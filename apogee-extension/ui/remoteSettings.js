@@ -152,7 +152,7 @@ export async function initRemoteSettings({
           panel,
           panel.state?.catalog?.models?.length
             ? "remoteModelsRefreshError"
-            : "remoteSettingsError",
+            : "remoteModelsRefreshEmpty",
         );
       } else {
         // Do not echo backend errors: a credential might be included in one.

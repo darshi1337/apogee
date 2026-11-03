@@ -538,5 +538,9 @@
   "remoteModelsRefreshError": {
     "message": "Refresh failed. The saved model list may be stale.",
     "description": "Remote catalog refresh error with retained last good models"
+  },
+  "remoteModelsRefreshEmpty": {
+    "message": "Refresh failed. No models were loaded. Check your API key and try again.",
+    "description": "Remote catalog refresh error with no cached models"
   }
 }

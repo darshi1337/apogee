@@ -261,7 +261,7 @@ test("loading is announced, duplicate refresh is blocked, errors do not expose b
   finish({ error: "secret-key" });
   await tick();
   assert.equal(panel().getAttribute("aria-busy"), "false");
-  assert.equal(control("status").textContent, "remoteSettingsError");
+  assert.equal(control("status").textContent, "remoteModelsRefreshEmpty");
   assert.doesNotMatch(panel().textContent, /secret-key/);
 });
 
