@@ -18,6 +18,9 @@ This document shows what we work on now, what we plan soon, and our long-term pl
 
 - **Use Local Documents**:
   - Load PDFs, Word documents (DOCX), text files (TXT), Markdown files, JSON files, or HTML files directly into Apogee. You can also copy and paste text from anywhere. (#5, #6, #97)
+  
+- **Extract Text Without Model Calls**:
+  - Extract and copy clean page text (including PDFs) directly to your clipboard using the "Copy text" chip without running an AI model. (#414, #449)
 
 - **Adding More Places to Get Information**:
   - We add extractors for more websites such as GitLab and Dev.to.
