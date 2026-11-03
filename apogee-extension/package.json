@@ -24,12 +24,12 @@
   },
   "dependencies": {
     "@huggingface/transformers": "4.3.2",
-    "@mlc-ai/web-llm": "0.2.86",
+    "@mlc-ai/web-llm": "0.2.87",
     "pdfjs-dist": "^6.4.299"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "addons-linter": "^10.14.0",
+    "addons-linter": "^10.15.0",
     "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.13.0",
