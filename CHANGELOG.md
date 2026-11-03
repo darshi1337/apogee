@@ -345,6 +345,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Add shared remote client and opt-in setup (stage A) (#606) ([bde073d](https://github.com/darshi1337/apogee/commit/bde073da029f68ff97ea81eb2fef64133b6169f4))
+
 ### Fixed
 
 - Past-summary cards no longer put buttons inside a button (#550) (#588) ([1962a69](https://github.com/darshi1337/apogee/commit/1962a69efc1696327184ef3935f2ded8ecb6f28f))
