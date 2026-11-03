@@ -85,8 +85,12 @@ function bundleModelLibsPlugin(targetBrowser) {
   };
 }
 
-export default defineConfig(() => {
-  const targetBrowser = process.env.TARGET_BROWSER || "chrome";
+export default defineConfig(({ mode }) => {
+  // Vite modes keep the build portable on Windows, where inline
+  // `TARGET_BROWSER=chrome` environment prefixes do not run in cmd or
+  // PowerShell. `vite build` defaults to `production`, so treat anything
+  // other than an explicit Firefox mode as Chrome.
+  const targetBrowser = mode === "firefox" ? "firefox" : "chrome";
   const isFirefox = targetBrowser === "firefox";
 
   const input = {

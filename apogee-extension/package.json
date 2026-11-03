@@ -10,8 +10,8 @@
   "scripts": {
     "build:watch": "vite build --watch",
     "fetch:model-libs": "node scripts/model-libs.mjs",
-    "build:chrome": "TARGET_BROWSER=chrome vite build",
-    "build:firefox": "TARGET_BROWSER=firefox vite build",
+    "build:chrome": "vite build --mode chrome",
+    "build:firefox": "vite build --mode firefox",
     "build": "npm run build:chrome && npm run build:firefox",
     "test": "node --test --experimental-test-coverage",
     "lint": "eslint .",
