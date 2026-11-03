@@ -531,6 +531,10 @@
     "message": "Could not save remote settings. Check your settings and try again.",
     "description": "Remote provider setup"
   },
+  "remoteSettingsLoadError": {
+    "message": "Could not load remote settings. Reload the page and try again.",
+    "description": "Remote provider setup"
+  },
   "remotePermissionDenied": {
     "message": "Browser permission denied. Consent was not saved.",
     "description": "Remote provider setup permission denial"

@@ -245,7 +245,7 @@ export async function initRemoteSettings({
   } catch {
     for (const panel of panels) {
       panel.state = null;
-      render(panel, "remoteSettingsError");
+      render(panel, "remoteSettingsLoadError");
     }
   }
 }

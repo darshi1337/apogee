@@ -280,7 +280,7 @@ test("invalid startup response fails closed", async () => {
   const { calls, control, fire } = await setup({ error: "unavailable" });
   assert.equal(control("save").disabled, true);
   assert.equal(control("refresh").disabled, true);
-  assert.equal(control("status").textContent, "remoteSettingsError");
+  assert.equal(control("status").textContent, "remoteSettingsLoadError");
   fire("save");
   fire("refresh");
   await tick();
