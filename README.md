@@ -4,7 +4,7 @@
 
 # Apogee
 
-A private AI summarizer in your browser for articles, videos, PDFs, DOCX files, and pasted text. It runs on WebGPU, WebAssembly, or your own local Ollama or llama.cpp server.
+A local-by-default AI summarizer in your browser for articles, videos, PDFs, DOCX files, and pasted text. It runs on WebGPU, WebAssembly, or your own local Ollama or llama.cpp server, with separately authorized remote generation available.
 
 <a href="https://chromewebstore.google.com/detail/apogee/pgemlpomhkdcjjjcpnjlebalnfglomog"><img alt="Available in Chrome Web Store" src=".github/assets/chrome-web-store.png" width="206" height="58"></a> &nbsp; <a href="https://addons.mozilla.org/en-US/firefox/addon/apogeeext/"><img alt="Get Add-on for Firefox" src=".github/assets/firefox-add-on.svg" width="152" height="53"></a>
 
@@ -20,13 +20,13 @@ A private AI summarizer in your browser for articles, videos, PDFs, DOCX files, 
 
 > **For AI Assistants and LLMs**: Read [llms.txt](llms.txt) for codebase structure, build scripts, test commands, and developer instructions.
 
-Apogee is an AI browser assistant for articles, videos, emails, and more. It runs fully in your browser. It uses your GPU with WebGPU (Chrome, Edge, and other Chromium browsers). It uses your CPU with WebAssembly, which now works everywhere.
+Apogee is an AI browser assistant for articles, videos, emails, and more. In-browser generation uses your GPU with WebGPU (Chrome, Edge, and other Chromium browsers) or your CPU with WebAssembly, which now works everywhere.
 
-WebAssembly is the default on Firefox and an opt-in fallback on Chromium browsers. It helps on machines without WebGPU. Local generation needs no backend, API key, or cloud account. Optional remote-provider setup previews are described below.
+WebAssembly is the default on Firefox and an opt-in fallback on Chromium browsers. It helps on machines without WebGPU. Local generation needs no backend, API key, or cloud account. Optional remote generation is described below.
 
 For power users, Apogee also talks straight to a local Ollama instance over `127.0.0.1`. It also talks to a `llama-server` you run yourself.
 
-> Apogee summarizes pages, videos, PDFs, DOCX files, and pasted text locally. Local generation needs no account or API key. Optional remote-provider setup currently supports catalog previews only.
+> Apogee summarizes pages, videos, PDFs, DOCX files, and pasted text locally by default. Local generation needs no account or API key. Explicitly selected OpenRouter or OpenCode generation sends your input to that provider after separate consent.
 
 ⭐ If Apogee helps you, [star the repository](https://github.com/darshi1337/apogee). It helps the project reach more contributors.
 
@@ -56,7 +56,7 @@ Apogee fixes the design and privacy problems of Orbit by staying local-first:
 
 - **Local by default**: Tokenization, inference, retrieval, and caching happen on your device.
 
-- **Private by design**: Page content, transcripts, files, and summaries stay on your device for local generation. Optional remote-provider setup is limited to catalog previews in this release.
+- **Private by design**: Page content, transcripts, files, and summaries stay on your device for local generation. Optional remote generation requires separate consent and an explicit foreground Summary or Ask action.
 
 - **No account needed for local generation**: Optional remote-provider setup uses your own provider key. Apogee has no telemetry service or backend.
 
@@ -69,7 +69,7 @@ The table below compares Apogee with common cloud-based AI extensions and the di
 | Local On-Device Inference | Yes (WebGPU, WASM, Ollama, llama.cpp) | No (Needs cloud APIs) | No (Used remote Mistral 7B servers) |
 | Zero API Key Requirement | Yes for local generation; optional remote setup uses your key | No (Needs API keys or paid tiers) | Yes |
 | Offline Functionality | Yes (Works offline after initial weight cache) | No (Needs active internet connection) | No (Failed without server connection) |
-| Zero Data Transmission | Page content stays local; documented metadata requests can leave the device | No (Uploads full webpage text) | No (Caches page summaries remotely) |
+| Zero Data Transmission | Local generation keeps content local; opt-in remote generation sends input to your provider | No (Uploads full webpage text) | No (Caches page summaries remotely) |
 | Open Source License | Yes (MIT License) | Varies | Yes |
 | Local Ollama Integration | Yes (Direct loopback HTTP connection) | Rare | No |
 | Local llama.cpp Integration | Yes (Direct loopback HTTP connection to `llama-server`) | Rare | No |
@@ -126,9 +126,9 @@ The table below compares Apogee with common cloud-based AI extensions and the di
 
 ## Privacy
 
-- **Zero Data Leaks**: Apogee handles page contents, transcripts, PDFs, and summaries locally. In this release, nothing uploads to cloud APIs; the optional remote-provider preview sends only a provider key and connection metadata to refresh model catalogs.
+- **Local by default**: Local generation handles page contents, transcripts, PDFs, and summaries on your device. Remote generation sends page, selected, pasted, or extracted file text, title and URL when present, your question, and custom instructions to the provider you explicitly select.
 
-- **Remote-provider setup preview (Stage A)**: OpenRouter and OpenCode Console / Go are opt-in catalog previews in Settings. Refresh contacts `https://openrouter.ai/api/v1/models` or `https://opencode.ai/inference/v1/models`; a provider key goes only to its own origin. OpenRouter free presets require all advertised prices to be zero; OpenCode Console / Go uses credits or Go; this preset lists paid models only, and OpenCode also offers free models outside this preset. Remote summary and Ask generation remain disabled pending maintainer security review. There is no automatic remote selection or fallback.
+- **Optional remote generation (B1)**: Catalog refresh and generation have separate consent controls in Settings. Catalogs use `https://openrouter.ai/api/v1/models` and `https://opencode.ai/inference/v1/models`; chat uses `https://openrouter.ai/api/v1/chat/completions` and `https://opencode.ai/inference/openai/v1/chat/completions`. Credentials go only to the matching fixed origin. OpenRouter requires fresh, explicitly zero advertised prices and disables provider fallback (`allow_fallbacks: false`). OpenCode Console / Go uses paid credits/Go models; the client excludes free models from this preset. Remote generation is available only for explicit foreground Summary and Ask. Background/context-menu runs, multi-tab synthesis, and automatic suggestions are disabled for remote providers. Remote providers never enter automatic selection or fallback. Long inputs and language handling may make multiple requests. Revocation stops future transmissions but cannot recall data already sent; provider and upstream model policies apply. See [PRIVACY.md](PRIVACY.md).
 
 - **Local Loopback**: Ollama and llama.cpp connections run strictly over local loopback (`http://127.0.0.1`). Apogee refuses any other host.
 

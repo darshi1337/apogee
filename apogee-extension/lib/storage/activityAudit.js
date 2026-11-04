@@ -1,4 +1,5 @@
 import { getSettings } from "./settings.js";
+import { getRemoteSettings } from "./remoteSettings.js";
 import { parsePrivateHosts, shouldPersist } from "./pageCache.js";
 import { REMOTE_PROVIDER_IDS } from "../engines/remoteModels.js";
 
@@ -44,6 +45,7 @@ export async function getPageAccessLog() {
 
 export async function getActivityAuditSummary() {
   const settings = await getSettings();
+  const { providers } = await getRemoteSettings();
   const logs = await getPageAccessLog();
 
   let storageCount = 0;
@@ -68,10 +70,16 @@ export async function getActivityAuditSummary() {
     settings.useSponsorBlock !== false && settings.useSponsorBlock !== "off";
   const remoteCatalogActive = REMOTE_PROVIDER_IDS.some(
     (provider) =>
-      settings[`${provider}Consent`] === true &&
-      Boolean(settings[`${provider}ApiKey`]),
+      providers[provider]?.consent === true && providers[provider]?.hasApiKey,
   );
-  const externalRequestsAllowed = sponsorBlockActive || remoteCatalogActive;
+  const remoteGenerationActive = REMOTE_PROVIDER_IDS.some(
+    (provider) =>
+      providers[provider]?.consent === true &&
+      providers[provider]?.generationConsent === true &&
+      providers[provider]?.hasApiKey,
+  );
+  const externalRequestsAllowed =
+    sponsorBlockActive || remoteCatalogActive || remoteGenerationActive;
 
   return {
     pageAccessCount: logs.length,
@@ -80,11 +88,14 @@ export async function getActivityAuditSummary() {
       zeroEgress: !externalRequestsAllowed,
       sponsorBlockActive,
       remoteCatalogActive,
-      statusMessage: remoteCatalogActive
-        ? `Local inference + remote model catalog${sponsorBlockActive ? " + SponsorBlock API" : ""}`
-        : !externalRequestsAllowed
-          ? "100% local"
-          : "Local + SponsorBlock API",
+      remoteGenerationActive,
+      statusMessage: remoteGenerationActive
+        ? `Opt-in remote generation + remote model catalog${sponsorBlockActive ? " + SponsorBlock API" : ""}`
+        : remoteCatalogActive
+          ? `Local inference + remote model catalog${sponsorBlockActive ? " + SponsorBlock API" : ""}`
+          : !externalRequestsAllowed
+            ? "100% local"
+            : "Local + SponsorBlock API",
     },
     storageRetention: {
       saveHistory: settings.saveHistory !== false,

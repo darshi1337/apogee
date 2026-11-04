@@ -1,14 +1,14 @@
 # Apogee Architecture
 
-Apogee is an offline-first browser extension built for full data privacy. All text analysis, summarization, and question answering runs on your own machine. It uses in-browser AI engines or a local Ollama server.
+Apogee is an offline-first browser extension. Local generation uses in-browser AI engines or a loopback Ollama/llama.cpp server. Explicitly selected remote generation sends input to the selected provider after separate consent.
 
-## Remote-provider setup boundary (Stage A)
+## Remote-provider generation boundary (B1)
 
-The shared remote client and Settings support explicit consent, local provider-key storage, and model-catalog refresh only. These requests target `https://openrouter.ai/api/v1/models` and `https://opencode.ai/inference/v1/models`. A key may be sent only to its matching provider origin. Firefox additionally gates credential transmission on the optional `authenticationInfo` data permission. No prompt, page text, summary, or Ask question reaches these endpoints.
+Catalog and generation have separate consent controls. Catalog requests target `https://openrouter.ai/api/v1/models` and `https://opencode.ai/inference/v1/models`. Foreground Summary and Ask requests target `https://openrouter.ai/api/v1/chat/completions` and `https://opencode.ai/inference/openai/v1/chat/completions`. Only the worker credential helper reads saved keys; public settings and diagnostics are redacted. Credentials go only to their matching fixed provider origin. Firefox requires optional `authenticationInfo`, `websiteContent`, `browsingActivity`, and `personalCommunications` data permissions, requested from the generation consent gesture.
 
-OpenRouter uses the `https://openrouter.ai/api/v1` base. OpenCode Console / Go uses `https://opencode.ai/inference/openai/v1` for future chat and its separate catalog path above. OpenRouter free presets filter for explicitly zero advertised prices; OpenCode Console / Go is credits/Go access; this preset lists paid models only, and OpenCode also offers free models outside this preset. Both exact origins are allowed by the source and Firefox CSP; existing all-sites host access already covers them. Local inference, loopback validation, and the local fallback chain retain their boundaries. Remote inference is disabled pending maintainer security review, with no automatic remote selection or fallback.
+The worker pins nonsecret execution settings and validates consent, permission, selected model, and revision before sending each request. Requests can contain page/selected/pasted/extracted uploaded text, title and URL, questions, instructions, and intermediate generated text. Map/reduce and language handling may require multiple requests. Revocation aborts requests and blocks future transmissions, but cannot recall data already sent; provider and upstream model policies apply. OpenRouter requires fresh free-only catalog eligibility and sets `allow_fallbacks: false`. OpenCode Console / Go uses paid credits/Go models; this client preset excludes free models. Both fixed origins are in the source and Firefox CSP and covered by existing all-sites host access. Remote providers never enter automatic selection or fallback. B1 rejects remote background/context-menu runs, multi-tab synthesis, and automatic suggestions with a safe explanation.
 
-The Activity & Privacy Audit badge describes inference and enabled network features, not a measured traffic log. With remote setup enabled it reads **Local inference + remote model catalog**, with SponsorBlock appended when enabled. Catalog refreshes use the network, but no remote prompt inference takes place.
+The Activity & Privacy Audit badge describes enabled network features, not a measured traffic log. Catalog consent plus a saved key reads **Local inference + remote model catalog**; separate generation consent adds **Opt-in remote generation + remote model catalog**. SponsorBlock is appended when enabled. The audit uses redacted `getRemoteSettings()` capability state and reports catalog and generation separately.
 
 ## Overview
 
@@ -30,7 +30,7 @@ On Firefox, which has no WebGPU offscreen support, it defaults to Transformers.j
 
 Settings on Chrome and Edge also offers Transformers.js as an opt-in choice. It suits machines without WebGPU or users wanting a lighter option.
 
-The first use downloads the model weights (about 270 MB to 2.2 GB based on the model). It caches them locally. After that, all runs work offline.
+The first use of an in-browser engine downloads the model weights (about 270 MB to 2.2 GB based on the model). It caches them locally. After that, local runs work offline. Remote generation requires a network connection.
 
 Prefer larger models, or already run `llama.cpp` yourself? Switch to Local llama.cpp mode and the extension talks to your own `llama-server` over 127.0.0.1. It reads the context window the server reports instead of guessing one from the model name. See the [Local llama.cpp Guide](LLAMACPP.md).
 
@@ -97,6 +97,7 @@ flowchart TD
 
     HF["Hugging Face<br/>model weights on first run"]
     APIS["SponsorBlock, Bilibili API, Bluesky API<br/>optional segment, subtitle, and thread lookups"]
+    REMOTE["OpenRouter / OpenCode<br/>separate catalog and generation consent"]
 
     POPUP <==>|"inject extractors and read page"| EX
     POPUP -->|"highlight source passage"| HL
@@ -109,11 +110,12 @@ flowchart TD
 
     host -.->|"download once and cache locally"| HF
     ROUTER -.->|"video pages only"| APIS
+    ROUTER <-->|"explicit foreground remote Summary / Ask"| REMOTE
 
     classDef local fill:#e6f4ea,stroke:#1e7e34,color:#12351f
     classDef remote fill:#fff4e0,stroke:#c2680a,color:#4a2905
     class EX,HL,POPUP,ROUTER,STORE,WEBLLM,TJS,EMB,OLLAMA,LLAMACPP local
-    class HF,APIS remote
+    class HF,APIS,REMOTE remote
     style device fill:#f7fdf9,stroke:#1e7e34,stroke-width:2px,stroke-dasharray:6 4,color:#12351f
 ```
 
@@ -195,7 +197,7 @@ When you click a summary bullet in Chromium browsers, Apogee highlights the exac
 
 - **Loopback Origin Handling**: The extension strips the `Origin` header from its own loopback requests (`localhost`/`127.0.0.1`/`[::1]`, Ollama and llama.cpp). Local servers accept them with no extra setup. Where session-scoped rules exist, the extension sets this at runtime for non-tab requests only. Site pages keep their `Origin` headers. The bundled static `rules/ollama-cors.json` stays as a fallback.
 
-- **SponsorBlock Gating**: The SponsorBlock segment lookup runs only when `useSponsorBlock` is on and the browser grants the optional host permission. With "Stay fully local" on, no lookup request goes out. A local phrase heuristic strips sponsor reads instead.
+- **SponsorBlock Gating**: The SponsorBlock segment lookup runs only when `useSponsorBlock` is on and the browser grants the optional host permission. Selecting "Disable SponsorBlock requests" stops this lookup; remote-provider consent is controlled separately. A local phrase heuristic strips sponsor reads instead.
 
 - **Global Scope Isolation**: Content scripts run cleanly inside isolated JavaScript worlds. They leak no refs onto DOM global scope objects (`window.__apogeeHighlight` and `window.extractPageContent` removed).
 
@@ -205,7 +207,7 @@ When you click a summary bullet in Chromium browsers, Apogee highlights the exac
 
 - **Local File Parsing**: Extension code parses PDF and DOCX files picked or dropped into the popup. It checks DOCX ZIP entries for valid structure. It rejects encrypted archives.
 
-  No document bytes go to a remote service. Picked files cap at 50 MB. Pasted, selected, and plain-text input caps at 100,000 characters, with a truncation note.
+  Original document bytes stay local. Extracted text can reach a remote provider after generation consent and an explicit foreground action. Picked files cap at 50 MB. Pasted, selected, and plain-text input caps at 100,000 characters, with a truncation note.
 
 - **Memory Limits & Out-Of-Memory (OOM) Resilience**: In-browser models catch WebGPU buffer allocation failures and WASM memory limits on their own. They call `resetEngineState` and fall back to bounded `chunkTextOverview` sampling. Runs stay stable under tight memory.
 

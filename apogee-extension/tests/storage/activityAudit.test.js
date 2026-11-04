@@ -105,7 +105,64 @@ for (const provider of ["openrouter", "opencode"]) {
       "Local inference + remote model catalog",
     );
   });
+
+  test(`audit distinguishes ${provider} generation consent from catalog access`, async () => {
+    storageMap.clear();
+    await chrome.storage.local.set({
+      settings: {
+        useSponsorBlock: false,
+        [`${provider}Consent`]: true,
+        [`${provider}GenerationConsent`]: true,
+        [`${provider}ApiKey`]: "private-key",
+      },
+    });
+    const summary = await getActivityAuditSummary();
+    assert.equal(summary.networkEgress.remoteCatalogActive, true);
+    assert.equal(summary.networkEgress.remoteGenerationActive, true);
+    assert.equal(summary.networkEgress.zeroEgress, false);
+    assert.equal(
+      summary.networkEgress.statusMessage,
+      "Opt-in remote generation + remote model catalog",
+    );
+    assert.equal(JSON.stringify(summary).includes("private-key"), false);
+  });
 }
+
+test("generation consent without catalog consent or a key stays inactive", async () => {
+  for (const credentials of [
+    { openrouterConsent: false, openrouterApiKey: "secret" },
+    { openrouterConsent: true, openrouterApiKey: "" },
+  ]) {
+    storageMap.clear();
+    await chrome.storage.local.set({
+      settings: {
+        ...credentials,
+        openrouterGenerationConsent: true,
+        useSponsorBlock: false,
+      },
+    });
+    const { networkEgress } = await getActivityAuditSummary();
+    assert.equal(networkEgress.remoteGenerationActive, false);
+    assert.equal(networkEgress.remoteCatalogActive, false);
+    assert.equal(networkEgress.statusMessage, "100% local");
+  }
+});
+
+test("generation capability label includes SponsorBlock independently", async () => {
+  storageMap.clear();
+  await chrome.storage.local.set({
+    settings: {
+      openrouterConsent: true,
+      openrouterGenerationConsent: true,
+      openrouterApiKey: "secret",
+    },
+  });
+  const { networkEgress } = await getActivityAuditSummary();
+  assert.equal(
+    networkEgress.statusMessage,
+    "Opt-in remote generation + remote model catalog + SponsorBlock API",
+  );
+});
 
 test("audit does not claim catalog access when consent has no key", async () => {
   storageMap.clear();
