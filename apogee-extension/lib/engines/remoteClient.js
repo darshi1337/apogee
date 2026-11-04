@@ -8,7 +8,7 @@ import {
 
 const active = new Map();
 const holds = new Map();
-export const REMOTE_REQUEST_TIMEOUT_MS = 30000;
+const REMOTE_REQUEST_TIMEOUT_MS = 30000;
 export const REMOTE_RESPONSE_MAX_BYTES = 4 * 1024 * 1024;
 const MAX_EVENT_CHARS = 65536;
 let watchedCredentials = false;
