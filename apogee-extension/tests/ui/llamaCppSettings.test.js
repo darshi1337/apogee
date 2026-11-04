@@ -30,7 +30,7 @@ test("app.html offers llama.cpp in the provider list", () => {
 
 test("app.html carries the llama.cpp settings fields", () => {
   const { document } = parseHTML(popupHtml);
-    for (const id of [
+  for (const id of [
     "llamaSettingsCard",
     "llamaModelsCard",
     "llamaHostInput",
@@ -147,8 +147,5 @@ test("the multi-model router select starts hidden in app.html", () => {
 test("app.js binds router-mode model selection and saves changes", () => {
   assert.match(popupJs, /llamaModelSelectRow/);
   assert.match(popupJs, /llamaModelSelect/);
-  assert.match(
-    popupJs,
-    /llamaModelSelect\?\.addEventListener\("change"/
-  );
+  assert.match(popupJs, /llamaModelSelect\?\.addEventListener\("change"/);
 });

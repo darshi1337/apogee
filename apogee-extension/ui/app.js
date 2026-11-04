@@ -732,7 +732,8 @@ async function applySettingsToUI(settings) {
   if (llamaHostInput) llamaHostInput.value = settings.llamaHost;
   if (llamaApiKeyInput) llamaApiKeyInput.value = settings.llamaApiKey || "";
   if (llamaModelInput) llamaModelInput.value = settings.llamaModel || "";
-  if (llamaModelSelect && settings.llamaModel) llamaModelSelect.value = settings.llamaModel;
+  if (llamaModelSelect && settings.llamaModel)
+    llamaModelSelect.value = settings.llamaModel;
 
   const fmtRadio = document.querySelector(
     `input[name="format"][value="${settings.responseFormat}"]`,
