@@ -6,7 +6,7 @@ import { WEBLLM_MODELS } from "../lib/constants.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-export const MODEL_LIB_CACHE_DIR = resolve(ROOT, ".model-libs-cache");
+const MODEL_LIB_CACHE_DIR = resolve(ROOT, ".model-libs-cache");
 
 const MODEL_LIB_URL_PREFIX =
   "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/web-llm-models/v0_2_87/base/";

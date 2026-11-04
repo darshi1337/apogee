@@ -27,7 +27,6 @@ const TEXT_ATTRS = [
   ["data-i18n-title", "title"],
   ["data-i18n-placeholder", "placeholder"],
   ["data-i18n-alt", "alt"],
-  ["data-i18n-content", "textContent"],
 ];
 
 export function applyI18nToDom(root = globalThis.document) {

@@ -6,7 +6,6 @@ credentials
 endpoints
 invalidation
 metadata
-revalidation
 separately
 revocation
 stale
@@ -42,7 +41,6 @@ Lanczos
 lemmy
 Lemmy
 libvips
-lifecycles
 linkedom
 macrotask
 llamacpp
