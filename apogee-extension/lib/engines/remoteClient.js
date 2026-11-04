@@ -2,6 +2,7 @@ import { getRemoteCredentialsSettings } from "../storage/settings.js";
 import {
   hasRemoteGenerationPermissions,
   onRemoteCredentialChange,
+  onRemoteGenerationChange,
 } from "./remoteCredentials.js";
 import {
   normalizeRemoteModels,
@@ -20,6 +21,7 @@ function watchCredentials() {
   if (watchedCredentials) return;
   watchedCredentials = true;
   onRemoteCredentialChange((provider) => abortRemoteRequests(provider));
+  onRemoteGenerationChange((provider) => abortRemoteRequests(provider));
 }
 
 export function abortRemoteRequests(provider) {

@@ -23,12 +23,13 @@ const dispatch = (action, payload) =>
     router({ target: "service-worker", action, payload }, sender, resolve),
   );
 
-test("worker denies remote settings and catalog actions from content scripts and foreign extensions", () => {
+test("worker denies remote setup and generation actions from content scripts and foreign extensions", () => {
   let replies = 0;
   for (const action of [
     "remote-settings-get",
     "remote-settings-save",
     "remote-models-refresh",
+    "remote-stream",
   ]) {
     for (const untrusted of [
       { ...sender, tab: { id: 1 }, url: "https://example.com/" },

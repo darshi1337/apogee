@@ -122,6 +122,7 @@ export const EXPIRED_STREAM_ERROR =
 export function expireStreamForCleanup(streamId) {
   const stream = activeStreams.get(streamId);
   if (stream && !stream.done) {
+    stream.controller?.abort();
     // Cleanup alarms run outside finish(), so mark terminal state here.
     stream.done = true;
     stream.error = EXPIRED_STREAM_ERROR;

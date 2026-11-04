@@ -403,3 +403,50 @@ test("getProviderForType builds a provider for an explicit chain entry", () => {
   );
   assert.equal(provider.constructor.name, "TransformersProvider");
 });
+
+test("Firefox remote readiness checks optional generation permissions locally", async () => {
+  const before = process.env.TARGET_BROWSER;
+  process.env.TARGET_BROWSER = "firefox";
+  let granted = false;
+  const permissionCalls = [];
+  globalThis.chrome = {
+    runtime: {
+      sendMessage: (message, callback) =>
+        callback({
+          providers: {
+            openrouter: {
+              consent: true,
+              generationConsent: true,
+              hasApiKey: true,
+              model: "model",
+              catalog: { stale: false, models: [{ id: "model" }] },
+            },
+          },
+        }),
+    },
+    permissions: {
+      contains: async (request) => {
+        permissionCalls.push(request);
+        return granted;
+      },
+    },
+  };
+  try {
+    const provider = getProvider(settings({ provider: PROVIDERS.OPENROUTER }));
+    assert.deepStrictEqual(await provider.checkReady(), { ready: false });
+    granted = true;
+    assert.deepStrictEqual(await provider.checkReady(), { ready: true });
+    assert.deepStrictEqual(permissionCalls[0], {
+      data_collection: [
+        "authenticationInfo",
+        "websiteContent",
+        "browsingActivity",
+        "personalCommunications",
+      ],
+    });
+  } finally {
+    if (before === undefined) delete process.env.TARGET_BROWSER;
+    else process.env.TARGET_BROWSER = before;
+    delete globalThis.chrome;
+  }
+});

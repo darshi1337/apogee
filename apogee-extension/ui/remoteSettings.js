@@ -143,7 +143,9 @@ export async function initRemoteSettings({
       if (response?.error) throw new Error("Remote settings request failed");
       apply(panel, response);
       completed = true;
-      void Promise.resolve().then(() => onChange(panel.provider)).catch(() => {});
+      void Promise.resolve()
+        .then(() => onChange(panel.provider))
+        .catch(() => {});
     } catch {
       if (panel.epoch !== epoch) return;
       if (action === "remote-models-refresh") {

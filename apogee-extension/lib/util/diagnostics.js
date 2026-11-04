@@ -50,6 +50,18 @@ function redactExtra(key, value) {
 export function getRedactedSettings(settings) {
   return Object.keys(DEFAULT_SETTINGS).map((key) => {
     const value = settings?.[key];
+    const remoteKey = /^(openrouter|opencode)ApiKey$/.exec(key);
+    if (
+      remoteKey &&
+      typeof settings?.[`${remoteKey[1]}HasApiKey`] === "boolean"
+    ) {
+      const present = settings[`${remoteKey[1]}HasApiKey`];
+      return {
+        key,
+        value: present ? "[redacted]" : "unset",
+        isDefault: !present,
+      };
+    }
     return {
       key,
       value: redact(key, value),

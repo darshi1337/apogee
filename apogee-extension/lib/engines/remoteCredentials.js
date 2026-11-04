@@ -17,14 +17,24 @@ export async function hasRemoteGenerationPermissions() {
 }
 
 const listeners = new Set();
+const generationListeners = new Set();
 let watchedStorage;
 
 // Shared chrome.storage.onChanged subscription for remote credential changes.
 // Subscribers are notified once per affected provider, in registration order.
 export function onRemoteCredentialChange(listener) {
+  listeners.add(listener);
+  watchStorage();
+}
+
+export function onRemoteGenerationChange(listener) {
+  generationListeners.add(listener);
+  watchStorage();
+}
+
+function watchStorage() {
   const events = chrome.storage.onChanged;
   if (!events?.addListener) return;
-  listeners.add(listener);
   if (watchedStorage === events) return;
   watchedStorage = events;
   events.addListener((changes, area) => {
@@ -40,6 +50,17 @@ export function onRemoteCredentialChange(listener) {
         for (const subscriber of listeners) {
           subscriber(provider, { consentRevoked, keyChanged });
         }
+      }
+      if (
+        consentRevoked ||
+        keyChanged ||
+        ["GenerationConsent", "GenerationRevision", "Model"].some(
+          (suffix) =>
+            oldValue[`${provider}${suffix}`] !==
+            newValue[`${provider}${suffix}`],
+        )
+      ) {
+        for (const subscriber of generationListeners) subscriber(provider);
       }
     }
   });

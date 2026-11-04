@@ -136,11 +136,20 @@ import {
   notifyFinalizeFailure,
   notifyJobFailed,
   notificationTargets,
+  FINALIZE_FAILED_MESSAGE,
 } from "./finalize.js";
 import {
   runSuggestQuestionsJob,
   SKIP_LOOKUP_STATUS,
 } from "./suggestQuestions.js";
+import {
+  createRemoteJobContext,
+  generateRemote,
+  isRemoteProvider,
+  REMOTE_B1_UNSUPPORTED,
+  validateRemoteGenerationPayload,
+} from "./remoteGeneration.js";
+import { hasRemoteGenerationPermissions } from "../lib/engines/remoteCredentials.js";
 
 // Names background tests import from this module. Implementations live in
 // finalize.js and streams.js; the re-exports keep existing import paths
@@ -292,10 +301,20 @@ async function getRelevantAskContent(content, question) {
   }
 }
 
-function createBufferedStream(streamId, { finalize, model, title, url }) {
+function createBufferedStream(
+  streamId,
+  {
+    finalize,
+    model,
+    title,
+    url,
+    autoFinalize = true,
+    controller = new AbortController(),
+  },
+) {
   const stream = createStreamState({
     errorUserFacing: false,
-    controller: new AbortController(),
+    controller,
   });
   activeStreams.set(streamId, stream);
   // Deadline from creation, not first chunk: a local HTTP request that hangs
@@ -316,7 +335,7 @@ function createBufferedStream(streamId, { finalize, model, title, url }) {
     }
     broadcastToStream(stream, msg);
     scheduleStreamCleanup(streamId);
-    if (msg.type === "done") {
+    if (msg.type === "done" && autoFinalize) {
       finalizeSummaryJob(
         {
           finalize,
@@ -335,6 +354,70 @@ function createBufferedStream(streamId, { finalize, model, title, url }) {
     emitChunkToState(stream, text, () => scheduleStreamCleanup(streamId));
 
   return { stream, finish, emitChunk };
+}
+
+async function startRemoteStream(streamId, payload, context) {
+  const { stream, finish, emitChunk } = createBufferedStream(streamId, {
+    ...payload,
+    model: context.model,
+    controller: context.controller,
+    autoFinalize: false,
+  });
+  const tracker = createSummarizeProgressTracker((text) => {
+    chrome.runtime
+      .sendMessage({
+        type: "model-progress",
+        progress: { progress: 0, text },
+        modelId: context.model,
+      })
+      .catch(() => {});
+  });
+  try {
+    for await (const token of generateRemote(context, payload, {
+      getRelevantContent: getRelevantAskContent,
+      onProgress: tracker.onProgress,
+    }))
+      emitChunk(token);
+    await context.assertActive();
+    if (payload.finalize) {
+      const result = await finalizeSummaryJob(
+        {
+          finalize: payload.finalize,
+          model: context.model,
+          title: payload.title,
+          url: payload.url,
+          text: stream.text,
+          streamId,
+        },
+        { assertAuthorized: context.assertActive },
+      );
+      if (!result.ok) {
+        finish({
+          type: "error",
+          error: FINALIZE_FAILED_MESSAGE,
+          userFacing: true,
+        });
+        return;
+      }
+    }
+    await context.assertActive();
+    finish({ type: "done" });
+  } catch (error) {
+    finish({
+      type: "error",
+      error:
+        error?.isUserFacing ||
+        /^(Remote |Select an eligible remote model\.)/.test(
+          error?.message || "",
+        )
+          ? error.message
+          : "Remote generation failed. Review Settings and retry.",
+      userFacing: true,
+    });
+  } finally {
+    registeredStreamJobs.delete(streamId);
+    context.dispose();
+  }
 }
 
 async function startLocalHttpStream(
@@ -644,6 +727,9 @@ export async function runBackgroundSummarize(
   const settings = await getSettings();
   const providerType = getProviderType(settings);
   const model = getModelForSettings(settings);
+
+  if (isRemoteProvider(providerType))
+    throw new UserFacingError(REMOTE_B1_UNSUPPORTED);
 
   // Selected text arrives whole from the capture script and the context menu,
   // then fans out to view state, the finalize payload, and the prompt, so cap
@@ -1215,7 +1301,11 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onConnect?.addListener) {
     // All port families here (popup-lifecycle, side-panel-tab-*, popup-stream-*)
     // are opened by extension pages, never by tab-hosted contexts — the tab id
     // for side-panel ports travels in the port name instead.
-    if (port.sender?.tab) {
+    const extensionPage =
+      typeof port.sender?.url === "string" &&
+      port.sender.url.split(/[?#]/, 1)[0] ===
+        chrome.runtime.getURL("ui/app.html");
+    if (port.sender?.tab && !extensionPage) {
       safeDisconnect(port);
       return;
     }
@@ -1292,7 +1382,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const extensionPage =
     typeof sender.url === "string" &&
     sender.url.split(/[?#]/, 1)[0] === chrome.runtime.getURL("ui/app.html");
-  if (remoteSetupAction && !extensionPage) return false;
+  if (
+    (remoteSetupAction || message.action === "remote-stream") &&
+    !extensionPage
+  )
+    return false;
 
   const ALLOWED_CONTENT_SCRIPT_ACTIONS = new Set([
     "sponsorblock-segments",
@@ -1368,6 +1462,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "stream-finished") {
+    if (String(message.streamId || "").startsWith("remote-")) return false;
     // Safety net for the relay tracking above: a finished job is never work
     // in flight, even if its relay ports vanished without firing their
     // disconnect handlers.
@@ -1382,6 +1477,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const registeredJob = streamId
           ? registeredStreamJobs.get(streamId)
           : null;
+        if (
+          isRemoteProvider(registeredJob?.finalize?.providerType) ||
+          (!registeredJob && isRemoteProvider((await getSettings()).provider))
+        )
+          return;
         if (streamId) {
           registeredStreamJobs.delete(streamId);
         }
@@ -1445,7 +1545,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
         case "remote-settings-save": {
+          if (
+            message.payload?.generationConsent === true &&
+            !(await hasRemoteGenerationPermissions())
+          )
+            throw new UserFacingError(
+              "Allow Firefox content transmission permissions before enabling remote generation.",
+            );
           sendResponse(await saveRemoteSettings(message.payload));
+          break;
+        }
+        case "remote-stream": {
+          const clean = validateRemoteGenerationPayload(message.payload);
+          const context = await createRemoteJobContext();
+          try {
+            const streamId = nextStreamId("remote");
+            const finalize =
+              clean.action === "summarize"
+                ? await buildTrustedFinalize(clean, context.settings)
+                : null;
+            const payload = {
+              ...clean,
+              mode: context.settings.responseFormat,
+              model: context.model,
+              finalize,
+            };
+            await context.assertActive();
+            await recordPopupSummaryStream(payload, streamId);
+            startRemoteStream(streamId, payload, context);
+            sendResponse({ streamId });
+          } catch (error) {
+            context.dispose();
+            throw error;
+          }
           break;
         }
         case "remote-models-refresh": {
@@ -1658,6 +1790,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case "suggest-questions-bg": {
           const settings = await getSettings();
+          if (
+            isRemoteProvider(settings.provider) ||
+            isRemoteProvider(message.payload?.providerType) ||
+            /:p(?:openrouter|opencode)(?=:|$)/.test(
+              message.payload?.promptsCacheKey || "",
+            )
+          ) {
+            sendResponse({ started: false, unsupported: true });
+            break;
+          }
           const rawUrl =
             typeof message.payload?.url === "string" ? message.payload.url : "";
           const model = message.payload?.model || getModelForSettings(settings);
@@ -1899,6 +2041,9 @@ export async function summarizeMultiTab(tabsToSummarize, opts = {}) {
   const settings = await getSettings();
   const providerType = getProviderType(settings);
   const model = getModelForSettings(settings);
+
+  if (isRemoteProvider(providerType))
+    throw new UserFacingError(REMOTE_B1_UNSUPPORTED);
 
   // Bound the total input to the model's chunk budget so N tabs x M chars
   // cannot build an unbounded prompt. Each tab gets an equal share of the

@@ -4,6 +4,7 @@ import assert from "node:assert";
 import {
   hashUrl,
   getSummaryCacheKey,
+  getSummaryCacheKeyForSettings,
   getPromptsCacheKey,
   getContentCacheKey,
   parseSummaryCacheKey,
@@ -25,6 +26,52 @@ import {
   MAX_CACHE_BYTES,
   MAX_ENTRY_BYTES,
 } from "../../lib/storage/pageCache.js";
+
+test("remote summary keys isolate providers and preserve local identities", async () => {
+  const url = "https://example.com/provider-cache";
+  const model = "same/model:version";
+  const settings = {
+    responseFormat: "bullets",
+    summaryLanguage: "auto",
+    translationEngine: "opus",
+    customInstructions: "Explain clearly",
+  };
+  const local = await getSummaryCacheKeyForSettings(
+    url,
+    { ...settings, provider: "local" },
+    model,
+    "cost",
+  );
+  assert.strictEqual(
+    local,
+    await getSummaryCacheKey(
+      url,
+      "bullets",
+      model,
+      "auto",
+      settings.customInstructions,
+      "opus",
+      "cost",
+    ),
+  );
+  const keys = [local];
+  for (const providerType of ["openrouter", "opencode"]) {
+    const key = await getSummaryCacheKeyForSettings(
+      url,
+      { ...settings, provider: providerType },
+      model,
+      "cost",
+    );
+    keys.push(key);
+    assert.deepStrictEqual(parseSummaryCacheKey(key), {
+      format: "bullets",
+      language: "auto",
+      model,
+      providerType,
+    });
+  }
+  assert.strictEqual(new Set(keys).size, 3);
+});
 
 function installFakeStorage(initial = {}) {
   const data = { ...initial };

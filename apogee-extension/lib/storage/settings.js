@@ -96,7 +96,9 @@ function writeSettings(partial, remote) {
     const allowed = Object.fromEntries(
       Object.entries(incoming || {}).filter(([key]) =>
         remote
-          ? remoteFields.has(key) && !key.endsWith("GenerationRevision") && !key.endsWith("HasApiKey")
+          ? remoteFields.has(key) &&
+            !key.endsWith("GenerationRevision") &&
+            !key.endsWith("HasApiKey")
           : !remoteFields.has(key),
       ),
     );

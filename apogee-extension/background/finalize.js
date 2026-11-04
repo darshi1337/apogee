@@ -21,6 +21,7 @@ import {
   getModelForSettings,
 } from "../lib/engines/providers.js";
 import { MAX_FINALIZE_TEXT_CHARS } from "../lib/extract/fileLimits.js";
+import { REMOTE_PROVIDER_IDS } from "../lib/engines/remoteModels.js";
 import { broadcastToStream } from "../lib/util/streamBroadcast.js";
 import { activeStreams, registerStreamJob } from "./streams.js";
 import { runSuggestQuestionsJob } from "./suggestQuestions.js";
@@ -147,7 +148,7 @@ function notifyJobComplete({ title, tabId, windowId }) {
   });
 }
 
-export async function buildTrustedFinalize(payload) {
+export async function buildTrustedFinalize(payload, executionSettings = null) {
   if (!payload || typeof payload !== "object") return null;
 
   const rawFinalize = payload.finalize || {};
@@ -160,9 +161,12 @@ export async function buildTrustedFinalize(payload) {
         : "";
   if (!rawUrl && !customContent) return null;
 
-  const settings = await getSettings();
-  const model = payload.model || getModelForSettings(settings);
+  const settings = executionSettings || (await getSettings());
   const providerType = getProviderType(settings);
+  const model =
+    executionSettings || REMOTE_PROVIDER_IDS.includes(providerType)
+      ? getModelForSettings(settings)
+      : payload.model || getModelForSettings(settings);
   const isSelection = Boolean(rawFinalize.isSelection);
   // The summary key keeps the selection fragment (unchanged behavior). The
   // prompts key uses the plain page identity: the page type and the selected
@@ -222,6 +226,7 @@ export async function buildTrustedFinalize(payload) {
     isSelection,
     customContent,
     providerType,
+    model,
     pageType,
     selectionText,
     host: settings.ollamaHost,
@@ -242,7 +247,7 @@ export async function recordPopupSummaryStream(payload, streamId) {
   if (!finalize?.jobId || finalize.tabId == null) return;
   registerStreamJob(streamId, {
     finalize,
-    model: payload.model,
+    model: finalize.model || payload.model,
     title: payload.title,
     url: payload.url,
   });
@@ -259,6 +264,8 @@ export async function recordPopupSummaryStream(payload, streamId) {
         ? undefined
         : finalize.persistUrl || payload.url,
       promptsCacheKey: finalize.promptsCacheKey,
+      providerType: finalize.providerType,
+      model: finalize.model || payload.model,
       pageType: typeof finalize.pageType === "string" ? finalize.pageType : "",
       focusKeyword: asFocusKeyword(finalize.focusKeyword),
       // A normal summary merges into the previous job's state, so clear the
@@ -278,9 +285,11 @@ export async function recordPopupSummaryStream(payload, streamId) {
 
 export async function finalizeSummaryJob(
   { finalize, model, title, url, text, streamId = null },
-  { ensureOffscreenDocument } = {},
+  { ensureOffscreenDocument, assertAuthorized } = {},
 ) {
   if (!finalize) return { ok: true, persisted: false };
+  await assertAuthorized?.();
+  model = finalize.model || model;
   // stream-finished text arrives via extension messaging and fans out into
   // cache/history/view-state: bound it at the trust boundary before use.
   if (typeof text === "string" && text.length > MAX_FINALIZE_TEXT_CHARS) {
@@ -309,6 +318,17 @@ export async function finalizeSummaryJob(
     focusKeyword = "",
   } = finalize;
 
+  let authorizationFailed = false;
+  const assertCommitAuthorized = assertAuthorized
+    ? async () => {
+        try {
+          await assertAuthorized();
+        } catch (err) {
+          authorizationFailed = true;
+          throw err;
+        }
+      }
+    : undefined;
   try {
     // `persist` is what was true when the job started. The write only happens if it is still true now, so turning history off mid-generation also excludes the summary that is running.
     const persisted =
@@ -319,6 +339,8 @@ export async function finalizeSummaryJob(
         promptsCacheKey,
         text,
         title,
+        null,
+        { assertAuthorized: assertCommitAuthorized },
       ));
 
     if (persisted || isSelection) {
@@ -332,6 +354,8 @@ export async function finalizeSummaryJob(
           streamId: null,
           summaryText: text,
           promptsCacheKey,
+          providerType,
+          model,
           pageType: typeof pageType === "string" ? pageType : "",
           focusKeyword: asFocusKeyword(focusKeyword),
           // Explicitly normalise, so a normal summary never inherits a prior
@@ -345,6 +369,7 @@ export async function finalizeSummaryJob(
           translationEngine,
         },
         "summarizing",
+        { assertAuthorized: assertCommitAuthorized },
       );
     }
     runSuggestQuestionsJob(
@@ -370,6 +395,8 @@ export async function finalizeSummaryJob(
     }
     return { ok: true, persisted: !!persisted };
   } catch (err) {
+    if (authorizationFailed) throw err;
+    await assertCommitAuthorized?.();
     preservePendingFinalize({ finalize, model, title, url, text });
     notifyFinalizeFailure({ finalize, title, error: err, streamId });
     return { ok: false, error: err };

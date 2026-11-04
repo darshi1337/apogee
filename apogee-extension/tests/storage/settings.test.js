@@ -117,6 +117,8 @@ test("legacy catalog consent never enables generation and ordinary settings reda
     opencodeApiKey: "other",
   });
   const settings = await getSettings();
+  assert.equal(settings.openrouterHasApiKey, true);
+  assert.equal(settings.opencodeHasApiKey, true);
   assert.equal(settings.openrouterGenerationConsent, false);
   assert.equal(settings.openrouterGenerationRevision, 0);
   assert.equal(Object.hasOwn(settings, "openrouterApiKey"), false);
@@ -137,10 +139,13 @@ test("ordinary writes preserve credentials and cannot opt into remote generation
     return {
       theme: "light",
       openrouterApiKey: "replacement",
+      openrouterHasApiKey: false,
       openrouterGenerationConsent: true,
     };
   });
   assert.equal(settings.theme, "light");
+  assert.equal(settings.openrouterHasApiKey, true);
+  assert.equal(Object.hasOwn(store.settings, "openrouterHasApiKey"), false);
   assert.equal(Object.hasOwn(settings, "openrouterApiKey"), false);
   assert.equal(store.settings.openrouterApiKey, "secret");
   assert.equal(store.settings.openrouterGenerationConsent, false);

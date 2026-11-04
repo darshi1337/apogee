@@ -31,11 +31,13 @@ async function setup(
   initial = view(),
   respond = () => initial,
   permission = async () => true,
+  onChange = () => {},
 ) {
   const { document, window } = parseHTML(html);
   const calls = [];
   await initRemoteSettings({
     root: document,
+    onChange,
     translate: (key) => key,
     requestConsentPermission: permission,
     sendMessage: async (message) => {
@@ -371,4 +373,18 @@ test("denied generation permission never saves generation consent", async () => 
   assert.equal(calls.length, 1);
   assert.equal(control("generation-consent").checked, false);
   assert.equal(control("key").value, "");
+});
+
+test("remote setup changes refresh readiness without startup notifications", async () => {
+  const changes = [];
+  const { fire } = await setup(
+    view(),
+    undefined,
+    async () => true,
+    (provider) => changes.push(provider),
+  );
+  assert.deepEqual(changes, []);
+  fire("save");
+  await tick();
+  assert.deepEqual(changes, ["openrouter"]);
 });
