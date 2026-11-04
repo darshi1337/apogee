@@ -12,7 +12,11 @@ import {
   refreshRemoteModels,
 } from "../../lib/storage/remoteSettings.js";
 import { getRedactedSettings } from "../../lib/util/diagnostics.js";
-import { getSettings, updateSettings } from "../../lib/storage/settings.js";
+import {
+  getSettings,
+  updateSettings,
+  updateRemoteCredentialsSettings,
+} from "../../lib/storage/settings.js";
 
 const freeModel = (id = "test/free") => ({
   id,
@@ -67,9 +71,11 @@ function install(settings = {}) {
 }
 const authorized = () => ({
   openrouterConsent: true,
+  openrouterGenerationConsent: true,
   openrouterApiKey: "router-secret",
   openrouterModel: "test/free",
   opencodeConsent: true,
+  opencodeGenerationConsent: true,
   opencodeApiKey: "code-secret",
 });
 const catalog = () => Response.json({ data: [freeModel()] });
@@ -359,6 +365,7 @@ test("chat streams fragmented CRLF SSE, keeps zero-price routing, and stops on D
     completion: 0,
     request: 0,
   });
+  assert.equal(JSON.parse(chat.options.body).provider.allow_fallbacks, false);
   assert.equal(chat.options.redirect, "error");
 });
 
@@ -366,7 +373,7 @@ test("diagnostics redact both keys and serialized settings writes preserve unrel
   install(authorized());
   await Promise.all([
     updateSettings({ theme: "light" }),
-    updateSettings({ openrouterConsent: false }),
+    updateRemoteCredentialsSettings({ openrouterConsent: false }),
   ]);
   const settings = await getSettings();
   assert.equal(settings.theme, "light");
@@ -472,20 +479,23 @@ test("Firefox authentication consent is required before sending either preset ke
 });
 
 test("changed credentials between model validation and POST cannot send a stale selection", async () => {
-  const store = install(authorized());
-  const realGet = chrome.storage.local.get;
-  let reads = 0;
-  chrome.storage.local.get = async (key) => {
-    if (key === "settings" && ++reads === 4)
-      store.settings.openrouterApiKey = "changed-secret";
-    return realGet(key);
-  };
+  install(authorized());
   let posts = 0;
   globalThis.fetch = async (url) => {
     if (!url.endsWith("/models")) posts++;
     return catalog();
   };
-  await assert.rejects(streamRemoteChat("openrouter", "private prompt"));
+  let checks = 0;
+  await assert.rejects(
+    streamRemoteChat("openrouter", "private prompt", {
+      assertAuthorized: async () => {
+        if (++checks === 2)
+          await updateRemoteCredentialsSettings({
+            openrouterApiKey: "changed-secret",
+          });
+      },
+    }),
+  );
   assert.equal(posts, 0);
 });
 
@@ -501,4 +511,111 @@ test("a cached model missing from the fresh catalog cannot reach the chat endpoi
     /Select an eligible remote model/,
   );
   assert.equal(posts, 0);
+});
+
+test("catalog consent alone permits catalog GETs but cannot authorize generation", async () => {
+  install({ ...authorized(), openrouterGenerationConsent: false });
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, method: options.method });
+    return catalog();
+  };
+  await fetchRemoteModels("openrouter");
+  await assert.rejects(
+    streamRemoteChat("openrouter", "private prompt"),
+    /generation consent/,
+  );
+  assert.deepEqual(calls, [
+    { url: "https://openrouter.ai/api/v1/models", method: "GET" },
+  ]);
+});
+
+test("Firefox generation permission denial permits catalogs but blocks page POSTs", async () => {
+  install(authorized());
+  const previous = process.env.TARGET_BROWSER;
+  process.env.TARGET_BROWSER = "firefox";
+  const checked = [];
+  const methods = [];
+  chrome.permissions.contains = async (permission) => {
+    checked.push(permission.data_collection);
+    return permission.data_collection.length === 1;
+  };
+  globalThis.fetch = async (_url, options) => {
+    methods.push(options.method);
+    return catalog();
+  };
+  try {
+    await fetchRemoteModels("openrouter");
+    await assert.rejects(streamRemoteChat("openrouter", "private prompt"));
+    assert.ok(
+      checked.some((categories) => categories.includes("websiteContent")),
+    );
+    assert.ok(methods.length > 0);
+    assert.ok(methods.every((method) => method === "GET"));
+  } finally {
+    if (previous === undefined) delete process.env.TARGET_BROWSER;
+    else process.env.TARGET_BROWSER = previous;
+  }
+});
+
+test("freshly paid, removed or nontext OpenRouter selections never reach POST", async () => {
+  for (const models of [
+    [],
+    [{ ...freeModel(), pricing: { prompt: "1", completion: "1" } }],
+    [
+      {
+        ...freeModel(),
+        architecture: {
+          input_modalities: ["text"],
+          output_modalities: ["audio"],
+        },
+      },
+    ],
+  ]) {
+    install(authorized());
+    const methods = [];
+    globalThis.fetch = async (_url, options) => {
+      methods.push(options.method);
+      return Response.json({ data: models });
+    };
+    await assert.rejects(
+      streamRemoteChat("openrouter", "private prompt"),
+      /eligible remote model/,
+    );
+    assert.deepEqual(methods, ["GET"]);
+  }
+});
+
+test("cancelled and timed out chat requests report safe errors", async (t) => {
+  for (const timeout of [false, true]) {
+    install(authorized());
+    const controller = new AbortController();
+    const { promise: started, resolve: start } = Promise.withResolvers();
+    globalThis.fetch = async (url, { signal }) => {
+      if (url.endsWith("/models")) return catalog();
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener(
+          "abort",
+          () => reject(new Error("router-secret private prompt")),
+          { once: true },
+        );
+        start();
+      });
+    };
+    if (timeout) t.mock.timers.enable({ apis: ["setTimeout"] });
+    const request = streamRemoteChat("openrouter", "private prompt", {
+      signal: controller.signal,
+    });
+    const rejected = assert.rejects(request, (error) => {
+      assert.match(error.message, timeout ? /timed out/ : /cancelled/);
+      assert.ok(!error.message.includes("router-secret"));
+      assert.ok(!error.message.includes("private prompt"));
+      return true;
+    });
+    await started;
+    if (timeout) t.mock.timers.tick(30000);
+    else controller.abort();
+    await rejected;
+    if (timeout) t.mock.timers.reset();
+  }
 });

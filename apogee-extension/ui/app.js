@@ -13,6 +13,7 @@ import {
   attachToStream,
   cancelStream,
   StreamCancelledError,
+  isRemoteProvider,
 } from "../lib/engines/providers.js";
 import {
   INPUT_KINDS,
@@ -482,6 +483,7 @@ function startSuggestedQuestionsBg(
   persist = true,
   focusKeyword = "",
 ) {
+  if (isRemoteProvider(settings.provider)) return;
   currentPromptsCacheKey = promptsCacheKey;
   chrome.runtime
     .sendMessage({
@@ -522,7 +524,16 @@ async function restoreSuggestedPrompts({
   useStored = true,
   pageType = "",
   selectionText = "",
+  providerType = settings.provider,
 }) {
+  if (
+    isRemoteProvider(providerType) ||
+    isRemoteProvider(settings.provider) ||
+    /:p(?:openrouter|opencode)(?=:|$)/.test(promptsCacheKey || "")
+  ) {
+    showSummaryContext([]);
+    return;
+  }
   if (useStored && promptsCacheKey) {
     const stored = await chrome.storage.local.get(promptsCacheKey);
     if (stored[promptsCacheKey] !== undefined) {
@@ -706,8 +717,10 @@ async function applySettingsToUI(settings) {
     `input[name="provider"][value="${provider}"]`,
   );
   if (provRadio) provRadio.checked = true;
-  if (autoEngineCheckbox)
+  if (autoEngineCheckbox) {
     autoEngineCheckbox.checked = Boolean(settings.autoEngine);
+    autoEngineCheckbox.disabled = isRemoteProvider(provider);
+  }
 
   const isWebllm = provider === PROVIDERS.WEBLLM;
   const isTransformers = provider === PROVIDERS.TRANSFORMERS;
@@ -1852,6 +1865,10 @@ async function consumeSummaryStream(stream, { tab, promptsCacheKey, jobId }) {
     jobId,
     buildSummaryCompletedState(tab, text),
   );
+  if (/:p(?:openrouter|opencode)(?=:|$)/.test(promptsCacheKey || "")) {
+    setSuggestedQuestions([]);
+    return text;
+  }
   setSuggestedQuestionsLoading();
 
   currentPromptsCacheKey = promptsCacheKey;
@@ -2365,7 +2382,14 @@ async function updateSummarizeShortcutHint() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  void initRemoteSettings();
+  void initRemoteSettings({
+    onChange: async (provider) => {
+      const settings = await getSettings();
+      if (settings.provider !== provider) return;
+      const status = await checkConnection();
+      updateConnectionUI(status?.ready === true);
+    },
+  });
   try {
     applyI18nToDom(document);
   } catch (err) {
@@ -2623,6 +2647,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 tab,
                 summary: state.summaryText,
                 settings,
+                providerType: state.providerType,
                 persist: false,
               });
               return;
@@ -3072,6 +3097,7 @@ providerRadios.forEach((radio) => {
     const settings = await saveSettings({
       ...modelPatch,
       provider: radio.value,
+      ...(isRemoteProvider(radio.value) ? { autoEngine: false } : {}),
     });
     await applySettingsToUI(settings);
     const status = await checkConnection();
@@ -3082,6 +3108,8 @@ providerRadios.forEach((radio) => {
 });
 
 autoEngineCheckbox?.addEventListener("change", async () => {
+  const settings = await getSettings();
+  autoEngineCheckbox.checked &&= !isRemoteProvider(settings.provider);
   await saveSettings({ autoEngine: autoEngineCheckbox.checked });
 });
 

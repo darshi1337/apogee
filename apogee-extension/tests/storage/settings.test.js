@@ -1,7 +1,16 @@
 import test from "node:test";
+import {
+  getRemoteSettings,
+  saveRemoteSettings,
+} from "../../lib/storage/remoteSettings.js";
 import assert from "node:assert";
 
-import { getSettings } from "../../lib/storage/settings.js";
+import {
+  getSettings,
+  getRemoteCredentialsSettings,
+  updateSettings,
+  updateRemoteCredentialsSettings,
+} from "../../lib/storage/settings.js";
 import {
   DEFAULT_LLAMACPP_HOST,
   DEFAULT_OLLAMA_HOST,
@@ -83,4 +92,107 @@ test("getSettings preserves IPv6 loopback and normalizes loopback variants", asy
   const settings = await getSettings();
   assert.equal(settings.ollamaHost, "http://[::1]:11434");
   assert.equal(settings.llamaHost, "http://localhost:8080");
+});
+
+function writableStorage(initial = {}) {
+  const store = { settings: structuredClone(initial) };
+  globalThis.chrome = {
+    storage: {
+      local: {
+        get: async () => structuredClone(store),
+        set: async (values) => Object.assign(store, structuredClone(values)),
+        remove: async (key) => {
+          delete store[key];
+        },
+      },
+    },
+  };
+  return store;
+}
+
+test("legacy catalog consent never enables generation and ordinary settings redact remote keys", async () => {
+  writableStorage({
+    openrouterConsent: true,
+    openrouterApiKey: "secret",
+    opencodeApiKey: "other",
+  });
+  const settings = await getSettings();
+  assert.equal(settings.openrouterGenerationConsent, false);
+  assert.equal(settings.openrouterGenerationRevision, 0);
+  assert.equal(Object.hasOwn(settings, "openrouterApiKey"), false);
+  assert.equal(Object.hasOwn(settings, "opencodeApiKey"), false);
+  assert.equal(
+    (await getRemoteCredentialsSettings()).openrouterApiKey,
+    "secret",
+  );
+});
+
+test("ordinary writes preserve credentials and cannot opt into remote generation", async () => {
+  const store = writableStorage({
+    openrouterApiKey: "secret",
+    openrouterGenerationRevision: 3,
+  });
+  const settings = await updateSettings((current) => {
+    assert.equal(Object.hasOwn(current, "openrouterApiKey"), false);
+    return {
+      theme: "light",
+      openrouterApiKey: "replacement",
+      openrouterGenerationConsent: true,
+    };
+  });
+  assert.equal(settings.theme, "light");
+  assert.equal(Object.hasOwn(settings, "openrouterApiKey"), false);
+  assert.equal(store.settings.openrouterApiKey, "secret");
+  assert.equal(store.settings.openrouterGenerationConsent, false);
+  assert.equal(store.settings.openrouterGenerationRevision, 3);
+});
+
+test("generation revisions persist and advance on consent, key and model changes only", async () => {
+  writableStorage();
+  for (const [patch, expected] of [
+    [{ openrouterConsent: true }, 0],
+    [{ openrouterGenerationConsent: true }, 1],
+    [{ openrouterApiKey: "key" }, 2],
+    [{ openrouterModel: "model-a" }, 3],
+    [{ openrouterGenerationConsent: false }, 4],
+    [{ openrouterGenerationConsent: true }, 5],
+    [{ openrouterGenerationConsent: true }, 5],
+    [{ openrouterGenerationRevision: 0 }, 5],
+  ]) {
+    await updateRemoteCredentialsSettings(patch);
+    assert.equal(
+      (await getRemoteCredentialsSettings()).openrouterGenerationRevision,
+      expected,
+    );
+  }
+  await updateSettings({ theme: "light" });
+  assert.equal(
+    (await getRemoteCredentialsSettings()).openrouterGenerationRevision,
+    5,
+  );
+});
+
+test("remote views omit saved keys and Revoke clears both consents with a persisted revision", async () => {
+  const store = writableStorage({
+    openrouterConsent: true,
+    openrouterGenerationConsent: true,
+    openrouterGenerationRevision: 8,
+    openrouterApiKey: "secret",
+  });
+  const before = await getRemoteSettings();
+  assert.equal(before.providers.openrouter.hasApiKey, true);
+  assert.equal(before.providers.openrouter.generationConsent, true);
+  assert.equal(JSON.stringify(before).includes("secret"), false);
+  const after = await saveRemoteSettings({
+    provider: "openrouter",
+    consent: false,
+  });
+  assert.equal(after.providers.openrouter.consent, false);
+  assert.equal(after.providers.openrouter.generationConsent, false);
+  assert.equal(after.providers.openrouter.generationRevision, 9);
+  assert.equal(store.settings.openrouterApiKey, "secret");
+  await assert.rejects(
+    saveRemoteSettings({ provider: "openrouter", generationConsent: "true" }),
+    /Invalid generation consent/,
+  );
 });

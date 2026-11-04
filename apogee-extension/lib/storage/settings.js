@@ -16,6 +16,11 @@ function sanitizeSettings(settings) {
   const clean = { ...settings };
   for (const provider of REMOTE_PROVIDER_IDS) {
     clean[`${provider}Consent`] = clean[`${provider}Consent`] === true;
+    clean[`${provider}GenerationConsent`] =
+      clean[`${provider}GenerationConsent`] === true;
+    const revision = clean[`${provider}GenerationRevision`];
+    clean[`${provider}GenerationRevision`] =
+      Number.isSafeInteger(revision) && revision >= 0 ? revision : 0;
     const key = clean[`${provider}ApiKey`];
     clean[`${provider}ApiKey`] =
       typeof key === "string" &&
@@ -50,21 +55,70 @@ function sanitizeSettings(settings) {
   return clean;
 }
 
-export async function getSettings() {
+export async function getRemoteCredentialsSettings() {
   const stored = await chrome.storage.local.get("settings");
   return sanitizeSettings({ ...DEFAULT_SETTINGS, ...(stored.settings || {}) });
 }
 
+function redactRemoteCredentials(settings) {
+  const clean = { ...settings };
+  for (const provider of REMOTE_PROVIDER_IDS) {
+    clean[`${provider}HasApiKey`] = !!clean[`${provider}ApiKey`];
+    delete clean[`${provider}ApiKey`];
+  }
+  return clean;
+}
+
+export async function getSettings() {
+  return redactRemoteCredentials(await getRemoteCredentialsSettings());
+}
+
+const remoteFields = new Set(
+  REMOTE_PROVIDER_IDS.flatMap((provider) =>
+    [
+      "ApiKey",
+      "Consent",
+      "Model",
+      "GenerationConsent",
+      "GenerationRevision",
+      "HasApiKey",
+    ].map((suffix) => `${provider}${suffix}`),
+  ),
+);
 let settingsWrite = Promise.resolve();
-export function updateSettings(partial) {
+function writeSettings(partial, remote) {
   const write = async () => {
-    const current = await getSettings();
-    const settings = {
-      ...current,
-      ...(typeof partial === "function" ? partial(current) : partial),
-    };
+    const current = await getRemoteCredentialsSettings();
+    const incoming =
+      typeof partial === "function"
+        ? partial(remote ? current : redactRemoteCredentials(current))
+        : partial;
+    const allowed = Object.fromEntries(
+      Object.entries(incoming || {}).filter(([key]) =>
+        remote
+          ? remoteFields.has(key) && !key.endsWith("GenerationRevision") && !key.endsWith("HasApiKey")
+          : !remoteFields.has(key),
+      ),
+    );
+    const settings = sanitizeSettings({ ...current, ...allowed });
+    for (const provider of REMOTE_PROVIDER_IDS) {
+      if (
+        ["GenerationConsent", "ApiKey", "Model"].some(
+          (suffix) =>
+            current[`${provider}${suffix}`] !==
+            settings[`${provider}${suffix}`],
+        )
+      ) {
+        if (
+          current[`${provider}GenerationRevision`] === Number.MAX_SAFE_INTEGER
+        )
+          throw new Error("Remote settings revision exhausted.");
+        settings[`${provider}GenerationRevision`] =
+          current[`${provider}GenerationRevision`] + 1;
+      }
+    }
     await chrome.storage.local.set({ settings });
-    return settings;
+    return redactRemoteCredentials(settings);
   };
   const run = () =>
     globalThis.navigator?.locks
@@ -73,4 +127,12 @@ export function updateSettings(partial) {
   const operation = settingsWrite.then(run);
   settingsWrite = operation.catch(() => {});
   return operation;
+}
+
+export function updateSettings(partial) {
+  return writeSettings(partial, false);
+}
+
+export function updateRemoteCredentialsSettings(partial) {
+  return writeSettings(partial, true);
 }

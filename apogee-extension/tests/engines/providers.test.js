@@ -20,10 +20,15 @@ import {
 
 const settings = (overrides) => ({ ...DEFAULT_SETTINGS, ...overrides });
 
-test("every provider in the registry resolves to its own implementation", () => {
+test("every local provider resolves to its own implementation and remotes use the remote adapter", () => {
   const seen = new Map();
   for (const type of Object.values(PROVIDERS)) {
     const provider = getProvider(settings({ provider: type }));
+    if ([PROVIDERS.OPENROUTER, PROVIDERS.OPENCODE].includes(type)) {
+      assert.equal(provider.constructor.name, "RemoteProvider");
+      assert.equal(provider.provider, type);
+      continue;
+    }
     seen.set(type, provider.constructor.name);
   }
   // Each provider must get its own class; two mapping to the same one would mean a missing branch in getProvider silently falling through.
@@ -33,6 +38,180 @@ test("every provider in the registry resolves to its own implementation", () => 
     `providers collapsed onto the same class: ${JSON.stringify([...seen])}`,
   );
   assert.equal(seen.get(PROVIDERS.LLAMACPP), "DirectLlamaCppProvider");
+});
+
+test("remote models and adapters carry only nonsecret identity", () => {
+  for (const provider of [PROVIDERS.OPENROUTER, PROVIDERS.OPENCODE]) {
+    const configured = settings({
+      provider,
+      [`${provider}Model`]: "chosen/model",
+      [`${provider}ApiKey`]: "secret",
+    });
+    assert.equal(getModelForSettings(configured), "chosen/model");
+    assert.deepStrictEqual(Object.keys(getProvider(configured)).sort(), [
+      "model",
+      "provider",
+    ]);
+  }
+});
+
+test("remote adapters send only generation inputs and query redacted readiness", async () => {
+  const messages = [];
+  let status = {
+    consent: true,
+    generationConsent: true,
+    hasApiKey: true,
+    model: "chosen/model",
+    catalog: { stale: false, models: [{ id: "chosen/model" }] },
+  };
+  globalThis.chrome = {
+    runtime: {
+      sendMessage: (message, callback) => {
+        messages.push(message);
+        callback(
+          message.action === "remote-settings-get"
+            ? { providers: { openrouter: status } }
+            : { streamId: "remote-id" },
+        );
+      },
+    },
+  };
+  try {
+    const provider = getProvider(
+      settings({
+        provider: PROVIDERS.OPENROUTER,
+        openrouterModel: "chosen/model",
+        openrouterApiKey: "secret",
+      }),
+    );
+    assert.deepStrictEqual(await provider.checkReady(), { ready: true });
+    for (const patch of [
+      { consent: false },
+      { generationConsent: false },
+      { hasApiKey: false },
+      { catalog: { stale: true, models: [{ id: "chosen/model" }] } },
+      { model: "absent" },
+    ]) {
+      const before = status;
+      status = { ...status, ...patch };
+      assert.deepStrictEqual(await provider.checkReady(), { ready: false });
+      status = before;
+    }
+    await provider.summarize({
+      title: "title",
+      url: "https://example.com",
+      content: "text",
+      mode: "brief",
+      type: "article",
+      language: "fr",
+      translationEngine: "remote",
+      provider: "opencode",
+      model: "untrusted",
+      host: "https://evil.example",
+      apiKey: "secret",
+      consent: true,
+      finalize: {
+        jobId: "job",
+        tabId: 1,
+        pageType: "article",
+        apiKey: "secret",
+        cacheKey: "forged",
+        providerType: "opencode",
+        model: "forged",
+        host: "https://evil.example",
+        language: "fr",
+        translationEngine: "remote",
+      },
+    });
+    await provider.ask({
+      title: "title",
+      url: "https://example.com",
+      content: "text",
+      question: "why?",
+      language: "fr",
+      model: "untrusted",
+      apiKey: "secret",
+    });
+    for (const message of messages.filter(
+      (entry) => entry.action === "remote-stream",
+    )) {
+      for (const key of [
+        "provider",
+        "model",
+        "host",
+        "apiKey",
+        "consent",
+        "language",
+        "translationEngine",
+      ]) {
+        assert.ok(!Object.hasOwn(message.payload, key), key);
+      }
+    }
+    assert.deepStrictEqual(
+      messages
+        .filter((entry) => entry.action === "remote-stream")
+        .map((entry) => entry.payload.action),
+      ["summarize", "ask"],
+    );
+    assert.deepStrictEqual(
+      messages.find((entry) => entry.payload?.action === "summarize").payload
+        .finalize,
+      { jobId: "job", tabId: 1, pageType: "article" },
+    );
+    assert.ok(
+      messages.every((entry) =>
+        ["remote-settings-get", "remote-stream"].includes(entry.action),
+      ),
+    );
+  } finally {
+    delete globalThis.chrome;
+  }
+});
+
+test("automatic and fallback chains exclude remote engines even when supplied", () => {
+  for (const provider of [
+    PROVIDERS.LOCAL,
+    PROVIDERS.OPENROUTER,
+    PROVIDERS.OPENCODE,
+  ]) {
+    for (const chain of [
+      undefined,
+      [PROVIDERS.OPENROUTER, PROVIDERS.LOCAL, PROVIDERS.OPENCODE],
+    ]) {
+      assert.ok(
+        resolveEngineChain(settings({ provider }), chain).every(
+          (type) => ![PROVIDERS.OPENROUTER, PROVIDERS.OPENCODE].includes(type),
+        ),
+      );
+    }
+  }
+});
+
+test("an explicit remote attempt never retries or exposes raw failure text", async () => {
+  for (const provider of [PROVIDERS.OPENROUTER, PROVIDERS.OPENCODE]) {
+    const tried = [];
+    await assert.rejects(
+      runWithEngineFallback(
+        settings({ provider, autoEngine: false }),
+        [PROVIDERS.LOCAL],
+        async (type) => {
+          tried.push(type);
+          throw new Error("secret provider response");
+        },
+        { content: "private extracted text" },
+      ),
+      (error) => error.isUserFacing && !error.message.includes("secret"),
+    );
+    assert.deepStrictEqual(tried, [provider]);
+    await assert.rejects(
+      runWithEngineFallback(
+        settings({ provider, autoEngine: true }),
+        undefined,
+        async () => assert.fail("must not start"),
+      ),
+      /local engine/,
+    );
+  }
 });
 
 test("getProviderType passes a known provider through and rejects anything else", () => {

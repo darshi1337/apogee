@@ -13,6 +13,8 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 function view(overrides = {}) {
   const provider = {
     consent: false,
+    generationConsent: false,
+    generationRevision: 0,
     hasApiKey: false,
     model: "",
     catalog: { models: [], stale: false, refreshedAt: null },
@@ -50,7 +52,7 @@ async function setup(
   return { document, calls, panel, control, fire };
 }
 
-test("startup reads only local settings and remote providers are absent from the engine picker", async () => {
+test("startup reads only local settings and exposes explicit remote provider choices", async () => {
   const { document, calls, control } = await setup();
   assert.deepEqual(calls, [
     { target: "service-worker", action: "remote-settings-get" },
@@ -61,18 +63,18 @@ test("startup reads only local settings and remote providers are absent from the
   assert.equal(control("status").textContent, "remoteModelsEmpty");
   assert.equal(
     document.querySelector('input[type="radio"][value="openrouter"]'),
-    null,
+    document.querySelector("#provOpenrouter"),
   );
   assert.equal(
     document.querySelector('input[type="radio"][value="opencode"]'),
-    null,
+    document.querySelector("#provOpencode"),
   );
   const remote = document.querySelector("#remoteSettings");
   assert.equal(
     document.querySelector("#remoteSetupTitle").textContent,
     "Remote providers",
   );
-  assert.match(remote.textContent, /preview/i);
+  assert.match(remote.textContent, /Generation consent/);
   assert.ok(
     remote.closest(".settings-card").querySelector("#autoEngineCheckbox"),
   );
@@ -114,6 +116,7 @@ test("explicit save carries key and consent; key field clears; refresh stays pro
     payload: {
       provider: "openrouter",
       consent: true,
+      generationConsent: false,
       apiKey: "secret-key",
     },
   });
@@ -221,6 +224,7 @@ test("revoke and key removal are distinct explicit actions", async () => {
   assert.deepEqual(calls[1].payload, {
     provider: "openrouter",
     consent: false,
+    generationConsent: false,
   });
   fire("clear-key");
   await tick();
@@ -329,4 +333,42 @@ test("failed refresh rereads retained catalog and announces stale availability",
   assert.equal(calls[2].action, "remote-settings-get");
   assert.match(control("model").textContent, /Last good model/);
   assert.equal(control("status").textContent, "remoteModelsRefreshError");
+});
+
+test("generation opt-in requests content permission from Save and stays separate from catalog consent", async () => {
+  const requested = [];
+  const { calls, control, fire } = await setup(
+    view(),
+    () => view({ consent: true, generationConsent: true }),
+    async (generation) => {
+      requested.push(generation);
+      return true;
+    },
+  );
+  assert.deepEqual(requested, []);
+  control("consent").checked = true;
+  fire("save");
+  await tick();
+  assert.deepEqual(requested, [false]);
+  control("generation-consent").checked = true;
+  fire("save");
+  await tick();
+  assert.deepEqual(requested, [false, true]);
+  assert.equal(calls[2].payload.generationConsent, true);
+});
+
+test("denied generation permission never saves generation consent", async () => {
+  const { calls, control, fire } = await setup(
+    view(),
+    undefined,
+    async () => false,
+  );
+  control("consent").checked = true;
+  control("generation-consent").checked = true;
+  control("key").value = "secret";
+  fire("save");
+  await tick();
+  assert.equal(calls.length, 1);
+  assert.equal(control("generation-consent").checked, false);
+  assert.equal(control("key").value, "");
 });

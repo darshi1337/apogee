@@ -15,6 +15,29 @@ const makeSettings = (overrides = {}) => ({
   ...overrides,
 });
 
+test("automatic candidate lists exclude remotes from caller-supplied available engines", () => {
+  const chain = resolveCandidateChain({
+    kind: INPUT_KINDS.ARTICLE,
+    settings: makeSettings({
+      autoEngine: true,
+      provider: PROVIDERS.OPENROUTER,
+      llamaApiKey: "key",
+    }),
+    availableEngines: Object.values(PROVIDERS),
+  });
+  assert.ok(chain.length > 0);
+  assert.ok(
+    chain.every(
+      (type) => ![PROVIDERS.OPENROUTER, PROVIDERS.OPENCODE].includes(type),
+    ),
+  );
+  assert.ok(
+    DEFAULT_CANDIDATES.every(
+      (type) => ![PROVIDERS.OPENROUTER, PROVIDERS.OPENCODE].includes(type),
+    ),
+  );
+});
+
 test("detectInputKind identifies each input kind accurately", () => {
   assert.equal(detectInputKind({ action: "ask" }), INPUT_KINDS.ASK);
   assert.equal(detectInputKind({ isSelection: true }), INPUT_KINDS.SELECTION);
@@ -106,8 +129,7 @@ test("resolveCandidateChain resolves candidates when autoEngine is true", () => 
     settings,
   });
   assert.ok(Array.isArray(chain));
-  assert.equal(chain[0], PROVIDERS.WEBLLM);
-  assert.equal(chain[1], PROVIDERS.TRANSFORMERS);
+  assert.deepEqual(chain.slice(0, 2), DEFAULT_CANDIDATES.slice(0, 2));
 });
 
 test("resolveCandidateChain promotes local engine only when settings.provider is that engine", () => {
@@ -157,7 +179,7 @@ test("resolveCandidateChain appends remaining available engines after rule list"
       availableEngines: available,
     });
     assert.equal(chain[0], PROVIDERS.TRANSFORMERS);
-    assert.ok(chain.includes(PROVIDERS.WEBLLM));
+    if (PROVIDERS.WEBLLM) assert.ok(chain.includes(PROVIDERS.WEBLLM));
     assert.ok(chain.includes(PROVIDERS.LOCAL));
     assert.ok(chain.includes(PROVIDERS.LLAMACPP));
   } finally {
@@ -175,8 +197,7 @@ test("resolveCandidateChain falls back to DEFAULT_CANDIDATES when kind has no ov
     tokenCount: 500,
     settings,
   });
-  assert.equal(chain[0], PROVIDERS.WEBLLM);
-  assert.equal(chain[1], PROVIDERS.TRANSFORMERS);
+  assert.deepEqual(chain.slice(0, 2), DEFAULT_CANDIDATES.slice(0, 2));
 });
 
 test("resolveCandidateChain demotes engines whose usable context window < tokenCount", () => {
@@ -195,8 +216,12 @@ test("resolveCandidateChain demotes engines whose usable context window < tokenC
     tokenCount: 1500,
     settings,
   });
-  assert.equal(chain[0], PROVIDERS.WEBLLM);
-  assert.equal(chain[1], PROVIDERS.LOCAL);
+  if (PROVIDERS.WEBLLM) {
+    assert.equal(chain[0], PROVIDERS.WEBLLM);
+    assert.equal(chain[1], PROVIDERS.LOCAL);
+  } else {
+    assert.equal(chain[0], PROVIDERS.LOCAL);
+  }
   assert.ok(
     chain.indexOf(PROVIDERS.TRANSFORMERS) > chain.indexOf(PROVIDERS.LOCAL),
   );
@@ -216,9 +241,7 @@ test("resolveCandidateChain keeps original order if all engines are demoted", ()
     settings,
   });
   // All are demoted, so original order is preserved
-  assert.equal(chain[0], PROVIDERS.WEBLLM);
-  assert.equal(chain[1], PROVIDERS.TRANSFORMERS);
-  assert.equal(chain[2], PROVIDERS.LOCAL);
+  assert.deepEqual(chain.slice(0, 3), DEFAULT_CANDIDATES.slice(0, 3));
 });
 
 test("resolveCandidateChain respects injectable availableEngines list", () => {

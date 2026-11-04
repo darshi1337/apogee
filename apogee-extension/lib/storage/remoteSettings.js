@@ -1,5 +1,8 @@
 import { onRemoteCredentialChange } from "../engines/remoteCredentials.js";
-import { getSettings, updateSettings } from "./settings.js";
+import {
+  getRemoteCredentialsSettings,
+  updateRemoteCredentialsSettings,
+} from "./settings.js";
 import {
   abortRemoteRequests,
   fetchRemoteModels,
@@ -97,7 +100,7 @@ function invalidate(provider) {
 export async function getRemoteSettings() {
   listenForRevocation();
   await pendingInvalidation;
-  const settings = await getSettings();
+  const settings = await getRemoteCredentialsSettings();
   const providers = {};
   for (const provider of REMOTE_PROVIDER_IDS) {
     const cache = await readCatalog(provider);
@@ -105,6 +108,8 @@ export async function getRemoteSettings() {
     const hasApiKey = !!settings[`${provider}ApiKey`];
     providers[provider] = {
       consent,
+      generationConsent: settings[`${provider}GenerationConsent`],
+      generationRevision: settings[`${provider}GenerationRevision`],
       hasApiKey,
       model: settings[`${provider}Model`],
       catalog: {
@@ -129,7 +134,14 @@ export async function saveRemoteSettings(payload) {
   remotePreset(provider);
   if (
     Object.keys(payload).some(
-      (key) => !["provider", "apiKey", "consent", "model"].includes(key),
+      (key) =>
+        ![
+          "provider",
+          "apiKey",
+          "consent",
+          "generationConsent",
+          "model",
+        ].includes(key),
     )
   )
     throw new Error("Invalid remote settings.");
@@ -144,6 +156,11 @@ export async function saveRemoteSettings(payload) {
   if (has("consent") && typeof payload.consent !== "boolean")
     throw new Error("Invalid remote consent.");
   if (
+    has("generationConsent") &&
+    typeof payload.generationConsent !== "boolean"
+  )
+    throw new Error("Invalid generation consent.");
+  if (
     has("model") &&
     payload.model !== "" &&
     !validRemoteModelId(payload.model)
@@ -154,12 +171,16 @@ export async function saveRemoteSettings(payload) {
   // Holding aborts requests that may still be using the old credentials. The
   // cache is removed only when a credential actually changes.
   const release = holdRemoteRequests(provider, {
-    abort: has("apiKey") || has("consent"),
+    abort:
+      has("apiKey") ||
+      has("consent") ||
+      has("generationConsent") ||
+      has("model"),
   });
   const operation = pendingSave
     .then(async () => {
       await pendingInvalidation;
-      const settings = await getSettings();
+      const settings = await getRemoteCredentialsSettings();
       const apiKey = has("apiKey")
         ? payload.apiKey.trim()
         : settings[`${provider}ApiKey`];
@@ -178,12 +199,16 @@ export async function saveRemoteSettings(payload) {
       if (keyChanged) settings[`${provider}Model`] = "";
       if (has("apiKey")) settings[`${provider}ApiKey`] = apiKey;
       if (has("consent")) settings[`${provider}Consent`] = payload.consent;
+      if (has("generationConsent"))
+        settings[`${provider}GenerationConsent`] = payload.generationConsent;
+      if (has("consent") && !payload.consent)
+        settings[`${provider}GenerationConsent`] = false;
       if (has("model")) settings[`${provider}Model`] = payload.model;
       if (!settings[`${provider}Consent`] || !settings[`${provider}ApiKey`])
         settings[`${provider}Model`] = "";
-      await updateSettings(
+      await updateRemoteCredentialsSettings(
         Object.fromEntries(
-          ["ApiKey", "Consent", "Model"].map((suffix) => [
+          ["ApiKey", "Consent", "Model", "GenerationConsent"].map((suffix) => [
             `${provider}${suffix}`,
             settings[`${provider}${suffix}`],
           ]),
@@ -213,7 +238,7 @@ async function refreshCatalog(provider) {
   await pendingSave;
   await pendingInvalidation;
   const revision = revisions.get(provider) || 0;
-  const before = await getSettings();
+  const before = await getRemoteCredentialsSettings();
   let models;
   try {
     models = await fetchRemoteModels(provider);
@@ -232,18 +257,18 @@ async function refreshCatalog(provider) {
     }
     throw error;
   }
-  const after = await getSettings();
+  const after = await getRemoteCredentialsSettings();
   if (!settingsStillMatch(after, before, provider, revision))
     throw new Error("Remote settings changed. Refresh again.");
   await chrome.storage.local.set({
     [catalogKey(provider)]: { models, refreshedAt: Date.now(), failed: false },
   });
-  const committed = await getSettings();
+  const committed = await getRemoteCredentialsSettings();
   if (!settingsStillMatch(committed, before, provider, revision)) {
     await chrome.storage.local.remove(catalogKey(provider));
     throw new Error("Remote settings changed. Refresh again.");
   }
-  await updateSettings((current) => {
+  await updateRemoteCredentialsSettings((current) => {
     if (!settingsStillMatch(current, before, provider, revision)) return {};
     return current[`${provider}Model`] &&
       !models.some((entry) => entry.id === current[`${provider}Model`])

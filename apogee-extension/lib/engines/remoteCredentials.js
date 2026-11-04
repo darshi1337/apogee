@@ -1,5 +1,21 @@
 import { REMOTE_PROVIDER_IDS } from "./remoteModels.js";
 
+export const REMOTE_GENERATION_DATA = [
+  "authenticationInfo",
+  "websiteContent",
+  "browsingActivity",
+  "personalCommunications",
+];
+
+export async function hasRemoteGenerationPermissions() {
+  return (
+    process.env.TARGET_BROWSER !== "firefox" ||
+    (await chrome.permissions.contains({
+      data_collection: REMOTE_GENERATION_DATA,
+    }))
+  );
+}
+
 const listeners = new Set();
 let watchedStorage;
 

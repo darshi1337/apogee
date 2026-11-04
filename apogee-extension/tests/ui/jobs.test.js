@@ -42,6 +42,29 @@ const okEngine = (id) => ({
   summarize: async () => ({ streamId: id, stream: `${id}-stream` }),
 });
 
+test("a failed remote stream ends with a safe error and never renders extracted text", async () => {
+  const tried = [];
+  const { calls, hooks } = wire({
+    settings: settings({ provider: PROVIDERS.OPENROUTER, autoEngine: false }),
+    start: async (_engine, type) => {
+      tried.push(type);
+      return { streamId: "remote", stream: "remote-stream" };
+    },
+    consume: async () => {
+      throw new Error("remote server secret");
+    },
+  });
+  await assert.rejects(
+    runStreamingJob({
+      ...hooks,
+      ...engines({ [PROVIDERS.OPENROUTER]: {}, [LOCAL]: okEngine("local") }),
+    }),
+    (error) => error.isUserFacing && !error.message.includes("secret"),
+  );
+  assert.deepStrictEqual(tried, [PROVIDERS.OPENROUTER]);
+  assert.deepStrictEqual(calls, ["reset", "showCancel", "hideCancel"]);
+});
+
 test("a first-try success wires reset, cancel, consume in order", async () => {
   const { calls, hooks } = wire();
   const result = await runStreamingJob({

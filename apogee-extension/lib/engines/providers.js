@@ -8,7 +8,10 @@ import {
   DEFAULT_PROVIDER,
   DEFAULT_OLLAMA_HOST,
   DEFAULT_LLAMACPP_HOST,
+  LOCAL_PROVIDER_TYPES,
 } from "../constants.js";
+import { REMOTE_PROVIDER_IDS } from "./remoteModels.js";
+import { hasRemoteGenerationPermissions } from "./remoteCredentials.js";
 
 function sendToServiceWorker(message) {
   return new Promise((resolve, reject) => {
@@ -419,6 +422,101 @@ class DirectLlamaCppProvider {
   }
 }
 
+export function isRemoteProvider(type) {
+  return REMOTE_PROVIDER_IDS.includes(type);
+}
+
+class RemoteProvider {
+  constructor(provider, model) {
+    this.provider = provider;
+    this.model = model;
+  }
+
+  summarize({
+    title,
+    url,
+    content,
+    mode,
+    type,
+    finalize,
+    isSelection,
+    focusKeyword,
+    onStats,
+  }) {
+    const metadata =
+      finalize &&
+      Object.fromEntries(
+        [
+          "customContent",
+          "isSelection",
+          "pageType",
+          "selectionText",
+          "jobId",
+          "tabId",
+          "windowId",
+          "notifyOnFinish",
+          "persistUrl",
+        ]
+          .filter((key) => Object.hasOwn(finalize, key))
+          .map((key) => [key, finalize[key]]),
+      );
+    return startStream(
+      "remote-stream",
+      {
+        action: "summarize",
+        title,
+        url,
+        content,
+        mode,
+        type,
+        finalize: metadata,
+        isSelection,
+        focusKeyword,
+      },
+      { onStats },
+    );
+  }
+
+  ask({ title, url, content, question, onStats }) {
+    return startStream(
+      "remote-stream",
+      {
+        action: "ask",
+        title,
+        url,
+        content,
+        question,
+      },
+      { onStats },
+    );
+  }
+
+  async checkReady() {
+    const response = await sendToServiceWorker({
+      target: "service-worker",
+      action: "remote-settings-get",
+    });
+    const state = response?.providers?.[this.provider];
+    let permitted = false;
+    try {
+      permitted = await hasRemoteGenerationPermissions();
+    } catch {
+      // Missing permission APIs must not claim the remote engine is ready.
+    }
+    return {
+      ready:
+        permitted &&
+        state?.consent === true &&
+        state?.generationConsent === true &&
+        state?.hasApiKey === true &&
+        state?.catalog?.stale === false &&
+        !!state?.model &&
+        state.catalog.models?.some((entry) => entry.id === state.model) ===
+          true,
+    };
+  }
+}
+
 export function getProviderType(settings) {
   const provider = settings.provider;
   if (Object.values(PROVIDERS).includes(provider)) return provider;
@@ -426,6 +524,8 @@ export function getProviderType(settings) {
 }
 
 export function getModelForSettings(settings) {
+  if (isRemoteProvider(settings.provider))
+    return settings[`${settings.provider}Model`];
   if (settings.provider === PROVIDERS.LOCAL) return settings.localModel;
   if (settings.provider === PROVIDERS.LLAMACPP) return settings.llamaModel;
   if (settings.provider === PROVIDERS.TRANSFORMERS) {
@@ -440,6 +540,12 @@ export function getProvider(settings) {
 }
 
 export function getProviderForType(type, settings) {
+  if (isRemoteProvider(type)) {
+    return new RemoteProvider(
+      type,
+      getModelForSettings({ ...settings, provider: type }),
+    );
+  }
   if (type === PROVIDERS.LOCAL) {
     return new DirectOllamaProvider(settings.localModel, settings.ollamaHost);
   }
@@ -474,11 +580,11 @@ export function resolveEngineChain(settings, chain) {
   const ordered =
     Array.isArray(chain) && chain.length > 0
       ? chain
-      : [preferred, ...Object.values(PROVIDERS).filter((t) => t !== preferred)];
+      : [preferred, ...LOCAL_PROVIDER_TYPES.filter((t) => t !== preferred)];
   const seen = new Set();
   const result = [];
   for (const type of ordered) {
-    if (!Object.values(PROVIDERS).includes(type) || seen.has(type)) continue;
+    if (!LOCAL_PROVIDER_TYPES.includes(type) || seen.has(type)) continue;
     seen.add(type);
     // The first entry is the caller's explicit choice, so it is always
     // tried. Key-skipping applies to fallbacks only: without it the
@@ -503,6 +609,25 @@ export function buildExtractedTextFallback(content, maxChars = 4000) {
 // fallback so the run still ends with page content instead of nothing.
 // opts.buildProvider(type) overrides provider construction (tests).
 export async function runWithEngineFallback(settings, chain, runFn, opts = {}) {
+  if (isRemoteProvider(settings.provider)) {
+    if (settings.autoEngine) {
+      throw new UserFacingError(
+        "Choose a local engine to use automatic engine selection.",
+      );
+    }
+    const type = settings.provider;
+    try {
+      const provider = opts.buildProvider
+        ? await opts.buildProvider(type)
+        : getProviderForType(type, settings);
+      return { type, result: await runFn(type, provider, 0), errors: [] };
+    } catch (err) {
+      if (err instanceof StreamCancelledError) throw err;
+      throw new UserFacingError(
+        "Remote generation failed. Check remote settings and try again.",
+      );
+    }
+  }
   const types = resolveEngineChain(settings, chain);
   const errors = [];
   const build =
