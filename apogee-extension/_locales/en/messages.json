@@ -329,7 +329,7 @@
     "description": "SponsorBlock on option"
   },
   "sponsorBlockOff": {
-    "message": "Stay fully local",
+    "message": "Disable SponsorBlock requests",
     "description": "SponsorBlock off option"
   },
   "privacy": { "message": "Privacy", "description": "Privacy card title" },

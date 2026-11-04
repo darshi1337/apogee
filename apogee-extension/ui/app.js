@@ -1671,12 +1671,22 @@ function summarizeJobRunner(settings, summarizeArgs, opts) {
     content: summarizeArgs.content,
     reset: () => setLoadingIndicator(summaryText, randomSummarizeVerb()),
     start: (engine) => engine.summarize(summarizeArgs),
-    persistStream,
+    persistStream: (streamId, _index, execution) =>
+      persistStream(streamId, execution),
     onStreamStart,
     showCancel: summaryCancel.show,
     hideCancel: summaryCancel.hide,
-    consume: (stream) =>
-      consumeSummaryStream(stream, { tab, promptsCacheKey, jobId }),
+    consume: (stream, _index, execution) => {
+      if (execution) {
+        currentSummaryLanguage = execution.language;
+        currentTranslationEngine = execution.translationEngine;
+      }
+      return consumeSummaryStream(stream, {
+        tab,
+        promptsCacheKey: execution?.promptsCacheKey || promptsCacheKey,
+        jobId,
+      });
+    },
     renderFallback: (fallbackText) =>
       renderExtractedTextFallback(summaryText, fallbackText),
   });
@@ -1865,13 +1875,13 @@ async function consumeSummaryStream(stream, { tab, promptsCacheKey, jobId }) {
     jobId,
     buildSummaryCompletedState(tab, text),
   );
+  currentPromptsCacheKey = promptsCacheKey;
   if (/:p(?:openrouter|opencode)(?=:|$)/.test(promptsCacheKey || "")) {
     setSuggestedQuestions([]);
     return text;
   }
   setSuggestedQuestionsLoading();
 
-  currentPromptsCacheKey = promptsCacheKey;
   const { [promptsCacheKey]: existingQuestions } =
     await chrome.storage.local.get(promptsCacheKey);
   if (existingQuestions !== undefined) {
@@ -2064,7 +2074,7 @@ async function summarizeActivePage() {
         jobId,
         promptsCacheKey,
         isPdf: pageData.isPdf,
-        persistStream: async (streamId) => {
+        persistStream: async (streamId, execution) => {
           const activeJobState = await saveViewStateIfJobMatches(
             tab.id,
             jobId,
@@ -2073,13 +2083,20 @@ async function summarizeActivePage() {
               subview: "summarizing",
               url: tab.url,
               streamId,
-              promptsCacheKey,
+              promptsCacheKey: execution?.promptsCacheKey || promptsCacheKey,
               pageType,
               focusKeyword,
               isSelection: pageType === "selection",
               selectionText,
-              summaryLanguage: settings.summaryLanguage,
-              translationEngine: settings.translationEngine,
+              summaryLanguage: execution?.language ?? settings.summaryLanguage,
+              translationEngine:
+                execution?.translationEngine ?? settings.translationEngine,
+              ...(execution
+                ? {
+                    providerType: execution.providerType,
+                    model: execution.model,
+                  }
+                : {}),
             },
             "summarizing",
           );
@@ -2215,13 +2232,21 @@ async function submitQuestion(question) {
       content,
       reset: () => showAnswerContext(trimmed),
       start: (engine) => engine.ask(askArgs),
-      persistStream: async (streamId) => {
+      persistStream: async (streamId, _index, execution) => {
         await saveViewState(tab.id, {
           view: "summaryView",
           subview: "answer",
           url: tab.url,
           streamId,
           question: trimmed,
+          ...(execution
+            ? {
+                providerType: execution.providerType,
+                model: execution.model,
+                summaryLanguage: execution.language,
+                translationEngine: execution.translationEngine,
+              }
+            : {}),
         });
         return "done";
       },
@@ -2832,7 +2857,7 @@ async function summarizeCustomContent(title, content, url = "") {
       tab,
       jobId,
       promptsCacheKey,
-      persistStream: async (streamId) => {
+      persistStream: async (streamId, execution) => {
         if (tab?.id) {
           await saveViewState(tab.id, {
             view: "summaryView",
@@ -2842,7 +2867,15 @@ async function summarizeCustomContent(title, content, url = "") {
             jobId,
             summaryText: "",
             timeSaved: timeSavedInputsFor({ type: "article", content }),
-            promptsCacheKey,
+            promptsCacheKey: execution?.promptsCacheKey || promptsCacheKey,
+            ...(execution
+              ? {
+                  providerType: execution.providerType,
+                  model: execution.model,
+                  summaryLanguage: execution.language,
+                  translationEngine: execution.translationEngine,
+                }
+              : {}),
             pageType: "",
             focusKeyword: "",
             isSelection: false,

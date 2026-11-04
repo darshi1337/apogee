@@ -706,8 +706,10 @@ async function runStream(streamId, pending, stream) {
 }
 
 chrome.runtime.onConnect.addListener((port) => {
-  // Same sender validation as the onMessage handlers; unknown-name ports are
-  // already dropped below.
+  // runtime.connect is delivered to every extension context. Closing a
+  // worker-owned UI port here also disconnects its legitimate receiver.
+  if (!port.name?.startsWith("offscreen-stream-")) return;
+  // Only the service-worker relay opens this port family.
   if (port.sender?.id !== chrome.runtime.id) {
     safeDisconnect(port);
     return;
@@ -718,8 +720,6 @@ chrome.runtime.onConnect.addListener((port) => {
     safeDisconnect(port);
     return;
   }
-  if (!port.name.startsWith("offscreen-stream-")) return;
-
   const streamId = port.name.replace("offscreen-stream-", "");
   const stream = streams.get(streamId);
 

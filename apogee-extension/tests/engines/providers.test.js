@@ -55,6 +55,43 @@ test("remote models and adapters carry only nonsecret identity", () => {
   }
 });
 
+test("remote stream starts retain canonical execution metadata without changing local start shape", async () => {
+  const execution = {
+    providerType: PROVIDERS.OPENROUTER,
+    model: "saved/new-model",
+    language: "fr",
+    translationEngine: "llm",
+    cacheKey: "canonical-summary-key",
+    promptsCacheKey: "canonical-prompts-key",
+  };
+  globalThis.chrome = {
+    runtime: {
+      sendMessage: (message, callback) =>
+        callback({
+          streamId: "started",
+          ...(message.action === "remote-stream" ? { execution } : {}),
+        }),
+    },
+  };
+  try {
+    const remote = await getProvider(
+      settings({ provider: PROVIDERS.OPENROUTER }),
+    ).summarize({ content: "page" });
+    assert.deepStrictEqual(Object.keys(remote).sort(), [
+      "execution",
+      "stream",
+      "streamId",
+    ]);
+    assert.strictEqual(remote.execution, execution);
+    const local = await getProvider(
+      settings({ provider: PROVIDERS.LOCAL }),
+    ).summarize({ content: "page" });
+    assert.deepStrictEqual(Object.keys(local).sort(), ["stream", "streamId"]);
+  } finally {
+    delete globalThis.chrome;
+  }
+});
+
 test("remote adapters send only generation inputs and query redacted readiness", async () => {
   const messages = [];
   let status = {
@@ -65,6 +102,7 @@ test("remote adapters send only generation inputs and query redacted readiness",
     catalog: { stale: false, models: [{ id: "chosen/model" }] },
   };
   globalThis.chrome = {
+    permissions: { contains: async () => true },
     runtime: {
       sendMessage: (message, callback) => {
         messages.push(message);

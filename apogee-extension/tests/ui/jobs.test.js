@@ -42,6 +42,49 @@ const okEngine = (id) => ({
   summarize: async () => ({ streamId: id, stream: `${id}-stream` }),
 });
 
+test("worker execution identity reaches persistence and consumption unchanged", async () => {
+  const execution = {
+    providerType: PROVIDERS.OPENROUTER,
+    model: "canonical/model",
+    language: "fr",
+    translationEngine: "llm",
+    cacheKey: "canonical-summary-key",
+    promptsCacheKey: "canonical-prompts-key",
+  };
+  const seen = [];
+  const { hooks } = wire({
+    settings: settings({ provider: PROVIDERS.OPENROUTER, autoEngine: false }),
+    persistStream: async (streamId, index, identity) => {
+      seen.push(["persist", streamId, index, identity]);
+      return "done";
+    },
+    consume: async (stream, index, identity) => {
+      seen.push(["consume", stream, index, identity]);
+    },
+  });
+  assert.equal(
+    await runStreamingJob({
+      ...hooks,
+      ...engines({
+        [PROVIDERS.OPENROUTER]: {
+          summarize: async () => ({
+            streamId: "remote",
+            stream: "remote-stream",
+            execution,
+          }),
+        },
+      }),
+    }),
+    "done",
+  );
+  assert.deepStrictEqual(seen, [
+    ["persist", "remote", 0, execution],
+    ["consume", "remote-stream", 0, execution],
+  ]);
+  assert.strictEqual(seen[0][3], execution);
+  assert.strictEqual(seen[1][3], execution);
+});
+
 test("a failed remote stream ends with a safe error and never renders extracted text", async () => {
   const tried = [];
   const { calls, hooks } = wire({

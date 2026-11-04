@@ -111,7 +111,7 @@ export function cancelStream(streamId) {
 // the job action inside the payload, while WebLLM uses the job action
 // itself. Callers pass the already-shaped message.
 async function startStream(serviceAction, payload, { onStats } = {}) {
-  const { streamId } = await sendToServiceWorker({
+  const { streamId, execution } = await sendToServiceWorker({
     target: "service-worker",
     action: serviceAction,
     payload,
@@ -119,7 +119,11 @@ async function startStream(serviceAction, payload, { onStats } = {}) {
   if (!streamId) {
     throw new Error("No streamId returned from service worker");
   }
-  return { streamId, stream: attachToStream(streamId, { onStats }) };
+  return {
+    streamId,
+    stream: attachToStream(streamId, { onStats }),
+    ...(execution ? { execution } : {}),
+  };
 }
 
 class WebLLMProvider {

@@ -1573,7 +1573,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             await context.assertActive();
             await recordPopupSummaryStream(payload, streamId);
             startRemoteStream(streamId, payload, context);
-            sendResponse({ streamId });
+            sendResponse({
+              streamId,
+              execution: {
+                providerType: context.provider,
+                model: context.model,
+                language: context.settings.summaryLanguage,
+                translationEngine: context.settings.translationEngine,
+                cacheKey: finalize?.cacheKey || null,
+                promptsCacheKey: finalize?.promptsCacheKey || null,
+              },
+            });
           } catch (error) {
             context.dispose();
             throw error;

@@ -183,7 +183,7 @@ async function run(payload = args()) {
     () => stream.done && !registeredStreamJobs.has(result.streamId),
     "remote terminal state",
   );
-  return { streamId: result.streamId, stream };
+  return { streamId: result.streamId, execution: result.execution, stream };
 }
 function assertNoSummarySaved() {
   const stored = getStorageData();
@@ -201,7 +201,10 @@ test("actual worker Summary uses both explicit providers and persists matching c
   for (const provider of Object.keys(models)) {
     await setup(provider);
     const calls = intercept();
-    const { stream } = await run();
+    const { stream, execution } = await run();
+    assert.equal(execution.providerType, provider);
+    assert.equal(execution.model, models[provider]);
+    assert.ok(!JSON.stringify(execution).includes("secret"));
     assert.equal(stream.error, null);
     assert.equal(stream.text, "Remote answer");
     const posts = calls.filter((request) => request.body);
@@ -223,6 +226,8 @@ test("actual worker Summary uses both explicit providers and persists matching c
       { pageType: "article" },
     );
     const stored = getStorageData();
+    assert.equal(execution.cacheKey, keys.cacheKey);
+    assert.equal(execution.promptsCacheKey, keys.promptsCacheKey);
     assert.equal(stored[keys.cacheKey], "Remote answer");
     assert.equal(stored.cacheOrder[0].s, keys.cacheKey);
     assert.equal(stored.cacheOrder[0].p, keys.promptsCacheKey);
