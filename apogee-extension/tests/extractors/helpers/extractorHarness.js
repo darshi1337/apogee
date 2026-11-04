@@ -8,7 +8,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const contentDir = join(here, "..", "..", "..", "content");
 const fixturesDir = join(here, "..", "fixtures");
 
-export function readFixture(name) {
+function readFixture(name) {
   return readFileSync(join(fixturesDir, name), "utf8");
 }
 
