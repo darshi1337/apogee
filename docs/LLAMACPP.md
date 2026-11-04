@@ -8,7 +8,7 @@ If you prefer no server management at all, [Local Ollama](OLLAMA.md) does the sa
 
 Apogee talks to `llama-server` over local HTTP (`http://127.0.0.1:8080` by default) through its OpenAI-compatible `/v1/chat/completions` endpoint. No middle service sits between.
 
-Unlike Ollama, `llama-server` serves exactly one model: the GGUF you launched it with. Apogee reads which one that is instead of asking you to pick from a list.
+By default, `llama-server` serves one model: the GGUF you launched it with, and Apogee reads the name automatically. When `llama-server` runs in router mode with multiple models, Apogee detects all available models and provides a model picker in Settings.
 
 ## Step 1: Install llama.cpp
 
@@ -33,6 +33,16 @@ llama-server -hf Qwen/Qwen2.5-7B-Instruct-GGUF:Q4_K_M --port 8080 --host 127.0.0
 
 Wait for `listening on http://127.0.0.1:8080`. Keep the terminal open. The server runs in the foreground.
 
+### Router Mode (Multiple Models)
+
+`llama-server` supports router mode to host multiple models simultaneously without specifying `-m` at launch ([llama.cpp router documentation](https://github.com/ggml-org/llama.cpp/tree/master/tools/server#using-multiple-models)):
+
+```bash
+llama-server --models-dir /path/to/models --port 8080 --host 127.0.0.1
+```
+
+When started in router mode, `/v1/models` returns all models available in the directory. Apogee detects them and provides a model dropdown in Settings, routing chat and summarization requests to whichever model you select.
+
 Apogee only links to loopback addresses (`127.0.0.1`, `localhost`, `[::1]`). It refuses servers bound elsewhere on purpose. Page text cannot leave your machine.
 
 ## Step 3: Configure Apogee
@@ -47,13 +57,13 @@ The status line under the model name tells you where you stand:
 | What it says | What it means |
 | --- | --- |
 | Detected from the server, N token context | Linked, and Apogee knows the running context window |
-| N models available | A proxy in front of `llama-server` serves several |
+| N models available | A router-mode server or proxy serves several |
 | Connected, but Apogee could not read the model. Check the API key | The server is up, but `/v1/models` refused. Often a missing or wrong API key causes this |
 | Not connected | Nothing answered on that address |
 
 ## The Model Field
 
-`llama-server` loads one model at launch, so there is no list to pick from. Apogee reads the name from `/v1/models` and fills the field in.
+When `llama-server` serves a single model, Apogee reads the name from /v1/models and fills the field in. If the server serves multiple models (router mode or a multi-model proxy), Apogee displays a model picker dropdown populated with all models reported by /v1/models.
 
 The field stays editable, and Apogee keeps what you type. That matters for two cases:
 

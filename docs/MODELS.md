@@ -55,7 +55,7 @@ After you pick Local Ollama mode, Apogee queries your local Ollama server over l
 
 ## Local llama.cpp Models
 
-After you pick Local llama.cpp mode, Apogee talks to your own `llama-server` over loopback HTTP. The address is `http://127.0.0.1:8080`. Unlike Ollama it serves one model at a time: the GGUF you launched it with. Apogee reads the name from the server instead of showing a list. See the [Local llama.cpp Guide](LLAMACPP.md) for setup.
+After you pick Local llama.cpp mode, Apogee talks to your own `llama-server` over loopback HTTP. The address is `http://127.0.0.1:8080`. By default it serves one model: the GGUF you launched it with, and Apogee reads the name automatically. When running llama-server in router mode with multiple models, Apogee displays a model picker populated with all available models. See the [Local llama.cpp Guide](LLAMACPP.md) for setup.
 
 | Model | Model Size | Recommended Start Command | Primary Strengths |
 | --- | --- | --- | --- |

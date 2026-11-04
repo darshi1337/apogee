@@ -1038,7 +1038,7 @@
               <span data-i18n="localLlm">Local LLM</span>
             </div>
 
-            <label class="settings-field">
+            <label id="llamaModelInputRow" class="settings-field">
               <span data-i18n="modelName">Model name</span>
               <input
                 id="llamaModelInput"
@@ -1048,6 +1048,10 @@
                 placeholder="Detected from the server"
                 data-i18n-placeholder="modelNamePlaceholder"
               />
+            </label>
+            <label id="llamaModelSelectRow" class="settings-field hidden">
+              <span data-i18n="modelName">Model name</span>
+              <select id="llamaModelSelect" class="settings-select"></select>
             </label>
             <div id="llamaModelStatus" class="clear-data-status"></div>
           </div>

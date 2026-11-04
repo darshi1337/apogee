@@ -30,12 +30,15 @@ test("app.html offers llama.cpp in the provider list", () => {
 
 test("app.html carries the llama.cpp settings fields", () => {
   const { document } = parseHTML(popupHtml);
-  for (const id of [
+    for (const id of [
     "llamaSettingsCard",
     "llamaModelsCard",
     "llamaHostInput",
     "llamaApiKeyInput",
+    "llamaModelInputRow",
     "llamaModelInput",
+    "llamaModelSelectRow",
+    "llamaModelSelect",
     "llamaModelStatus",
   ]) {
     assert.ok(document.getElementById(id), `#${id} must exist in app.html`);
@@ -127,4 +130,25 @@ test("an unset key and a loopback host are reported plainly", () => {
   const report = formatDiagnosticSettings(DEFAULT_SETTINGS);
   assert.match(report, /llamaApiKey: unset/);
   assert.match(report, /llamaHost: http:\/\/127\.0\.0\.1:8080/);
+});
+
+test("the multi-model router select starts hidden in app.html", () => {
+  const { document } = parseHTML(popupHtml);
+  const selectRow = document.getElementById("llamaModelSelectRow");
+  assert.ok(selectRow, "#llamaModelSelectRow must exist");
+  assert.ok(
+    selectRow.className.includes("hidden"),
+    "#llamaModelSelectRow must be hidden by default",
+  );
+  const select = document.getElementById("llamaModelSelect");
+  assert.equal(select.tagName.toLowerCase(), "select");
+});
+
+test("app.js binds router-mode model selection and saves changes", () => {
+  assert.match(popupJs, /llamaModelSelectRow/);
+  assert.match(popupJs, /llamaModelSelect/);
+  assert.match(
+    popupJs,
+    /llamaModelSelect\?\.addEventListener\("change"/
+  );
 });

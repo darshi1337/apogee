@@ -339,7 +339,10 @@ const llamaSettingsCard = document.getElementById("llamaSettingsCard");
 const llamaModelsCard = document.getElementById("llamaModelsCard");
 const llamaHostInput = document.getElementById("llamaHostInput");
 const llamaApiKeyInput = document.getElementById("llamaApiKeyInput");
+const llamaModelInputRow = document.getElementById("llamaModelInputRow");
 const llamaModelInput = document.getElementById("llamaModelInput");
+const llamaModelSelectRow = document.getElementById("llamaModelSelectRow");
+const llamaModelSelect = document.getElementById("llamaModelSelect");
 const llamaModelStatus = document.getElementById("llamaModelStatus");
 const webllmModelList = document.getElementById("webllmModelList");
 const transformersModelList = document.getElementById("transformersModelList");
@@ -729,6 +732,7 @@ async function applySettingsToUI(settings) {
   if (llamaHostInput) llamaHostInput.value = settings.llamaHost;
   if (llamaApiKeyInput) llamaApiKeyInput.value = settings.llamaApiKey || "";
   if (llamaModelInput) llamaModelInput.value = settings.llamaModel || "";
+  if (llamaModelSelect && settings.llamaModel) llamaModelSelect.value = settings.llamaModel;
 
   const fmtRadio = document.querySelector(
     `input[name="format"][value="${settings.responseFormat}"]`,
@@ -2259,15 +2263,43 @@ function updateLlamaModelUI(settings, status) {
     );
   }
 
-  if (!llamaModelStatus) return;
-
   if (!status?.ready) {
-    renderStatusError(
-      llamaModelStatus,
-      "Not connected. Start llama-server and check the URL above.",
-    );
+    llamaModelSelectRow?.classList.add("hidden");
+    llamaModelInputRow?.classList.remove("hidden");
+    if (llamaModelStatus) {
+      renderStatusError(
+        llamaModelStatus,
+        "Not connected. Start llama-server and check the URL above.",
+      );
+    }
     return;
   }
+
+  if (detected.length > 1 && llamaModelSelect) {
+    llamaModelInputRow?.classList.add("hidden");
+    llamaModelSelectRow?.classList.remove("hidden");
+    llamaModelSelect.innerHTML = "";
+    for (const model of detected) {
+      const opt = document.createElement("option");
+      opt.value = model;
+      opt.textContent = model;
+      llamaModelSelect.appendChild(opt);
+    }
+    const current = settings.llamaModel || llamaModelInput.value.trim();
+    const chosen = detected.includes(current) ? current : detected[0];
+    llamaModelSelect.value = chosen;
+    llamaModelInput.value = chosen;
+    if (settings.llamaModel !== chosen) {
+      saveSettings({ llamaModel: chosen }).catch((err) =>
+        console.error("Saving the detected llama.cpp model failed:", err),
+      );
+    }
+  } else {
+    llamaModelSelectRow?.classList.add("hidden");
+    llamaModelInputRow?.classList.remove("hidden");
+  }
+
+  if (!llamaModelStatus) return;
 
   llamaModelStatus.removeAttribute("role");
   if (detected.length === 0) {
@@ -3381,6 +3413,12 @@ llamaApiKeyInput?.addEventListener("change", async () => {
 llamaModelInput?.addEventListener("change", async () => {
   const value = llamaModelInput.value.slice(0, MODEL_NAME_MAX_CHARS).trim();
   llamaModelInput.value = value;
+  await saveSettings({ llamaModel: value });
+});
+
+llamaModelSelect?.addEventListener("change", async () => {
+  const value = llamaModelSelect.value.slice(0, MODEL_NAME_MAX_CHARS).trim();
+  if (llamaModelInput) llamaModelInput.value = value;
   await saveSettings({ llamaModel: value });
 });
 
