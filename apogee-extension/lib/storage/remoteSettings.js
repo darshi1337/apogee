@@ -13,7 +13,7 @@ import {
   hasRemoteControlCharacters,
 } from "../engines/remoteModels.js";
 
-export const REMOTE_CATALOG_TTL_MS = 60 * 60 * 1000;
+const REMOTE_CATALOG_TTL_MS = 60 * 60 * 1000;
 
 const revisions = new Map();
 let pendingSave = Promise.resolve();

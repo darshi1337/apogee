@@ -27,7 +27,6 @@
   --brand-color: #f0f0f2;
   --card-bg: #17171d;
   --card-border: rgba(255, 255, 255, 0.12);
-  --card-title-color: #9a9aa6;
   --summary-bg: #16161f;
   --summary-border: none;
   --text-main: #f0f0f2;
@@ -41,7 +40,6 @@
   --input-bg: #17171d;
   --input-border: rgba(255, 255, 255, 0.14);
   --input-focus-border: #8886ff;
-  --input-focus-glow: rgba(136, 134, 255, 0.15);
   --input-placeholder: #9a9aa6;
   --badge-bg: rgba(136, 134, 255, 0.18);
   --badge-text: #a6a4ff;
@@ -70,7 +68,6 @@
   --brand-color: #161616;
   --card-bg: #ffffff;
   --card-border: #e6e6e6;
-  --card-title-color: #6b6b73;
   --summary-bg: #f8f7ff;
   --summary-border: none;
   --text-main: #161616;
@@ -84,7 +81,6 @@
   --input-bg: #ffffff;
   --input-border: #e6e6e6;
   --input-focus-border: #5855ff;
-  --input-focus-glow: rgba(88, 85, 255, 0.12);
   --input-placeholder: #61616c;
   --badge-bg: rgba(88, 85, 255, 0.1);
   --badge-text: #5855ff;
@@ -277,7 +273,6 @@ body {
 }
 
 .icon-btn {
-  border: none;
   background: var(--btn-bg);
   border: 1px solid var(--card-border);
   cursor: pointer;
