@@ -912,7 +912,7 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 .answer-box ul,
 .answer-box ol {
   margin: 0 0 10px;
-  padding-left: 20px;
+  padding-inline-start: 20px;
 }
 
 #summaryText li,
