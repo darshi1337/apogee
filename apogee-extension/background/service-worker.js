@@ -1380,10 +1380,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const fallbackUrl = message.url;
       const fallbackText = message.text;
       try {
-        // A finish after the cleanup window falls back to the job retained
-        // at expiry, so the summary keeps the keys captured at run start.
+        // Check the live job before the retained one: a retried stream with
+        // the same id would otherwise inherit the expired run's keys.
         const registeredJob = streamId
-          ? registeredStreamJobs.get(streamId) || takeExpiredStreamJob(streamId)
+          ? (registeredStreamJobs.get(streamId) ??
+            takeExpiredStreamJob(streamId))
           : null;
         if (streamId) {
           registeredStreamJobs.delete(streamId);

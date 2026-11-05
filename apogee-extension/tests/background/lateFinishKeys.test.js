@@ -102,6 +102,62 @@ test("late stream-finished saves under the keys captured at run start (#545)", a
     !savedKeys.includes("summary:rebuilt-key"),
     "no save under a key rebuilt from current settings",
   );
+
+  // The retained job is consumed once, so a second finish for the same id
+  // cannot restore the expired payload.
+  const savedCountAfterFirstFinish = savedKeys.filter(
+    (key) => key === "summary:original-key",
+  ).length;
+  router(
+    {
+      target: "service-worker",
+      type: "stream-finished",
+      streamId,
+      text: "Duplicate late finish.",
+      model: "other-model",
+      title: "Other",
+      url: "https://example.com/other",
+    },
+    { id: "mock-extension-id-12345" },
+    () => {},
+  );
+  await new Promise((r) => setTimeout(r, 50));
+  assert.strictEqual(
+    savedKeys.filter((key) => key === "summary:original-key").length,
+    savedCountAfterFirstFinish,
+  );
+});
+
+test("the retained job is not taken when a live job with the same id exists (#545)", async () => {
+  const streamId = "summary-reused-1";
+  registerStreamJob(streamId, makeJob("summary:expired-key"));
+  expireStreamForCleanup(streamId);
+
+  // A new run reuses the id while the expired payload is still retained.
+  registerStreamJob(streamId, makeJob("summary:live-key"));
+
+  router(
+    {
+      target: "service-worker",
+      type: "stream-finished",
+      streamId,
+      text: "Live run summary.",
+      model: "other-model",
+      title: "Other",
+      url: "https://example.com/other",
+    },
+    { id: "mock-extension-id-12345" },
+    () => {},
+  );
+
+  assert.ok(
+    await waitFor(() => savedKeys.includes("summary:live-key")),
+    "the live job wins over the retained one",
+  );
+  assert.ok(
+    !savedKeys.includes("summary:expired-key"),
+    "the retained job is not used for a live run",
+  );
 });
 
 test("a finish with no job record at all still does not throw (#545)", async () => {

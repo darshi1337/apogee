@@ -144,7 +144,7 @@ export function expireStreamForCleanup(streamId) {
 
 const EXPIRED_JOB_RETENTION_MS = 30 * 60 * 1000;
 const MAX_EXPIRED_JOBS = 20;
-export const expiredStreamJobs = new Map();
+const expiredStreamJobs = new Map();
 
 function pruneExpiredStreamJobs(now = Date.now()) {
   for (const [id, entry] of expiredStreamJobs) {
