@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-export const DEFAULT_LOCALE = "en";
+const DEFAULT_LOCALE = "en";
 
 function readJson(path) {
   try {

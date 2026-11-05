@@ -21,7 +21,7 @@ import {
 // so both paths validate hosts and name errors the same way.
 export const ALLOWED_LOOPBACK_HOSTS = ALLOWED_OLLAMA_HOSTS;
 
-// The rejected value stays in the console line only. The user-facing message states the rule instead, so a mistyped host reads as guidance rather than an internal assertion. ERROR.md documents this message word for word.
+// The rejected value stays in the console line only. The user-facing message states the rule instead, so a mistyped host reads as guidance rather than an internal assertion. docs/ERROR.md documents this message word for word.
 export function rejectLoopbackHost(label, host, reason) {
   console.error(`${label} host rejected (${reason}): ${host}`);
   const allowed = [...ALLOWED_LOOPBACK_HOSTS].join(" or ");

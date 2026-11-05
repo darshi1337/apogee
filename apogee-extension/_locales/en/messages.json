@@ -434,5 +434,117 @@
   "summarizeVerb": {
     "message": "Summarize",
     "description": "Paste dialog submit"
+  },
+  "remoteSetupTitle": {
+    "message": "Remote providers",
+    "description": "Remote provider setup section title"
+  },
+  "remotePreviewBadge": {
+    "message": "Preview",
+    "description": "Remote provider setup preview badge"
+  },
+  "remoteSetupPreview": {
+    "message": "Model list setup only. Generation stays local. Your key goes only to the selected provider.",
+    "description": "Remote provider setup"
+  },
+  "remoteOpenRouter": {
+    "message": "OpenRouter",
+    "description": "Remote provider setup"
+  },
+  "remoteOpenRouterBadge": {
+    "message": "Free",
+    "description": "OpenRouter free model badge"
+  },
+  "remoteOpenCode": {
+    "message": "OpenCode",
+    "description": "Remote provider setup"
+  },
+  "remoteOpenCodeBadge": {
+    "message": "Paid",
+    "description": "OpenCode paid model badge"
+  },
+  "remoteConsent": {
+    "message": "I consent to requests to this provider and its upstream model providers.",
+    "description": "Remote provider setup"
+  },
+  "remoteApiKey": {
+    "message": "Provider API key",
+    "description": "Remote provider setup preview"
+  },
+  "remoteSave": {
+    "message": "Save",
+    "description": "Remote provider setup"
+  },
+  "remoteRevoke": {
+    "message": "Revoke",
+    "description": "Remote provider setup"
+  },
+  "remoteClearKey": {
+    "message": "Remove key",
+    "description": "Remote provider setup"
+  },
+  "remoteModel": {
+    "message": "Model",
+    "description": "Remote provider setup"
+  },
+  "remoteRefresh": {
+    "message": "Refresh",
+    "description": "Remote provider setup"
+  },
+  "remoteChooseModel": {
+    "message": "Choose a model",
+    "description": "Remote provider setup"
+  },
+  "remoteKeySaved": {
+    "message": "API key saved.",
+    "description": "Remote provider setup"
+  },
+  "remoteKeyMissing": {
+    "message": "No API key saved.",
+    "description": "Remote provider setup preview"
+  },
+  "remoteModelsStale": {
+    "message": "Model list is stale. Refresh to update.",
+    "description": "Remote provider setup"
+  },
+  "remoteModelsReady": {
+    "message": "Model list loaded.",
+    "description": "Remote provider setup"
+  },
+  "remoteModelsEmpty": {
+    "message": "No models yet. Save consent and a key, then refresh.",
+    "description": "Remote provider setup"
+  },
+  "remoteModelsLoading": {
+    "message": "Refreshing models...",
+    "description": "Remote provider setup preview"
+  },
+  "remoteSaving": {
+    "message": "Saving...",
+    "description": "Remote provider setup"
+  },
+  "remoteSettingsLoading": {
+    "message": "Loading...",
+    "description": "Remote provider setup"
+  },
+  "remoteSettingsError": {
+    "message": "Could not save remote settings. Check your settings and try again.",
+    "description": "Remote provider setup"
+  },
+  "remoteSettingsLoadError": {
+    "message": "Could not load remote settings. Reload the page and try again.",
+    "description": "Remote provider setup"
+  },
+  "remotePermissionDenied": {
+    "message": "Browser permission denied. Consent was not saved.",
+    "description": "Remote provider setup permission denial"
+  },
+  "remoteModelsRefreshError": {
+    "message": "Refresh failed. The saved model list may be stale.",
+    "description": "Remote catalog refresh error with retained last good models"
+  },
+  "remoteModelsRefreshEmpty": {
+    "message": "Refresh failed. No models were loaded. Check your API key and try again.",
+    "description": "Remote catalog refresh error with no cached models"
   }
 }

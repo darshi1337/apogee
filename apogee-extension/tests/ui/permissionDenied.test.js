@@ -1,11 +1,9 @@
 import test from "node:test";
 import assert from "node:assert";
-import { readFileSync } from "node:fs";
 
-const popupJs = readFileSync(
-  new URL("../../ui/app.js", import.meta.url),
-  "utf8",
-);
+import { readSource } from "../helpers/readSource.js";
+
+const popupJs = readSource("../../ui/app.js", import.meta.url);
 
 function getPageDataBody() {
   const match = popupJs.match(

@@ -10,6 +10,9 @@ web-ext-artifacts/
 *.crx
 *.tgz
 
+# Cosign verification bundles produced next to release archives by release.yml
+*.sigstore.json
+
 # Written by `web-ext sign` after an AMO upload; it's an account-scoped id, not
 # a project file.
 .web-extension-id

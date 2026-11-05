@@ -51,7 +51,7 @@ import {
   MODEL_NAME_MAX_CHARS,
   isVideoType,
 } from "../lib/constants.js";
-import { getSettings } from "../lib/storage/settings.js";
+import { getSettings, updateSettings } from "../lib/storage/settings.js";
 import {
   validateLoopbackUrl,
   validateOllamaHost,
@@ -92,7 +92,11 @@ import {
   removeCachedSummary,
   CACHEABLE_PAGE_TYPES,
 } from "../lib/storage/pageCache.js";
-import { searchPastSummaries } from "../lib/retrieval/pastSummariesSearch.js";
+import {
+  searchPastSummaries,
+  clearPastSummariesSearchCache,
+} from "../lib/retrieval/pastSummariesSearch.js";
+import { createPastSummariesController } from "./pastSummaries.js";
 import {
   extractFromActiveTab,
   extractPdfContent,
@@ -124,6 +128,7 @@ import {
   COULD_NOT_EXTRACT_TEXT_FROM_PDF_ERROR_MSG,
   PDF_TOO_LARGE_ERROR_MSG,
 } from "../lib/util/messages.js";
+import { initRemoteSettings } from "./remoteSettings.js";
 import { t, applyI18nToDom } from "../lib/util/i18n.js";
 import { safeDisconnect } from "../lib/util/streamBroadcast.js";
 import { tryParseUrl } from "../lib/util/url.js";
@@ -559,9 +564,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 });
 
 async function saveSettings(partial) {
-  const settings = { ...(await getSettings()), ...partial };
-  await chrome.storage.local.set({ settings });
-  return settings;
+  return updateSettings(partial);
 }
 
 let _webgpuSupported = null;
@@ -982,29 +985,30 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     window.location.reload();
     return;
   }
+  // Download progress belongs to the top card only. Stage progress must not
+  // replace the verb in the summary or answer loading text.
   if (message.type === "model-progress" && message.progress) {
     const p = message.progress;
-    clearTimeout(modelProgressHideTimer);
-    modelProgress?.classList.remove("hidden");
-    modelProgressText.textContent = p.text || "Loading model...";
-    if (typeof p.progress === "number") {
-      const pct = Math.round(p.progress * 100);
-      modelProgressPercent.textContent = `${pct}%`;
-      renderModelProgressBlocks(pct);
-      modelProgressFill.parentElement?.setAttribute("aria-valuenow", pct);
-      if (pct >= 100) {
-        modelProgressHideTimer = setTimeout(
-          () => modelProgress?.classList.add("hidden"),
-          1500,
-        );
+    if (p.kind === "download") {
+      clearTimeout(modelProgressHideTimer);
+      modelProgress?.classList.remove("hidden");
+      modelProgressText.textContent = p.text || "Loading model...";
+      if (typeof p.progress === "number") {
+        const pct = Math.round(p.progress * 100);
+        modelProgressPercent.textContent = `${pct}%`;
+        renderModelProgressBlocks(pct);
+        modelProgressFill.parentElement?.setAttribute("aria-valuenow", pct);
+        if (pct >= 100) {
+          modelProgressHideTimer = setTimeout(
+            () => modelProgress?.classList.add("hidden"),
+            1500,
+          );
+        }
       }
-    }
-    if (p.text) {
-      if (summaryText?.querySelector(".apogee-loading")) {
-        setLoadingIndicator(summaryText, p.text);
-      } else if (answerBox?.querySelector(".apogee-loading")) {
-        setLoadingIndicator(answerBox, p.text);
-      }
+    } else {
+      // The first stage event means the download is done.
+      clearTimeout(modelProgressHideTimer);
+      modelProgress?.classList.add("hidden");
     }
   }
 
@@ -1187,13 +1191,24 @@ function pastSummaryToExportItem(entry, text, stored = {}) {
 // One past-summary card for the history list. Shared by the recent-8 list
 // and full-index search results so both stay in sync.
 function buildPastSummaryCard(entry, text) {
+  const makeButton = (className, label, iconName, title = label) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = className;
+    button.setAttribute("aria-label", label);
+    button.title = title;
+    button.innerHTML = icon(iconName);
+    return button;
+  };
+
+  // A group, not a button: the card holds real buttons
+  // Button must not contain other button elements
   const card = document.createElement("div");
   card.className = "past-summary-card";
-  card.setAttribute("role", "button");
-  card.setAttribute("tabindex", "0");
+  card.setAttribute("role", "group");
+  card.setAttribute("aria-label", entry.t || firstLineOf(text));
   card.dataset.title = (entry.t || "").toLowerCase();
   card.dataset.cacheKey = entry.s;
-  card.setAttribute("aria-expanded", "false");
 
   const textWrap = document.createElement("div");
   textWrap.className = "past-summary-text";
@@ -1209,32 +1224,31 @@ function buildPastSummaryCard(entry, text) {
   preview.className = "past-summary-preview";
   preview.textContent = firstLineOf(text);
   textWrap.appendChild(preview);
-  card.appendChild(textWrap);
+
+  const toggleBtn = makeButton(
+    "past-summary-toggle",
+    "Full summary",
+    "chevron",
+    "Show or hide full summary",
+  );
+  toggleBtn.setAttribute("aria-expanded", "false");
+  card.append(toggleBtn, textWrap);
 
   const toggleExpanded = () => {
     const expanded = card.classList.toggle("expanded");
-    card.setAttribute("aria-expanded", String(expanded));
+    toggleBtn.setAttribute("aria-expanded", String(expanded));
     if (expanded) setMarkdownHtml(preview, text, { stored: true });
     else preview.textContent = firstLineOf(text);
   };
+  // Enter and space toggle a normal click, so no keydown code needed
+  // to handle them
+  toggleBtn.addEventListener("click", toggleExpanded);
   card.addEventListener("click", (e) => {
     if (e.target.closest("a, button")) return;
     toggleExpanded();
   });
-  card.addEventListener("keydown", (e) => {
-    if (e.target.closest("button")) return;
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      toggleExpanded();
-    }
-  });
 
-  const copyMdBtn = document.createElement("button");
-  copyMdBtn.type = "button";
-  copyMdBtn.className = "copy-btn";
-  copyMdBtn.setAttribute("aria-label", "Copy as Markdown");
-  copyMdBtn.title = "Copy as Markdown";
-  copyMdBtn.innerHTML = icon("filetext");
+  const copyMdBtn = makeButton("copy-btn", "Copy as Markdown", "filetext");
   copyMdBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     copyToClipboard(
@@ -1247,12 +1261,7 @@ function buildPastSummaryCard(entry, text) {
     );
   });
 
-  const copyJsonBtn = document.createElement("button");
-  copyJsonBtn.type = "button";
-  copyJsonBtn.className = "copy-btn";
-  copyJsonBtn.setAttribute("aria-label", "Copy as JSON");
-  copyJsonBtn.title = "Copy as JSON";
-  copyJsonBtn.innerHTML = icon("download");
+  const copyJsonBtn = makeButton("copy-btn", "Copy as JSON", "download");
   copyJsonBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
     try {
@@ -1270,15 +1279,11 @@ function buildPastSummaryCard(entry, text) {
   // delete button serves both the collapsed (off) and expanded (open)
   // card states: inline in the row when collapsed, pinned top-right via
   // CSS when the card is expanded. Clicking anywhere else on the card
-  // toggles it open (see the card click/keydown handlers above).
-  const deleteBtn = document.createElement("button");
-  deleteBtn.type = "button";
-  deleteBtn.className = "delete-btn";
-  deleteBtn.setAttribute("aria-label", "Delete this summary");
-  deleteBtn.title = "Delete this summary";
-  deleteBtn.innerHTML = icon("trash");
+  // toggles it open (see the card click handler above).
+  const deleteBtn = makeButton("delete-btn", "Delete this summary", "trash");
   deleteBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
+    pastSummariesController.invalidate({ clearCache: true });
     try {
       // One read-modify-write inside the storage module: a summary saved
       // between the key delete and the index update can no longer resurrect
@@ -1320,58 +1325,51 @@ function showPastSummariesEmpty() {
   pastSummariesList.appendChild(msg);
 }
 
+const pastSummariesController = createPastSummariesController({
+  async readIndex() {
+    const { cacheOrder = [] } = await chrome.storage.local.get("cacheOrder");
+    return cacheOrder;
+  },
+  readTexts: fetchPastSummaryTexts,
+  search: searchPastSummaries,
+  clearSearchCache: clearPastSummariesSearchCache,
+  recentCount: PAST_SUMMARIES_SHOWN,
+  renderRecent(entries, stored) {
+    renderPastSummaryCards(entries, stored);
+    const hasCards = pastSummariesList.children.length > 0;
+    pastSummariesSection.classList.toggle("hidden", !hasCards);
+    if (pastSummariesFilter) {
+      pastSummariesFilter.value = "";
+      pastSummariesFilter.classList.toggle("hidden", !hasCards);
+    }
+  },
+  renderResults(entries, stored) {
+    renderPastSummaryCards(entries, stored);
+    if (pastSummariesList.children.length === 0) showPastSummariesEmpty();
+  },
+  onError: (err) => console.error("Past summaries filter error:", err),
+});
+
 async function loadPastSummaries() {
-  const { cacheOrder = [] } = await chrome.storage.local.get("cacheOrder");
-  if (cacheOrder.length === 0) {
-    pastSummariesSection.classList.add("hidden");
-    pastSummariesList.innerHTML = "";
-    return;
-  }
-
-  const recent = cacheOrder.slice(-PAST_SUMMARIES_SHOWN).reverse();
-  const stored = await fetchPastSummaryTexts(recent);
-  renderPastSummaryCards(recent, stored);
-
-  const hasCards = pastSummariesList.children.length > 0;
-  pastSummariesSection.classList.toggle("hidden", !hasCards);
-
-  if (pastSummariesFilter) {
-    pastSummariesFilter.value = "";
-    pastSummariesFilter.classList.toggle("hidden", !hasCards);
-  }
+  if (pastSummariesFilter) pastSummariesFilter.value = "";
+  await pastSummariesController.loadRecent();
 }
 
-async function filterPastSummaries(query) {
-  const q = (query || "").trim();
-  // An empty query restores the recent-8 display list.
-  if (!q) {
-    await loadPastSummaries();
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  if (
+    !changes.cacheOrder &&
+    !Object.keys(changes).some((key) => key.startsWith("summary:"))
+  ) {
     return;
   }
-  // Search the full index, not just the displayed recent 8, so older saved
-  // summaries stay findable. Bounded by the cache cap (50 entries).
-  const { cacheOrder = [] } = await chrome.storage.local.get("cacheOrder");
-  const stored = await fetchPastSummaryTexts(cacheOrder);
-
-  const searchResults = await searchPastSummaries({
-    query: q,
-    cacheOrder,
-    storedSummaries: stored,
-  });
-
-  renderPastSummaryCards(searchResults, stored);
-  if (pastSummariesList.children.length === 0) showPastSummariesEmpty();
-}
+  pastSummariesController.invalidate({ clearCache: true });
+  loadPastSummaries().catch((err) => console.error(err));
+});
 
 if (pastSummariesFilter) {
-  let filterTimeout = null;
   pastSummariesFilter.addEventListener("input", () => {
-    clearTimeout(filterTimeout);
-    filterTimeout = setTimeout(() => {
-      filterPastSummaries(pastSummariesFilter.value).catch((err) =>
-        console.error("Past summaries filter error:", err),
-      );
-    }, 150);
+    pastSummariesController.input(pastSummariesFilter.value);
   });
 }
 
@@ -1595,13 +1593,13 @@ function helpLink(message) {
   return link;
 }
 
-// Shared alert-role + ERROR.md help link both error renderers apply.
+// Shared alert-role + docs/ERROR.md help link both error renderers apply.
 function attachErrorAlert(target, message) {
   target.setAttribute("role", "alert");
   target.appendChild(helpLink(message));
 }
 
-// Every failure the user can see goes through here, so each one gets the alert role, the error styling, and a link into ERROR.md.
+// Every failure the user can see goes through here, so each one gets the alert role, the error styling, and a link into docs/ERROR.md.
 function renderError(target, message) {
   const p = document.createElement("p");
   p.className = "error-message";
@@ -2367,6 +2365,7 @@ async function updateSummarizeShortcutHint() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+  void initRemoteSettings();
   try {
     applyI18nToDom(document);
   } catch (err) {
@@ -3254,6 +3253,7 @@ debugLogsRadios.forEach((radio) => {
 
 // Both halves clear under their own module's lock, so a write landing at the same moment can't leave an order index pointing at a deleted key.
 async function clearCachedData() {
+  pastSummariesController.invalidate({ clearCache: true });
   const pages = await clearCachedPages();
   const viewStates = await clearAllViewStates();
   currentSummaryText = "";

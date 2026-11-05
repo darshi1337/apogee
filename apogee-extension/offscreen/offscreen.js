@@ -190,7 +190,7 @@ async function ensureEngine(modelId) {
       .sendMessage({
         target: "service-worker",
         type: "model-progress",
-        progress,
+        progress: { ...progress, kind: "download" },
         modelId,
       })
       .catch(() => {});
@@ -395,18 +395,18 @@ async function streamCompletion(
   emit({ type: "done", serverStats });
 }
 
-function reportProgress(text, progress = 0) {
+function reportProgress(text, progress = 0, kind) {
   chrome.runtime
     .sendMessage({
       target: "service-worker",
       type: "model-progress",
-      progress: { text, progress },
+      progress: { text, progress, ...(kind ? { kind } : {}) },
     })
     .catch(() => {});
 }
 
 function opusProgressForReport(p) {
-  reportProgress(p.text, p.progress ?? 0);
+  reportProgress(p.text, p.progress ?? 0, p.kind);
 }
 
 async function runSummarize(eng, pending, emit, signal) {
@@ -493,7 +493,7 @@ async function runTransformersJob(
       .sendMessage({
         target: "service-worker",
         type: "model-progress",
-        progress,
+        progress: { ...progress, kind: "download" },
         modelId: pending.model,
       })
       .catch(() => {});

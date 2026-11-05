@@ -6,3 +6,6 @@ content/Readability.js
 # test data: extractors read innerText, so reflowing the markup can change what
 # a test asserts. Keep them byte-for-byte as saved.
 tests/extractors/fixtures/
+# Release Please rewrites manifest.json with expanded arrays. It is generated
+# on release PRs, and its JSON formatting is not semantic.
+manifest.json

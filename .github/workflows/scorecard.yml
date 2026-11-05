@@ -14,11 +14,17 @@ on:
 
 permissions: read-all
 
+concurrency:
+  group: scorecard
+  cancel-in-progress: false
+
 jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
+      contents: read
       security-events: write # upload SARIF results
       id-token: write # publish_results needs the OIDC token
     steps:

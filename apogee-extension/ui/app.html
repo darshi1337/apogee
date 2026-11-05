@@ -26,12 +26,7 @@
             <span class="brand-name">apogee</span>
           </div>
 
-          <div
-            class="status-pill"
-            id="homeStatus"
-            role="status"
-            aria-live="polite"
-          >
+          <div class="status-pill" role="status" aria-live="polite">
             <span id="homeStatusText" data-i18n="checking">Checking...</span>
             <span id="homeStatusDot" class="status-dot checking"></span>
           </div>
@@ -197,7 +192,7 @@
                 >mode in Settings, or switch to Chrome/Edge.</span
               >
               <a
-                href="https://github.com/darshi1337/apogee/blob/main/ERROR.md#in-browser-models"
+                href="https://github.com/darshi1337/apogee/blob/main/docs/ERROR.md#in-browser-models"
                 target="_blank"
                 rel="noopener noreferrer"
                 data-i18n="webgpuWhatMeans"
@@ -260,12 +255,7 @@
             <span class="brand-name">apogee</span>
           </div>
 
-          <div
-            class="status-pill"
-            id="summaryStatus"
-            role="status"
-            aria-live="polite"
-          >
+          <div class="status-pill" role="status" aria-live="polite">
             <span id="summaryStatusText" data-i18n="checking">Checking...</span>
             <span id="summaryStatusDot" class="status-dot checking"></span>
           </div>
@@ -706,6 +696,254 @@
                 <small class="provider-badge">llama-server</small></span
               >
             </label>
+
+            <div id="remoteSettings" class="remote-settings">
+              <div class="remote-heading">
+                <span
+                  id="remoteSetupTitle"
+                  class="remote-title"
+                  data-i18n="remoteSetupTitle"
+                  >Remote providers</span
+                >
+                <small class="provider-badge" data-i18n="remotePreviewBadge"
+                  >Preview</small
+                >
+              </div>
+              <p
+                id="remoteDisclosure"
+                class="settings-hint remote-hint"
+                data-i18n="remoteSetupPreview"
+              >
+                Model list setup only. Generation stays local. Your key goes
+                only to the selected provider.
+              </p>
+
+              <details
+                class="remote-provider"
+                data-remote-provider="openrouter"
+                aria-busy="true"
+              >
+                <summary class="remote-provider-summary">
+                  <span
+                    class="remote-provider-name"
+                    data-i18n="remoteOpenRouter"
+                    >OpenRouter</span
+                  >
+                  <small
+                    class="provider-badge"
+                    data-i18n="remoteOpenRouterBadge"
+                    >Free</small
+                  >
+                  <span
+                    class="ico remote-chevron"
+                    data-ico="chevron"
+                    aria-hidden="true"
+                  ></span>
+                </summary>
+                <div class="remote-provider-body">
+                  <label class="remote-consent">
+                    <input
+                      data-remote="consent"
+                      type="checkbox"
+                      aria-describedby="remoteDisclosure"
+                      disabled
+                    />
+                    <span data-i18n="remoteConsent"
+                      >I consent to requests to this provider and its upstream
+                      model providers.</span
+                    >
+                  </label>
+                  <label class="settings-field">
+                    <span data-i18n="remoteApiKey">Provider API key</span>
+                    <input
+                      data-remote="key"
+                      type="password"
+                      autocomplete="off"
+                      spellcheck="false"
+                      aria-describedby="openrouterKeyStatus"
+                      disabled
+                    />
+                  </label>
+                  <p
+                    id="openrouterKeyStatus"
+                    class="remote-meta remote-key-status"
+                    data-remote="key-status"
+                    data-i18n="remoteKeyMissing"
+                  >
+                    No API key saved.
+                  </p>
+                  <div class="remote-actions">
+                    <button
+                      type="button"
+                      class="remote-btn"
+                      data-remote="save"
+                      data-i18n="remoteSave"
+                      disabled
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      class="remote-btn"
+                      data-remote="revoke"
+                      data-i18n="remoteRevoke"
+                      disabled
+                    >
+                      Revoke
+                    </button>
+                    <button
+                      type="button"
+                      class="remote-btn remote-danger"
+                      data-remote="clear-key"
+                      data-i18n="remoteClearKey"
+                      disabled
+                    >
+                      Remove key
+                    </button>
+                  </div>
+                  <div class="remote-model-row">
+                    <label class="settings-field">
+                      <span data-i18n="remoteModel">Model</span>
+                      <select
+                        data-remote="model"
+                        class="settings-select"
+                        disabled
+                      ></select>
+                    </label>
+                    <button
+                      type="button"
+                      class="remote-btn remote-refresh"
+                      data-remote="refresh"
+                      data-i18n="remoteRefresh"
+                      disabled
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                  <p
+                    class="remote-meta remote-status"
+                    data-remote="status"
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                    data-i18n="remoteSettingsLoading"
+                  >
+                    Loading...
+                  </p>
+                </div>
+              </details>
+
+              <details
+                class="remote-provider"
+                data-remote-provider="opencode"
+                aria-busy="true"
+              >
+                <summary class="remote-provider-summary">
+                  <span class="remote-provider-name" data-i18n="remoteOpenCode"
+                    >OpenCode</span
+                  >
+                  <small class="provider-badge" data-i18n="remoteOpenCodeBadge"
+                    >Paid</small
+                  >
+                  <span
+                    class="ico remote-chevron"
+                    data-ico="chevron"
+                    aria-hidden="true"
+                  ></span>
+                </summary>
+                <div class="remote-provider-body">
+                  <label class="remote-consent">
+                    <input
+                      data-remote="consent"
+                      type="checkbox"
+                      aria-describedby="remoteDisclosure"
+                      disabled
+                    />
+                    <span data-i18n="remoteConsent"
+                      >I consent to requests to this provider and its upstream
+                      model providers.</span
+                    >
+                  </label>
+                  <label class="settings-field">
+                    <span data-i18n="remoteApiKey">Provider API key</span>
+                    <input
+                      data-remote="key"
+                      type="password"
+                      autocomplete="off"
+                      spellcheck="false"
+                      aria-describedby="opencodeKeyStatus"
+                      disabled
+                    />
+                  </label>
+                  <p
+                    id="opencodeKeyStatus"
+                    class="remote-meta remote-key-status"
+                    data-remote="key-status"
+                    data-i18n="remoteKeyMissing"
+                  >
+                    No API key saved.
+                  </p>
+                  <div class="remote-actions">
+                    <button
+                      type="button"
+                      class="remote-btn"
+                      data-remote="save"
+                      data-i18n="remoteSave"
+                      disabled
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      class="remote-btn"
+                      data-remote="revoke"
+                      data-i18n="remoteRevoke"
+                      disabled
+                    >
+                      Revoke
+                    </button>
+                    <button
+                      type="button"
+                      class="remote-btn remote-danger"
+                      data-remote="clear-key"
+                      data-i18n="remoteClearKey"
+                      disabled
+                    >
+                      Remove key
+                    </button>
+                  </div>
+                  <div class="remote-model-row">
+                    <label class="settings-field">
+                      <span data-i18n="remoteModel">Model</span>
+                      <select
+                        data-remote="model"
+                        class="settings-select"
+                        disabled
+                      ></select>
+                    </label>
+                    <button
+                      type="button"
+                      class="remote-btn remote-refresh"
+                      data-remote="refresh"
+                      data-i18n="remoteRefresh"
+                      disabled
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                  <p
+                    class="remote-meta remote-status"
+                    data-remote="status"
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                    data-i18n="remoteSettingsLoading"
+                  >
+                    Loading...
+                  </p>
+                </div>
+              </details>
+            </div>
           </div>
 
           <div id="webllmModelsCard" class="settings-card">
@@ -807,9 +1045,15 @@
           <div class="settings-card">
             <div class="card-title">
               <span class="ico" data-ico="globe" aria-hidden="true"></span>
-              <span data-i18n="summaryLanguage">Summary Language</span>
+              <span id="summaryLanguageTitle" data-i18n="summaryLanguage"
+                >Summary Language</span
+              >
             </div>
-            <select id="summaryLanguageSelect" class="settings-select"></select>
+            <select
+              id="summaryLanguageSelect"
+              class="settings-select"
+              aria-labelledby="summaryLanguageTitle"
+            ></select>
           </div>
 
           <div class="settings-card">
@@ -858,10 +1102,13 @@
           <div class="settings-card">
             <div class="card-title">
               <span class="ico" data-ico="pencil" aria-hidden="true"></span>
-              <span data-i18n="customInstructions">Custom Instructions</span>
+              <span id="customInstructionsTitle" data-i18n="customInstructions"
+                >Custom Instructions</span
+              >
             </div>
             <textarea
               id="customInstructionsInput"
+              aria-labelledby="customInstructionsTitle"
               class="settings-textarea"
               rows="4"
               maxlength="2000"
@@ -895,7 +1142,7 @@
           <div class="settings-card">
             <div class="card-title">
               <span class="ico" data-ico="shield" aria-hidden="true"></span>
-              <span data-i18n="privacy">Privacy</span>
+              <span id="privacyTitle" data-i18n="privacy">Privacy</span>
             </div>
 
             <label class="radio-option">
@@ -932,11 +1179,16 @@
               </div>
             </div>
 
-            <p class="settings-hint" data-i18n="privateHostsHint">
+            <p
+              id="privateHostsHint"
+              class="settings-hint"
+              data-i18n="privateHostsHint"
+            >
               Add other hosts to never save, one per line.
             </p>
             <textarea
               id="privateHostsInput"
+              aria-labelledby="privacyTitle privateHostsHint"
               class="settings-textarea"
               rows="3"
               maxlength="1000"

@@ -8,9 +8,9 @@ A private AI summarizer in your browser for articles, videos, PDFs, DOCX files, 
 
 <a href="https://chromewebstore.google.com/detail/apogee/pgemlpomhkdcjjjcpnjlebalnfglomog"><img alt="Available in Chrome Web Store" src=".github/assets/chrome-web-store.png" width="206" height="58"></a> &nbsp; <a href="https://addons.mozilla.org/en-US/firefox/addon/apogeeext/"><img alt="Get Add-on for Firefox" src=".github/assets/firefox-add-on.svg" width="152" height="53"></a>
 
-<a href="https://darshi1337.github.io/apogee/">Website</a> | <a href="ARCHITECTURE.md">Architecture</a> | <a href="MODELS.md">Models</a> | <a href="BROWSERS.md">Browsers</a> | <a href="PRIVACY.md">Privacy</a> | <a href="ROADMAP.md">Roadmap</a> | <a href="STORE-LISTING.md">Store listing</a> | <a href="LICENSE">License</a>
+<a href="https://darshi1337.github.io/apogee/">Website</a> | <a href="docs/ARCHITECTURE.md">Architecture</a> | <a href="docs/MODELS.md">Models</a> | <a href="docs/BROWSERS.md">Browsers</a> | <a href="PRIVACY.md">Privacy</a> | <a href="docs/ROADMAP.md">Roadmap</a> | <a href="docs/STORE-LISTING.md">Store listing</a> | <a href="LICENSE">License</a>
 
-[![Release](.github/assets/badge-release.svg)](https://github.com/darshi1337/apogee/releases) [![License: MIT](.github/assets/badge-license-mit.svg)](LICENSE) [![CI](https://github.com/darshi1337/apogee/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/darshi1337/apogee/actions/workflows/ci.yml) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/darshi1337/apogee/badge)](https://scorecard.dev/viewer/?uri=github.com/darshi1337/apogee) [![Chrome + Firefox users](.github/assets/badge-users.svg "Chrome weekly + Firefox average daily users")](#get-started)
+[![Release](.github/assets/badge-release.svg)](https://github.com/darshi1337/apogee/releases) [![License: MIT](.github/assets/badge-license-mit.svg)](LICENSE) [![CI](https://github.com/darshi1337/apogee/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/darshi1337/apogee/actions/workflows/ci.yml) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/darshi1337/apogee/badge)](https://scorecard.dev/viewer/?uri=github.com/darshi1337/apogee)
 
 [![PRs Welcome](.github/assets/badge-prs-welcome.svg)](CONTRIBUTING.md) [![Good first issues](.github/assets/badge-good-first-issues.svg)](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) [![First-timers-only](.github/assets/badge-first-timers-only.svg)](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3Afirst-timers-only) [![Help wanted](.github/assets/badge-help-wanted.svg)](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) [![Contributors](.github/assets/badge-contributors.svg)](https://github.com/darshi1337/apogee/graphs/contributors)
 
@@ -22,11 +22,11 @@ A private AI summarizer in your browser for articles, videos, PDFs, DOCX files, 
 
 Apogee is an AI browser assistant for articles, videos, emails, and more. It runs fully in your browser. It uses your GPU with WebGPU (Chrome, Edge, and other Chromium browsers). It uses your CPU with WebAssembly, which now works everywhere.
 
-WebAssembly is the default on Firefox and an opt-in fallback on Chromium browsers. It helps on machines without WebGPU. No backend, no API keys, no cloud. Install the extension and start.
+WebAssembly is the default on Firefox and an opt-in fallback on Chromium browsers. It helps on machines without WebGPU. Local generation needs no backend, API key, or cloud account. Optional remote-provider setup previews are described below.
 
 For power users, Apogee also talks straight to a local Ollama instance over `127.0.0.1`. It also talks to a `llama-server` you run yourself.
 
-> **In short:** Apogee summarizes pages, videos, PDFs, DOCX files, and pasted text locally. It needs no account, API key, backend, or cloud upload.
+> Apogee summarizes pages, videos, PDFs, DOCX files, and pasted text locally. Local generation needs no account or API key. Optional remote-provider setup currently supports catalog previews only.
 
 ⭐ If Apogee helps you, [star the repository](https://github.com/darshi1337/apogee). It helps the project reach more contributors.
 
@@ -40,13 +40,13 @@ Apogee is the point of an orbit farthest from Earth. The word also means the hig
 
 2. Open a page, video, PDF, or DOCX file, or paste text into the Apogee popup.
 
-3. Pick a summary format and select **Summarize**.
+3. Pick a summary format and select **Summarize**, or select the **Copy text** chip to extract and copy cleaned page text directly without running an AI model.
 
-The first in-browser run downloads the picked model. Cached models run offline after that. For larger models, set up [Ollama](OLLAMA.md) or [llama.cpp](LLAMACPP.md) in Settings.
+The first in-browser run downloads the picked model. Cached models run offline after that. For larger models, set up [Ollama](docs/OLLAMA.md) or [llama.cpp](docs/LLAMACPP.md) in Settings.
 
 ## Contribute
 
-Install the extension and use it each day. Read [ARCHITECTURE.md](ARCHITECTURE.md) to learn how it works. When something breaks, [open a bug report](https://github.com/darshi1337/apogee/issues/new/choose). A clear report is help enough. Each confirmed bug becomes an issue the next person can pick up. To fix a bug yourself, pick a [`first-timers-only`](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3Afirst-timers-only) or [`good first issue`](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) item and follow [CONTRIBUTING.md](CONTRIBUTING.md).
+Install the extension and use it each day. Read [ARCHITECTURE.md](docs/ARCHITECTURE.md) to learn how it works. When something breaks, [open a bug report](https://github.com/darshi1337/apogee/issues/new/choose). A clear report is help enough. Each confirmed bug becomes an issue the next person can pick up. To fix a bug yourself, pick a [`first-timers-only`](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3Afirst-timers-only) or [`good first issue`](https://github.com/darshi1337/apogee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) item and follow [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Why Apogee
 
@@ -56,9 +56,9 @@ Apogee fixes the design and privacy problems of Orbit by staying local-first:
 
 - **Local by default**: Tokenization, inference, retrieval, and caching happen on your device.
 
-- **Private by design**: Page content, transcripts, files, and summaries never go to cloud APIs.
+- **Private by design**: Page content, transcripts, files, and summaries stay on your device for local generation. Optional remote-provider setup is limited to catalog previews in this release.
 
-- **No account needed**: No subscription, API key, telemetry service, or Apogee backend exists.
+- **No account needed for local generation**: Optional remote-provider setup uses your own provider key. Apogee has no telemetry service or backend.
 
 ## At A Glance
 
@@ -67,9 +67,9 @@ The table below compares Apogee with common cloud-based AI extensions and the di
 | Feature or Architecture | Apogee | Cloud AI Extensions | Mozilla Orbit Project |
 | :-- | :-- | :-- | :-- |
 | Local On-Device Inference | Yes (WebGPU, WASM, Ollama, llama.cpp) | No (Needs cloud APIs) | No (Used remote Mistral 7B servers) |
-| Zero API Key Requirement | Yes (No keys, subscriptions, or accounts) | No (Needs API keys or paid tiers) | Yes |
+| Zero API Key Requirement | Yes for local generation; optional remote setup uses your key | No (Needs API keys or paid tiers) | Yes |
 | Offline Functionality | Yes (Works offline after initial weight cache) | No (Needs active internet connection) | No (Failed without server connection) |
-| Zero Data Transmission | Yes (Stays on your device) | No (Uploads full webpage text) | No (Caches page summaries remotely) |
+| Zero Data Transmission | Page content stays local; documented metadata requests can leave the device | No (Uploads full webpage text) | No (Caches page summaries remotely) |
 | Open Source License | Yes (MIT License) | Varies | Yes |
 | Local Ollama Integration | Yes (Direct loopback HTTP connection) | Rare | No |
 | Local llama.cpp Integration | Yes (Direct loopback HTTP connection to `llama-server`) | Rare | No |
@@ -101,6 +101,8 @@ The table below compares Apogee with common cloud-based AI extensions and the di
 
 - **Multi-Language Translation**: Summarize pages into 32 target languages with the default Helsinki-NLP Opus-MT engine or direct LLM translation.
 
+- **Extract-only "Copy text"**: Click the **Copy text** chip in the popup to extract and copy cleaned page text (including PDFs) straight to your clipboard with no AI inference or model download.
+
 ## Screenshots
 
 <table>
@@ -124,11 +126,13 @@ The table below compares Apogee with common cloud-based AI extensions and the di
 
 ## Privacy
 
-- **Zero Data Leaks**: Apogee handles page contents, transcripts, PDFs, and summaries locally. Nothing uploads to cloud APIs.
+- **Zero Data Leaks**: Apogee handles page contents, transcripts, PDFs, and summaries locally. In this release, nothing uploads to cloud APIs; the optional remote-provider preview sends only a provider key and connection metadata to refresh model catalogs.
+
+- **Remote-provider setup preview (Stage A)**: OpenRouter and OpenCode Console / Go are opt-in catalog previews in Settings. Refresh contacts `https://openrouter.ai/api/v1/models` or `https://opencode.ai/inference/v1/models`; a provider key goes only to its own origin. OpenRouter free presets require all advertised prices to be zero; OpenCode Console / Go uses credits or Go; this preset lists paid models only, and OpenCode also offers free models outside this preset. Remote summary and Ask generation remain disabled pending maintainer security review. There is no automatic remote selection or fallback.
 
 - **Local Loopback**: Ollama and llama.cpp connections run strictly over local loopback (`http://127.0.0.1`). Apogee refuses any other host.
 
-- **Anonymized SponsorBlock**: YouTube sponsor lookups send only a k-anonymity hash prefix. Turn them off under Settings, then Privacy to stay fully local. Then no lookup request goes out.
+- **Anonymized SponsorBlock**: YouTube sponsor lookups send only a k-anonymity hash prefix. Turn them off under Settings, then Privacy to disable that lookup. Remote catalog refreshes, when explicitly requested, still use the network.
 
 - **Sensitive Site Exclusions**: Apogee excludes sensitive sites from disk caching. Covered hosts: Gmail, Outlook, Proton Mail, Yahoo Mail, Google Messages, WhatsApp Web, Telegram Web, Slack, Discord, Microsoft Teams. Custom domain lists join them.
 
@@ -138,25 +142,25 @@ Read the full security model in [Privacy and Security Architecture](PRIVACY.md).
 
 ### For Users
 
-- **[Browser Support](BROWSERS.md)**: Browser compatibility table, WebGPU versus WebAssembly execution, and Ollama support.
+- **[Browser Support](docs/BROWSERS.md)**: Browser compatibility table, WebGPU versus WebAssembly execution, and Ollama support.
 
-- **[Model Reference](MODELS.md)**: Full model table, download sizes, context windows, and benchmarks.
+- **[Model Reference](docs/MODELS.md)**: Full model table, download sizes, context windows, and benchmarks.
 
-- **[Local llama.cpp Guide](LLAMACPP.md)**: Setup steps for linking Apogee to your own `llama-server` instance.
+- **[Local llama.cpp Guide](docs/LLAMACPP.md)**: Setup steps for linking Apogee to your own `llama-server` instance.
 
-- **[Local Ollama Guide](OLLAMA.md)**: Setup steps for local models on macOS, Windows, and Linux.
+- **[Local Ollama Guide](docs/OLLAMA.md)**: Setup steps for local models on macOS, Windows, and Linux.
 
-- **[Translation Reference](TRANSLATION.md)**: Overview of 29 supported target languages and Opus-MT model tiers.
+- **[Translation Reference](docs/TRANSLATION.md)**: Overview of 32 supported target languages and Opus-MT model tiers.
 
 - **[Privacy Architecture](PRIVACY.md)**: Full details on network limits, storage, and permissions.
 
-- **[Error Messages Guide](ERROR.md)**: Full list of user-facing messages, causes, fixes, and diagnostics.
+- **[Error Messages Guide](docs/ERROR.md)**: Full list of user-facing messages, causes, fixes, and diagnostics.
 
-- **[Troubleshooting](TROUBLESHOOTING.md)**: Fix the common failures by symptom: no WebGPU, stalled model download, Ollama unreachable, slow Firefox, unreadable page.
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)**: Fix the common failures by symptom: no WebGPU, stalled model download, Ollama unreachable, slow Firefox, unreadable page.
 
 ### For Developers & Contributors
 
-Extractor contributions need no browser, GPU, or model download. The fixture harness runs site extractors against saved HTML in Node.js 22 or newer:
+Extractor contributions need no browser, GPU, or model download. The fixture harness runs site extractors against saved HTML in Node.js 24 or newer:
 
 ```bash
 cd apogee-extension
@@ -166,13 +170,13 @@ npm test
 
 See the [extractor test harness and worked examples](apogee-extension/tests/extractors/README.md) to add a fixture. It shows how to test a site-specific extractor. The [contributing guide](CONTRIBUTING.md) lists available issues and the checks to run before a PR.
 
-- **[Architecture Reference](ARCHITECTURE.md)**: Details on the 4 contexts, how it works, execution flows, and trust limits.
+- **[Architecture Reference](docs/ARCHITECTURE.md)**: Details on the 4 contexts, how it works, execution flows, and trust limits.
 
-- **[Developer Setup](DEVELOPMENT.md)**: Steps to build, run watch mode, run test suites, and format code.
+- **[Developer Setup](docs/DEVELOPMENT.md)**: Steps to build, run watch mode, run test suites, and format code.
 
 - **[Contributing Guide](CONTRIBUTING.md)**: Rules for opening pull requests, sending code changes, and claiming issues.
 
-- **[Project Roadmap](ROADMAP.md)**: Feature roadmap, planned milestones, and completed releases.
+- **[Project Roadmap](docs/ROADMAP.md)**: Feature roadmap, planned milestones, and completed releases.
 
 - **[Changelog](CHANGELOG.md)**: Full release history and version changes.
 
@@ -187,7 +191,7 @@ Thanks to all contributors:
 <!-- contributors:start -->
 <!-- cspell:disable --><!-- contributor usernames are not dictionary words -->
 <p>
-  <a href="https://github.com/darshi1337"><img src="https://github.com/darshi1337.png?size=100" width="50" alt="darshi1337" /></a> <a href="https://github.com/prashantpiyush1111"><img src="https://github.com/prashantpiyush1111.png?size=100" width="50" alt="prashantpiyush1111" /></a> <a href="https://github.com/mohdUwaish59"><img src="https://github.com/mohdUwaish59.png?size=100" width="50" alt="mohdUwaish59" /></a> <a href="https://github.com/vaishaldsouza"><img src="https://github.com/vaishaldsouza.png?size=100" width="50" alt="vaishaldsouza" /></a> <a href="https://github.com/chenzeyan54-commits"><img src="https://github.com/chenzeyan54-commits.png?size=100" width="50" alt="chenzeyan54-commits" /></a> <a href="https://github.com/dbdefault"><img src="https://github.com/dbdefault.png?size=100" width="50" alt="dbdefault" /></a> <a href="https://github.com/Daniele-Cangi"><img src="https://github.com/Daniele-Cangi.png?size=100" width="50" alt="Daniele-Cangi" /></a> <a href="https://github.com/naba-runn"><img src="https://github.com/naba-runn.png?size=100" width="50" alt="naba-runn" /></a> <a href="https://github.com/Rutvik552k"><img src="https://github.com/Rutvik552k.png?size=100" width="50" alt="Rutvik552k" /></a> <a href="https://github.com/rodriveiga01"><img src="https://github.com/rodriveiga01.png?size=100" width="50" alt="rodriveiga01" /></a> <a href="https://github.com/bcu001"><img src="https://github.com/bcu001.png?size=100" width="50" alt="bcu001" /></a> <a href="https://github.com/darshi"><img src="https://github.com/darshi.png?size=100" width="50" alt="darshi" /></a> <a href="https://github.com/PandaHUN777"><img src="https://github.com/PandaHUN777.png?size=100" width="50" alt="PandaHUN777" /></a> <a href="https://github.com/MayurK-cmd"><img src="https://github.com/MayurK-cmd.png?size=100" width="50" alt="MayurK-cmd" /></a> <a href="https://github.com/Rik24"><img src="https://github.com/Rik24.png?size=100" width="50" alt="Rik24" /></a> <a href="https://github.com/avijit-thawani"><img src="https://github.com/avijit-thawani.png?size=100" width="50" alt="avijit-thawani" /></a> <a href="https://github.com/zenithamza"><img src="https://github.com/zenithamza.png?size=100" width="50" alt="zenithamza" /></a> <a href="https://github.com/lb1192176991-lab"><img src="https://github.com/lb1192176991-lab.png?size=100" width="50" alt="lb1192176991-lab" /></a> <a href="https://github.com/githarshil"><img src="https://github.com/githarshil.png?size=100" width="50" alt="githarshil" /></a> <a href="https://github.com/Yuvemil"><img src="https://github.com/Yuvemil.png?size=100" width="50" alt="Yuvemil" /></a> <a href="https://github.com/tejas5038"><img src="https://github.com/tejas5038.png?size=100" width="50" alt="tejas5038" /></a> <a href="https://github.com/Gambit-Checkmate"><img src="https://github.com/Gambit-Checkmate.png?size=100" width="50" alt="Gambit-Checkmate" /></a> <a href="https://github.com/Sagar07Kr"><img src="https://github.com/Sagar07Kr.png?size=100" width="50" alt="Sagar07Kr" /></a> <a href="https://github.com/Codexhack286"><img src="https://github.com/Codexhack286.png?size=100" width="50" alt="Codexhack286" /></a> <a href="https://github.com/RohitSutar1823"><img src="https://github.com/RohitSutar1823.png?size=100" width="50" alt="RohitSutar1823" /></a> <a href="https://github.com/rohitmore07"><img src="https://github.com/rohitmore07.png?size=100" width="50" alt="rohitmore07" /></a> <a href="https://github.com/Munishwar001"><img src="https://github.com/Munishwar001.png?size=100" width="50" alt="Munishwar001" /></a> <a href="https://github.com/PrathamShenoy14"><img src="https://github.com/PrathamShenoy14.png?size=100" width="50" alt="PrathamShenoy14" /></a> <a href="https://github.com/Jah-yee"><img src="https://github.com/Jah-yee.png?size=100" width="50" alt="Jah-yee" /></a> <a href="https://github.com/JSP7A"><img src="https://github.com/JSP7A.png?size=100" width="50" alt="JSP7A" /></a> <a href="https://github.com/GhostCoder6969"><img src="https://github.com/GhostCoder6969.png?size=100" width="50" alt="GhostCoder6969" /></a> <a href="https://github.com/DYNOSuprovo"><img src="https://github.com/DYNOSuprovo.png?size=100" width="50" alt="DYNOSuprovo" /></a> <a href="https://github.com/ayushi-wq"><img src="https://github.com/ayushi-wq.png?size=100" width="50" alt="ayushi-wq" /></a> <a href="https://github.com/amandeavor"><img src="https://github.com/amandeavor.png?size=100" width="50" alt="amandeavor" /></a> <a href="https://github.com/amoussa1229"><img src="https://github.com/amoussa1229.png?size=100" width="50" alt="amoussa1229" /></a> <a href="https://github.com/Aarav-cyber"><img src="https://github.com/Aarav-cyber.png?size=100" width="50" alt="Aarav-cyber" /></a> <a href="https://github.com/adity982"><img src="https://github.com/adity982.png?size=100" width="50" alt="adity982" /></a>
+  <a href="https://github.com/darshi1337"><img src="https://github.com/darshi1337.png?size=100" width="50" alt="darshi1337" /></a> <a href="https://github.com/prashantpiyush1111"><img src="https://github.com/prashantpiyush1111.png?size=100" width="50" alt="prashantpiyush1111" /></a> <a href="https://github.com/mohdUwaish59"><img src="https://github.com/mohdUwaish59.png?size=100" width="50" alt="mohdUwaish59" /></a> <a href="https://github.com/vaishaldsouza"><img src="https://github.com/vaishaldsouza.png?size=100" width="50" alt="vaishaldsouza" /></a> <a href="https://github.com/chenzeyan54-commits"><img src="https://github.com/chenzeyan54-commits.png?size=100" width="50" alt="chenzeyan54-commits" /></a> <a href="https://github.com/dbdefault"><img src="https://github.com/dbdefault.png?size=100" width="50" alt="dbdefault" /></a> <a href="https://github.com/Daniele-Cangi"><img src="https://github.com/Daniele-Cangi.png?size=100" width="50" alt="Daniele-Cangi" /></a> <a href="https://github.com/naba-runn"><img src="https://github.com/naba-runn.png?size=100" width="50" alt="naba-runn" /></a> <a href="https://github.com/PrathamShenoy14"><img src="https://github.com/PrathamShenoy14.png?size=100" width="50" alt="PrathamShenoy14" /></a> <a href="https://github.com/Rutvik552k"><img src="https://github.com/Rutvik552k.png?size=100" width="50" alt="Rutvik552k" /></a> <a href="https://github.com/rodriveiga01"><img src="https://github.com/rodriveiga01.png?size=100" width="50" alt="rodriveiga01" /></a> <a href="https://github.com/bcu001"><img src="https://github.com/bcu001.png?size=100" width="50" alt="bcu001" /></a> <a href="https://github.com/dread980"><img src="https://github.com/dread980.png?size=100" width="50" alt="dread980" /></a> <a href="https://github.com/darshi"><img src="https://github.com/darshi.png?size=100" width="50" alt="darshi" /></a> <a href="https://github.com/PandaHUN777"><img src="https://github.com/PandaHUN777.png?size=100" width="50" alt="PandaHUN777" /></a> <a href="https://github.com/MayurK-cmd"><img src="https://github.com/MayurK-cmd.png?size=100" width="50" alt="MayurK-cmd" /></a> <a href="https://github.com/Rik24"><img src="https://github.com/Rik24.png?size=100" width="50" alt="Rik24" /></a> <a href="https://github.com/avijit-thawani"><img src="https://github.com/avijit-thawani.png?size=100" width="50" alt="avijit-thawani" /></a> <a href="https://github.com/zenithamza"><img src="https://github.com/zenithamza.png?size=100" width="50" alt="zenithamza" /></a> <a href="https://github.com/lb1192176991-lab"><img src="https://github.com/lb1192176991-lab.png?size=100" width="50" alt="lb1192176991-lab" /></a> <a href="https://github.com/githarshil"><img src="https://github.com/githarshil.png?size=100" width="50" alt="githarshil" /></a> <a href="https://github.com/Yuvemil"><img src="https://github.com/Yuvemil.png?size=100" width="50" alt="Yuvemil" /></a> <a href="https://github.com/tejas5038"><img src="https://github.com/tejas5038.png?size=100" width="50" alt="tejas5038" /></a> <a href="https://github.com/pixxyy695"><img src="https://github.com/pixxyy695.png?size=100" width="50" alt="pixxyy695" /></a> <a href="https://github.com/Gambit-Checkmate"><img src="https://github.com/Gambit-Checkmate.png?size=100" width="50" alt="Gambit-Checkmate" /></a> <a href="https://github.com/Sagar07Kr"><img src="https://github.com/Sagar07Kr.png?size=100" width="50" alt="Sagar07Kr" /></a> <a href="https://github.com/Codexhack286"><img src="https://github.com/Codexhack286.png?size=100" width="50" alt="Codexhack286" /></a> <a href="https://github.com/RohitSutar1823"><img src="https://github.com/RohitSutar1823.png?size=100" width="50" alt="RohitSutar1823" /></a> <a href="https://github.com/rohitmore07"><img src="https://github.com/rohitmore07.png?size=100" width="50" alt="rohitmore07" /></a> <a href="https://github.com/Munishwar001"><img src="https://github.com/Munishwar001.png?size=100" width="50" alt="Munishwar001" /></a> <a href="https://github.com/Jah-yee"><img src="https://github.com/Jah-yee.png?size=100" width="50" alt="Jah-yee" /></a> <a href="https://github.com/JSP7A"><img src="https://github.com/JSP7A.png?size=100" width="50" alt="JSP7A" /></a> <a href="https://github.com/GhostCoder6969"><img src="https://github.com/GhostCoder6969.png?size=100" width="50" alt="GhostCoder6969" /></a> <a href="https://github.com/DYNOSuprovo"><img src="https://github.com/DYNOSuprovo.png?size=100" width="50" alt="DYNOSuprovo" /></a> <a href="https://github.com/ayushi-wq"><img src="https://github.com/ayushi-wq.png?size=100" width="50" alt="ayushi-wq" /></a> <a href="https://github.com/amandeavor"><img src="https://github.com/amandeavor.png?size=100" width="50" alt="amandeavor" /></a> <a href="https://github.com/amoussa1229"><img src="https://github.com/amoussa1229.png?size=100" width="50" alt="amoussa1229" /></a> <a href="https://github.com/Aarav-cyber"><img src="https://github.com/Aarav-cyber.png?size=100" width="50" alt="Aarav-cyber" /></a> <a href="https://github.com/adity982"><img src="https://github.com/adity982.png?size=100" width="50" alt="adity982" /></a>
 </p>
 <!-- cspell:enable -->
 <!-- contributors:end -->

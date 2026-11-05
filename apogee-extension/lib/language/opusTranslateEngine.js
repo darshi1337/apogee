@@ -21,18 +21,21 @@ export function opusTranslateFnFor(translationEngine, onProgress) {
     const resolved = resolveOpusModel(src, targetLang);
     if (!resolved) return null;
     try {
-      return await withTranslator(resolved.model, reportProgress, (t) =>
-        translatePreservingStructure(
-          text,
-          (lines) => translateBatch(t, lines, resolved.token),
-          {
-            onProgress: (done, total) =>
-              reportProgress({
-                progress: total ? done / total : 1,
-                text: `Translating ${done}/${total}...`,
-              }),
-          },
-        ),
+      return await withTranslator(
+        resolved.model,
+        (progress) => reportProgress({ ...progress, kind: "download" }),
+        (t) =>
+          translatePreservingStructure(
+            text,
+            (lines) => translateBatch(t, lines, resolved.token),
+            {
+              onProgress: (done, total) =>
+                reportProgress({
+                  progress: total ? done / total : 1,
+                  text: `Translating ${done}/${total}...`,
+                }),
+            },
+          ),
       );
     } catch {
       return null;

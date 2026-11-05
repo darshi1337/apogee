@@ -13,6 +13,12 @@ The table below sums up the main technical differences between the four AI provi
 | Local Ollama | Local machine via HTTP | None for extension | 4B to 8B+ parameters | Power users running Ollama locally over loopback |
 | Local llama.cpp | Local machine via HTTP | None for extension | Any GGUF you load | Power users running llama-server directly |
 
+## Remote-provider catalog previews (Stage A)
+
+Settings offers opt-in OpenRouter and OpenCode Console / Go setup with your own provider key, stored locally. Refresh explicitly contacts `https://openrouter.ai/api/v1/models` or `https://opencode.ai/inference/v1/models`. The API key goes only to its provider origin; Firefox also requests optional authentication-data permission before transmitting it. Local generation remains the default. Remote summaries and Ask answers are disabled pending maintainer security review, and remote providers never enter automatic fallback.
+
+OpenRouter uses the `https://openrouter.ai/api/v1` API base. Its free preset requires catalog metadata with all advertised prices explicitly zero; missing or nonzero prices are excluded. Catalog refreshes can change eligibility. OpenCode Console / Go is credits/Go access; this preset lists paid models only, and OpenCode also offers free models outside this preset. Its future OpenAI-compatible chat base is `https://opencode.ai/inference/openai/v1`, separate from its catalog endpoint. Catalog previews do not download model weights or perform prompt inference.
+
 ## WebLLM GPU Models
 
 WebLLM runs compact open weights directly on your graphics card through WebGPU. On Chrome, Edge, Brave, Dia, Vivaldi, and Opera, WebLLM is the default provider.

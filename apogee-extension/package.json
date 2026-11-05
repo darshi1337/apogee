@@ -1,6 +1,6 @@
 {
   "name": "apogee-extension",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -10,8 +10,8 @@
   "scripts": {
     "build:watch": "vite build --watch",
     "fetch:model-libs": "node scripts/model-libs.mjs",
-    "build:chrome": "TARGET_BROWSER=chrome vite build",
-    "build:firefox": "TARGET_BROWSER=firefox vite build",
+    "build:chrome": "vite build --mode chrome",
+    "build:firefox": "vite build --mode firefox",
     "build": "npm run build:chrome && npm run build:firefox",
     "test": "node --test --experimental-test-coverage",
     "lint": "eslint .",
@@ -23,17 +23,17 @@
     "package": "npm run build && node -e 'const fs = require(\"fs\"); const v = JSON.parse(fs.readFileSync(\"manifest.json\")).version; const exec = require(\"child_process\").execSync; exec(\"npx web-ext build --source-dir dist/chrome --artifacts-dir ../ --overwrite-dest --filename apogee-\" + v + \"-chrome.zip\", {stdio: \"inherit\"}); exec(\"npx web-ext build --source-dir dist/firefox --artifacts-dir ../ --overwrite-dest --filename apogee-\" + v + \"-mozilla.xpi\", {stdio: \"inherit\"});'"
   },
   "dependencies": {
-    "@huggingface/transformers": "4.3.1",
-    "@mlc-ai/web-llm": "0.2.86",
+    "@huggingface/transformers": "4.3.2",
+    "@mlc-ai/web-llm": "0.2.87",
     "pdfjs-dist": "^6.4.299"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "addons-linter": "^10.14.0",
+    "addons-linter": "^10.15.0",
     "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.13.0",
-    "linkedom": "^0.18.14",
+    "linkedom": "^0.18.15",
     "prettier": "^3.9.10",
     "vite": "^8.3.5",
     "web-ext": "^10.8.0"
@@ -45,6 +45,8 @@
     "js-yaml": "^4.3.2",
     "fast-uri": "^4.2.3",
     "brace-expansion": "^5.0.12",
+    "minimatch": "^11.0.1",
+    "multimatch": "^8.0.0",
     "undici": "^8.12.3"
   }
 }

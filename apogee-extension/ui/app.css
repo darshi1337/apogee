@@ -27,7 +27,6 @@
   --brand-color: #f0f0f2;
   --card-bg: #17171d;
   --card-border: rgba(255, 255, 255, 0.12);
-  --card-title-color: #9a9aa6;
   --summary-bg: #16161f;
   --summary-border: none;
   --text-main: #f0f0f2;
@@ -41,7 +40,6 @@
   --input-bg: #17171d;
   --input-border: rgba(255, 255, 255, 0.14);
   --input-focus-border: #8886ff;
-  --input-focus-glow: rgba(136, 134, 255, 0.15);
   --input-placeholder: #9a9aa6;
   --badge-bg: rgba(136, 134, 255, 0.18);
   --badge-text: #a6a4ff;
@@ -70,7 +68,6 @@
   --brand-color: #161616;
   --card-bg: #ffffff;
   --card-border: #e6e6e6;
-  --card-title-color: #6b6b73;
   --summary-bg: #f8f7ff;
   --summary-border: none;
   --text-main: #161616;
@@ -84,7 +81,6 @@
   --input-bg: #ffffff;
   --input-border: #e6e6e6;
   --input-focus-border: #5855ff;
-  --input-focus-glow: rgba(88, 85, 255, 0.12);
   --input-placeholder: #61616c;
   --badge-bg: rgba(88, 85, 255, 0.1);
   --badge-text: #5855ff;
@@ -277,7 +273,6 @@ body {
 }
 
 .icon-btn {
-  border: none;
   background: var(--btn-bg);
   border: 1px solid var(--card-border);
   cursor: pointer;
@@ -305,6 +300,7 @@ body {
 .send-btn,
 .copy-btn,
 .delete-btn,
+.past-summary-toggle,
 .prompts-toggle {
   position: relative;
 }
@@ -313,6 +309,7 @@ body {
 .send-btn::after,
 .copy-btn::after,
 .delete-btn::after,
+.past-summary-toggle::after,
 .prompts-toggle::after {
   content: "";
   position: absolute;
@@ -329,6 +326,7 @@ body {
   inset: -9px;
 }
 
+.past-summary-toggle::after,
 .prompts-toggle::after {
   inset: -10px;
 }
@@ -959,8 +957,8 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
   margin: 0;
 }
 
-.prompts-toggle {
-  border: none;
+.prompts-toggle,
+.past-summary-toggle {
   background: var(--btn-bg);
   border: 1px solid var(--card-border);
   cursor: pointer;
@@ -972,12 +970,14 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
   transition: all 0.2s ease;
 }
 
-.prompts-toggle:hover {
+.prompts-toggle:hover,
+.past-summary-toggle:hover {
   background: var(--btn-hover-bg);
   border-color: var(--btn-hover-border);
 }
 
-.prompts-toggle .ico svg {
+.prompts-toggle .ico svg,
+.past-summary-toggle .ico svg {
   width: 12px;
   height: 12px;
 }
@@ -1121,6 +1121,21 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 .past-summary-text {
   flex: 1;
   min-width: 0;
+}
+
+.past-summary-toggle {
+  padding: 0;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.past-summary-toggle .ico svg {
+  transform: rotate(180deg);
+  transition: transform 0.2s ease;
+}
+
+.past-summary-card.expanded .past-summary-toggle .ico svg {
+  transform: none;
 }
 
 .past-summary-title {
@@ -2628,4 +2643,144 @@ html[data-surface="side-panel"] .chat-box:has(#questionInput:not(.hidden)) {
 
 html[data-surface="side-panel"] .open-side-panel-btn {
   display: none !important;
+}
+
+/* Remote catalog setup lives inside the AI Provider card. */
+.remote-settings {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-color);
+}
+.remote-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.remote-title {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.remote-heading .provider-badge,
+.remote-provider-summary .provider-badge {
+  margin-left: 0;
+}
+.remote-hint {
+  margin-bottom: 8px;
+}
+.remote-provider {
+  min-width: 0;
+}
+.remote-provider + .remote-provider {
+  border-top: 1px solid var(--border-color);
+}
+.remote-provider-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  cursor: pointer;
+  list-style: none;
+}
+.remote-provider-summary::-webkit-details-marker {
+  display: none;
+}
+.remote-provider-summary:focus-visible,
+.remote-btn:focus-visible {
+  outline: 2px solid var(--input-focus-border);
+  outline-offset: 1px;
+}
+.remote-provider-name {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+.remote-chevron {
+  margin-left: auto;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+.remote-chevron svg {
+  width: 16px;
+  height: 16px;
+}
+.remote-provider[open] .remote-chevron {
+  transform: rotate(180deg);
+}
+.remote-provider-body {
+  padding: 0 0 10px 22px;
+}
+.remote-consent {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  margin: 4px 0 10px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+.remote-consent input {
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
+.remote-meta {
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+.remote-key-status {
+  margin: -4px 0 8px;
+}
+.remote-status {
+  margin: 6px 0 0;
+}
+.remote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.remote-btn {
+  padding: 6px 9px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.remote-btn:hover:not(:disabled) {
+  background: var(--btn-hover-bg);
+  border-color: var(--text-secondary);
+}
+.remote-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.remote-danger {
+  color: var(--error-text);
+}
+.remote-model-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.remote-model-row .settings-field {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+.remote-refresh {
+  height: 38px;
+  flex-shrink: 0;
 }

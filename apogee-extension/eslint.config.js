@@ -48,7 +48,6 @@ export default [
     files: ["content/content.js"],
     languageOptions: {
       globals: {
-        Readability: "readonly",
         extractGeneric: "readonly",
         extractGmail: "readonly",
         extractYoutube: "readonly",
@@ -83,7 +82,7 @@ export default [
         {
           argsIgnorePattern: "^_",
           varsIgnorePattern:
-            "^(threadTruncate|buildThreadNodes|selectThreadComments|formatThreadComments|THREAD_COMMENTS_HEADER|elText|elAuthor|liveEls|renderThreadPage|truncateKeepLines|collectForgeComments|renderForgePage)$",
+            "^(buildThreadNodes|selectThreadComments|elAuthor|renderThreadPage|collectForgeComments|renderForgePage)$",
         },
       ],
     },
@@ -96,7 +95,7 @@ export default [
         {
           argsIgnorePattern: "^_",
           varsIgnorePattern:
-            "^(extractBalancedJsonText|formatVideoTimestamp|markTranscriptSegments|truncateVideoDescription|findEmbeddedJson|tryParseUrl)$",
+            "^(formatVideoTimestamp|markTranscriptSegments|truncateVideoDescription|findEmbeddedJson|tryParseUrl)$",
         },
       ],
     },
@@ -126,7 +125,6 @@ export default [
         buildThreadNodes: "readonly",
         selectThreadComments: "readonly",
         formatThreadComments: "readonly",
-        THREAD_COMMENTS_HEADER: "readonly",
         elText: "readonly",
         elAuthor: "readonly",
         liveEls: "readonly",
@@ -134,7 +132,6 @@ export default [
         truncateKeepLines: "readonly",
         collectForgeComments: "readonly",
         renderForgePage: "readonly",
-        extractBalancedJsonText: "readonly",
         formatVideoTimestamp: "readonly",
         markTranscriptSegments: "readonly",
         truncateVideoDescription: "readonly",

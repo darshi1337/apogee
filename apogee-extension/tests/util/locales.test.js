@@ -3,10 +3,11 @@ import assert from "node:assert";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { checkCatalogs } from "../../scripts/check-locales.mjs";
 
-const REAL_LOCALES = new URL("../../_locales", import.meta.url);
+const REAL_LOCALES = fileURLToPath(new URL("../../_locales", import.meta.url));
 const REAL_GLOSSARY = JSON.parse(
   readFileSync(
     new URL("../../_locales/glossary.json", import.meta.url),
@@ -52,7 +53,7 @@ function fixture({
 }
 
 test("real catalogs pass: every locale defines every default key (#417)", () => {
-  const localesDir = resolve(REAL_LOCALES.pathname);
+  const localesDir = resolve(REAL_LOCALES);
   const { errors } = checkCatalogs(localesDir, REAL_GLOSSARY);
   assert.deepStrictEqual(errors, []);
 });
