@@ -1,6 +1,6 @@
 # Apogee Translation Architecture and Reference
 
-Apogee can make summaries, answers to questions, and suggested questions in a language different from the original page. You choose the output language under Settings, then Summary language. The normal setting is English. “Same as article” keeps the language of the original page. Summaries stay in English no matter the language of the original page. There are 32 languages you can use.
+Apogee can make summaries, answers to questions, and suggested questions in a language different from the original page. You choose the output language under Settings, then Summary language. The normal setting is English. “Same as article” keeps the language of the original page. Summaries stay in English no matter the language of the original page. There are 36 languages you can use.
 
 ## Translation Engines
 
@@ -14,7 +14,7 @@ Apogee uses two translation engines:
 
   It is always available. Smaller models translate less well between distant languages.
 
-## Complete 32-Language Matrix
+## Complete 36-Language Matrix
 
 Opus-MT starts from English, so it covers languages at different levels. This table shows how it translates from English to other languages:
 
@@ -46,12 +46,18 @@ Opus-MT starts from English, so it covers languages at different levels. This ta
 | Estonian | `opus-mt-en-mul (>>est<<)` | Grouped | Opus (Default) |
 | Latvian | `opus-mt-en-mul (>>lav<<)` | Grouped | Opus (Default) |
 | Lithuanian | `opus-mt-en-mul (>>lit<<)` | Grouped | Opus (Default) |
+| Arabic | `opus-mt-en-mul (>>ara<<)` | Grouped | Opus (Default) |
+| Hebrew | `opus-mt-en-mul (>>heb<<)` | Grouped | Opus (Default) |
+| Persian | `opus-mt-en-mul (>>pes<<)` | Grouped | Opus (Default) |
+| Urdu | `opus-mt-en-mul (>>urd<<)` | Grouped | Opus (Default) |
 | Slovak | `none (LLM only)` | No Opus | LLM (only option) |
 | Korean | `none (LLM only)` | No Opus | LLM (only option) |
 | Chinese (Traditional) | `none (LLM only)` | No Opus | LLM (only option) |
 | Hindi | `none (LLM only)` | No Opus | LLM (only option) |
 | Vietnamese | `none (LLM only)` | No Opus | LLM (only option) |
 | Thai | `none (LLM only)` | No Opus | LLM (only option) |
+
+Arabic, Hebrew, Persian, and Urdu are right-to-left. Rendered summary blocks use `dir="auto"` so each paragraph and list follows its own text direction.
 
 ## Understanding Translation Tiers and Directions
 

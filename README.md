@@ -99,7 +99,7 @@ The table below compares Apogee with common cloud-based AI extensions and the di
 
 - **Per-Page Focus Keywords**: Enter an optional topic or keyword (up to 200 characters) in the **Focus on... (optional)** field. Find the field below the response format selector in the home view. Use it before you summarize articles, PDFs, DOCX files, or pasted text. It steers emphasis toward specific themes without inventing facts. The input stays hidden on video, discussion (Hacker News, Reddit, Stack Overflow), and multi-tab pages.
 
-- **Multi-Language Translation**: Summarize pages into 32 target languages with the default Helsinki-NLP Opus-MT engine or direct LLM translation.
+- **Multi-Language Translation**: Summarize pages into 36 target languages with the default Helsinki-NLP Opus-MT engine or direct LLM translation.
 
 - **Extract-only "Copy text"**: Click the **Copy text** chip in the popup to extract and copy cleaned page text (including PDFs) straight to your clipboard with no AI inference or model download.
 
@@ -150,7 +150,7 @@ Read the full security model in [Privacy and Security Architecture](PRIVACY.md).
 
 - **[Local Ollama Guide](docs/OLLAMA.md)**: Setup steps for local models on macOS, Windows, and Linux.
 
-- **[Translation Reference](docs/TRANSLATION.md)**: Overview of 32 supported target languages and Opus-MT model tiers.
+- **[Translation Reference](docs/TRANSLATION.md)**: Overview of 36 supported target languages and Opus-MT model tiers.
 
 - **[Privacy Architecture](PRIVACY.md)**: Full details on network limits, storage, and permissions.
 

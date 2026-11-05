@@ -99,6 +99,10 @@ export const SUMMARY_LANGUAGES = [
   { code: "hi", label: "Hindi", name: "Hindi" },
   { code: "vi", label: "Vietnamese", name: "Vietnamese" },
   { code: "th", label: "Thai", name: "Thai" },
+  { code: "ar", label: "Arabic", name: "Arabic" },
+  { code: "he", label: "Hebrew", name: "Hebrew" },
+  { code: "fa", label: "Persian", name: "Persian" },
+  { code: "ur", label: "Urdu", name: "Urdu" },
 ];
 
 const VIDEO_PAGE_TYPES = new Set(["youtube", "bilibili"]);

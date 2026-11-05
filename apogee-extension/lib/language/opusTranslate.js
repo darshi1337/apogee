@@ -27,6 +27,10 @@ const EN_MUL_TOKEN = {
   ja: "jpn",
   zh: "cmn",
   id: "ind",
+  ar: "ara",
+  he: "heb",
+  fa: "pes",
+  ur: "urd",
 };
 
 const DIRECT_EN_TO = new Set([
