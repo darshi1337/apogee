@@ -63,9 +63,9 @@ The status line under the model name tells you where you stand:
 
 ## The Model Field
 
-When `llama-server` serves a single model, Apogee reads the name from /v1/models and fills the field in. If the server serves multiple models (router mode or a multi-model proxy), Apogee displays a model picker dropdown populated with all models reported by /v1/models.
+When `llama-server` serves a single model, Apogee reads the name from `/v1/models` and fills the field in. If the server serves multiple models (router mode or a multi-model proxy), a **Detected models** menu appears above the field, populated with everything `/v1/models` reports. Choosing one fills the field.
 
-The field stays editable, and Apogee keeps what you type. That matters for two cases:
+The field stays editable, and Apogee keeps what you type. The menu is only a shortcut for the names the server lists; type in the field when the name you need is not there. That matters for two cases:
 
 - A proxy such as [llama-swap](https://github.com/mostlygeek/llama-swap) routing to different backends by model name.
 - A build whose `/v1/models` reports something that is not the name you need to send.
@@ -76,7 +76,7 @@ Auto-fill only writes into an **empty** field, so a name you typed is never over
 
 `llama-server` takes its context window from the `-c` flag you launched it with, not from the model. The same GGUF serves 4096 tokens or 32768 based on how you started it. The file name reads the same either way.
 
-Apogee thus asks the server instead of guessing, reading `/props` and falling back to `/v1/models`. This keeps long pages inside what your server takes:
+Apogee thus asks the server instead of guessing, reading `/props` and falling back to `/v1/models`. When several models are listed, it uses the smallest reported window so chunks fit whichever model you select. This keeps long pages inside what your server takes:
 
 ```bash
 llama-server -m model.gguf -c 4096    # Apogee sizes chunks for 4096

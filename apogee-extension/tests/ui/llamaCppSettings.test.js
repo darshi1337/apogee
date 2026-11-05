@@ -35,7 +35,6 @@ test("app.html carries the llama.cpp settings fields", () => {
     "llamaModelsCard",
     "llamaHostInput",
     "llamaApiKeyInput",
-    "llamaModelInputRow",
     "llamaModelInput",
     "llamaModelSelectRow",
     "llamaModelSelect",
@@ -45,7 +44,7 @@ test("app.html carries the llama.cpp settings fields", () => {
   }
 });
 
-// The model is typed or auto-filled, not chosen: llama-server loads exactly one model at launch, so there is no list to render.
+// The model field stays editable even when router mode adds a picker above it.
 test("the llama.cpp model control is a text field, not a radio list", () => {
   const { document } = parseHTML(popupHtml);
   const input = document.getElementById("llamaModelInput");
@@ -144,8 +143,9 @@ test("the multi-model router select starts hidden in app.html", () => {
   assert.equal(select.tagName.toLowerCase(), "select");
 });
 
-test("app.js binds router-mode model selection and saves changes", () => {
-  assert.match(popupJs, /llamaModelSelectRow/);
-  assert.match(popupJs, /llamaModelSelect/);
-  assert.match(popupJs, /llamaModelSelect\?\.addEventListener\("change"/);
+test("app.js wires the router-mode picker to the model field", () => {
+  assert.match(popupJs, /createLlamaModelPicker\(\{/);
+  assert.match(popupJs, /field: llamaModelInput/);
+  assert.match(popupJs, /select: llamaModelSelect/);
+  assert.match(popupJs, /row: llamaModelSelectRow/);
 });

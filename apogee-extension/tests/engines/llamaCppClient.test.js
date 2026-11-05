@@ -479,6 +479,31 @@ test("checkHealth falls back to /v1/models meta when /props is disabled", async 
   assert.equal(result.contextTokens, 16384);
 });
 
+test("checkHealth uses the smallest window when several models are listed", async () => {
+  const result = await health({
+    "/health": ok({ status: "ok" }),
+    "/props": ok(PROPS),
+    "/v1/models": ok({
+      data: [
+        { id: "large", meta: { n_ctx: 32768 } },
+        { id: "small", meta: { n_ctx: 4096 } },
+      ],
+    }),
+  });
+  assert.deepStrictEqual(result.models, ["large", "small"]);
+  assert.equal(result.contextTokens, 4096);
+});
+
+test("checkHealth falls back to /props when a router listing has no per-model windows", async () => {
+  const result = await health({
+    "/health": ok({ status: "ok" }),
+    "/props": ok(PROPS),
+    "/v1/models": ok({ data: [{ id: "first" }, { id: "second" }] }),
+  });
+  assert.deepStrictEqual(result.models, ["first", "second"]);
+  assert.equal(result.contextTokens, 32768);
+});
+
 test("checkHealth leaves contextTokens null when neither endpoint reports one", async () => {
   const result = await health({
     "/health": ok({ status: "ok" }),

@@ -129,6 +129,7 @@ import {
   PDF_TOO_LARGE_ERROR_MSG,
 } from "../lib/util/messages.js";
 import { initRemoteSettings } from "./remoteSettings.js";
+import { createLlamaModelPicker } from "./llamaModelPicker.js";
 import { t, applyI18nToDom } from "../lib/util/i18n.js";
 import { safeDisconnect } from "../lib/util/streamBroadcast.js";
 import { tryParseUrl } from "../lib/util/url.js";
@@ -339,7 +340,6 @@ const llamaSettingsCard = document.getElementById("llamaSettingsCard");
 const llamaModelsCard = document.getElementById("llamaModelsCard");
 const llamaHostInput = document.getElementById("llamaHostInput");
 const llamaApiKeyInput = document.getElementById("llamaApiKeyInput");
-const llamaModelInputRow = document.getElementById("llamaModelInputRow");
 const llamaModelInput = document.getElementById("llamaModelInput");
 const llamaModelSelectRow = document.getElementById("llamaModelSelectRow");
 const llamaModelSelect = document.getElementById("llamaModelSelect");
@@ -378,6 +378,17 @@ const historyWipeText = document.getElementById("historyWipeText");
 const historyWipeCancelBtn = document.getElementById("historyWipeCancelBtn");
 const historyWipeDeleteBtn = document.getElementById("historyWipeDeleteBtn");
 const versionText = document.getElementById("versionText");
+
+const llamaModelPicker = createLlamaModelPicker({
+  field: llamaModelInput,
+  select: llamaModelSelect,
+  row: llamaModelSelectRow,
+  onChoose: (value) => {
+    saveSettings({ llamaModel: value }).catch((err) =>
+      console.error("Saving the selected llama.cpp model failed:", err),
+    );
+  },
+});
 
 // Single source of truth for input caps lives in JS (#320): the HTML
 // maxlength attributes are fallback only, re-synced here so bumping a
@@ -732,8 +743,6 @@ async function applySettingsToUI(settings) {
   if (llamaHostInput) llamaHostInput.value = settings.llamaHost;
   if (llamaApiKeyInput) llamaApiKeyInput.value = settings.llamaApiKey || "";
   if (llamaModelInput) llamaModelInput.value = settings.llamaModel || "";
-  if (llamaModelSelect && settings.llamaModel)
-    llamaModelSelect.value = settings.llamaModel;
 
   const fmtRadio = document.querySelector(
     `input[name="format"][value="${settings.responseFormat}"]`,
@@ -2244,13 +2253,14 @@ async function checkConnection() {
 }
 
 // Reflect what llama-server reported back into the model field.
-// llama-server loads one model at launch, so unlike Ollama there is no list to
-// choose from -- the field is filled in from the server instead. It stays
-// editable for the cases detection cannot cover: a proxy such as llama-swap
-// routing by model name, or a build whose /v1/models says something unhelpful.
-// Auto-fill only touches an empty field, which is what keeps a name the user
-// typed, and a name detected earlier, from being overwritten on the next
-// health check. Clearing the field asks for detection again.
+// A single-model server has no list to choose from, so the field is filled in
+// from the server instead. Router mode and multi-model proxies report several;
+// then a picker appears above the field, while the field stays editable for
+// names detection cannot cover: a proxy such as llama-swap routing by model
+// name, or a build whose /v1/models says something unhelpful. Auto-fill only
+// touches an empty field, which is what keeps a name the user typed, and a
+// name detected earlier, from being overwritten on the next health check.
+// Clearing the field asks for detection again.
 function updateLlamaModelUI(settings, status) {
   if (settings.provider !== PROVIDERS.LLAMACPP) return;
   if (!llamaModelInput) return;
@@ -2265,8 +2275,7 @@ function updateLlamaModelUI(settings, status) {
   }
 
   if (!status?.ready) {
-    llamaModelSelectRow?.classList.add("hidden");
-    llamaModelInputRow?.classList.remove("hidden");
+    llamaModelPicker?.setModels([], "");
     if (llamaModelStatus) {
       renderStatusError(
         llamaModelStatus,
@@ -2276,29 +2285,10 @@ function updateLlamaModelUI(settings, status) {
     return;
   }
 
-  if (detected.length > 1 && llamaModelSelect) {
-    llamaModelInputRow?.classList.add("hidden");
-    llamaModelSelectRow?.classList.remove("hidden");
-    llamaModelSelect.innerHTML = "";
-    for (const model of detected) {
-      const opt = document.createElement("option");
-      opt.value = model;
-      opt.textContent = model;
-      llamaModelSelect.appendChild(opt);
-    }
-    const current = settings.llamaModel || llamaModelInput.value.trim();
-    const chosen = detected.includes(current) ? current : detected[0];
-    llamaModelSelect.value = chosen;
-    llamaModelInput.value = chosen;
-    if (settings.llamaModel !== chosen) {
-      saveSettings({ llamaModel: chosen }).catch((err) =>
-        console.error("Saving the detected llama.cpp model failed:", err),
-      );
-    }
-  } else {
-    llamaModelSelectRow?.classList.add("hidden");
-    llamaModelInputRow?.classList.remove("hidden");
-  }
+  llamaModelPicker?.setModels(
+    detected,
+    llamaModelInput.value.trim() || settings.llamaModel || "",
+  );
 
   if (!llamaModelStatus) return;
 
@@ -2311,13 +2301,17 @@ function updateLlamaModelUI(settings, status) {
     return;
   }
 
+  if (detected.length > 1) {
+    // The reported context window belongs to one model, so showing it here
+    // would imply it applies to every choice in the picker.
+    llamaModelStatus.textContent = `${detected.length} models available.`;
+    return;
+  }
+
   const context = status.contextTokens
     ? `${status.contextTokens.toLocaleString()} token context`
     : "context window not reported";
-  llamaModelStatus.textContent =
-    detected.length > 1
-      ? `${detected.length} models available, ${context}.`
-      : `Detected from the server, ${context}.`;
+  llamaModelStatus.textContent = `Detected from the server, ${context}.`;
 }
 
 function updateLocalModelList(settings, status) {
@@ -3414,12 +3408,7 @@ llamaApiKeyInput?.addEventListener("change", async () => {
 llamaModelInput?.addEventListener("change", async () => {
   const value = llamaModelInput.value.slice(0, MODEL_NAME_MAX_CHARS).trim();
   llamaModelInput.value = value;
-  await saveSettings({ llamaModel: value });
-});
-
-llamaModelSelect?.addEventListener("change", async () => {
-  const value = llamaModelSelect.value.slice(0, MODEL_NAME_MAX_CHARS).trim();
-  if (llamaModelInput) llamaModelInput.value = value;
+  llamaModelPicker?.syncToField();
   await saveSettings({ llamaModel: value });
 });
 

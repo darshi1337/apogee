@@ -183,7 +183,8 @@ function positiveInt(value) {
 // (`endpoint_props: false`) or an unfamiliar `/v1/models` shape still reports
 // as connected. `contextTokens` is null when neither reported one, leaving the
 // caller to apply DEFAULT_CONTEXT_TOKENS rather than having a guess handed to
-// it as though it were detected.
+// it as though it were detected. When several models are listed, the smallest
+// reported window is used so chunk sizing fits whichever one is selected.
 // A wrong `apiKey` still reports connected, because `/health` is public, but
 // both enrichment lookups answer 401 and it comes back with no models and no
 // contextTokens. Connected with an empty model list is therefore the signature
@@ -218,9 +219,14 @@ export async function checkHealth(
     .map((entry) => entry?.id)
     .filter((id) => typeof id === "string" && id);
 
+  const propsContext = positiveInt(props?.default_generation_settings?.n_ctx);
+  const entryContexts = entries
+    .map((entry) => positiveInt(entry?.meta?.n_ctx))
+    .filter((value) => value !== null);
   const contextTokens =
-    positiveInt(props?.default_generation_settings?.n_ctx) ??
-    positiveInt(entries[0]?.meta?.n_ctx);
+    entries.length > 1 && entryContexts.length > 0
+      ? Math.min(...entryContexts)
+      : (propsContext ?? entryContexts[0] ?? null);
 
   return { connected: true, models, contextTokens };
 }
