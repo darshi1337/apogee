@@ -111,6 +111,7 @@ import {
   nextStreamId,
   activeStreams,
   registeredStreamJobs,
+  takeExpiredStreamJob,
   registerStreamJob,
   scheduleStreamCleanup,
   expireStreamForCleanup,
@@ -1383,8 +1384,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const fallbackUrl = message.url;
       const fallbackText = message.text;
       try {
+        // Check the live job before the retained one: a retried stream with
+        // the same id would otherwise inherit the expired run's keys.
         const registeredJob = streamId
-          ? registeredStreamJobs.get(streamId)
+          ? (registeredStreamJobs.get(streamId) ??
+            takeExpiredStreamJob(streamId))
           : null;
         if (streamId) {
           registeredStreamJobs.delete(streamId);

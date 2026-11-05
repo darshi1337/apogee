@@ -348,6 +348,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Add shared remote client and opt-in setup (stage A) (#606) ([bde073d](https://github.com/darshi1337/apogee/commit/bde073da029f68ff97ea81eb2fef64133b6169f4))
+- Add RTL summary languages (#622) ([8afc5e4](https://github.com/darshi1337/apogee/commit/8afc5e4f5f1fc1a40bd4413d73e1cbe25381c42b))
 
 ### Fixed
 
@@ -356,6 +357,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Preserve shared offscreen runs until the last viewer closes (#595) ([b948cc7](https://github.com/darshi1337/apogee/commit/b948cc777fab6ef6c1e4408186ce8c8806243df0))
 - Keep release PRs passing checks (#598) ([043a520](https://github.com/darshi1337/apogee/commit/043a5207adeba3869bbc4bcdf2af382f81f74a2d))
 - Override minimatch to 11.0.4 for GHSA-g3hv-75wg-m249 (#603) ([3924ebf](https://github.com/darshi1337/apogee/commit/3924ebf9eb33471946f4f91584e5bed42c478d69))
+- Use existing github_actions label for Dependabot workflow PRs (#620) ([bf241cd](https://github.com/darshi1337/apogee/commit/bf241cda272e8cd2c7aae2ce96fd7a13d6d125f4))
+- Tighten late stream-finish retention ([ae31c7c](https://github.com/darshi1337/apogee/commit/ae31c7cdc6779622d54df3350a35df61259e76e2))
 
 ## [0.2.1] - 2026-08-19
 

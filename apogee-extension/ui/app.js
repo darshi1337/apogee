@@ -1230,12 +1230,14 @@ function buildPastSummaryCard(entry, text) {
   if (entry.t) {
     const titleEl = document.createElement("div");
     titleEl.className = "past-summary-title";
+    titleEl.setAttribute("dir", "auto");
     titleEl.textContent = entry.t;
     textWrap.appendChild(titleEl);
   }
 
   const preview = document.createElement("div");
   preview.className = "past-summary-preview";
+  preview.setAttribute("dir", "auto");
   preview.textContent = firstLineOf(text);
   textWrap.appendChild(preview);
 

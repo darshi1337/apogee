@@ -910,7 +910,7 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 .answer-box ul,
 .answer-box ol {
   margin: 0 0 10px;
-  padding-left: 20px;
+  padding-inline-start: 20px;
 }
 
 #summaryText li,
@@ -1092,7 +1092,7 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 
   align-items: flex-start;
   gap: 10px;
-  text-align: left;
+  text-align: start;
   padding: 12px 14px;
   background: var(--btn-bg);
   border: 1px solid var(--btn-border);
@@ -1210,12 +1210,12 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 .past-summary-card.expanded .past-summary-preview ol {
   margin: 0 0 10px;
 
-  padding-left: 18px;
+  padding-inline-start: 18px;
 }
 
 .past-summary-card.expanded .past-summary-preview li {
   margin-bottom: 7px;
-  padding-left: 2px;
+  padding-inline-start: 2px;
 }
 
 .past-summary-card.expanded .past-summary-preview li:last-child {
