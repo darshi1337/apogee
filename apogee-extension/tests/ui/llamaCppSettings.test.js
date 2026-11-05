@@ -149,3 +149,11 @@ test("app.js wires the router-mode picker to the model field", () => {
   assert.match(popupJs, /select: llamaModelSelect/);
   assert.match(popupJs, /row: llamaModelSelectRow/);
 });
+
+test("app.js keeps a detected model name that is longer than the manual cap", () => {
+  assert.match(
+    popupJs,
+    /llamaModelPicker\?\.isDetected\(raw\)/,
+    "a detected name must not be truncated by the pasted-text cap",
+  );
+});

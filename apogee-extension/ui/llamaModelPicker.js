@@ -28,7 +28,12 @@ export function createLlamaModelPicker({ field, select, row, onChoose } = {}) {
 
   select.addEventListener("change", () => {
     const value = select.value;
-    if (!value) return;
+    if (!value) {
+      // The placeholder is not a choice. Put the picker back on the field so a
+      // click on it cannot leave the two controls disagreeing.
+      syncToField();
+      return;
+    }
     field.value = value;
     onChoose?.(value);
   });
@@ -66,5 +71,9 @@ export function createLlamaModelPicker({ field, select, row, onChoose } = {}) {
     selectModel(models.includes(value) ? value : "");
   }
 
-  return { setModels, syncToField };
+  function isDetected(value) {
+    return models.includes(typeof value === "string" ? value.trim() : "");
+  }
+
+  return { setModels, syncToField, isDetected };
 }

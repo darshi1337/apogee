@@ -76,6 +76,29 @@ test("choosing a model fills the field and reports the choice", () => {
   assert.deepStrictEqual(chosen, ["second"]);
 });
 
+test("choosing the placeholder restores the field's current model", () => {
+  const { picker, field, select, document } = setup();
+  field.value = "first";
+  picker.setModels(["first", "second"], "first");
+
+  const placeholder = [...select.querySelectorAll("option")][0];
+  placeholder.selected = true;
+  select.dispatchEvent(new document.defaultView.Event("change"));
+
+  assert.equal(field.value, "first");
+  assert.equal(select.value, "first");
+});
+
+test("a detected name longer than the manual cap is still reported as detected", () => {
+  const { picker } = setup();
+  const longName = `Qwen/${"a".repeat(120)}:Q4_K_M`;
+
+  picker.setModels([longName, "second"], longName);
+
+  assert.equal(picker.isDetected(longName), true);
+  assert.equal(picker.isDetected("not-listed"), false);
+});
+
 test("syncToField follows a typed name and clears the picker for a custom one", () => {
   const { picker, field, select } = setup();
   picker.setModels(["first", "second"], "first");

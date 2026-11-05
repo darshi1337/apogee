@@ -3406,7 +3406,12 @@ llamaApiKeyInput?.addEventListener("change", async () => {
 });
 
 llamaModelInput?.addEventListener("change", async () => {
-  const value = llamaModelInput.value.slice(0, MODEL_NAME_MAX_CHARS).trim();
+  const raw = llamaModelInput.value.trim();
+  // Detected names are server-provided, not pasted text. Keep one that is
+  // longer than the manual cap so selecting it cannot silently rename it.
+  const value = llamaModelPicker?.isDetected(raw)
+    ? raw
+    : raw.slice(0, MODEL_NAME_MAX_CHARS);
   llamaModelInput.value = value;
   llamaModelPicker?.syncToField();
   await saveSettings({ llamaModel: value });
