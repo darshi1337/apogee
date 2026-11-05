@@ -166,6 +166,10 @@ export const OFFSCREEN_READY_TIMEOUT_MS = 8000;
 
 export const LLM_HEALTH_CHECK_TIMEOUT_MS = 3000;
 
+// A router answers `/props?model=` only after that model is loaded, so this
+// timeout covers a cold model load, not just a local HTTP round trip.
+export const LLM_MODEL_LOAD_TIMEOUT_MS = 120 * 1000;
+
 export const SPONSORBLOCK_FETCH_TIMEOUT_MS = 4000;
 
 export const BILIBILI_FETCH_TIMEOUT_MS = 6000;

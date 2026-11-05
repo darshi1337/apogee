@@ -4,6 +4,7 @@ import assert from "node:assert";
 import {
   chatStream,
   checkHealth,
+  getModelContextTokens,
   DEFAULT_CONTEXT_TOKENS,
 } from "../../lib/engines/llamaCppClient.js";
 
@@ -494,14 +495,104 @@ test("checkHealth uses the smallest window when several models are listed", asyn
   assert.equal(result.contextTokens, 4096);
 });
 
-test("checkHealth falls back to /props when a router listing has no per-model windows", async () => {
+test("checkHealth keeps a smaller /props window when several models are listed", async () => {
   const result = await health({
     "/health": ok({ status: "ok" }),
-    "/props": ok(PROPS),
-    "/v1/models": ok({ data: [{ id: "first" }, { id: "second" }] }),
+    "/props": ok({ default_generation_settings: { n_ctx: 2048 } }),
+    "/v1/models": ok({
+      data: [
+        { id: "large", meta: { n_ctx: 32768 } },
+        { id: "small", meta: { n_ctx: 4096 } },
+      ],
+    }),
   });
-  assert.deepStrictEqual(result.models, ["first", "second"]);
-  assert.equal(result.contextTokens, 32768);
+  assert.equal(result.contextTokens, 2048);
+});
+
+// A real router returns `role: "router"` and a dummy n_ctx of 0 from /props.
+// Its /v1/models entries carry meta.n_ctx only while that model is loaded.
+test("checkHealth leaves the window null when a router lists a mix of loaded and unloaded models", async () => {
+  const result = await health({
+    "/health": ok({ status: "ok" }),
+    "/props": ok({
+      role: "router",
+      default_generation_settings: { n_ctx: 0 },
+    }),
+    "/v1/models": ok({
+      data: [
+        { id: "loaded-large", meta: { n_ctx: 32768 } },
+        { id: "unloaded-small" },
+      ],
+    }),
+  });
+  assert.deepStrictEqual(result.models, ["loaded-large", "unloaded-small"]);
+  assert.equal(result.contextTokens, null);
+});
+
+test("checkHealth does not use one loaded model's window when the listing is partial", async () => {
+  const result = await health({
+    "/health": ok({ status: "ok" }),
+    "/props": ok({
+      role: "router",
+      default_generation_settings: { n_ctx: 0 },
+    }),
+    "/v1/models": ok({
+      data: [
+        { id: "unloaded-small" },
+        { id: "loaded-large", meta: { n_ctx: 32768 } },
+      ],
+    }),
+  });
+  assert.equal(result.contextTokens, null);
+});
+
+test("getModelContextTokens asks /props for the selected model", async () => {
+  let requested;
+  const restore = stubFetch(async (url) => {
+    requested = new URL(url);
+    return ok({ default_generation_settings: { n_ctx: 4096 } })();
+  });
+  try {
+    const result = await getModelContextTokens(
+      HOST,
+      "Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M",
+      50,
+      "test-api-key",
+    );
+    assert.equal(result, 4096);
+  } finally {
+    restore();
+  }
+  assert.equal(requested.pathname, "/props");
+  assert.equal(
+    requested.searchParams.get("model"),
+    "Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M",
+  );
+});
+
+test("getModelContextTokens returns null when the server does not report a window", async () => {
+  const restore = stubFetch(async () =>
+    ok({ default_generation_settings: { n_ctx: 0 } })(),
+  );
+  try {
+    assert.equal(await getModelContextTokens(HOST, "model-b", 50), null);
+  } finally {
+    restore();
+  }
+});
+
+test("getModelContextTokens skips the request for an empty model", async () => {
+  let called = false;
+  const restore = stubFetch(async () => {
+    called = true;
+    return ok({ default_generation_settings: { n_ctx: 4096 } })();
+  });
+  try {
+    assert.equal(await getModelContextTokens(HOST, "  ", 50), null);
+  } finally {
+    restore();
+  }
+  assert.equal(called, false);
 });
 
 test("checkHealth leaves contextTokens null when neither endpoint reports one", async () => {

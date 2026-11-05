@@ -396,7 +396,11 @@ async function startLocalHttpStream(
   let chunkTextFn;
   if (client.getContextTokens) {
     try {
-      const contextTokens = await client.getContextTokens(validHost, apiKey);
+      const contextTokens = await client.getContextTokens(
+        validHost,
+        apiKey,
+        model,
+      );
       const chunkChars = getMaxChunkChars(model, contextTokens);
       chunkTextFn = (text) => chunkBySections(text, chunkChars);
     } catch (err) {

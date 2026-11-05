@@ -3,6 +3,7 @@ import { chatStream } from "../lib/engines/ollamaClient.js";
 import {
   chatStream as llamaChatStream,
   checkHealth as llamaCheckHealth,
+  getModelContextTokens as llamaModelContextTokens,
   DEFAULT_CONTEXT_TOKENS as LLAMACPP_DEFAULT_CONTEXT_TOKENS,
 } from "../lib/engines/llamaCppClient.js";
 import {
@@ -13,6 +14,7 @@ import {
 import {
   DEFAULT_LLAMACPP_HOST,
   LLM_HEALTH_CHECK_TIMEOUT_MS,
+  LLM_MODEL_LOAD_TIMEOUT_MS,
 } from "../lib/constants.js";
 
 // Loopback HTTP providers (Ollama, llama.cpp): host validation plus what
@@ -72,11 +74,27 @@ export const OLLAMA_PROVIDER = {
 };
 
 // llama-server reports the context window it is actually running, which comes from its own -c launch flag and so cannot be read off the model name. Ollama has no equivalent, which is why only this provider supplies the hook.
+// The selected model is asked for first: a router only reports a running window
+// for loaded models, so the general health check cannot tell a large loaded
+// model's window from a small selected one. The router may load the selected
+// model to answer, which is the same load the job's first request triggers.
+// If that lookup fails, the general health check still supplies a conservative
+// value or the default.
 export const LLAMACPP_PROVIDER = {
   label: "llama.cpp",
   streamKind: "llamacpp-stream",
   chatStream: llamaChatStream,
-  async getContextTokens(host, apiKey) {
+  async getContextTokens(host, apiKey, model = "") {
+    const selected = typeof model === "string" ? model.trim() : "";
+    if (selected) {
+      const contextTokens = await llamaModelContextTokens(
+        host,
+        selected,
+        LLM_MODEL_LOAD_TIMEOUT_MS,
+        apiKey,
+      );
+      if (contextTokens) return contextTokens;
+    }
     const health = await llamaCheckHealth(
       host,
       LLM_HEALTH_CHECK_TIMEOUT_MS,
