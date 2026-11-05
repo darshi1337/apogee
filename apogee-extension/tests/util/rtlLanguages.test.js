@@ -21,7 +21,7 @@ test("Arabic, Hebrew, Persian and Urdu are selectable summary languages", () => 
 });
 
 test("RTL targets route through the multilingual Opus model", () => {
-  const tokens = { ar: "ara", he: "heb", fa: "fas", ur: "urd" };
+  const tokens = { ar: "ara", he: "heb", fa: "pes", ur: "urd" };
   for (const [code, token] of Object.entries(tokens)) {
     assert.deepStrictEqual(resolveOpusModel("en", code), {
       model: "Xenova/opus-mt-en-mul",

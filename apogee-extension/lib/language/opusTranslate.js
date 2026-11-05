@@ -29,7 +29,7 @@ const EN_MUL_TOKEN = {
   id: "ind",
   ar: "ara",
   he: "heb",
-  fa: "fas",
+  fa: "pes",
   ur: "urd",
 };
 

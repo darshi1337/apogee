@@ -100,7 +100,7 @@ Content
 
 - [Local Ollama Guide](docs/OLLAMA.md): Local Ollama setup for macOS, Windows, and Linux.
 
-- [Translation Reference](docs/TRANSLATION.md): 32-language matrix and Opus-MT model tiers.
+- [Translation Reference](docs/TRANSLATION.md): 36-language matrix and Opus-MT model tiers.
 
 - [Privacy Policy](PRIVACY.md): Detailed privacy, network connections, and permission sandboxing.
 

@@ -307,6 +307,18 @@ test("past summary card is a group with a name, not a button", () => {
   assert.strictEqual(card.getAttribute("aria-expanded"), null);
 });
 
+test("past summary title and preview use automatic text direction", () => {
+  const card = makeCard();
+  assert.strictEqual(
+    card.querySelector(".past-summary-title").getAttribute("dir"),
+    "auto",
+  );
+  assert.strictEqual(
+    card.querySelector(".past-summary-preview").getAttribute("dir"),
+    "auto",
+  );
+});
+
 test("past summary card uses the first line as its name when untitled", () => {
   const card = makeCard({ s: "k2", p: "p2", t: "" });
   assert.strictEqual(card.getAttribute("aria-label"), "First line");
