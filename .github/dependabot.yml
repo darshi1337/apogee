@@ -27,7 +27,7 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
-      - "github-actions"
+      - "github_actions"
     cooldown:
       default-days: 7
     groups:
