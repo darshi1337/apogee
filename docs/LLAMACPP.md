@@ -50,7 +50,7 @@ Apogee only links to loopback addresses (`127.0.0.1`, `localhost`, `[::1]`). It 
 1. Open Apogee. Click the gear icon for **Settings**.
 2. Under **AI Provider**, pick **llama.cpp**.
 3. Leave **Server URL** at `http://127.0.0.1:8080` unless you picked a different port.
-4. The **Loaded Model** field fills in on its own once the server answers.
+4. The **Model name** field fills in on its own once the server answers. If the server lists more than one model, pick one from **Detected models**.
 
 The status line under the model name tells you where you stand:
 
@@ -76,14 +76,18 @@ Auto-fill only writes into an **empty** field, so a name you typed is never over
 
 `llama-server` takes its context window from the `-c` flag you launched it with, not from the model. The same GGUF serves 4096 tokens or 32768 based on how you started it. The file name reads the same either way.
 
-Apogee thus asks the server instead of guessing, reading `/props` and falling back to `/v1/models`. When several models are listed, it uses the smallest reported window so chunks fit whichever model you select. This keeps long pages inside what your server takes:
+Apogee asks the server for the selected model's window with `/props?model=<name>`. A router loads that model to answer, which is the same load the next request triggers. A single-model server reports its window from `/props` without the query.
+
+If the server does not report the selected model's window, Apogee falls back to `/v1/models`. A router reports `meta.n_ctx` only for loaded models. When only some entries carry that value, Apogee does not apply one model's window to another. It uses the 8192 token fallback instead. This keeps a large loaded model from sizing chunks for a smaller selected model.
+
+The examples below show the sizing:
 
 ```bash
 llama-server -m model.gguf -c 4096    # Apogee sizes chunks for 4096
 llama-server -m model.gguf -c 32768   # and for 32768 here
 ```
 
-If neither endpoint reports a window (you can turn `/props` off server-side), Apogee assumes a careful 8192 tokens. That is safe on any server but under-uses a larger one.
+If neither endpoint reports a window (you can turn `/props` off server-side), Apogee assumes a careful 8192 tokens. That fits many servers but can under-use a larger window. If you pin a window below 8192, keep `/props` enabled so Apogee can read it.
 
 ## CORS
 
