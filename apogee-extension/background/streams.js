@@ -135,7 +135,43 @@ export function expireStreamForCleanup(streamId) {
     disconnectStreamPorts(stream);
   }
   activeStreams.delete(streamId);
+  // A slow model can still finish after the cleanup window. Keep the original
+  // finalize payload (cache keys captured at run start) for a late finish
+  // instead of letting the worker rebuild it from the current settings.
+  const job = registeredStreamJobs.get(streamId);
   registeredStreamJobs.delete(streamId);
+  if (job) retainExpiredStreamJob(streamId, job);
+}
+
+const EXPIRED_JOB_RETENTION_MS = 30 * 60 * 1000;
+const MAX_EXPIRED_JOBS = 20;
+const expiredStreamJobs = new Map();
+
+function pruneExpiredStreamJobs(now = Date.now()) {
+  for (const [id, entry] of expiredStreamJobs) {
+    if (entry.expiresAt <= now) expiredStreamJobs.delete(id);
+  }
+  while (expiredStreamJobs.size > MAX_EXPIRED_JOBS) {
+    expiredStreamJobs.delete(expiredStreamJobs.keys().next().value);
+  }
+}
+
+function retainExpiredStreamJob(streamId, job) {
+  expiredStreamJobs.set(streamId, {
+    job,
+    expiresAt: Date.now() + EXPIRED_JOB_RETENTION_MS,
+  });
+  pruneExpiredStreamJobs();
+}
+
+// Removes and returns the job retained for a stream whose cleanup window
+// already elapsed, or null when none (or it aged out).
+export function takeExpiredStreamJob(streamId) {
+  pruneExpiredStreamJobs();
+  const entry = expiredStreamJobs.get(streamId);
+  if (!entry) return null;
+  expiredStreamJobs.delete(streamId);
+  return entry.job;
 }
 
 const KEEPALIVE_MS = 20000;

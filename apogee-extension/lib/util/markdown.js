@@ -252,6 +252,20 @@ export function renderStoredSummaryMarkdown(text) {
   }
 }
 
+// Right-to-left summaries (Arabic, Hebrew, Persian, Urdu) must lay out per
+// block: dir="auto" picks each paragraph/list direction from its own first
+// strong character, so mixed-direction output still renders correctly and
+// bullets/numbers sit on the reading side. Markup comes from the sanitized
+// renderer, so this only adds a presentation attribute.
+const AUTO_DIR_SELECTOR = "p, li, ul, ol, h1, h2, h3, h4, h5, h6";
+
+export function applyAutoDirection(element) {
+  if (!element?.querySelectorAll) return;
+  for (const node of element.querySelectorAll(AUTO_DIR_SELECTOR)) {
+    node.setAttribute("dir", "auto");
+  }
+}
+
 // Single choke point for untrusted Markdown into the DOM. All sinks go
 // through the sanitized renderer instead of raw innerHTML.
 export function setMarkdownHtml(element, source, { stored = false } = {}) {
@@ -259,4 +273,5 @@ export function setMarkdownHtml(element, source, { stored = false } = {}) {
   element.innerHTML = stored
     ? renderStoredSummaryMarkdown(source)
     : renderMarkdown(source);
+  applyAutoDirection(element);
 }

@@ -54,7 +54,7 @@ WHAT IT DOES
 
 - Per-page focus keywords ("Focus on... (optional)", up to 200 characters) steer article, document, and pasted text summaries toward specific topics. They add no ungrounded facts. They stay hidden on video, discussion, and multi-tab pages.
 
-- Summaries come in your language. Pick one of 33 output languages (or keep the page own). The summarization model itself translates. Dedicated on-device translation models offer another option.
+- Summaries come in your language. Pick one of 37 output languages (or keep the page own). The summarization model itself translates. Dedicated on-device translation models offer another option.
 
 Fast ways to summarize without opening the popup:
 
