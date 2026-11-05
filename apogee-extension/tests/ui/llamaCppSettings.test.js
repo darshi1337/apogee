@@ -36,13 +36,15 @@ test("app.html carries the llama.cpp settings fields", () => {
     "llamaHostInput",
     "llamaApiKeyInput",
     "llamaModelInput",
+    "llamaModelSelectRow",
+    "llamaModelSelect",
     "llamaModelStatus",
   ]) {
     assert.ok(document.getElementById(id), `#${id} must exist in app.html`);
   }
 });
 
-// The model is typed or auto-filled, not chosen: llama-server loads exactly one model at launch, so there is no list to render.
+// The model field stays editable even when router mode adds a picker above it.
 test("the llama.cpp model control is a text field, not a radio list", () => {
   const { document } = parseHTML(popupHtml);
   const input = document.getElementById("llamaModelInput");
@@ -127,4 +129,31 @@ test("an unset key and a loopback host are reported plainly", () => {
   const report = formatDiagnosticSettings(DEFAULT_SETTINGS);
   assert.match(report, /llamaApiKey: unset/);
   assert.match(report, /llamaHost: http:\/\/127\.0\.0\.1:8080/);
+});
+
+test("the multi-model router select starts hidden in app.html", () => {
+  const { document } = parseHTML(popupHtml);
+  const selectRow = document.getElementById("llamaModelSelectRow");
+  assert.ok(selectRow, "#llamaModelSelectRow must exist");
+  assert.ok(
+    selectRow.className.includes("hidden"),
+    "#llamaModelSelectRow must be hidden by default",
+  );
+  const select = document.getElementById("llamaModelSelect");
+  assert.equal(select.tagName.toLowerCase(), "select");
+});
+
+test("app.js wires the router-mode picker to the model field", () => {
+  assert.match(popupJs, /createLlamaModelPicker\(\{/);
+  assert.match(popupJs, /field: llamaModelInput/);
+  assert.match(popupJs, /select: llamaModelSelect/);
+  assert.match(popupJs, /row: llamaModelSelectRow/);
+});
+
+test("app.js keeps a detected model name that is longer than the manual cap", () => {
+  assert.match(
+    popupJs,
+    /llamaModelPicker\?\.isDetected\(raw\)/,
+    "a detected name must not be truncated by the pasted-text cap",
+  );
 });

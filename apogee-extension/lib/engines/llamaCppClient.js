@@ -6,7 +6,10 @@ import {
   postChatRequest,
   pumpChatBody,
 } from "./httpChatStream.js";
-import { LLM_HEALTH_CHECK_TIMEOUT_MS } from "../constants.js";
+import {
+  LLM_HEALTH_CHECK_TIMEOUT_MS,
+  LLM_MODEL_LOAD_TIMEOUT_MS,
+} from "../constants.js";
 
 class LlamaCppError extends UserFacingError {}
 
@@ -184,6 +187,11 @@ function positiveInt(value) {
 // as connected. `contextTokens` is null when neither reported one, leaving the
 // caller to apply DEFAULT_CONTEXT_TOKENS rather than having a guess handed to
 // it as though it were detected.
+// A router only reports `meta.n_ctx` for models that are loaded. When several
+// models are listed and any of them lacks that value, no single window covers
+// every choice, so `contextTokens` is null rather than one model's window
+// applied to the others. getModelContextTokens asks for the selected model
+// directly when a caller knows which one a job will use.
 // A wrong `apiKey` still reports connected, because `/health` is public, but
 // both enrichment lookups answer 401 and it comes back with no models and no
 // contextTokens. Connected with an empty model list is therefore the signature
@@ -218,9 +226,47 @@ export async function checkHealth(
     .map((entry) => entry?.id)
     .filter((id) => typeof id === "string" && id);
 
+  const propsContext = positiveInt(props?.default_generation_settings?.n_ctx);
+  const entryContexts = entries
+    .map((entry) => positiveInt(entry?.meta?.n_ctx))
+    .filter((value) => value !== null);
+  const everyEntryReportsWindow =
+    entries.length > 0 && entryContexts.length === entries.length;
   const contextTokens =
-    positiveInt(props?.default_generation_settings?.n_ctx) ??
-    positiveInt(entries[0]?.meta?.n_ctx);
+    entries.length > 1
+      ? everyEntryReportsWindow
+        ? Math.min(...entryContexts, propsContext ?? Infinity)
+        : null
+      : (propsContext ?? entryContexts[0] ?? null);
 
   return { connected: true, models, contextTokens };
+}
+
+// The context window of one specific model. A router exposes the running value
+// only for a loaded model: `/props` returns a dummy 0 for the router itself,
+// and `/v1/models` carries `meta.n_ctx` only on loaded entries. Asking
+// `/props?model=` makes the router load that model if needed and then report
+// its real window. That load is not extra work for a generation job, which
+// would trigger the same load on its first request. `autoload=false` is not
+// used here because a router answers it with 400 for an unloaded model, which
+// leaves the window unknown.
+// Returns null when the server does not report a positive window, so the
+// caller can fall back to checkHealth instead of guessing.
+export async function getModelContextTokens(
+  host,
+  model,
+  timeoutMs = LLM_MODEL_LOAD_TIMEOUT_MS,
+  apiKey = "",
+) {
+  const name = typeof model === "string" ? model.trim() : "";
+  if (!name) return null;
+
+  await ensureLoopbackCorsRuleSoon();
+  const base = stripTrailingSlashes(host);
+  const props = await getJson(
+    `${base}/props?model=${encodeURIComponent(name)}`,
+    timeoutMs,
+    apiKey,
+  );
+  return positiveInt(props?.default_generation_settings?.n_ctx);
 }

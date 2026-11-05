@@ -283,6 +283,14 @@
     "message": "Detected from the server",
     "description": "Model name placeholder"
   },
+  "detectedModels": {
+    "message": "Detected models",
+    "description": "llama.cpp model picker label"
+  },
+  "chooseDetectedModel": {
+    "message": "Choose a detected model",
+    "description": "llama.cpp model picker placeholder for a custom name"
+  },
   "summaryLanguage": {
     "message": "Summary Language",
     "description": "Language card title"
