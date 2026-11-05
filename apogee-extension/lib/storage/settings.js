@@ -4,11 +4,28 @@ import {
   isKnownWebLLMModelId,
 } from "../constants.js";
 import { validateLlamaHost, validateOllamaHost } from "../util/ollamaHost.js";
+import {
+  REMOTE_PROVIDER_IDS,
+  hasRemoteControlCharacters,
+  validRemoteModelId,
+} from "../engines/remoteModels.js";
 
 const PROVIDER_VALUES = new Set(Object.values(PROVIDERS));
 
 function sanitizeSettings(settings) {
   const clean = { ...settings };
+  for (const provider of REMOTE_PROVIDER_IDS) {
+    clean[`${provider}Consent`] = clean[`${provider}Consent`] === true;
+    const key = clean[`${provider}ApiKey`];
+    clean[`${provider}ApiKey`] =
+      typeof key === "string" &&
+      key.length <= 4096 &&
+      !hasRemoteControlCharacters(key)
+        ? key.trim()
+        : "";
+    const model = clean[`${provider}Model`];
+    clean[`${provider}Model`] = validRemoteModelId(model) ? model : "";
+  }
   // Corrupted stores must not flip provider or hosts: fall back to
   // defaults and revalidate through the shared loopback validator.
   clean.autoEngine = Boolean(clean.autoEngine);
@@ -36,4 +53,24 @@ function sanitizeSettings(settings) {
 export async function getSettings() {
   const stored = await chrome.storage.local.get("settings");
   return sanitizeSettings({ ...DEFAULT_SETTINGS, ...(stored.settings || {}) });
+}
+
+let settingsWrite = Promise.resolve();
+export function updateSettings(partial) {
+  const write = async () => {
+    const current = await getSettings();
+    const settings = {
+      ...current,
+      ...(typeof partial === "function" ? partial(current) : partial),
+    };
+    await chrome.storage.local.set({ settings });
+    return settings;
+  };
+  const run = () =>
+    globalThis.navigator?.locks
+      ? navigator.locks.request("apogee-settings", write)
+      : write();
+  const operation = settingsWrite.then(run);
+  settingsWrite = operation.catch(() => {});
+  return operation;
 }

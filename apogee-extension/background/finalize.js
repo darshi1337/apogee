@@ -134,7 +134,7 @@ export function notifyFinalizeFailure({ finalize, error, streamId }) {
   }
 }
 
-export function notifyJobComplete({ title, tabId, windowId }) {
+function notifyJobComplete({ title, tabId, windowId }) {
   if (typeof chrome.notifications === "undefined") return;
   const notificationId = `apogee-summary-${crypto.randomUUID()}`;
   notificationTargets.set(notificationId, { tabId, windowId });

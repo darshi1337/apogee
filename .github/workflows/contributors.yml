@@ -18,10 +18,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: contributors-sync
+  cancel-in-progress: true
+
 jobs:
   sync-contributors:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -43,12 +48,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           gh api "repos/${{ github.repository }}/contributors" --paginate \
-            -q '.[] | select(.type == "User") | .login' > /tmp/contributors.txt
+            -q '.[] | select(.type == "User") | .login' > "$RUNNER_TEMP/contributors.txt"
           python3 - <<'EOF'
+          import os
           from pathlib import Path
 
-          users = Path("/tmp/contributors.txt").read_text().split()
+          users = Path(os.environ["RUNNER_TEMP"], "contributors.txt").read_text().split()
           tiles = " ".join(
               f'<a href="https://github.com/{u}">'
               f'<img src="https://github.com/{u}.png?size=100" width="50" '
@@ -73,34 +80,14 @@ jobs:
           readme.write_text(text[:start] + block + text[end:])
           print(f"{len(users)} contributors in the wall")
           EOF
-          git diff --quiet -- README.md && echo "unchanged" || echo "changed"
 
       - name: Open or update the sync PR
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          PR_BODY: "Regenerates the contributors wall from the GitHub contributors API."
         run: |
-          if git diff --quiet -- README.md; then
-            echo "Contributors wall already current."
-            exit 0
-          fi
-          branch="automation/contributors-sync"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git switch -c "$branch"
-          git add README.md
-          git commit -m "docs: sync readme contributors wall"
-          git remote set-url origin "https://x-access-token:${SYNC_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push --force origin "$branch"
-          pr=$(gh pr list --head "$branch" --state open --json number -q '.[0].number')
-          if [ -z "$pr" ]; then
-            gh pr create \
-              --base main \
-              --head "$branch" \
-              --title "docs: sync readme contributors wall" \
-              --body "Regenerates the contributors wall from the GitHub contributors API."
-            pr=$(gh pr list --head "$branch" --state open --json number -q '.[0].number')
-          fi
-          if [ -z "$(gh pr view "$pr" --json autoMergeRequest -q '.autoMergeRequest // empty')" ]; then
-            gh pr merge "$pr" --auto --squash
-          fi
+          bash scripts/sync-automation-pr.sh \
+            automation/contributors-sync \
+            "docs: sync readme contributors wall" \
+            "docs: sync readme contributors wall" \
+            README.md

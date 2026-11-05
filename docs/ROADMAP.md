@@ -18,6 +18,9 @@ This document shows what we work on now, what we plan soon, and our long-term pl
 
 - **Use Local Documents**:
   - Load PDFs, Word documents (DOCX), text files (TXT), Markdown files, JSON files, or HTML files directly into Apogee. You can also copy and paste text from anywhere. (#5, #6, #97)
+  
+- **Extract Text Without Model Calls**:
+  - Extract and copy clean page text (including PDFs) directly to your clipboard using the "Copy text" chip without running an AI model. (#414, #449)
 
 - **Adding More Places to Get Information**:
   - We add extractors for more websites such as GitLab and Dev.to.
@@ -60,12 +63,12 @@ This document shows what we work on now, what we plan soon, and our long-term pl
 
 ## Things We Will Not Do
 
-- **Cloud Servers**: Apogee will never send, store, or process text from websites on remote servers.
+- **Cloud Servers**: Apogee will never send, store, or process page text or generated summaries on remote servers. Optional Stage A remote-provider setup sends only catalog metadata and your provider credential to the matching provider origin.
 
 - **Tracking Users**: We will not track you or use special tools to collect data about your browsing habits.
 
-- **API Keys**: You need no keys to use Apogee. It works directly in your browser.
+- **API Keys**: Local generation needs no key. Optional remote-provider catalog setup uses your own provider key.
 
 ## How to Help
 
-To help us build Apogee, check the open issues on GitHub or read CONTRIBUTING.md.
+To help us build Apogee, check the open issues on GitHub or read [CONTRIBUTING.md](../CONTRIBUTING.md).

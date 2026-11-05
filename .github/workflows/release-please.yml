@@ -8,13 +8,27 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
       pull-requests: write
     steps:
+      - name: Check sync token
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "::error::SYNC_TOKEN is not set. Add a fine-grained PAT with Contents and Pull requests write access."
+            exit 1
+          fi
+
       # Use the PAT so the release PR triggers CI. A PR created with
       # GITHUB_TOKEN starts no workflows, which leaves the required checks
       # missing.

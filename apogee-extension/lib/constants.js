@@ -4,7 +4,6 @@ export const WEBLLM_MODELS = [
     lib: "Qwen2-1.5B-Instruct-q4f16_1_cs1k-webgpu.wasm",
     label: "Qwen 2.5 1.5B",
     size: "~900 MB",
-    description: "Multilingual, instruction-tuned. Great for summarization.",
     default: true,
   },
   {
@@ -12,21 +11,18 @@ export const WEBLLM_MODELS = [
     lib: "SmolLM2-1.7B-Instruct-q4f16_1_cs1k-webgpu.wasm",
     label: "SmolLM2 1.7B",
     size: "~1 GB",
-    description: "Compact and efficient for general tasks.",
   },
   {
     id: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
     lib: "Llama-3.2-1B-Instruct-q4f16_1_cs1k-webgpu.wasm",
     label: "Llama 3.2 1B",
     size: "~700 MB",
-    description: "Lightweight, fast, and reliable.",
   },
   {
     id: "Phi-3.5-mini-instruct-q4f16_1-MLC",
     lib: "Phi-3.5-mini-instruct-q4f16_1_cs1k-webgpu.wasm",
     label: "Phi 3.5 Mini",
     size: "~2.2 GB",
-    description: "Stronger reasoning, larger download.",
   },
 ];
 
@@ -44,7 +40,6 @@ export const TRANSFORMERS_MODELS = [
     dtype: "q4f16",
     label: "SmolLM2 360M",
     size: "~270 MB",
-    description: "Smallest and fastest, best for quick summaries on CPU.",
     default: true,
   },
   {
@@ -52,14 +47,12 @@ export const TRANSFORMERS_MODELS = [
     dtype: "q4f16",
     label: "Qwen 2.5 0.5B",
     size: "~480 MB",
-    description: "Multilingual, instruction-tuned.",
   },
   {
     id: "onnx-community/Llama-3.2-1B-Instruct-q4f16",
     dtype: "q4f16",
     label: "Llama 3.2 1B",
     size: "~1.2 GB",
-    description: "Stronger reasoning, larger download and slower on CPU.",
   },
 ];
 
@@ -199,6 +192,12 @@ export const DEFAULT_SETTINGS = {
   llamaHost: DEFAULT_LLAMACPP_HOST,
   llamaModel: "",
   llamaApiKey: "",
+  openrouterApiKey: "",
+  openrouterConsent: false,
+  openrouterModel: "",
+  opencodeApiKey: "",
+  opencodeConsent: false,
+  opencodeModel: "",
   responseFormat: "bullets",
   customInstructions: "",
   summaryLanguage: DEFAULT_SUMMARY_LANGUAGE,

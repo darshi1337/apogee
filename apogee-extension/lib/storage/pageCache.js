@@ -3,7 +3,6 @@ import { TRANSLATION_ENGINES } from "../constants.js";
 import { sha256Hex } from "../util/hash.js";
 import { createLock } from "../util/mutex.js";
 import { tryParseUrl } from "../util/url.js";
-import { embedTexts as defaultEmbedTexts } from "../engines/embeddings.js";
 
 const acquireIndexLock = createLock();
 
@@ -264,22 +263,8 @@ export async function persistSummary(
   vector = null,
   options = {},
 ) {
-  const { embedTextsFn = defaultEmbedTexts } =
-    typeof options === "function" ? {} : options || {};
   const release = await acquireIndexLock();
   try {
-    let v = vector;
-    if (!v && embedTextsFn && typeof embedTextsFn === "function" && text) {
-      try {
-        const embs = await embedTextsFn([text]);
-        if (Array.isArray(embs) && embs[0]) {
-          v = Array.from(embs[0]);
-        }
-      } catch {
-        v = null;
-      }
-    }
-
     const textBytes = estimateByteSize(text);
     if (textBytes > MAX_ENTRY_BYTES) {
       throw new StorageQuotaError(
@@ -299,9 +284,11 @@ export async function persistSummary(
 
     const safeTitle = await sanitizeTitleForStorage(title, options);
     const entry = { s: cacheKey, p: promptsCacheKey, t: safeTitle };
-    if (v) entry.v = v;
+    if (vector) entry.v = vector;
     entry.b =
-      textBytes + estimateByteSize(safeTitle) + (v ? estimateByteSize(v) : 0);
+      textBytes +
+      estimateByteSize(safeTitle) +
+      (vector ? estimateByteSize(vector) : 0);
     order.push(entry);
 
     const removeKeys = await evictSummariesOverBudget(order);

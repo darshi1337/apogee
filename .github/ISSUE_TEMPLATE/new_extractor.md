@@ -41,4 +41,6 @@ If the site has a comment tree, `content/extractors/thread.js` gives you the rep
 
 - [ ] `npm run format:check`, `npm run lint`, `npm test`, `npm run build` all pass
 
-- [ ] No new host permission. If the site needs one, say so in the PR. That means updating the manifest, README, PRIVACY.md and STORE-LISTING.md together
+- [ ] From the repo root, `npm run check:consistency` passes
+
+- [ ] No new host permission. If the site needs one, say so in the PR. That means updating the manifest, README, PRIVACY.md and docs/STORE-LISTING.md together

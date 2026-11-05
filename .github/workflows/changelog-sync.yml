@@ -15,12 +15,20 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: changelog-sync
+  cancel-in-progress: true
+
 jobs:
   sync-unreleased:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
+    env:
+      GIT_CLIFF_VERSION: 2.10.0
+      GIT_CLIFF_SHA512: 9090c844c5d5515237893c3a05cfef8a029c927123e235b51516f0a53f67456dc6ac9611e7280fb8ba176c9b9c924f2c5294a52e56dcc293d62100e8454ccc1a
     steps:
       - name: Check sync token
         env:
@@ -34,18 +42,25 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-          persist-credentials: false # the push below uses the PAT remote URL
+          persist-credentials: false # the push below uses the PAT credential helper
 
       - name: Install git-cliff
         run: |
-          curl -sL https://github.com/orhun/git-cliff/releases/download/v2.10.0/git-cliff-2.10.0-x86_64-unknown-linux-gnu.tar.gz -o /tmp/git-cliff.tar.gz
-          tar -xzf /tmp/git-cliff.tar.gz -C /tmp
-          echo "/tmp/git-cliff-2.10.0" >> "$GITHUB_PATH"
+          set -euo pipefail
+          archive="$RUNNER_TEMP/git-cliff.tar.gz"
+          curl -fsSL "https://github.com/orhun/git-cliff/releases/download/v${GIT_CLIFF_VERSION}/git-cliff-${GIT_CLIFF_VERSION}-x86_64-unknown-linux-gnu.tar.gz" -o "$archive"
+          echo "${GIT_CLIFF_SHA512}  ${archive}" | sha512sum -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/git-cliff-${GIT_CLIFF_VERSION}" >> "$GITHUB_PATH"
 
       - name: Rewrite Unreleased section
+        env:
+          UNRELEASED_BODY: ${{ runner.temp }}/unreleased-body.md
         run: |
-          git-cliff --config cliff.toml --unreleased > /tmp/unreleased-body.md
+          set -euo pipefail
+          git-cliff --config cliff.toml --unreleased > "$UNRELEASED_BODY"
           python3 - <<'EOF'
+          import os
           from pathlib import Path
 
           changelog = Path("CHANGELOG.md")
@@ -63,40 +78,20 @@ jobs:
               len(lines),
           )
 
-          body = Path("/tmp/unreleased-body.md").read_text().strip()
+          body = Path(os.environ["UNRELEASED_BODY"]).read_text().strip()
           section = "## [Unreleased]\n" + ("\n" + body + "\n" if body else "")
           changelog.write_text(
               "".join(lines[:start]) + section + "\n" + "".join(lines[end:])
           )
           EOF
-          git diff --quiet -- CHANGELOG.md && echo "unchanged" || echo "changed"
 
       - name: Open or update the sync PR
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          PR_BODY: "Regenerates the Unreleased changelog section from conventional commits since the last tag."
         run: |
-          if git diff --quiet -- CHANGELOG.md; then
-            echo "Changelog already current."
-            exit 0
-          fi
-          branch="automation/changelog-sync"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git switch -c "$branch"
-          git add CHANGELOG.md
-          git commit -m "docs: sync changelog unreleased section"
-          git remote set-url origin "https://x-access-token:${SYNC_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push --force origin "$branch"
-          pr=$(gh pr list --head "$branch" --state open --json number -q '.[0].number')
-          if [ -z "$pr" ]; then
-            gh pr create \
-              --base main \
-              --head "$branch" \
-              --title "docs: sync changelog unreleased section" \
-              --body "Regenerates the Unreleased changelog section from conventional commits since the last tag."
-            pr=$(gh pr list --head "$branch" --state open --json number -q '.[0].number')
-          fi
-          if [ -z "$(gh pr view "$pr" --json autoMergeRequest -q '.autoMergeRequest // empty')" ]; then
-            gh pr merge "$pr" --auto --squash
-          fi
+          bash scripts/sync-automation-pr.sh \
+            automation/changelog-sync \
+            "docs: sync changelog unreleased section" \
+            "docs: sync changelog unreleased section" \
+            CHANGELOG.md

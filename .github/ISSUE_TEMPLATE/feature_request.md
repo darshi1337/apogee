@@ -13,4 +13,4 @@ labels: enhancement
 
 **Scope** What is in scope and what is not? A narrow request gets built faster than a broad one.
 
-**Willing to build it?** Say if you want to write the patch yourself. If yes, a maintainer will scope it with you and point at the files involved. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the workflow.
+**Willing to build it?** Say if you want to write the patch yourself. If yes, a maintainer will scope it with you and point at the files involved. See [CONTRIBUTING.md](../../CONTRIBUTING.md) for the workflow.

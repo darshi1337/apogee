@@ -1,4 +1,19 @@
 adbkit
+advertised
+console
+Console
+credentials
+endpoints
+invalidation
+metadata
+separately
+revocation
+stale
+consent
+catalog
+provider
+OpenRouter
+OpenCode
 ajay
 autonumber
 bartowski
@@ -26,7 +41,6 @@ Lanczos
 lemmy
 Lemmy
 libvips
-lifecycles
 linkedom
 macrotask
 llamacpp

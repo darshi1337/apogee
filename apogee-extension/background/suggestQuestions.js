@@ -35,7 +35,7 @@ export const SKIP_LOOKUP_STATUS = {
   EMPTY: "empty",
 };
 
-export async function generateQuestionsFromChat(
+async function generateQuestionsFromChat(
   chat,
   {
     title,
@@ -62,7 +62,7 @@ export async function generateQuestionsFromChat(
   return parseSuggestedQuestions(text);
 }
 
-export async function generateTransformersSuggestions(
+async function generateTransformersSuggestions(
   model,
   {
     title,
@@ -90,7 +90,7 @@ export async function generateTransformersSuggestions(
   );
 }
 
-export async function generateLocalSuggestions(
+async function generateLocalSuggestions(
   host,
   model,
   {
