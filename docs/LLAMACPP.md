@@ -8,7 +8,7 @@ If you prefer no server management at all, [Local Ollama](OLLAMA.md) does the sa
 
 Apogee talks to `llama-server` over local HTTP (`http://127.0.0.1:8080` by default) through its OpenAI-compatible `/v1/chat/completions` endpoint. No middle service sits between.
 
-Unlike Ollama, `llama-server` serves exactly one model: the GGUF you launched it with. Apogee reads which one that is instead of asking you to pick from a list.
+By default, `llama-server` serves one model: the GGUF you launched it with, and Apogee reads the name automatically. When `llama-server` runs in router mode with multiple models, Apogee detects all available models and provides a model picker in Settings.
 
 ## Step 1: Install llama.cpp
 
@@ -33,6 +33,16 @@ llama-server -hf Qwen/Qwen2.5-7B-Instruct-GGUF:Q4_K_M --port 8080 --host 127.0.0
 
 Wait for `listening on http://127.0.0.1:8080`. Keep the terminal open. The server runs in the foreground.
 
+### Router Mode (Multiple Models)
+
+`llama-server` supports router mode to host multiple models simultaneously without specifying `-m` at launch ([llama.cpp router documentation](https://github.com/ggml-org/llama.cpp/tree/master/tools/server#using-multiple-models)):
+
+```bash
+llama-server --models-dir /path/to/models --port 8080 --host 127.0.0.1
+```
+
+When started in router mode, `/v1/models` returns all models available in the directory. Apogee detects them and provides a model dropdown in Settings, routing chat and summarization requests to whichever model you select.
+
 Apogee only links to loopback addresses (`127.0.0.1`, `localhost`, `[::1]`). It refuses servers bound elsewhere on purpose. Page text cannot leave your machine.
 
 ## Step 3: Configure Apogee
@@ -40,22 +50,22 @@ Apogee only links to loopback addresses (`127.0.0.1`, `localhost`, `[::1]`). It 
 1. Open Apogee. Click the gear icon for **Settings**.
 2. Under **AI Provider**, pick **llama.cpp**.
 3. Leave **Server URL** at `http://127.0.0.1:8080` unless you picked a different port.
-4. The **Loaded Model** field fills in on its own once the server answers.
+4. The **Model name** field fills in on its own once the server answers. If the server lists more than one model, pick one from **Detected models**.
 
 The status line under the model name tells you where you stand:
 
 | What it says | What it means |
 | --- | --- |
 | Detected from the server, N token context | Linked, and Apogee knows the running context window |
-| N models available | A proxy in front of `llama-server` serves several |
+| N models available | A router-mode server or proxy serves several |
 | Connected, but Apogee could not read the model. Check the API key | The server is up, but `/v1/models` refused. Often a missing or wrong API key causes this |
 | Not connected | Nothing answered on that address |
 
 ## The Model Field
 
-`llama-server` loads one model at launch, so there is no list to pick from. Apogee reads the name from `/v1/models` and fills the field in.
+When `llama-server` serves a single model, Apogee reads the name from `/v1/models` and fills the field in. If the server serves multiple models (router mode or a multi-model proxy), a **Detected models** menu appears above the field, populated with everything `/v1/models` reports. Choosing one fills the field.
 
-The field stays editable, and Apogee keeps what you type. That matters for two cases:
+The field stays editable, and Apogee keeps what you type. The menu is only a shortcut for the names the server lists; type in the field when the name you need is not there. That matters for two cases:
 
 - A proxy such as [llama-swap](https://github.com/mostlygeek/llama-swap) routing to different backends by model name.
 - A build whose `/v1/models` reports something that is not the name you need to send.
@@ -66,14 +76,18 @@ Auto-fill only writes into an **empty** field, so a name you typed is never over
 
 `llama-server` takes its context window from the `-c` flag you launched it with, not from the model. The same GGUF serves 4096 tokens or 32768 based on how you started it. The file name reads the same either way.
 
-Apogee thus asks the server instead of guessing, reading `/props` and falling back to `/v1/models`. This keeps long pages inside what your server takes:
+Apogee asks the server for the selected model's window with `/props?model=<name>`. A router loads that model to answer, which is the same load the next request triggers. A single-model server reports its window from `/props` without the query.
+
+If the server does not report the selected model's window, Apogee falls back to `/v1/models`. A router reports `meta.n_ctx` only for loaded models. When only some entries carry that value, Apogee does not apply one model's window to another. It uses the 8192 token fallback instead. This keeps a large loaded model from sizing chunks for a smaller selected model.
+
+The examples below show the sizing:
 
 ```bash
 llama-server -m model.gguf -c 4096    # Apogee sizes chunks for 4096
 llama-server -m model.gguf -c 32768   # and for 32768 here
 ```
 
-If neither endpoint reports a window (you can turn `/props` off server-side), Apogee assumes a careful 8192 tokens. That is safe on any server but under-uses a larger one.
+If neither endpoint reports a window (you can turn `/props` off server-side), Apogee assumes a careful 8192 tokens. That fits many servers but can under-use a larger window. If you pin a window below 8192, keep `/props` enabled so Apogee can read it.
 
 ## CORS
 

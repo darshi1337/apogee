@@ -146,7 +146,14 @@ The `lib/` folder holds plain JavaScript logic split into clean functional folde
 
 ### 5. `ui/` (Popup and Side Panel Interface)
 
-- **What it holds**: `app.js` renders the shared popup and side-panel interface (Home, Summary, Ask, local file upload, Past Summaries search, Settings views). `app.html`, `app.css`, and `icons.js` (inline SVG icons) support it. `mock.js` stands in for `chrome` in non-extension contexts. Three modules carry the testable logic: `jobs.js` (the one streaming-job runner owning start, view state, cancel, consume, and engine fallback), `focusKeyword.js` (keyword gating and page-change tracking), `cappedInputs.js` (input caps, counters, autosave wiring).
+- **What it holds**: `app.js` renders the shared popup and side-panel interface (Home, Summary, Ask, local file upload, Past Summaries search, Settings views). `app.html`, `app.css`, and `icons.js` (inline SVG icons) support it. `mock.js` stands in for `chrome` in non-extension contexts.
+
+  Four modules carry the testable logic:
+
+  - `jobs.js` owns the streaming-job runner: start, view state, cancel, consume, and engine fallback.
+  - `focusKeyword.js` handles keyword gating and page-change tracking.
+  - `cappedInputs.js` handles input caps, counters, and autosave wiring.
+  - `llamaModelPicker.js` handles the router-mode model list and field sync.
 
 - **How to contribute**: Improve UI parts, update theme styles, improve accessibility, or add interactive controls while keeping extension design standards. Put new job flows through `runStreamingJob` and new pure UI logic in an importable module with direct unit tests — not inline in `app.js`.
 

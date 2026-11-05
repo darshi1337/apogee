@@ -130,6 +130,7 @@ import {
   PDF_TOO_LARGE_ERROR_MSG,
 } from "../lib/util/messages.js";
 import { initRemoteSettings } from "./remoteSettings.js";
+import { createLlamaModelPicker } from "./llamaModelPicker.js";
 import { t, applyI18nToDom } from "../lib/util/i18n.js";
 import { safeDisconnect } from "../lib/util/streamBroadcast.js";
 import { tryParseUrl } from "../lib/util/url.js";
@@ -341,6 +342,8 @@ const llamaModelsCard = document.getElementById("llamaModelsCard");
 const llamaHostInput = document.getElementById("llamaHostInput");
 const llamaApiKeyInput = document.getElementById("llamaApiKeyInput");
 const llamaModelInput = document.getElementById("llamaModelInput");
+const llamaModelSelectRow = document.getElementById("llamaModelSelectRow");
+const llamaModelSelect = document.getElementById("llamaModelSelect");
 const llamaModelStatus = document.getElementById("llamaModelStatus");
 const webllmModelList = document.getElementById("webllmModelList");
 const transformersModelList = document.getElementById("transformersModelList");
@@ -376,6 +379,17 @@ const historyWipeText = document.getElementById("historyWipeText");
 const historyWipeCancelBtn = document.getElementById("historyWipeCancelBtn");
 const historyWipeDeleteBtn = document.getElementById("historyWipeDeleteBtn");
 const versionText = document.getElementById("versionText");
+
+const llamaModelPicker = createLlamaModelPicker({
+  field: llamaModelInput,
+  select: llamaModelSelect,
+  row: llamaModelSelectRow,
+  onChoose: (value) => {
+    saveSettings({ llamaModel: value }).catch((err) =>
+      console.error("Saving the selected llama.cpp model failed:", err),
+    );
+  },
+});
 
 // Single source of truth for input caps lives in JS (#320): the HTML
 // maxlength attributes are fallback only, re-synced here so bumping a
@@ -2283,13 +2297,14 @@ async function checkConnection() {
 }
 
 // Reflect what llama-server reported back into the model field.
-// llama-server loads one model at launch, so unlike Ollama there is no list to
-// choose from -- the field is filled in from the server instead. It stays
-// editable for the cases detection cannot cover: a proxy such as llama-swap
-// routing by model name, or a build whose /v1/models says something unhelpful.
-// Auto-fill only touches an empty field, which is what keeps a name the user
-// typed, and a name detected earlier, from being overwritten on the next
-// health check. Clearing the field asks for detection again.
+// A single-model server has no list to choose from, so the field is filled in
+// from the server instead. Router mode and multi-model proxies report several;
+// then a picker appears above the field, while the field stays editable for
+// names detection cannot cover: a proxy such as llama-swap routing by model
+// name, or a build whose /v1/models says something unhelpful. Auto-fill only
+// touches an empty field, which is what keeps a name the user typed, and a
+// name detected earlier, from being overwritten on the next health check.
+// Clearing the field asks for detection again.
 function updateLlamaModelUI(settings, status) {
   if (settings.provider !== PROVIDERS.LLAMACPP) return;
   if (!llamaModelInput) return;
@@ -2303,15 +2318,23 @@ function updateLlamaModelUI(settings, status) {
     );
   }
 
-  if (!llamaModelStatus) return;
-
   if (!status?.ready) {
-    renderStatusError(
-      llamaModelStatus,
-      "Not connected. Start llama-server and check the URL above.",
-    );
+    llamaModelPicker?.setModels([], "");
+    if (llamaModelStatus) {
+      renderStatusError(
+        llamaModelStatus,
+        "Not connected. Start llama-server and check the URL above.",
+      );
+    }
     return;
   }
+
+  llamaModelPicker?.setModels(
+    detected,
+    llamaModelInput.value.trim() || settings.llamaModel || "",
+  );
+
+  if (!llamaModelStatus) return;
 
   llamaModelStatus.removeAttribute("role");
   if (detected.length === 0) {
@@ -2322,13 +2345,17 @@ function updateLlamaModelUI(settings, status) {
     return;
   }
 
+  if (detected.length > 1) {
+    // The reported context window belongs to one model, so showing it here
+    // would imply it applies to every choice in the picker.
+    llamaModelStatus.textContent = `${detected.length} models available.`;
+    return;
+  }
+
   const context = status.contextTokens
     ? `${status.contextTokens.toLocaleString()} token context`
     : "context window not reported";
-  llamaModelStatus.textContent =
-    detected.length > 1
-      ? `${detected.length} models available, ${context}.`
-      : `Detected from the server, ${context}.`;
+  llamaModelStatus.textContent = `Detected from the server, ${context}.`;
 }
 
 function updateLocalModelList(settings, status) {
@@ -3442,8 +3469,14 @@ llamaApiKeyInput?.addEventListener("change", async () => {
 });
 
 llamaModelInput?.addEventListener("change", async () => {
-  const value = llamaModelInput.value.slice(0, MODEL_NAME_MAX_CHARS).trim();
+  const raw = llamaModelInput.value.trim();
+  // Detected names are server-provided, not pasted text. Keep one that is
+  // longer than the manual cap so selecting it cannot silently rename it.
+  const value = llamaModelPicker?.isDetected(raw)
+    ? raw
+    : raw.slice(0, MODEL_NAME_MAX_CHARS);
   llamaModelInput.value = value;
+  llamaModelPicker?.syncToField();
   await saveSettings({ llamaModel: value });
 });
 
