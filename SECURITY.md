@@ -16,11 +16,11 @@ If you want credit in the release notes and the advisory, say so. Tell me the na
 
 ## What Counts
 
-Apogee makes one central claim. Page content, summaries, and answers never leave your device. Two exceptions exist. One is your own Ollama or llama.cpp server over loopback. The other is the documented fetches in `PRIVACY.md` (model weights, site transcripts, subtitles, threads, and the SponsorBlock hash-prefix lookup).
+Apogee makes one central claim. For local generation, page content, summaries, and answers stay on your device. Two kinds of exception exist. One is your own Ollama or llama.cpp server over loopback. The other is the documented fetches in `PRIVACY.md`: model weights, site transcripts, subtitles, threads, the SponsorBlock hash-prefix lookup, and opt-in remote model-catalog metadata. Catalog refreshes send a provider API key and ordinary connection metadata to the matching provider origin. They never send page content, prompts, summaries, or answers.
 
 Anything that breaks that claim is a vulnerability here. This holds even if an ordinary extension does not treat it as one. Examples:
 
-- Page content, extracted text, or a generated summary reaches a host other than a documented host. Documented hosts are `127.0.0.1` and `localhost` for local inference. They also include Hugging Face, YouTube, Bilibili, Bluesky, and SponsorBlock endpoints as described in `PRIVACY.md`.
+- Page content, extracted text, or a generated summary reaches a host other than a documented host. Documented hosts are `127.0.0.1`, `localhost`, and `[::1]` for local inference. They also include Hugging Face, YouTube, Bilibili, Bluesky, SponsorBlock, `openrouter.ai`, and `opencode.ai` as described in `PRIVACY.md`.
 
 - A web page reads data that belongs to another page through the extension. It also reaches extension-privileged APIs.
 
@@ -34,7 +34,7 @@ Anything that breaks that claim is a vulnerability here. This holds even if an o
 
 - Anything lets an attacker widen extension permissions or host access.
 
-Please **do** report a mismatch between what the docs promise and what the code does. Report it even if nothing is exploitable yet. The manifest, the README Privacy section, `PRIVACY.md`, and `STORE-LISTING.md` must describe the same permission set. Drift between them is exactly the type of issue that turns into a real problem later.
+Please **do** report a mismatch between what the docs promise and what the code does. Report it even if nothing is exploitable yet. The manifest, the README Privacy section, `PRIVACY.md`, and `docs/STORE-LISTING.md` must describe the same permission set. Drift between them is exactly the type of issue that turns into a real problem later.
 
 ## What Does Not Count
 

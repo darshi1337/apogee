@@ -17,8 +17,11 @@ function copyStaticPlugin(targetBrowser) {
           (p) => p !== "offscreen" && p !== "sidePanel",
         );
         manifest.content_security_policy = {
+          // Browsers reject bracketed IPv6 literals in CSP host sources (for
+          // example http://[::1]:*) and log a warning while ignoring the entry,
+          // so loopback stays on 127.0.0.1 and localhost here.
           extension_pages:
-            "script-src 'self' 'wasm-unsafe-eval'; default-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://huggingface.co https://*.huggingface.co https://*.hf.co https://sponsor.ajay.app https://api.bilibili.com https://*.hdslb.com https://public.api.bsky.app; img-src 'self' data:; font-src 'self'; style-src 'self'",
+            "script-src 'self' 'wasm-unsafe-eval'; default-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://huggingface.co https://*.huggingface.co https://*.hf.co https://sponsor.ajay.app https://api.bilibili.com https://*.hdslb.com https://public.api.bsky.app https://openrouter.ai https://opencode.ai; img-src 'self' data:; font-src 'self'; style-src 'self'",
         };
         if (manifest.background) {
           delete manifest.background.service_worker;
@@ -85,8 +88,12 @@ function bundleModelLibsPlugin(targetBrowser) {
   };
 }
 
-export default defineConfig(() => {
-  const targetBrowser = process.env.TARGET_BROWSER || "chrome";
+export default defineConfig(({ mode }) => {
+  // Vite modes keep the build portable on Windows, where inline
+  // `TARGET_BROWSER=chrome` environment prefixes do not run in cmd or
+  // PowerShell. `vite build` defaults to `production`, so treat anything
+  // other than an explicit Firefox mode as Chrome.
+  const targetBrowser = mode === "firefox" ? "firefox" : "chrome";
   const isFirefox = targetBrowser === "firefox";
 
   const input = {

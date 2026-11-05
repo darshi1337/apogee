@@ -16,7 +16,7 @@
     "*.svg",
     "*.zip",
     "*.xpi",
-    "docs/fonts/**"
+    "site/fonts/**"
   ],
   "dictionaries": ["project-words"],
   "dictionaryDefinitions": [
@@ -27,6 +27,5 @@
     }
   ],
   "ignoreWords": ["darshi"],
-  "ignoreRegExpList": ["GHSA-[a-z0-9-]+"],
-  "words": []
+  "ignoreRegExpList": ["GHSA-[a-z0-9-]+"]
 }

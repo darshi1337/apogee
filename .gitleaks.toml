@@ -12,7 +12,7 @@ useDefault = true
 description = "unit tests and fixtures with fake keys, never real secrets"
 paths = [
   '''apogee-extension/tests/.*''',
-  '''docs/assets/.*''',
+  '''site/assets/.*''',
   '''\.github/assets/.*''',
 ]
 regexes = [

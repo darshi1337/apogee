@@ -1,10 +1,14 @@
 import test from "node:test";
 import assert from "node:assert";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const manifestPath = new URL("../manifest.json", import.meta.url);
-const manifestRaw = readFileSync(manifestPath, "utf8");
+const manifestFile = fileURLToPath(
+  new URL("../manifest.json", import.meta.url),
+);
+const manifestDir = dirname(manifestFile);
+const manifestRaw = readFileSync(manifestFile, "utf8");
 const manifest = JSON.parse(manifestRaw);
 
 test("manifest.json conforms to Manifest V3 requirements", () => {
@@ -22,9 +26,7 @@ test("manifest.json declares valid background service worker", () => {
   );
   assert.strictEqual(manifest.background.type, "module");
   assert.ok(
-    existsSync(
-      resolve(manifestPath.pathname, "../background/service-worker.js"),
-    ),
+    existsSync(resolve(manifestDir, "background/service-worker.js")),
     "Background service worker file must exist",
   );
 });
@@ -92,7 +94,7 @@ test("manifest.json permissions enforce local-first privacy boundary", () => {
 
 test("manifest permissions exactly match the documented set (#182)", () => {
   // Every permission below is justified in PRIVACY.md ("Browser Permission
-  // Sandboxing") and STORE-LISTING.md (permission justifications), including
+  // Sandboxing") and docs/STORE-LISTING.md (permission justifications), including
   // unlimitedStorage for the cached model weights. Fail-closed exact match
   // so docs and manifest cannot drift apart again.
   assert.deepStrictEqual(
@@ -126,7 +128,7 @@ test("declarativeNetRequest rule files exist and parse as valid JSON", () => {
   );
 
   ruleResources.forEach((resource) => {
-    const ruleFilePath = resolve(manifestPath.pathname, "..", resource.path);
+    const ruleFilePath = resolve(manifestDir, resource.path);
     assert.ok(
       existsSync(ruleFilePath),
       `Rule file ${resource.path} must exist`,
@@ -143,11 +145,12 @@ test("declared network egress matches the documented allow-list (#180)", () => {
   // This test fails closed: adding a new egress host requires updating the
   // docs and this list together, so an undisclosed call like the former
   // api.github.com fetch cannot slip back in.
+  // Bracketed IPv6 literals are not valid CSP host sources and browsers
+  // ignore them with a console warning; loopback stays on IPv4 and localhost.
   const documentedConnectSrc = new Set([
     "'self'",
     "http://127.0.0.1:*",
     "http://localhost:*",
-    "http://[::1]:*",
     "https://huggingface.co",
     "https://*.huggingface.co",
     "https://*.hf.co",
@@ -155,6 +158,8 @@ test("declared network egress matches the documented allow-list (#180)", () => {
     "https://api.bilibili.com",
     "https://*.hdslb.com",
     "https://public.api.bsky.app",
+    "https://openrouter.ai",
+    "https://opencode.ai",
   ]);
 
   const csp = manifest.content_security_policy?.extension_pages || "";
@@ -204,7 +209,7 @@ test("extractor fetch hosts are declared and documented (#185)", () => {
   // directions are pinned here: every host the extractor accepts must be
   // declared, and every declared pattern must be named in the docs.
   const youtubeSource = readFileSync(
-    resolve(manifestPath.pathname, "..", "content/extractors/youtube.js"),
+    resolve(manifestDir, "content/extractors/youtube.js"),
     "utf8",
   );
   const suffixDecl = youtubeSource.match(/allowedSuffixes\s*=\s*\[([^\]]*)\]/);
@@ -222,14 +227,14 @@ test("extractor fetch hosts are declared and documented (#185)", () => {
   }
 
   const docTokens = new Set();
-  for (const doc of ["../../PRIVACY.md", "../../STORE-LISTING.md"]) {
+  for (const doc of ["../../PRIVACY.md", "../../docs/STORE-LISTING.md"]) {
     const text = readFileSync(new URL(doc, import.meta.url), "utf8");
     for (const [, token] of text.matchAll(/`([^`]+)`/g)) docTokens.add(token);
   }
   for (const pattern of optional) {
     assert.ok(
       docTokens.has(pattern),
-      `declared permission ${pattern} must be named verbatim in PRIVACY.md or STORE-LISTING.md`,
+      `declared permission ${pattern} must be named verbatim in PRIVACY.md or docs/STORE-LISTING.md`,
     );
   }
 });
@@ -239,11 +244,7 @@ test("every extractor fetch host is declared or same-origin-documented (#205)", 
   // requires declaring it (connect-src / optional_host_permissions) and
   // documenting it, so an undisclosed call like the former api.github.com
   // fetch or the undocumented reddit .json fetch cannot slip back in.
-  const extractorsDir = resolve(
-    manifestPath.pathname,
-    "..",
-    "content/extractors",
-  );
+  const extractorsDir = resolve(manifestDir, "content/extractors");
   const csp = manifest.content_security_policy?.extension_pages || "";
   const connectSrc = (
     csp
@@ -312,5 +313,39 @@ test("every extractor fetch host is declared or same-origin-documented (#205)", 
     privacyText,
     /Reddit Thread JSON/,
     "PRIVACY.md must document the reddit same-origin thread fetch",
+  );
+});
+
+test("Firefox CSP and data permissions preserve the remote setup boundary", () => {
+  const source = readFileSync(resolve(manifestDir, "vite.config.js"), "utf8");
+  const firefoxCsp = source.match(/extension_pages:\s*"([^"]+)"/);
+  assert.ok(firefoxCsp, "Firefox override must declare extension_pages CSP");
+  const connect = firefoxCsp[1]
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith("connect-src "));
+  assert.ok(connect, "Firefox CSP must declare connect-src");
+  assert.deepStrictEqual(
+    new Set(connect.replace(/^connect-src\s+/, "").split(/\s+/)),
+    new Set([
+      "'self'",
+      "http://127.0.0.1:*",
+      "http://localhost:*",
+      "https://huggingface.co",
+      "https://*.huggingface.co",
+      "https://*.hf.co",
+      "https://sponsor.ajay.app",
+      "https://api.bilibili.com",
+      "https://*.hdslb.com",
+      "https://public.api.bsky.app",
+      "https://openrouter.ai",
+      "https://opencode.ai",
+    ]),
+    "Firefox connect-src must exactly match its documented egress allow-list",
+  );
+  assert.deepStrictEqual(
+    manifest.browser_specific_settings.gecko.data_collection_permissions,
+    { required: ["none"], optional: ["authenticationInfo"] },
+    "Remote catalog setup may optionally transmit credentials, never website content",
   );
 });
