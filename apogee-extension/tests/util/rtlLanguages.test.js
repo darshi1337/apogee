@@ -48,4 +48,3 @@ test("applyAutoDirection marks each rendered block dir=auto", () => {
   ]);
   assert.doesNotThrow(() => applyAutoDirection(null));
 });
-
