@@ -106,6 +106,7 @@ import {
   nextStreamId,
   activeStreams,
   registeredStreamJobs,
+  takeExpiredStreamJob,
   registerStreamJob,
   scheduleStreamCleanup,
   expireStreamForCleanup,
@@ -1363,8 +1364,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // their disconnect handlers.
       untrackOffscreenRelay(streamId);
       try {
+        // A finish after the cleanup window falls back to the job retained
+        // at expiry, so the summary keeps the keys captured at run start.
         const registeredJob = streamId
-          ? registeredStreamJobs.get(streamId)
+          ? registeredStreamJobs.get(streamId) || takeExpiredStreamJob(streamId)
           : null;
         if (streamId) {
           registeredStreamJobs.delete(streamId);
