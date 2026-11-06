@@ -330,21 +330,8 @@ export async function finalizeSummaryJob(
       }
     : undefined;
   try {
-    // `persist` is what was true when the job started. The write only happens if it is still true now, so turning history off mid-generation also excludes the summary that is running.
-    const persisted =
-      persist &&
-      (await persistSummaryIfAllowed(
-        persistUrl || url,
-        cacheKey,
-        promptsCacheKey,
-        text,
-        title,
-        null,
-        { assertAuthorized: assertCommitAuthorized },
-      ));
-
-    if (persisted || isSelection) {
-      await saveViewStateIfJobMatches(
+    const saveSummaryViewState = () =>
+      saveViewStateIfJobMatches(
         tabId,
         jobId,
         {
@@ -371,6 +358,27 @@ export async function finalizeSummaryJob(
         "summarizing",
         { assertAuthorized: assertCommitAuthorized },
       );
+
+    // `persist` is what was true when the job started. The write only happens if it is still true now, so turning history off mid-generation also excludes the summary that is running.
+    // Keep the view-state commit inside the cache write so a revocation between
+    // the two writes rolls both back instead of leaving a cached summary.
+    const persisted =
+      persist &&
+      (await persistSummaryIfAllowed(
+        persistUrl || url,
+        cacheKey,
+        promptsCacheKey,
+        text,
+        title,
+        null,
+        {
+          assertAuthorized: assertCommitAuthorized,
+          afterCommit: saveSummaryViewState,
+        },
+      ));
+
+    if (!persisted && isSelection) {
+      await saveSummaryViewState();
     }
     runSuggestQuestionsJob(
       {

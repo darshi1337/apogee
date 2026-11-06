@@ -2,6 +2,10 @@ import { getSettings } from "./settings.js";
 import { getRemoteSettings } from "./remoteSettings.js";
 import { parsePrivateHosts, shouldPersist } from "./pageCache.js";
 import { REMOTE_PROVIDER_IDS } from "../engines/remoteModels.js";
+import {
+  hasRemoteCatalogPermissions,
+  hasRemoteGenerationPermissions,
+} from "../engines/remoteCredentials.js";
 
 const AUDIT_LOG_KEY = "apogee_activity_audit_log";
 const MAX_AUDIT_ENTRIES = 20;
@@ -68,16 +72,28 @@ export async function getActivityAuditSummary() {
 
   const sponsorBlockActive =
     settings.useSponsorBlock !== false && settings.useSponsorBlock !== "off";
-  const remoteCatalogActive = REMOTE_PROVIDER_IDS.some(
+  const remoteCatalogConsented = REMOTE_PROVIDER_IDS.some(
     (provider) =>
       providers[provider]?.consent === true && providers[provider]?.hasApiKey,
   );
-  const remoteGenerationActive = REMOTE_PROVIDER_IDS.some(
+  const remoteGenerationConsented = REMOTE_PROVIDER_IDS.some(
     (provider) =>
       providers[provider]?.consent === true &&
       providers[provider]?.generationConsent === true &&
       providers[provider]?.hasApiKey,
   );
+  // Consent can outlive the browser permission that makes the request
+  // possible, so report what can actually reach the network.
+  const [catalogAllowed, generationAllowed] = await Promise.all([
+    remoteCatalogConsented
+      ? hasRemoteCatalogPermissions().catch(() => false)
+      : false,
+    remoteGenerationConsented
+      ? hasRemoteGenerationPermissions().catch(() => false)
+      : false,
+  ]);
+  const remoteCatalogActive = remoteCatalogConsented && catalogAllowed;
+  const remoteGenerationActive = remoteGenerationConsented && generationAllowed;
   const externalRequestsAllowed =
     sponsorBlockActive || remoteCatalogActive || remoteGenerationActive;
 

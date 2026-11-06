@@ -10,7 +10,7 @@ import {
   DEFAULT_LLAMACPP_HOST,
   LOCAL_PROVIDER_TYPES,
 } from "../constants.js";
-import { REMOTE_PROVIDER_IDS } from "./remoteModels.js";
+import { isRemoteProvider } from "./remoteModels.js";
 import { hasRemoteGenerationPermissions } from "./remoteCredentials.js";
 
 function sendToServiceWorker(message) {
@@ -426,9 +426,7 @@ class DirectLlamaCppProvider {
   }
 }
 
-export function isRemoteProvider(type) {
-  return REMOTE_PROVIDER_IDS.includes(type);
-}
+export { isRemoteProvider };
 
 class RemoteProvider {
   constructor(provider, model) {

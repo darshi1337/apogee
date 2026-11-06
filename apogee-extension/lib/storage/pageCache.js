@@ -272,6 +272,9 @@ export async function sanitizeTitleForStorage(title, options = {}) {
   return title.trim();
 }
 
+// Persist a summary and update the cache index. `options.afterCommit` runs
+// after the cache write but before eviction cleanup, so callers can commit
+// related state atomically; if it throws, the cache write is rolled back.
 export async function persistSummary(
   cacheKey,
   promptsCacheKey,
@@ -289,8 +292,11 @@ export async function persistSummary(
       );
     }
 
+    const rollbackOnFailure = Boolean(
+      options.assertAuthorized || options.afterCommit,
+    );
     const previous = await chrome.storage.local.get(
-      options.assertAuthorized ? ["cacheOrder", cacheKey] : "cacheOrder",
+      rollbackOnFailure ? ["cacheOrder", cacheKey] : "cacheOrder",
     );
     const { cacheOrder = [] } = previous;
     const order = cacheOrder
@@ -321,11 +327,12 @@ export async function persistSummary(
       if (isQuotaError(err)) throw new StorageQuotaError();
       throw err;
     }
-    if (options.assertAuthorized) {
+    if (rollbackOnFailure) {
       try {
-        await options.assertAuthorized();
+        await options.assertAuthorized?.();
+        await options.afterCommit?.();
       } catch (err) {
-        // Keep the writer lock until the revoked write has been undone; old
+        // Keep the writer lock until the failed commit has been undone; old
         // eviction targets still exist because removal happens after this check.
         const restore = {};
         const remove = [];

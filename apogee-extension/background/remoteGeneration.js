@@ -1,6 +1,9 @@
 import { getSettings } from "../lib/storage/settings.js";
 import { getRemoteSettings } from "../lib/storage/remoteSettings.js";
-import { REMOTE_PROVIDER_IDS } from "../lib/engines/remoteModels.js";
+import {
+  isRemoteProvider,
+  REMOTE_PROVIDER_IDS,
+} from "../lib/engines/remoteModels.js";
 import { hasRemoteGenerationPermissions } from "../lib/engines/remoteCredentials.js";
 import { streamRemoteChat } from "../lib/engines/remoteClient.js";
 import { getMaxChunkChars } from "../lib/engines/modelLimits.js";
@@ -16,8 +19,7 @@ import { streamInTargetLanguage } from "../lib/language/languageOutput.js";
 import { opusTranslateFnFor } from "../lib/language/opusTranslateEngine.js";
 import { UserFacingError } from "../lib/util/userError.js";
 
-export const isRemoteProvider = (provider) =>
-  REMOTE_PROVIDER_IDS.includes(provider);
+export { isRemoteProvider };
 export const REMOTE_B1_UNSUPPORTED =
   "Remote background and multi-tab generation are not available in this stage. Use Summary or Ask in the Apogee panel.";
 const AUTHORIZATION_CHANGED =

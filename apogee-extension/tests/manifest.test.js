@@ -356,4 +356,14 @@ test("Firefox CSP and optional data permissions cover separately consented remot
     },
     "Remote generation content permissions must remain optional",
   );
+  assert.strictEqual(
+    manifest.browser_specific_settings.gecko.strict_min_version,
+    "140.0",
+    "Desktop Firefox data collection permissions require version 140",
+  );
+  assert.strictEqual(
+    manifest.browser_specific_settings.gecko_android?.strict_min_version,
+    "142.0",
+    "Firefox for Android data collection permissions require version 142",
+  );
 });

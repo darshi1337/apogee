@@ -7,6 +7,15 @@ export const REMOTE_GENERATION_DATA = [
   "personalCommunications",
 ];
 
+export async function hasRemoteCatalogPermissions() {
+  return (
+    process.env.TARGET_BROWSER !== "firefox" ||
+    (await chrome.permissions.contains({
+      data_collection: ["authenticationInfo"],
+    }))
+  );
+}
+
 export async function hasRemoteGenerationPermissions() {
   return (
     process.env.TARGET_BROWSER !== "firefox" ||

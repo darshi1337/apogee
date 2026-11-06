@@ -406,13 +406,9 @@ async function startRemoteStream(streamId, payload, context) {
   } catch (error) {
     finish({
       type: "error",
-      error:
-        error?.isUserFacing ||
-        /^(Remote |Select an eligible remote model\.)/.test(
-          error?.message || "",
-        )
-          ? error.message
-          : "Remote generation failed. Review Settings and retry.",
+      error: error?.isUserFacing
+        ? error.message
+        : "Remote generation failed. Review Settings and retry.",
       userFacing: true,
     });
   } finally {

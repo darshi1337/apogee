@@ -86,6 +86,9 @@
         "required": ["none"],
         "optional": ["authenticationInfo", "websiteContent", "browsingActivity", "personalCommunications"]
       }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
     }
   }
 }

@@ -1,5 +1,6 @@
 import { getRemoteCredentialsSettings } from "../storage/settings.js";
 import {
+  hasRemoteCatalogPermissions,
   hasRemoteGenerationPermissions,
   onRemoteCredentialChange,
   onRemoteGenerationChange,
@@ -9,6 +10,7 @@ import {
   remotePreset,
   validRemoteModelId,
 } from "./remoteModels.js";
+import { UserFacingError } from "../util/userError.js";
 
 const active = new Map();
 const holds = new Map();
@@ -83,13 +85,7 @@ async function withRemoteRequest(
         throw new Error();
       await assertAuthorized?.();
     }
-    if (
-      process.env.TARGET_BROWSER === "firefox" &&
-      !(await chrome.permissions.contains({
-        data_collection: ["authenticationInfo"],
-      }))
-    )
-      throw new Error();
+    if (!(await hasRemoteCatalogPermissions())) throw new Error();
     if (controller.signal.aborted || holds.get(provider)) throw new Error();
     const response = await fetch(url, {
       method: method || (body ? "POST" : "GET"),
@@ -134,7 +130,7 @@ async function withRemoteRequest(
     return await consume(read);
   } catch {
     // Never expose HTTP bodies, transport errors, keys or prompt text.
-    throw new Error(
+    throw new UserFacingError(
       controller.signal.aborted
         ? timedOut
           ? "Remote request timed out. Retry later."
@@ -184,7 +180,7 @@ export async function streamRemoteChat(
   await assertAuthorized?.();
   const settings = await getRemoteCredentialsSettings();
   if (settings[`${provider}GenerationConsent`] !== true)
-    throw new Error("Remote generation consent is required.");
+    throw new UserFacingError("Remote generation consent is required.");
   const model = settings[`${provider}Model`];
   if (
     !validRemoteModelId(model) ||
@@ -192,10 +188,10 @@ export async function streamRemoteChat(
     prompt.length > 200000 ||
     (system != null && (typeof system !== "string" || system.length > 20000))
   )
-    throw new Error("Invalid remote chat request.");
+    throw new UserFacingError("Invalid remote chat request.");
   const models = await fetchRemoteModels(provider, { signal });
   if (!models.some((entry) => entry.id === model))
-    throw new Error("Select an eligible remote model.");
+    throw new UserFacingError("Select an eligible remote model.");
   await assertAuthorized?.();
   const current = await getRemoteCredentialsSettings();
   if (
@@ -205,7 +201,7 @@ export async function streamRemoteChat(
     current[`${provider}GenerationRevision`] !==
       settings[`${provider}GenerationRevision`]
   )
-    throw new Error("Remote settings changed. Retry the request.");
+    throw new UserFacingError("Remote settings changed. Retry the request.");
   const messages = [
     ...(system ? [{ role: "system", content: system }] : []),
     { role: "user", content: prompt },

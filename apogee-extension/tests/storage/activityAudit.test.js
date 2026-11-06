@@ -187,6 +187,34 @@ test("audit includes both optional catalog and SponsorBlock access", async () =>
   );
 });
 
+test("audit does not claim remote access after the Firefox permission is removed", async () => {
+  storageMap.clear();
+  const previousBrowser = process.env.TARGET_BROWSER;
+  const previousPermissions = chrome.permissions;
+  process.env.TARGET_BROWSER = "firefox";
+  chrome.permissions = { contains: async () => false };
+  try {
+    await chrome.storage.local.set({
+      settings: {
+        useSponsorBlock: false,
+        openrouterConsent: true,
+        openrouterGenerationConsent: true,
+        openrouterApiKey: "secret",
+      },
+    });
+    const { networkEgress } = await getActivityAuditSummary();
+    assert.equal(networkEgress.remoteCatalogActive, false);
+    assert.equal(networkEgress.remoteGenerationActive, false);
+    assert.equal(networkEgress.zeroEgress, true);
+    assert.equal(networkEgress.statusMessage, "100% local");
+  } finally {
+    if (previousBrowser === undefined) delete process.env.TARGET_BROWSER;
+    else process.env.TARGET_BROWSER = previousBrowser;
+    if (previousPermissions === undefined) delete chrome.permissions;
+    else chrome.permissions = previousPermissions;
+  }
+});
+
 test("recordPageAccessEvent skips sensitive pages even with history on (#181)", async () => {
   storageMap.clear();
   await recordPageAccessEvent({

@@ -664,6 +664,38 @@ test("persistSummary evicts the oldest entry once the FIFO cap is exceeded", asy
   );
 });
 
+test("persistSummary rolls back the write and keeps eviction targets when afterCommit fails", async () => {
+  const data = installFakeStorage();
+  for (let i = 0; i < MAX_CACHED_PAGES; i++) {
+    await persistSummary(
+      `summary-key-${i}`,
+      `prompts-key-${i}`,
+      `text ${i}`,
+      `Title ${i}`,
+    );
+  }
+  const beforeOrder = data.cacheOrder.map((entry) => ({ ...entry }));
+  const beforeText = Object.fromEntries(
+    beforeOrder.map((entry) => [entry.s, data[entry.s]]),
+  );
+
+  await assert.rejects(
+    persistSummary("new-key", "new-prompts", "new text", "New", null, {
+      afterCommit: () => {
+        throw new Error("Revoked");
+      },
+    }),
+    /Revoked/,
+  );
+
+  assert.strictEqual(data["new-key"], undefined);
+  assert.deepStrictEqual(data.cacheOrder, beforeOrder);
+  for (const [key, text] of Object.entries(beforeText)) {
+    assert.strictEqual(data[key], text);
+  }
+  assert.strictEqual(data["summary-key-0"], "text 0");
+});
+
 test("persistSummary re-persisting the same cacheKey doesn't duplicate its order entry", async () => {
   const data = installFakeStorage();
 

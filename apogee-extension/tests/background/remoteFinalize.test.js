@@ -392,3 +392,67 @@ test("revocation during issued view-state write restores previous state and inde
   assert.deepEqual(await chrome.storage.local.get(keys), before);
   assert.equal(pendingFinalizeRetries.has(jobId), false);
 });
+
+for (const priorExists of [false, true]) {
+  test(`revocation during issued view-state commit rolls back ${priorExists ? "the previous" : "the new"} remote summary`, async () => {
+    const { pendingFinalizeRetries } =
+      await import("../../background/finalize.js");
+    const tabId = 446 + Number(priorExists);
+    const jobId = `issued-view-cache-${priorExists}`;
+    const finalize = await buildTrustedFinalize(
+      {
+        url: `https://example.com/${jobId}`,
+        finalize: { jobId, tabId },
+      },
+      {
+        provider: "openrouter",
+        openrouterModel: "remote/model",
+        responseFormat: "bullets",
+        summaryLanguage: "auto",
+      },
+    );
+    if (priorExists) {
+      await chrome.storage.local.set({
+        [finalize.cacheKey]: "Prior authorized summary",
+        cacheOrder: [
+          {
+            s: finalize.cacheKey,
+            p: finalize.promptsCacheKey,
+            t: "Prior title",
+          },
+        ],
+      });
+    } else {
+      await chrome.storage.local.remove([finalize.cacheKey, "cacheOrder"]);
+    }
+    await saveViewState(tabId, {
+      jobId,
+      subview: "summarizing",
+      summaryText: "Previous state",
+    });
+    const viewKey = `popupViewState:${tabId}`;
+    const keys = [finalize.cacheKey, "cacheOrder", viewKey, "viewStateOrder"];
+    const before = await chrome.storage.local.get(keys);
+    let authorized = true;
+    const held = holdStorageWrite((items) => Object.hasOwn(items, viewKey));
+    try {
+      const running = finalizeSummaryJob(
+        { finalize, text: "Revoked result" },
+        {
+          assertAuthorized: () => {
+            if (!authorized) throw new Error("Revoked");
+          },
+        },
+      );
+      await held.started;
+      authorized = false;
+      held.release();
+      await assert.rejects(running, /Revoked/);
+    } finally {
+      held.release();
+      held.restore();
+    }
+    assert.deepEqual(await chrome.storage.local.get(keys), before);
+    assert.equal(pendingFinalizeRetries.has(jobId), false);
+  });
+}
