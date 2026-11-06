@@ -94,7 +94,7 @@ The `lib/` folder holds plain JavaScript logic split into clean functional folde
 
 - **What it holds**: `providers.js` (engine registry, ordered fallback chain, extracted-text fallback). `ollamaClient.js` (Local Ollama HTTP streaming client). `llamaCppClient.js` (local llama.cpp SSE client). `transformersEngine.js` (WebAssembly CPU engine). `transformersLib.js` and `onnxWasm.js` (model lib loading). `embeddings.js` (on-device embedding client). `httpChatStream.js` (shared chat-completions streaming scaffold). `modelLimits.js` (per-engine chunk budgets).
 
-- **How to contribute**: Add new model configs to `providers.js` or improve token streaming handlers inside the provider clients and engine adapters. New engines plug into the `resolveEngineChain` order once instead of once per call site. Keep inference strictly on-device. The only remote client is the opt-in catalog setup, which sends credentials only to the matching provider origin and never sends page text or prompts.
+- **How to contribute**: Add new model configs to `providers.js` or improve token streaming handlers inside the provider clients and engine adapters. New engines plug into the `resolveEngineChain` order once instead of once per call site. Keep local inference on-device. The only remote clients are the opt-in catalog refresh and foreground Summary or Ask generation. Both use fixed provider origins and separate consent. Catalog refresh sends the key. Generation also sends page, selected, pasted, or extracted text, title and URL, questions, and instructions.
 
 #### `lib/extract/` (Text Extraction Routers)
 
