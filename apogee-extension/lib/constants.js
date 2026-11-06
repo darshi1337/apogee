@@ -150,13 +150,28 @@ const isFirefox = process.env.TARGET_BROWSER === "firefox";
 // llama.cpp runs on both builds as plain loopback fetch, without the
 // WebGPU dependency that keeps WebLLM off Firefox.
 export const PROVIDERS = isFirefox
-  ? { TRANSFORMERS: "transformers", LOCAL: "local", LLAMACPP: "llamacpp" }
+  ? {
+      TRANSFORMERS: "transformers",
+      LOCAL: "local",
+      LLAMACPP: "llamacpp",
+      OPENROUTER: "openrouter",
+      OPENCODE: "opencode",
+    }
   : {
       WEBLLM: "webllm",
       TRANSFORMERS: "transformers",
       LOCAL: "local",
       LLAMACPP: "llamacpp",
+      OPENROUTER: "openrouter",
+      OPENCODE: "opencode",
     };
+
+export const LOCAL_PROVIDER_TYPES = [
+  ...(PROVIDERS.WEBLLM ? [PROVIDERS.WEBLLM] : []),
+  PROVIDERS.TRANSFORMERS,
+  PROVIDERS.LOCAL,
+  PROVIDERS.LLAMACPP,
+];
 
 export const DEFAULT_PROVIDER = isFirefox
   ? PROVIDERS.TRANSFORMERS
@@ -198,9 +213,13 @@ export const DEFAULT_SETTINGS = {
   llamaApiKey: "",
   openrouterApiKey: "",
   openrouterConsent: false,
+  openrouterGenerationConsent: false,
+  openrouterGenerationRevision: 0,
   openrouterModel: "",
   opencodeApiKey: "",
   opencodeConsent: false,
+  opencodeGenerationConsent: false,
+  opencodeGenerationRevision: 0,
   opencodeModel: "",
   responseFormat: "bullets",
   customInstructions: "",

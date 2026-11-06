@@ -10,6 +10,7 @@ import {
 import { getSettings } from "../lib/storage/settings.js";
 import { shouldPersist } from "../lib/storage/pageCache.js";
 import { PROVIDERS } from "../lib/constants.js";
+import { REMOTE_PROVIDER_IDS } from "../lib/engines/remoteModels.js";
 import {
   OLLAMA_PROVIDER,
   LLAMACPP_PROVIDER,
@@ -142,6 +143,7 @@ export async function runSuggestQuestionsJob(
     customInstructions = "",
     focusKeyword = "",
   } = payload || {};
+  if (REMOTE_PROVIDER_IDS.includes(providerType)) return;
   if (!trackBackgroundJob(promptsCacheKey)) return;
   startKeepAlive();
 

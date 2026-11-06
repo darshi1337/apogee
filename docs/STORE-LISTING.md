@@ -24,13 +24,13 @@ Packaging: upload a ZIP of the Chromium build (`dist/chrome`), not a CRX. The st
 
 ### Description
 
-Apogee is a private, in-browser AI assistant for articles, YouTube videos, PDFs, DOCX files, pasted text, emails, and more. It summarizes what you read or what you give it locally. It answers questions about that content, all on your own machine. Local generation needs no account or API key and sends no content to a cloud service. Optional remote-provider setup previews use your own key for explicitly requested model metadata refreshes; remote summarization and Ask are not enabled. There is no telemetry.
+Apogee is an AI assistant for articles, YouTube videos, PDFs, DOCX files, pasted text, emails, and more. It summarizes and answers questions locally by default. Local generation needs no account or API key and sends no content to a cloud service. Optional OpenRouter and OpenCode generation uses your own key after separate catalog and generation consent and an explicit foreground Summary or Ask action. There is no telemetry.
 
 WHY APOGEE
 
 Most "AI summarizer" extensions send the page you read to company servers. Apogee does not send the page for local generation. It runs compact language models straight inside your browser. It uses your GPU through WebGPU or your CPU through WebAssembly. The text you summarize stays local and drops after. There is no login and no page-content upload.
 
-The discontinued Orbit project from Mozilla inspired Apogee. It offered browser summarization but sent all through central cloud servers. Apogee fixes that by staying fully local-first. No server need means no data leaks and no subscription. Nothing shuts down or retires.
+The discontinued Orbit project from Mozilla inspired Apogee. It offered browser summarization through central cloud servers. Apogee supports local generation without a hosted backend or subscription. Optional remote providers are disclosed separately.
 
 WHAT IT DOES
 
@@ -76,7 +76,7 @@ PRIVACY
 
 - No cloud inference by default. Models run on your device.
 
-- Local generation needs no API key, sign-in, or account. Optional remote-provider catalog setup uses your own provider key.
+- Local generation needs no API key, sign-in, or account. Optional remote catalogs and generation use your own provider key with separate consent.
 
 - No analytics or tracking.
 
@@ -94,9 +94,9 @@ PRIVACY
 
   - For Reddit threads, the thread JSON of the viewed page (same-origin fetch, no extra host).
 
-  - Explicit opt-in catalog previews: `https://openrouter.ai/api/v1/models` and `https://opencode.ai/inference/v1/models`. Requests send connection metadata and, when authenticated, the key only to its provider origin. Keys remain stored locally in extension storage, which is not encrypted at rest, and are redacted from exports and diagnostics. Stage A sends no prompts or page content and performs no remote summary/Ask generation. OpenRouter free presets require all advertised prices to be zero; OpenCode Console / Go uses credits or Go; this preset lists paid models only, and OpenCode also offers free models outside this preset.
+  - Explicit opt-in catalogs: `https://openrouter.ai/api/v1/models` and `https://opencode.ai/inference/v1/models`. Requests send connection metadata and the matching saved credential. Keys remain in extension-local storage, which is not encrypted at rest; only the worker credential helper reads them, and public settings, exports, and diagnostics redact them. Separate generation consent enables foreground Summary and Ask at `https://openrouter.ai/api/v1/chat/completions` and `https://opencode.ai/inference/openai/v1/chat/completions`. These send page, selected, pasted, or extracted uploaded text, title/URL when present, questions, instructions, and needed intermediate generated text. Map/reduce and language handling can make multiple requests. OpenRouter requires fresh explicitly zero prices and `allow_fallbacks: false`; OpenCode Console / Go uses paid credits/Go models and this client preset excludes free models. Credentials go only to the matching fixed origin.
 
-- Page content stays local in this release. It never uploads. The optional remote-provider catalog preview sends only your provider key and connection metadata.
+- Page content stays local for local generation. Explicit remote generation sends the input described above to your selected provider under its and any upstream model provider's policies. Revocation stops future transmissions and aborts active requests, but cannot recall data already sent. Remote providers never enter automatic selection or fallback. Remote background/context-menu runs, multi-tab synthesis, and automatic suggestions are disabled with a safe explanation.
 
 REQUIREMENTS
 
@@ -114,9 +114,9 @@ Apogee is free and open source (MIT licensed). Source, issues, and releases: htt
 
 ## Single purpose description
 
-Apogee summarizes the web page, video, or PDF the user currently views. It answers questions about that content. Both tasks use an AI model on the user own device. It runs in-browser through WebGPU or WebAssembly. It also runs through a local Ollama instance.
+Apogee summarizes the web page, video, or PDF the user currently views and answers questions about that content. Both tasks use a local AI model by default through WebGPU, WebAssembly, Ollama, or llama.cpp. Explicitly selected remote generation is optional and requires separate consent.
 
-Each permission and feature serves this one purpose: on-device summarization and question-answering of the content the user actively looks at. Apogee sends no content to any remote server.
+Each permission and feature serves summarization and question-answering of content the user actively selects. Local generation keeps content on device; opt-in foreground remote generation transmits input to the selected provider as disclosed above.
 
 ## Permission justifications
 
@@ -126,7 +126,7 @@ Each permission and feature serves this one purpose: on-device summarization and
 
 **tabs** Apogee sees which tab is active so the persistent side panel re-renders when the user switches tabs. It reads only the active tab id, URL, and title. It reads no browsing history and tracks no other tabs.
 
-**storage** Stores the user local settings. They cover the picked AI provider and model, the summary format, and other prefs. They stay between sessions. Provider keys are stored locally, with consent choices, and are transmitted only to their matching origin for an explicitly requested authenticated catalog refresh. Other preferences stay on the device.
+**storage** Stores local settings, the selected provider/model, summary format, provider keys, and separate catalog and generation consent choices between sessions. Credentials are sent only to their matching fixed origin for an explicitly requested catalog refresh or authorized foreground generation. Public settings redact credentials.
 
 **offscreen** On Chromium, the extension service worker cannot reach WebGPU. Apogee uses an offscreen document to run the in-browser AI model outside any visible tab. It runs WebLLM on WebGPU, or Transformers.js on WebAssembly. Summarization runs in the background with no dedicated page.
 
@@ -146,7 +146,7 @@ A bundled static rule scoped to those loopback hosts stays as a fallback. The ru
 
 **notifications** It shows a system note when a summary asked for with keyboard shortcut or context menu is ready. The popup often stays closed while the model generates.
 
-**Host permission justification** (`*://*/*`, `http://127.0.0.1/*`, `http://localhost/*`, `http://[::1]/*`) These loopback host permissions link Apogee to the user own local Ollama server. They serve users who opt into Local Ollama mode. Requests go straight to the model running on their own machine. Only loopback addresses on the user device take part. The all-sites entry keeps the persistent side panel working across tab changes. It already covers optional metadata refreshes to `https://openrouter.ai` and `https://opencode.ai`; those exact origins are also in the CSP `connect-src`. No additional optional host permission is needed for them. Remote setup consent and Firefox authentication data permission are separate requirements. Apogee reads page text only when the user asks for a summary.
+**Host permission justification** (`*://*/*`, `http://127.0.0.1/*`, `http://localhost/*`, `http://[::1]/*`) Loopback host permissions link Apogee to the user's own local servers. The all-sites entry keeps the persistent side panel working across tab changes and covers optional catalogs and generation at `https://openrouter.ai` and `https://opencode.ai`; these fixed origins are also in CSP `connect-src`. No additional optional host permission is needed for them. Catalog consent, generation consent, and Firefox optional data permissions remain separate requirements. Firefox requests `authenticationInfo`, `websiteContent`, `browsingActivity`, and `personalCommunications` from the generation consent gesture. Apogee reads page text when the user requests processing.
 
 **Host permission justification** (`*://*.bilibili.com/*`, `*://*.hdslb.com/*`, `*://*.youtube.com/*`, `*://*.googlevideo.com/*`, `*://*.bsky.app/*`, `https://sponsor.ajay.app/*`) The manifest states these site-specific cross-origin permissions as `optional_host_permissions` in `manifest.json`. When the user summarizes a Bilibili or YouTube video, Apogee checks granted permissions. It asks the user on demand before it fetches subtitles from the Bilibili API (`api.bilibili.com` / `hdslb.com`). It fetches the video caption track from YouTube endpoints through the page content script (`youtube.com` / `googlevideo.com`). It fetches SponsorBlock timestamps (`sponsor.ajay.app`, opt out under Settings, then Privacy to turn the lookup off fully).
 
@@ -162,9 +162,9 @@ Runtime downloads include model weight files from Hugging Face, extractor data, 
 
 ## Data usage
 
-Stage A handles page content locally and sends none of it to remote model providers. Optional authenticated catalog refreshes do transmit the user's provider credential and connection metadata. Reassess the store data-use disclosure for this authentication flow before submission; do not reuse the prior blanket no-data-collection statement. Remote summary/Ask generation remains disabled pending maintainer security review.
+B1 keeps local generation as the default. Optional authenticated catalogs transmit the user's provider credential and connection metadata. Separately authorized foreground Summary and Ask generation transmits website content, title/URL (browsing activity), selected/pasted/extracted uploaded text (which may include personal communications), questions, and instructions to the selected provider and its upstream model provider. Store data-use disclosures must cover authentication information, website content, browsing activity, and personal communications for this optional flow; do not reuse a blanket no-data-transmission statement. Revocation stops future transmissions but cannot recall sent data. There is no telemetry or automatic remote fallback.
 
-Firefox declares no required data collection (`required: ["none"]`) and optional `authenticationInfo` for provider credentials. Its built-in data permission is requested before transmitting a key, in addition to the extension's setup consent. See [Mozilla's data-consent documentation](https://extensionworkshop.com/documentation/develop/firefox-builtin-data-consent/).
+Firefox declares no required data collection (`required: ["none"]`) and optional `authenticationInfo`, `websiteContent`, `browsingActivity`, and `personalCommunications`. Catalog-only setup requests authentication permission; generation consent requests the content-related permissions as well. The worker rechecks these permissions before sending content. See [Mozilla's data-consent documentation](https://extensionworkshop.com/documentation/develop/firefox-builtin-data-consent/).
 
 Certify all three disclosures (no selling/transfer, no unrelated use, no creditworthiness use). All true.
 
@@ -211,7 +211,7 @@ Shown here at 1280x800, the size uploaded to the Chrome Web Store.
 
 ![In the browser slide](../.github/assets/apogee-deck-1280x800-4.png)
 
-**5. Get started.** Install CTA, the zero servers / 100% on device / MIT stats, and the outlined wordmark.
+**5. Get started.** Install CTA, the zero servers / 100% on device / MIT stats, and the outlined wordmark. The local-only claims in this image apply to local generation.
 
 ![Get started slide](../.github/assets/apogee-deck-1280x800-5.png)
 

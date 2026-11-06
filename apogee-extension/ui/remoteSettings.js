@@ -1,16 +1,19 @@
 import { t } from "../lib/util/i18n.js";
+import { REMOTE_GENERATION_DATA } from "../lib/engines/remoteCredentials.js";
 import { REMOTE_PROVIDER_IDS } from "../lib/engines/remoteModels.js";
 
-// This preview only configures the worker. It never makes provider requests or
-// adds remote engines to the generation picker. The worker enforces consent.
+// Provider requests and persisted credentials remain worker-owned.
 export async function initRemoteSettings({
   root = globalThis.document,
   sendMessage = (message) => globalThis.chrome.runtime.sendMessage(message),
   translate = t,
-  requestConsentPermission = () =>
+  onChange = () => {},
+  requestConsentPermission = (generation = false) =>
     process.env.TARGET_BROWSER === "firefox"
       ? globalThis.chrome.permissions.request({
-          data_collection: ["authenticationInfo"],
+          data_collection: generation
+            ? [...REMOTE_GENERATION_DATA]
+            : ["authenticationInfo"],
         })
       : Promise.resolve(true),
 } = {}) {
@@ -28,6 +31,7 @@ export async function initRemoteSettings({
       panel.element.querySelector(`[data-remote="${name}"]`);
     return {
       consent: query("consent"),
+      generationConsent: query("generation-consent"),
       key: query("key"),
       save: query("save"),
       revoke: query("revoke"),
@@ -62,7 +66,8 @@ export async function initRemoteSettings({
       input.disabled = panel.busy || !state;
     }
     // Revocation remains available while a catalog request is in flight.
-    c.revoke.disabled = state?.consent !== true;
+    c.revoke.disabled =
+      state?.consent !== true && state?.generationConsent !== true;
     c.clearKey.disabled = state?.hasApiKey !== true;
     c.refresh.disabled ||= !canRefresh(state, c.consent.checked);
     c.model.disabled ||=
@@ -89,6 +94,7 @@ export async function initRemoteSettings({
       panel.element.setAttribute("open", "");
     const c = controls(panel);
     c.consent.checked = state.consent;
+    c.generationConsent.checked = state.generationConsent === true;
     c.model.replaceChildren();
     const placeholder = root.createElement("option");
     placeholder.value = "";
@@ -115,7 +121,10 @@ export async function initRemoteSettings({
       (Object.hasOwn(payload, "apiKey") || payload.consent === false);
     if ((panel.busy && !interrupts) || !panel.state) return;
     const epoch = ++panel.epoch;
-    if (payload.consent === false) controls(panel).consent.checked = false;
+    if (payload.consent === false) {
+      controls(panel).consent.checked = false;
+      controls(panel).generationConsent.checked = false;
+    }
     panel.busy = true;
     let completed = false;
     render(
@@ -134,6 +143,9 @@ export async function initRemoteSettings({
       if (response?.error) throw new Error("Remote settings request failed");
       apply(panel, response);
       completed = true;
+      void Promise.resolve()
+        .then(() => onChange(panel.provider))
+        .catch(() => {});
     } catch {
       if (panel.epoch !== epoch) return;
       if (action === "remote-models-refresh") {
@@ -172,9 +184,16 @@ export async function initRemoteSettings({
     render(panel, "remoteSettingsLoading");
     c.save.addEventListener("click", async () => {
       if (panel.busy || !panel.state) return;
-      const payload = { provider: panel.provider, consent: c.consent.checked };
+      const payload = {
+        provider: panel.provider,
+        consent: c.consent.checked,
+        // Generation consent is a subset of catalog consent. Normalize here so
+        // unchecking catalog consent revokes both in one Save instead of
+        // sending a rejected combination to the worker.
+        generationConsent: c.consent.checked && c.generationConsent.checked,
+      };
       if (c.key.value.trim()) payload.apiKey = c.key.value.trim();
-      if (payload.consent) {
+      if (payload.consent || payload.generationConsent) {
         // Request Firefox's data permission from the explicit consent gesture.
         // Saving this setting and all provider traffic remain worker-owned.
         panel.busy = true;
@@ -182,7 +201,7 @@ export async function initRemoteSettings({
         render(panel, "remoteSaving");
         let granted = false;
         try {
-          granted = await requestConsentPermission();
+          granted = await requestConsentPermission(payload.generationConsent);
         } catch {
           // A missing or denied permission must never become saved consent.
         }
@@ -191,6 +210,7 @@ export async function initRemoteSettings({
         if (!granted) {
           c.key.value = "";
           c.consent.checked = false;
+          c.generationConsent.checked = false;
           render(panel, "remotePermissionDenied");
           return;
         }
@@ -203,6 +223,7 @@ export async function initRemoteSettings({
         void run(panel, "remote-settings-save", {
           provider: panel.provider,
           consent: false,
+          generationConsent: false,
         }),
     );
     c.clearKey.addEventListener(

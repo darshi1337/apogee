@@ -13,6 +13,7 @@ import {
   attachToStream,
   cancelStream,
   StreamCancelledError,
+  isRemoteProvider,
 } from "../lib/engines/providers.js";
 import {
   INPUT_KINDS,
@@ -496,6 +497,7 @@ function startSuggestedQuestionsBg(
   persist = true,
   focusKeyword = "",
 ) {
+  if (isRemoteProvider(settings.provider)) return;
   currentPromptsCacheKey = promptsCacheKey;
   chrome.runtime
     .sendMessage({
@@ -536,7 +538,16 @@ async function restoreSuggestedPrompts({
   useStored = true,
   pageType = "",
   selectionText = "",
+  providerType = settings.provider,
 }) {
+  if (
+    isRemoteProvider(providerType) ||
+    isRemoteProvider(settings.provider) ||
+    /:p(?:openrouter|opencode)(?=:|$)/.test(promptsCacheKey || "")
+  ) {
+    showSummaryContext([]);
+    return;
+  }
   if (useStored && promptsCacheKey) {
     const stored = await chrome.storage.local.get(promptsCacheKey);
     if (stored[promptsCacheKey] !== undefined) {
@@ -720,8 +731,10 @@ async function applySettingsToUI(settings) {
     `input[name="provider"][value="${provider}"]`,
   );
   if (provRadio) provRadio.checked = true;
-  if (autoEngineCheckbox)
+  if (autoEngineCheckbox) {
     autoEngineCheckbox.checked = Boolean(settings.autoEngine);
+    autoEngineCheckbox.disabled = isRemoteProvider(provider);
+  }
 
   const isWebllm = provider === PROVIDERS.WEBLLM;
   const isTransformers = provider === PROVIDERS.TRANSFORMERS;
@@ -1674,12 +1687,22 @@ function summarizeJobRunner(settings, summarizeArgs, opts) {
     content: summarizeArgs.content,
     reset: () => setLoadingIndicator(summaryText, randomSummarizeVerb()),
     start: (engine) => engine.summarize(summarizeArgs),
-    persistStream,
+    persistStream: (streamId, _index, execution) =>
+      persistStream(streamId, execution),
     onStreamStart,
     showCancel: summaryCancel.show,
     hideCancel: summaryCancel.hide,
-    consume: (stream) =>
-      consumeSummaryStream(stream, { tab, promptsCacheKey, jobId }),
+    consume: (stream, _index, execution) => {
+      if (execution) {
+        currentSummaryLanguage = execution.language;
+        currentTranslationEngine = execution.translationEngine;
+      }
+      return consumeSummaryStream(stream, {
+        tab,
+        promptsCacheKey: execution?.promptsCacheKey || promptsCacheKey,
+        jobId,
+      });
+    },
     renderFallback: (fallbackText) =>
       renderExtractedTextFallback(summaryText, fallbackText),
   });
@@ -1701,6 +1724,31 @@ async function returnHomeAfterCancel(tabId, jobId = null) {
       });
   if (!state) return;
   showOnlyView("homeView");
+}
+
+// A failed stream must not leave its id in the saved view state, or a later
+// restore tries to attach to a dead stream and shows the spinner again.
+async function clearFailedStreamState(tabId, jobId = null, subview = null) {
+  if (tabId == null) return;
+  try {
+    if (jobId) {
+      await saveViewStateIfJobMatches(
+        tabId,
+        jobId,
+        { streamId: null },
+        subview ?? "summarizing",
+      );
+      return;
+    }
+    // Without a job id, do not clear a stream that a different subview owns.
+    if (subview) {
+      const state = await loadViewState(tabId);
+      if (state?.subview !== subview) return;
+    }
+    await saveViewState(tabId, { streamId: null });
+  } catch (error) {
+    console.warn("Could not clear failed stream state:", error);
+  }
 }
 
 function showSummaryContext(questions = []) {
@@ -1868,9 +1916,13 @@ async function consumeSummaryStream(stream, { tab, promptsCacheKey, jobId }) {
     jobId,
     buildSummaryCompletedState(tab, text),
   );
+  currentPromptsCacheKey = promptsCacheKey;
+  if (/:p(?:openrouter|opencode)(?=:|$)/.test(promptsCacheKey || "")) {
+    setSuggestedQuestions([]);
+    return text;
+  }
   setSuggestedQuestionsLoading();
 
-  currentPromptsCacheKey = promptsCacheKey;
   const { [promptsCacheKey]: existingQuestions } =
     await chrome.storage.local.get(promptsCacheKey);
   if (existingQuestions !== undefined) {
@@ -1930,6 +1982,7 @@ async function summarizeActivePage() {
   if (!startToken) return;
   let startedStreamId = null;
   let jobId = null;
+  let tab = null;
   try {
     if (activeSummarizeStreamId) {
       cancelStream(activeSummarizeStreamId);
@@ -1940,7 +1993,7 @@ async function summarizeActivePage() {
     setLoadingIndicator(summaryText, randomSummarizeVerb());
 
     jobId = `summary-${crypto.randomUUID()}`;
-    const [tab] = await chrome.tabs.query({
+    [tab] = await chrome.tabs.query({
       active: true,
       currentWindow: true,
     });
@@ -2063,7 +2116,7 @@ async function summarizeActivePage() {
         jobId,
         promptsCacheKey,
         isPdf: pageData.isPdf,
-        persistStream: async (streamId) => {
+        persistStream: async (streamId, execution) => {
           const activeJobState = await saveViewStateIfJobMatches(
             tab.id,
             jobId,
@@ -2072,13 +2125,20 @@ async function summarizeActivePage() {
               subview: "summarizing",
               url: tab.url,
               streamId,
-              promptsCacheKey,
+              promptsCacheKey: execution?.promptsCacheKey || promptsCacheKey,
               pageType,
               focusKeyword,
               isSelection: pageType === "selection",
               selectionText,
-              summaryLanguage: settings.summaryLanguage,
-              translationEngine: settings.translationEngine,
+              summaryLanguage: execution?.language ?? settings.summaryLanguage,
+              translationEngine:
+                execution?.translationEngine ?? settings.translationEngine,
+              ...(execution
+                ? {
+                    providerType: execution.providerType,
+                    model: execution.model,
+                  }
+                : {}),
             },
             "summarizing",
           );
@@ -2098,10 +2158,12 @@ async function summarizeActivePage() {
 
     announce("Summary ready.");
   } catch (error) {
+    const jobTabId = tab?.id ?? activeTabId;
     if (error instanceof StreamCancelledError) {
-      await returnHomeAfterCancel(activeTabId, jobId);
+      await returnHomeAfterCancel(jobTabId, jobId);
     } else {
       renderSummaryError(error);
+      await clearFailedStreamState(jobTabId, jobId);
     }
   } finally {
     summaryStartGate.release(startToken);
@@ -2153,13 +2215,14 @@ async function submitQuestion(question) {
   const startToken = askStartGate.tryStart();
   if (!startToken) return;
   let startedStreamId = null;
+  let tab = null;
   try {
     if (activeAskStreamId) {
       cancelStream(activeAskStreamId);
     }
     showAnswerContext(trimmed);
 
-    const [tab] = await chrome.tabs.query({
+    [tab] = await chrome.tabs.query({
       active: true,
       currentWindow: true,
     });
@@ -2214,13 +2277,21 @@ async function submitQuestion(question) {
       content,
       reset: () => showAnswerContext(trimmed),
       start: (engine) => engine.ask(askArgs),
-      persistStream: async (streamId) => {
+      persistStream: async (streamId, _index, execution) => {
         await saveViewState(tab.id, {
           view: "summaryView",
           subview: "answer",
           url: tab.url,
           streamId,
           question: trimmed,
+          ...(execution
+            ? {
+                providerType: execution.providerType,
+                model: execution.model,
+                summaryLanguage: execution.language,
+                translationEngine: execution.translationEngine,
+              }
+            : {}),
         });
         return "done";
       },
@@ -2236,11 +2307,15 @@ async function submitQuestion(question) {
         renderExtractedTextFallback(answerBox, fallbackText),
     });
   } catch (error) {
+    const jobTabId = tab?.id ?? activeTabId;
     if (error instanceof StreamCancelledError) {
-      returnToAskAfterCancel(activeTabId);
+      returnToAskAfterCancel(jobTabId);
     } else {
       console.error(error);
       renderError(answerBox, toUserMessage(error));
+      // Only clear the answer view. A summary may have started in the same tab
+      // while this stream was finishing.
+      await clearFailedStreamState(jobTabId, null, "answer");
     }
   } finally {
     askStartGate.release(startToken);
@@ -2394,7 +2469,14 @@ async function updateSummarizeShortcutHint() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  void initRemoteSettings();
+  void initRemoteSettings({
+    onChange: async (provider) => {
+      const settings = await getSettings();
+      if (settings.provider !== provider) return;
+      const status = await checkConnection();
+      updateConnectionUI(status?.ready === true);
+    },
+  });
   try {
     applyI18nToDom(document);
   } catch (err) {
@@ -2652,6 +2734,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 tab,
                 summary: state.summaryText,
                 settings,
+                providerType: state.providerType,
                 persist: false,
               });
               return;
@@ -2777,6 +2860,7 @@ async function summarizeCustomContent(title, content, url = "") {
   if (!startToken) return;
   let startedStreamId = null;
   let jobId = null;
+  let tab = null;
   try {
     if (activeSummarizeStreamId) {
       cancelStream(activeSummarizeStreamId);
@@ -2797,7 +2881,7 @@ async function summarizeCustomContent(title, content, url = "") {
     setLoadingIndicator(summaryText, randomSummarizeVerb());
 
     jobId = `summary-${crypto.randomUUID()}`;
-    const [tab] = await chrome.tabs.query({
+    [tab] = await chrome.tabs.query({
       active: true,
       currentWindow: true,
     });
@@ -2836,7 +2920,7 @@ async function summarizeCustomContent(title, content, url = "") {
       tab,
       jobId,
       promptsCacheKey,
-      persistStream: async (streamId) => {
+      persistStream: async (streamId, execution) => {
         if (tab?.id) {
           await saveViewState(tab.id, {
             view: "summaryView",
@@ -2846,7 +2930,15 @@ async function summarizeCustomContent(title, content, url = "") {
             jobId,
             summaryText: "",
             timeSaved: timeSavedInputsFor({ type: "article", content }),
-            promptsCacheKey,
+            promptsCacheKey: execution?.promptsCacheKey || promptsCacheKey,
+            ...(execution
+              ? {
+                  providerType: execution.providerType,
+                  model: execution.model,
+                  summaryLanguage: execution.language,
+                  translationEngine: execution.translationEngine,
+                }
+              : {}),
             pageType: "",
             focusKeyword: "",
             isSelection: false,
@@ -2861,11 +2953,13 @@ async function summarizeCustomContent(title, content, url = "") {
       },
     });
   } catch (error) {
+    const jobTabId = tab?.id ?? activeTabId;
     if (error instanceof StreamCancelledError) {
-      if (activeTabId) returnHomeAfterCancel(activeTabId, jobId);
+      if (jobTabId) returnHomeAfterCancel(jobTabId, jobId);
     } else {
       console.error(error);
       renderSummaryError(error);
+      await clearFailedStreamState(jobTabId, jobId);
     }
   } finally {
     summaryStartGate.release(startToken);
@@ -3101,6 +3195,7 @@ providerRadios.forEach((radio) => {
     const settings = await saveSettings({
       ...modelPatch,
       provider: radio.value,
+      ...(isRemoteProvider(radio.value) ? { autoEngine: false } : {}),
     });
     await applySettingsToUI(settings);
     const status = await checkConnection();
@@ -3111,6 +3206,8 @@ providerRadios.forEach((radio) => {
 });
 
 autoEngineCheckbox?.addEventListener("change", async () => {
+  const settings = await getSettings();
+  autoEngineCheckbox.checked &&= !isRemoteProvider(settings.provider);
   await saveSettings({ autoEngine: autoEngineCheckbox.checked });
 });
 

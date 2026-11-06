@@ -1,14 +1,23 @@
-import { getSettings } from "../storage/settings.js";
-import { onRemoteCredentialChange } from "./remoteCredentials.js";
+import { getRemoteCredentialsSettings } from "../storage/settings.js";
+import {
+  hasRemoteCatalogPermissions,
+  hasRemoteGenerationPermissions,
+  REMOTE_GENERATION_DATA,
+  onRemoteCredentialChange,
+  onRemoteGenerationChange,
+} from "./remoteCredentials.js";
 import {
   normalizeRemoteModels,
   remotePreset,
   validRemoteModelId,
 } from "./remoteModels.js";
+import { UserFacingError } from "../util/userError.js";
 
 const active = new Map();
 const holds = new Map();
-const REMOTE_REQUEST_TIMEOUT_MS = 30000;
+// Connecting and stream reads share one idle window. The timer re-arms after
+// every chunk, so a healthy long generation is not cut off at 30 seconds.
+const REMOTE_IDLE_TIMEOUT_MS = 30000;
 export const REMOTE_RESPONSE_MAX_BYTES = 4 * 1024 * 1024;
 const MAX_EVENT_CHARS = 65536;
 let watchedCredentials = false;
@@ -17,6 +26,7 @@ function watchCredentials() {
   if (watchedCredentials) return;
   watchedCredentials = true;
   onRemoteCredentialChange((provider) => abortRemoteRequests(provider));
+  onRemoteGenerationChange((provider) => abortRemoteRequests(provider));
 }
 
 export function abortRemoteRequests(provider) {
@@ -37,7 +47,7 @@ export function remoteRequestsHeld(provider) {
 
 async function withRemoteRequest(
   provider,
-  { signal, url, method, body, expected } = {},
+  { signal, url, method, body, expected, assertAuthorized } = {},
   consume,
 ) {
   watchCredentials();
@@ -48,12 +58,31 @@ async function withRemoteRequest(
   const abort = () => controller.abort();
   signal?.addEventListener("abort", abort, { once: true });
   if (signal?.aborted) controller.abort();
-  const timer = setTimeout(abort, REMOTE_REQUEST_TIMEOUT_MS);
+  // Abort mid-flight if the Firefox data-collection permission that allows
+  // this request is revoked, so catalog and generation both fail closed.
+  const onPermissionsRemoved = (permissions) => {
+    const removed = permissions?.data_collection;
+    if (!Array.isArray(removed) || removed.length === 0) return;
+    const relevant = body ? REMOTE_GENERATION_DATA : ["authenticationInfo"];
+    if (removed.some((category) => relevant.includes(category)))
+      controller.abort();
+  };
+  chrome.permissions?.onRemoved?.addListener(onPermissionsRemoved);
+  let timedOut = false;
+  let timer;
+  const armTimeout = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      timedOut = true;
+      abort();
+    }, REMOTE_IDLE_TIMEOUT_MS);
+  };
+  armTimeout();
   let reader;
   let safeFailure =
     "Remote request failed. Check consent, credentials and connectivity.";
   try {
-    const settings = await getSettings();
+    const settings = await getRemoteCredentialsSettings();
     if (controller.signal.aborted || holds.get(provider)) throw new Error();
     if (settings[`${provider}Consent`] !== true)
       throw new Error("Remote consent is required.");
@@ -62,16 +91,18 @@ async function withRemoteRequest(
     if (
       expected &&
       (apiKey !== expected.apiKey ||
-        settings[`${provider}Model`] !== expected.model)
+        settings[`${provider}Model`] !== expected.model ||
+        settings[`${provider}GenerationRevision`] !== expected.revision)
     )
       throw new Error();
-    if (
-      process.env.TARGET_BROWSER === "firefox" &&
-      !(await chrome.permissions.contains({
-        data_collection: ["authenticationInfo"],
-      }))
-    )
-      throw new Error();
+    if (body) {
+      if (
+        settings[`${provider}GenerationConsent`] !== true ||
+        !(await hasRemoteGenerationPermissions())
+      )
+        throw new Error();
+      await assertAuthorized?.();
+    } else if (!(await hasRemoteCatalogPermissions())) throw new Error();
     if (controller.signal.aborted || holds.get(provider)) throw new Error();
     const response = await fetch(url, {
       method: method || (body ? "POST" : "GET"),
@@ -104,11 +135,15 @@ async function withRemoteRequest(
       await response.body?.cancel().catch(() => {});
       throw new Error();
     }
+    // Headers arrived. The idle window now covers the first chunk and every
+    // gap between chunks, not the total stream duration.
+    armTimeout();
     reader = response.body.getReader();
     let bytes = 0;
     const read = async () => {
       const result = await reader.read();
       if (controller.signal.aborted) throw new Error();
+      armTimeout();
       bytes += result.value?.byteLength || 0;
       if (bytes > REMOTE_RESPONSE_MAX_BYTES) throw new Error();
       return result;
@@ -116,14 +151,17 @@ async function withRemoteRequest(
     return await consume(read);
   } catch {
     // Never expose HTTP bodies, transport errors, keys or prompt text.
-    throw new Error(
+    throw new UserFacingError(
       controller.signal.aborted
-        ? "Remote request cancelled or timed out."
+        ? timedOut
+          ? "Remote request timed out. Retry later."
+          : "Remote request cancelled."
         : safeFailure,
     );
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", abort);
+    chrome.permissions?.onRemoved?.removeListener(onPermissionsRemoved);
     controller.abort();
     if (reader) {
       await reader.cancel().catch(() => {});
@@ -156,14 +194,15 @@ async function readText(read) {
   return text + decoder.decode();
 }
 
-// Deliberately unregistered: Stage A exposes setup only. Future callers supply
-// callbacks, never host, key, model, or consent overrides.
 export async function streamRemoteChat(
   provider,
   prompt,
-  { signal, system, onToken } = {},
+  { signal, system, onToken, assertAuthorized, catalog } = {},
 ) {
-  const settings = await getSettings();
+  await assertAuthorized?.();
+  const settings = await getRemoteCredentialsSettings();
+  if (settings[`${provider}GenerationConsent`] !== true)
+    throw new UserFacingError("Remote generation consent is required.");
   const model = settings[`${provider}Model`];
   if (
     !validRemoteModelId(model) ||
@@ -171,16 +210,24 @@ export async function streamRemoteChat(
     prompt.length > 200000 ||
     (system != null && (typeof system !== "string" || system.length > 20000))
   )
-    throw new Error("Invalid remote chat request.");
-  const models = await fetchRemoteModels(provider, { signal });
+    throw new UserFacingError("Invalid remote chat request.");
+  // Background jobs already hold a fresh catalog from job creation. Reusing it
+  // avoids one catalog GET before every map/reduce request.
+  const models = Array.isArray(catalog)
+    ? catalog
+    : await fetchRemoteModels(provider, { signal });
   if (!models.some((entry) => entry.id === model))
-    throw new Error("Select an eligible remote model.");
-  const current = await getSettings();
+    throw new UserFacingError("Select an eligible remote model.");
+  await assertAuthorized?.();
+  const current = await getRemoteCredentialsSettings();
   if (
     current[`${provider}Model`] !== model ||
-    current[`${provider}ApiKey`] !== settings[`${provider}ApiKey`]
+    current[`${provider}ApiKey`] !== settings[`${provider}ApiKey`] ||
+    current[`${provider}GenerationConsent`] !== true ||
+    current[`${provider}GenerationRevision`] !==
+      settings[`${provider}GenerationRevision`]
   )
-    throw new Error("Remote settings changed. Retry the request.");
+    throw new UserFacingError("Remote settings changed. Retry the request.");
   const messages = [
     ...(system ? [{ role: "system", content: system }] : []),
     { role: "user", content: prompt },
@@ -190,7 +237,12 @@ export async function streamRemoteChat(
     messages,
     stream: true,
     ...(provider === "openrouter"
-      ? { provider: { max_price: { prompt: 0, completion: 0, request: 0 } } }
+      ? {
+          provider: {
+            max_price: { prompt: 0, completion: 0, request: 0 },
+            allow_fallbacks: false,
+          },
+        }
       : {}),
   };
   const preset = remotePreset(provider);
@@ -201,7 +253,12 @@ export async function streamRemoteChat(
       url: `${preset.base}/chat/completions`,
       method: "POST",
       body,
-      expected: { apiKey: settings[`${provider}ApiKey`], model },
+      expected: {
+        apiKey: settings[`${provider}ApiKey`],
+        model,
+        revision: settings[`${provider}GenerationRevision`],
+      },
+      assertAuthorized,
     },
     async (read) => {
       const decoder = new TextDecoder();

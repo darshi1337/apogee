@@ -319,3 +319,21 @@ test("getRedactedSettings hides free-text and non-loopback hosts (#416)", () => 
     "http://127.0.0.1:11434",
   );
 });
+
+test("diagnostics uses redacted remote key presence without needing credentials", () => {
+  const settings = cloneDefaults({
+    openrouterHasApiKey: true,
+    opencodeHasApiKey: false,
+  });
+  delete settings.openrouterApiKey;
+  delete settings.opencodeApiKey;
+  const entries = getRedactedSettings(settings);
+  assert.deepStrictEqual(
+    entries.find(({ key }) => key === "openrouterApiKey"),
+    { key: "openrouterApiKey", value: "[redacted]", isDefault: false },
+  );
+  assert.deepStrictEqual(
+    entries.find(({ key }) => key === "opencodeApiKey"),
+    { key: "opencodeApiKey", value: "unset", isDefault: true },
+  );
+});

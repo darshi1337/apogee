@@ -3,6 +3,7 @@ import { TRANSLATION_ENGINES } from "../constants.js";
 import { sha256Hex } from "../util/hash.js";
 import { createLock } from "../util/mutex.js";
 import { tryParseUrl } from "../util/url.js";
+import { isRemoteProvider } from "../engines/remoteModels.js";
 
 const acquireIndexLock = createLock();
 
@@ -59,8 +60,9 @@ export async function getSummaryCacheKey(
   customInstructions = "",
   translationEngine = TRANSLATION_ENGINES.OPUS,
   focusKeyword = "",
+  providerType = "",
 ) {
-  return makeCacheKey(
+  const key = await makeCacheKey(
     "summary",
     url,
     fmt,
@@ -70,6 +72,7 @@ export async function getSummaryCacheKey(
     translationEngine,
     focusKeyword,
   );
+  return isRemoteProvider(providerType) ? `${key}:p${providerType}` : key;
 }
 
 // Inverse of the cache key for display: best-effort, with trailing
@@ -80,7 +83,16 @@ export function parseSummaryCacheKey(cacheKey) {
   if (typeof cacheKey !== "string" || !cacheKey.startsWith("summary:")) {
     return fallback;
   }
-  const rest = cacheKey
+  const suffixIndex = cacheKey.lastIndexOf(":p");
+  const possibleProvider =
+    suffixIndex >= 0 ? cacheKey.slice(suffixIndex + 2) : "";
+  const providerType = isRemoteProvider(possibleProvider)
+    ? possibleProvider
+    : undefined;
+  const scopedKey = providerType
+    ? cacheKey.slice(0, -`:p${providerType}`.length)
+    : cacheKey;
+  const rest = scopedKey
     .replace(/:k[0-9a-f]{12}$/, "")
     .replace(/:i[0-9a-f]{12}$/, "")
     .replace(/:[0-9a-f]{32}$/, "")
@@ -91,7 +103,12 @@ export function parseSummaryCacheKey(cacheKey) {
     .replace(/^summary:/, "");
   const [format = "", language = "", ...modelParts] = rest.split(":");
   if (!format || !language || modelParts.length === 0) return fallback;
-  return { format, language, model: modelParts.join(":") };
+  return {
+    format,
+    language,
+    model: modelParts.join(":"),
+    ...(providerType ? { providerType } : {}),
+  };
 }
 // The suggested-questions key carries what the questions actually depend on:
 // the page, the model, the language they are written in, the translation engine,
@@ -178,6 +195,7 @@ export async function getSummaryCacheKeyForSettings(
     settings.customInstructions,
     settings.translationEngine,
     focusKeyword,
+    settings.provider,
   );
 }
 
@@ -255,6 +273,9 @@ export async function sanitizeTitleForStorage(title, options = {}) {
   return title.trim();
 }
 
+// Persist a summary and update the cache index. `options.afterCommit` runs
+// after the cache write but before eviction cleanup, so callers can commit
+// related state atomically; if it throws, the cache write is rolled back.
 export async function persistSummary(
   cacheKey,
   promptsCacheKey,
@@ -272,7 +293,13 @@ export async function persistSummary(
       );
     }
 
-    const { cacheOrder = [] } = await chrome.storage.local.get("cacheOrder");
+    const rollbackOnFailure = Boolean(
+      options.assertAuthorized || options.afterCommit,
+    );
+    const previous = await chrome.storage.local.get(
+      rollbackOnFailure ? ["cacheOrder", cacheKey] : "cacheOrder",
+    );
+    const { cacheOrder = [] } = previous;
     const order = cacheOrder
       .filter((e) => e && e.s !== cacheKey)
       .map((e) => {
@@ -293,12 +320,40 @@ export async function persistSummary(
 
     const removeKeys = await evictSummariesOverBudget(order);
 
+    await options.assertAuthorized?.();
     try {
       await chrome.storage.local.set({ [cacheKey]: text, cacheOrder: order });
     } catch (err) {
       // Surface quota-full visibly with retryable text instead of silent loss.
       if (isQuotaError(err)) throw new StorageQuotaError();
       throw err;
+    }
+    if (rollbackOnFailure) {
+      try {
+        await options.assertAuthorized?.();
+        await options.afterCommit?.();
+      } catch (err) {
+        // Keep the writer lock until the failed commit has been undone; old
+        // eviction targets still exist because removal happens after this check.
+        // A rollback failure must not mask the original error.
+        const restore = {};
+        const remove = [];
+        for (const key of [cacheKey, "cacheOrder"]) {
+          if (previous[key] === undefined) remove.push(key);
+          else restore[key] = previous[key];
+        }
+        try {
+          if (Object.keys(restore).length)
+            await chrome.storage.local.set(restore);
+          if (remove.length) await chrome.storage.local.remove(remove);
+        } catch (rollbackErr) {
+          console.warn(
+            "Failed to roll back cache write after revocation.",
+            rollbackErr,
+          );
+        }
+        throw err;
+      }
     }
     if (removeKeys.length > 0) await chrome.storage.local.remove(removeKeys);
   } finally {

@@ -697,6 +697,36 @@
               >
             </label>
 
+            <label class="radio-option">
+              <input
+                type="radio"
+                name="provider"
+                id="provOpenrouter"
+                value="openrouter"
+              />
+              <span
+                ><span data-i18n="remoteOpenRouter">OpenRouter</span>
+                <small class="provider-badge" data-i18n="remoteOpenRouterBadge"
+                  >Free models only</small
+                ></span
+              >
+            </label>
+
+            <label class="radio-option">
+              <input
+                type="radio"
+                name="provider"
+                id="provOpencode"
+                value="opencode"
+              />
+              <span
+                ><span data-i18n="remoteOpenCode">OpenCode Zen</span>
+                <small class="provider-badge" data-i18n="remoteOpenCodeBadge"
+                  >Paid</small
+                ></span
+              >
+            </label>
+
             <div id="remoteSettings" class="remote-settings">
               <div class="remote-heading">
                 <span
@@ -706,7 +736,7 @@
                   >Remote providers</span
                 >
                 <small class="provider-badge" data-i18n="remotePreviewBadge"
-                  >Preview</small
+                  >Opt-in</small
                 >
               </div>
               <p
@@ -714,8 +744,12 @@
                 class="settings-hint remote-hint"
                 data-i18n="remoteSetupPreview"
               >
-                Model list setup only. Generation stays local. Your key goes
-                only to the selected provider.
+                Catalog consent sends your key only to the selected provider.
+                Generation consent also sends page, selected or uploaded text,
+                included titles and URLs, questions, instructions and derived
+                follow-up data to that provider and its upstream model
+                providers. OpenRouter uses free models only; OpenCode Zen is
+                paid.
               </p>
 
               <details
@@ -749,8 +783,20 @@
                       disabled
                     />
                     <span data-i18n="remoteConsent"
-                      >I consent to requests to this provider and its upstream
-                      model providers.</span
+                      >I consent to catalog requests with my API key to this
+                      provider.</span
+                    >
+                  </label>
+                  <label class="remote-consent">
+                    <input
+                      data-remote="generation-consent"
+                      type="checkbox"
+                      aria-describedby="remoteDisclosure"
+                      disabled
+                    />
+                    <span data-i18n="remoteGenerationConsent"
+                      >I consent to sending content for remote summaries and Ask
+                      to this provider and its upstream model providers.</span
                     >
                   </label>
                   <label class="settings-field">
@@ -860,8 +906,20 @@
                       disabled
                     />
                     <span data-i18n="remoteConsent"
-                      >I consent to requests to this provider and its upstream
-                      model providers.</span
+                      >I consent to catalog requests with my API key to this
+                      provider.</span
+                    >
+                  </label>
+                  <label class="remote-consent">
+                    <input
+                      data-remote="generation-consent"
+                      type="checkbox"
+                      aria-describedby="remoteDisclosure"
+                      disabled
+                    />
+                    <span data-i18n="remoteGenerationConsent"
+                      >I consent to sending content for remote summaries and Ask
+                      to this provider and its upstream model providers.</span
                     >
                   </label>
                   <label class="settings-field">
@@ -1139,7 +1197,9 @@
 
             <label class="radio-option">
               <input type="radio" name="useSponsorBlock" value="off" />
-              <span data-i18n="sponsorBlockOff">Stay fully local</span>
+              <span data-i18n="sponsorBlockOff"
+                >Disable SponsorBlock requests</span
+              >
             </label>
           </div>
 

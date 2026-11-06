@@ -1,8 +1,8 @@
 # Apogee Privacy and Security Architecture
 
-Privacy is the core promise of Apogee. The main guarantee is simple. In this release, your page content, and the summaries or answers made from it, never go to any cloud service or third party. Inference runs on your own device through WebGPU or WebAssembly. It also runs on your own machine through local loopback to Ollama or llama.cpp (`http://127.0.0.1`).
+Apogee uses local generation by default: page content, summaries, and answers stay on your device through WebGPU, WebAssembly, or local loopback to Ollama or llama.cpp (`http://127.0.0.1`). If you separately enable and explicitly select remote generation, the selected provider receives your input and returns the generated response.
 
-The details below state exactly which network requests happen and what stays on disk. Stage A adds optional remote-provider setup and model-catalog refresh only. Remote summary and Ask generation are disabled pending maintainer security review; no page content or prompts are sent to these providers.
+The details below state which network requests happen and what stays on disk. B1 supports optional remote catalogs and explicit foreground Summary and Ask generation. Catalog access and generation require separate consent. There is no automatic remote selection or fallback.
 
 ## Where Inference Happens
 
@@ -46,11 +46,15 @@ Apogee makes only a small set of outbound network requests:
 
   The video ID, URL, and page content never go out. Apogee picks the match locally. If the lookup fails, or the video has no SponsorBlock data, a local phrase heuristic runs instead. It makes no network call at all.
 
-  The lookup is on by default. Turn it off under Settings, then Privacy ("Stay fully local"). Then no SponsorBlock request goes out, and the local heuristic strips sponsor reads on its own. Explicit remote catalog refreshes are independent of this switch.
+  The lookup is on by default. Turn it off in Settings under SponsorBlock ("Disable SponsorBlock requests"). Then no SponsorBlock request goes out, and the local heuristic strips sponsor reads on its own. Explicit remote catalog refreshes and generation are independent of this switch.
 
-- **Optional Remote Catalog Refresh (Stage A)**: Only after explicit opt-in, Settings can refresh model metadata from `https://openrouter.ai/api/v1/models` or `https://opencode.ai/inference/v1/models`. The providers receive the request, ordinary connection metadata such as your IP address, and the provider API key when authentication is used. Keys stay in extension-local settings (not sync storage) and go only to the matching provider origin. Browser extension storage is not encrypted at rest, so protect access to your browser profile. Keys are redacted from configuration exports and diagnostics. Firefox additionally requests the optional `authenticationInfo` data permission before sending a key.
+- **Optional Remote Catalog Refresh**: Only after explicit opt-in, Settings can refresh model metadata from `https://openrouter.ai/api/v1/models` or `https://opencode.ai/inference/v1/models`. The providers receive the request, ordinary connection metadata such as your IP address, and the provider API key when authentication is used. Keys stay in extension-local settings (not sync storage) and go only to the matching fixed provider origin. Browser extension storage is not encrypted at rest, so protect access to your browser profile. Keys are available only through the worker credential helper and are redacted from public settings, configuration exports, and diagnostics. Firefox additionally requests the optional `authenticationInfo` data permission before sending a key.
 
-  OpenRouter uses the `https://openrouter.ai/api/v1` API base; its free preset admits only models whose advertised prices are all explicitly zero. OpenCode Console / Go uses `https://opencode.ai/inference/openai/v1` for future chat and the separate catalog endpoint above. OpenCode Console / Go is credits/Go access; this preset lists paid models only, and OpenCode also offers free models outside this preset. Catalog results are metadata, not model weights or executable code. There is no automatic remote selection or fallback, and no remote summary or Ask inference in Stage A. Future prompt transmission requires separate maintainer security review and an updated disclosure.
+  OpenRouter uses the `https://openrouter.ai/api/v1` API base; its free preset requires fresh catalog validation with all advertised prices explicitly zero. Generation sets `allow_fallbacks: false`. OpenCode Console / Go uses `https://opencode.ai/inference/openai/v1` for chat and the separate catalog endpoint above. It uses paid credits/Go access; the client excludes free models from this preset. Catalog results are metadata, not model weights or executable code.
+
+- **Optional Remote Generation (B1)**: After separate generation consent, explicitly choosing a remote provider and clicking Summary or Ask sends page text, selected text, pasted text, or locally extracted uploaded-file text, the title and URL when present, the question, custom instructions, and generated intermediate text needed for the job. Chat requests go only to `https://openrouter.ai/api/v1/chat/completions` or `https://opencode.ai/inference/openai/v1/chat/completions`, with the matching saved credential. Long inputs can require multiple map/reduce calls; language handling can require additional calls. No automatic remote selection or fallback occurs. Remote background/context-menu runs, multi-tab synthesis, and automatic suggestions are disabled and return a safe explanation.
+
+  Firefox requests optional `authenticationInfo`, `websiteContent`, `browsingActivity`, and `personalCommunications` data permissions from the generation consent gesture. Consent and permission are checked before transmission. Revoking consent or permission stops future transmissions and aborts active requests, but cannot recall data already sent. The selected provider and any upstream model provider handle transmitted data under their own policies. Local history exclusions control storage; they do not prevent an explicitly requested remote send.
 
 - **Enforced Connection Allow-List**: No other outside calls exist. The `connect-src` in `apogee-extension/manifest.json` is the exact allow-list enforced against extension pages (popup, background, offscreen). Content-script fetches (YouTube transcripts and the Reddit same-origin thread JSON above) run in the context of the page itself instead. The extractor host allow-list plus `optional_host_permissions` and `activeTab` bind them, as stated per item.
 
@@ -68,7 +72,7 @@ PDF text extraction runs fully client-side with `pdf.js`, bundled directly into 
 
 The popup parses DOCX files picked or dropped into it locally from their ZIP/XML structure. No document-conversion service or heavy parser dep takes part. Apogee also reads text, Markdown, JSON, and HTML files locally, plus pasted text. Picked files cap at 50 MB.
 
-Pasted, selected, or plain-text input caps at 100,000 characters. A note tells you when truncation happens. These inputs go only to the picked on-device engine or the clearly set loopback Ollama/llama.cpp server.
+Pasted, selected, or plain-text input caps at 100,000 characters. A note tells you when truncation happens. These inputs reach the selected local engine or, after separate remote generation consent and an explicit foreground action, the selected remote provider. Original file bytes stay local; extracted text can be transmitted.
 
 ## Local Ollama Connection Architecture
 
@@ -86,7 +90,7 @@ Apogee ships no Google Analytics, Mixpanel, crash-reporting SDKs, or telemetry o
 
 Settings includes an **Activity & Privacy Audit** panel. It gives full visual insight into local runs:
 
-- **Network Egress**: With the SponsorBlock lookup off, the badge reads **100% local**. It describes the local inference path, not all extension traffic. With remote setup enabled, it reads **Local inference + remote model catalog**, with SponsorBlock appended when enabled. Catalog refreshes send the metadata and authentication described above; this badge does not indicate remote prompt inference. With the lookup on, it reads **Local + SponsorBlock API**.
+- **Network Egress**: The badge describes enabled features, not measured traffic. With SponsorBlock and remote access off it reads **100% local**; documented weight and extractor downloads still apply. Catalog consent with a saved key reads **Local inference + remote model catalog**. Separate generation consent with catalog consent and a saved key reads **Opt-in remote generation + remote model catalog**. SponsorBlock is appended when enabled; alone it reads **Local + SponsorBlock API**. These labels indicate available network features, not whether a request occurred or a model is currently eligible.
 
 - **Pages processed**: It shows how many recent page extractions the capped log holds. The log lists title, URL, content char length, page type, and timestamp.
 
@@ -120,7 +124,7 @@ Apogee asks for a tight set of browser permissions to enforce security sandboxes
 
   The popup reads local files and pasted text only after you pick or give them there.
 
-- **`storage`**: It holds your prefs, provider keys and consent choices, plus the local cache stated above. Provider keys are local credentials, sent only to their provider origin on an explicitly requested authenticated catalog refresh.
+- **`storage`**: It holds your prefs, provider keys and separate consent choices, plus the local cache stated above. Provider keys are local credentials, sent only to their fixed provider origin for explicitly requested authenticated catalog refresh or authorized foreground generation.
 
 - **`tabs`**: It lets the side panel see which tab is active so it re-renders on tab switches. It reads only the active tab id, URL, and title. It reads no browsing history.
 
@@ -140,7 +144,7 @@ Apogee asks for a tight set of browser permissions to enforce security sandboxes
 
 - **Host & Optional Host Permissions**: Apogee holds standing host access to all sites (`*://*/*`) plus local loopback hosts (`http://127.0.0.1/*`, `http://localhost/*`, and `http://[::1]/*`) for your local Ollama instance. Page text is still read only when you ask for a summary. Site-specific cross-origin domains (such as `*.bilibili.com`, `*.hdslb.com`, `*.youtube.com`, `*.googlevideo.com`, `*.bsky.app` (which covers the `public.api.bsky.app` thread endpoint), and `sponsor.ajay.app`) need listing. They stay listed as `optional_host_permissions` in `manifest.json`. Apogee checks or asks for them on demand when features needing those surfaces run. Where the browser has no permissions API, these gates stay denied instead of failing open.
 
-  Apogee reaches each other site strictly on demand through `activeTab` when you click Summarize or Ask. Verbatim, the manifest holds `*://*/*`, `http://127.0.0.1/*`, `http://localhost/*`, and `http://[::1]/*` as standing hosts. The all-sites entry exists so the persistent side panel keeps working when you change tabs. It also already covers the two remote catalog origins (`https://openrouter.ai` and `https://opencode.ai`), so no redundant optional host permissions are added for them. Their exact origins are added to extension-pages `connect-src`; settings consent and Firefox data permission remain separate gates. The temporary tab grant expires on navigation. Page text is still read only when you ask for a summary. It holds `*://*.bilibili.com/*`, `*://*.hdslb.com/*`, `*://*.youtube.com/*`, `*://*.googlevideo.com/*`, `*://*.bsky.app/*`, and `https://sponsor.ajay.app/*` as optional hosts.
+  Apogee reaches each other site strictly on demand through `activeTab` when you click Summarize or Ask. Verbatim, the manifest holds `*://*/*`, `http://127.0.0.1/*`, `http://localhost/*`, and `http://[::1]/*` as standing hosts. The all-sites entry exists so the persistent side panel keeps working when you change tabs. It already covers the remote catalog and generation origins (`https://openrouter.ai` and `https://opencode.ai`), so no redundant optional host permissions are added for them. Their exact origins are in extension-pages `connect-src`; catalog consent, generation consent, and Firefox optional data permissions remain separate gates. The temporary tab grant expires on navigation. Page text is read only when you request processing. It holds `*://*.bilibili.com/*`, `*://*.hdslb.com/*`, `*://*.youtube.com/*`, `*://*.googlevideo.com/*`, `*://*.bsky.app/*`, and `https://sponsor.ajay.app/*` as optional hosts.
 
 - **`contextMenus`**: It adds the "Summarize this page" right-click menu entry. It sees no more of your browsing than the page you right-clicked. `activeTab` already covers that page.
 

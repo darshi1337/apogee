@@ -337,7 +337,7 @@
     "description": "SponsorBlock on option"
   },
   "sponsorBlockOff": {
-    "message": "Stay fully local",
+    "message": "Disable SponsorBlock requests",
     "description": "SponsorBlock off option"
   },
   "privacy": { "message": "Privacy", "description": "Privacy card title" },
@@ -448,19 +448,19 @@
     "description": "Remote provider setup section title"
   },
   "remotePreviewBadge": {
-    "message": "Preview",
-    "description": "Remote provider setup preview badge"
+    "message": "Opt-in",
+    "description": "Remote provider opt-in badge"
   },
   "remoteSetupPreview": {
-    "message": "Model list setup only. Generation stays local. Your key goes only to the selected provider.",
-    "description": "Remote provider setup"
+    "message": "Catalog consent sends your key only to the selected provider. Generation consent also sends page, selected or uploaded text, included titles and URLs, questions, instructions and derived follow-up data to that provider and its upstream model providers. OpenRouter uses free models only; OpenCode Zen is paid.",
+    "description": "Remote provider catalog and generation disclosure"
   },
   "remoteOpenRouter": {
     "message": "OpenRouter",
     "description": "Remote provider setup"
   },
   "remoteOpenRouterBadge": {
-    "message": "Free",
+    "message": "Free models only",
     "description": "OpenRouter free model badge"
   },
   "remoteOpenCode": {
@@ -472,8 +472,8 @@
     "description": "OpenCode paid model badge"
   },
   "remoteConsent": {
-    "message": "I consent to requests to this provider and its upstream model providers.",
-    "description": "Remote provider setup"
+    "message": "I consent to catalog requests with my API key to this provider.",
+    "description": "Consent to remote provider catalog requests"
   },
   "remoteApiKey": {
     "message": "Provider API key",
@@ -554,5 +554,9 @@
   "remoteModelsRefreshEmpty": {
     "message": "Refresh failed. No models were loaded. Check your API key and try again.",
     "description": "Remote catalog refresh error with no cached models"
+  },
+  "remoteGenerationConsent": {
+    "message": "I consent to sending content for remote summaries and Ask to this provider and its upstream model providers.",
+    "description": "Separate consent to transmit content for remote generation"
   }
 }

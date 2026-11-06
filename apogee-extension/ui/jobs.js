@@ -46,15 +46,15 @@ export async function runStreamingJob({
     chain,
     async (type, engine, index) => {
       reset?.(index);
-      const { streamId, stream } = await start(engine, type, index);
-      if ((await persistStream(streamId, index)) === "superseded") {
+      const { streamId, stream, execution } = await start(engine, type, index);
+      if ((await persistStream(streamId, index, execution)) === "superseded") {
         cancelStream(streamId);
         return "superseded";
       }
       onStreamStart?.(streamId);
       showCancel(streamId);
       try {
-        await consume(stream, index);
+        await consume(stream, index, execution);
       } finally {
         hideCancel(streamId);
       }

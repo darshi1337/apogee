@@ -12,7 +12,11 @@ import {
   refreshRemoteModels,
 } from "../../lib/storage/remoteSettings.js";
 import { getRedactedSettings } from "../../lib/util/diagnostics.js";
-import { getSettings, updateSettings } from "../../lib/storage/settings.js";
+import {
+  getSettings,
+  updateSettings,
+  updateRemoteCredentialsSettings,
+} from "../../lib/storage/settings.js";
 
 const freeModel = (id = "test/free") => ({
   id,
@@ -67,12 +71,23 @@ function install(settings = {}) {
 }
 const authorized = () => ({
   openrouterConsent: true,
+  openrouterGenerationConsent: true,
   openrouterApiKey: "router-secret",
   openrouterModel: "test/free",
   opencodeConsent: true,
+  opencodeGenerationConsent: true,
   opencodeApiKey: "code-secret",
 });
 const catalog = () => Response.json({ data: [freeModel()] });
+
+// The test runner mocks setTimeout below, so wait on microtasks instead.
+async function until(predicate) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (predicate()) return;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  throw new Error("condition was not met");
+}
 
 test("fresh remote state has an empty, non-stale catalog", async () => {
   install({});
@@ -359,6 +374,7 @@ test("chat streams fragmented CRLF SSE, keeps zero-price routing, and stops on D
     completion: 0,
     request: 0,
   });
+  assert.equal(JSON.parse(chat.options.body).provider.allow_fallbacks, false);
   assert.equal(chat.options.redirect, "error");
 });
 
@@ -366,7 +382,7 @@ test("diagnostics redact both keys and serialized settings writes preserve unrel
   install(authorized());
   await Promise.all([
     updateSettings({ theme: "light" }),
-    updateSettings({ openrouterConsent: false }),
+    updateRemoteCredentialsSettings({ openrouterConsent: false }),
   ]);
   const settings = await getSettings();
   assert.equal(settings.theme, "light");
@@ -472,20 +488,23 @@ test("Firefox authentication consent is required before sending either preset ke
 });
 
 test("changed credentials between model validation and POST cannot send a stale selection", async () => {
-  const store = install(authorized());
-  const realGet = chrome.storage.local.get;
-  let reads = 0;
-  chrome.storage.local.get = async (key) => {
-    if (key === "settings" && ++reads === 4)
-      store.settings.openrouterApiKey = "changed-secret";
-    return realGet(key);
-  };
+  install(authorized());
   let posts = 0;
   globalThis.fetch = async (url) => {
     if (!url.endsWith("/models")) posts++;
     return catalog();
   };
-  await assert.rejects(streamRemoteChat("openrouter", "private prompt"));
+  let checks = 0;
+  await assert.rejects(
+    streamRemoteChat("openrouter", "private prompt", {
+      assertAuthorized: async () => {
+        if (++checks === 2)
+          await updateRemoteCredentialsSettings({
+            openrouterApiKey: "changed-secret",
+          });
+      },
+    }),
+  );
   assert.equal(posts, 0);
 });
 
@@ -501,4 +520,226 @@ test("a cached model missing from the fresh catalog cannot reach the chat endpoi
     /Select an eligible remote model/,
   );
   assert.equal(posts, 0);
+});
+
+test("catalog consent alone permits catalog GETs but cannot authorize generation", async () => {
+  install({ ...authorized(), openrouterGenerationConsent: false });
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, method: options.method });
+    return catalog();
+  };
+  await fetchRemoteModels("openrouter");
+  await assert.rejects(
+    streamRemoteChat("openrouter", "private prompt"),
+    /generation consent/,
+  );
+  assert.deepEqual(calls, [
+    { url: "https://openrouter.ai/api/v1/models", method: "GET" },
+  ]);
+});
+
+test("Firefox generation permission denial permits catalogs but blocks page POSTs", async () => {
+  install(authorized());
+  const previous = process.env.TARGET_BROWSER;
+  process.env.TARGET_BROWSER = "firefox";
+  const checked = [];
+  const methods = [];
+  chrome.permissions.contains = async (permission) => {
+    checked.push(permission.data_collection);
+    return permission.data_collection.length === 1;
+  };
+  globalThis.fetch = async (_url, options) => {
+    methods.push(options.method);
+    return catalog();
+  };
+  try {
+    await fetchRemoteModels("openrouter");
+    await assert.rejects(streamRemoteChat("openrouter", "private prompt"));
+    assert.ok(
+      checked.some((categories) => categories.includes("websiteContent")),
+    );
+    assert.ok(methods.length > 0);
+    assert.ok(methods.every((method) => method === "GET"));
+  } finally {
+    if (previous === undefined) delete process.env.TARGET_BROWSER;
+    else process.env.TARGET_BROWSER = previous;
+  }
+});
+
+test("freshly paid, removed or nontext OpenRouter selections never reach POST", async () => {
+  for (const models of [
+    [],
+    [{ ...freeModel(), pricing: { prompt: "1", completion: "1" } }],
+    [
+      {
+        ...freeModel(),
+        architecture: {
+          input_modalities: ["text"],
+          output_modalities: ["audio"],
+        },
+      },
+    ],
+  ]) {
+    install(authorized());
+    const methods = [];
+    globalThis.fetch = async (_url, options) => {
+      methods.push(options.method);
+      return Response.json({ data: models });
+    };
+    await assert.rejects(
+      streamRemoteChat("openrouter", "private prompt"),
+      /eligible remote model/,
+    );
+    assert.deepEqual(methods, ["GET"]);
+  }
+});
+
+test("cancelled and timed out chat requests report safe errors", async (t) => {
+  for (const timeout of [false, true]) {
+    install(authorized());
+    const controller = new AbortController();
+    const { promise: started, resolve: start } = Promise.withResolvers();
+    globalThis.fetch = async (url, { signal }) => {
+      if (url.endsWith("/models")) return catalog();
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener(
+          "abort",
+          () => reject(new Error("router-secret private prompt")),
+          { once: true },
+        );
+        start();
+      });
+    };
+    if (timeout) t.mock.timers.enable({ apis: ["setTimeout"] });
+    const request = streamRemoteChat("openrouter", "private prompt", {
+      signal: controller.signal,
+    });
+    const rejected = assert.rejects(request, (error) => {
+      assert.match(error.message, timeout ? /timed out/ : /cancelled/);
+      assert.ok(!error.message.includes("router-secret"));
+      assert.ok(!error.message.includes("private prompt"));
+      return true;
+    });
+    await started;
+    if (timeout) t.mock.timers.tick(30000);
+    else controller.abort();
+    await rejected;
+    if (timeout) t.mock.timers.reset();
+  }
+});
+
+test("each chunk re-arms the idle window instead of hitting a whole-request deadline", async (t) => {
+  install(authorized());
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const encoder = new TextEncoder();
+  const tokens = [];
+  let controller;
+  globalThis.fetch = async () =>
+    new Response(
+      new ReadableStream({
+        start(streamController) {
+          controller = streamController;
+        },
+      }),
+    );
+  try {
+    const request = streamRemoteChat("openrouter", "private prompt", {
+      catalog: [{ id: "test/free", label: "Test", contextTokens: 8192 }],
+      onToken: (token) => tokens.push(token),
+    });
+    await until(() => controller);
+    const chunk = (text) =>
+      encoder.encode(`data: {"choices":[{"delta":{"content":"${text}"}}]}\n\n`);
+    controller.enqueue(chunk("first"));
+    await until(() => tokens.length === 1);
+    t.mock.timers.tick(25000);
+    controller.enqueue(chunk("second"));
+    await until(() => tokens.length === 2);
+    // Past the old whole-request deadline, but only 6s into the new idle window.
+    t.mock.timers.tick(6000);
+    controller.enqueue(chunk("third"));
+    await until(() => tokens.length === 3);
+    controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+    controller.close();
+    await request;
+    assert.deepEqual(tokens, ["first", "second", "third"]);
+  } finally {
+    t.mock.timers.reset();
+  }
+});
+
+test("object-style OpenRouter endpoint entries still mark chat models eligible", () => {
+  for (const [endpoints, expected] of [
+    [[{ endpoint: "/api/v1/chat/completions" }], 1],
+    [[{ path: "/api/v1/chat/completions", provider: "acme" }], 1],
+    [[{ name: "chat/completions" }], 1],
+    [[{ url: "/api/v1/chat/completions" }], 1],
+    [[{ endpoint: "responses" }], 0],
+  ]) {
+    install(authorized());
+    const models = normalizeRemoteModels("openrouter", {
+      data: [{ ...freeModel(), endpoints }],
+    });
+    assert.equal(models.length, expected, JSON.stringify(endpoints));
+  }
+});
+
+test("generation consent without catalog consent is rejected and legacy state is healed", async () => {
+  install({ openrouterConsent: false, openrouterApiKey: "router-secret" });
+  await assert.rejects(
+    saveRemoteSettings({
+      provider: "openrouter",
+      generationConsent: true,
+    }),
+    /Remote consent is required before enabling remote generation/,
+  );
+  install({
+    openrouterConsent: false,
+    openrouterGenerationConsent: true,
+    openrouterApiKey: "router-secret",
+  });
+  const view = await getRemoteSettings();
+  assert.equal(view.providers.openrouter.generationConsent, false);
+
+  const reenabled = await saveRemoteSettings({
+    provider: "openrouter",
+    consent: true,
+  });
+  assert.equal(reenabled.providers.openrouter.consent, true);
+  assert.equal(reenabled.providers.openrouter.generationConsent, false);
+
+  install({
+    openrouterConsent: true,
+    openrouterGenerationConsent: true,
+    openrouterApiKey: "router-secret",
+  });
+  const revoked = await saveRemoteSettings({
+    provider: "openrouter",
+    consent: false,
+    generationConsent: true,
+  });
+  assert.equal(revoked.providers.openrouter.consent, false);
+  assert.equal(revoked.providers.openrouter.generationConsent, false);
+});
+
+test("chat with a reused catalog does not fetch the catalog again", async () => {
+  install(authorized());
+  let catalogGets = 0;
+  globalThis.fetch = async (url) => {
+    if (url.endsWith("/models")) {
+      catalogGets++;
+      return catalog();
+    }
+    return new Response(
+      'data: {"choices":[{"delta":{"content":"hello"}}]}\n\ndata: [DONE]\n\n',
+    );
+  };
+  const tokens = [];
+  await streamRemoteChat("openrouter", "private prompt", {
+    catalog: [{ id: "test/free", label: "Test", contextTokens: 8192 }],
+    onToken: (token) => tokens.push(token),
+  });
+  assert.deepEqual(tokens, ["hello"]);
+  assert.equal(catalogGets, 0);
 });

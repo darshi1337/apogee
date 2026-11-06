@@ -1,4 +1,9 @@
-import { PROVIDERS, isVideoType, isDiscussionType } from "../constants.js";
+import {
+  PROVIDERS,
+  LOCAL_PROVIDER_TYPES,
+  isVideoType,
+  isDiscussionType,
+} from "../constants.js";
 import {
   providerNeedsKey,
   resolveEngineChain,
@@ -75,7 +80,7 @@ export function resolveCandidateChain({
   kind,
   tokenCount = 0,
   settings = {},
-  availableEngines = Object.values(PROVIDERS),
+  availableEngines = LOCAL_PROVIDER_TYPES,
 } = {}) {
   if (!settings?.autoEngine) {
     return undefined;
@@ -83,7 +88,11 @@ export function resolveCandidateChain({
 
   const base = DEFAULT_KIND_CANDIDATES[kind] || DEFAULT_CANDIDATES;
 
-  let candidates = base.filter((engine) => availableEngines.includes(engine));
+  let candidates = base.filter(
+    (engine) =>
+      LOCAL_PROVIDER_TYPES.includes(engine) &&
+      availableEngines.includes(engine),
+  );
 
   // Local engines (local, llamacpp) never rank above in-browser engines
   // unless settings.provider is explicitly that engine.
@@ -104,7 +113,11 @@ export function resolveCandidateChain({
 
   // Append remaining available engines after the rule's list
   for (const engine of availableEngines) {
-    if (!candidates.includes(engine) && !providerNeedsKey(engine, settings)) {
+    if (
+      LOCAL_PROVIDER_TYPES.includes(engine) &&
+      !candidates.includes(engine) &&
+      !providerNeedsKey(engine, settings)
+    ) {
       candidates.push(engine);
     }
   }

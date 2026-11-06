@@ -1,4 +1,4 @@
-// Separate from PROVIDERS: Stage A does not enable remote generation routing.
+// Fixed origins and eligibility rules for opt-in remote catalogs and generation.
 const PRESETS = Object.freeze({
   openrouter: Object.freeze({
     base: "https://openrouter.ai/api/v1",
@@ -11,6 +11,10 @@ const PRESETS = Object.freeze({
 });
 
 export const REMOTE_PROVIDER_IDS = Object.freeze(Object.keys(PRESETS));
+
+export function isRemoteProvider(provider) {
+  return REMOTE_PROVIDER_IDS.includes(provider);
+}
 
 export function remotePreset(provider) {
   if (!Object.hasOwn(PRESETS, provider))
@@ -41,6 +45,25 @@ function zero(value) {
   );
 }
 
+const CHAT_ENDPOINT_NAMES = new Set([
+  "/api/v1/chat/completions",
+  "chat/completions",
+  "chat",
+]);
+
+// OpenRouter catalog entries may name endpoints as plain strings or as
+// objects with an endpoint, path, name, url, or type field depending on the
+// API version.
+function endpointName(endpoint) {
+  if (typeof endpoint === "string") return endpoint;
+  if (endpoint && typeof endpoint === "object") {
+    for (const field of ["endpoint", "path", "name", "url", "type"]) {
+      if (typeof endpoint[field] === "string") return endpoint[field];
+    }
+  }
+  return null;
+}
+
 function supportsChatCompletions(entry) {
   const endpoints = Array.isArray(entry.endpoints)
     ? entry.endpoints
@@ -49,7 +72,7 @@ function supportsChatCompletions(entry) {
       : null;
   if (!endpoints) return true;
   return endpoints.some((endpoint) =>
-    ["/api/v1/chat/completions", "chat/completions", "chat"].includes(endpoint),
+    CHAT_ENDPOINT_NAMES.has(endpointName(endpoint)),
   );
 }
 

@@ -2645,7 +2645,7 @@ html[data-surface="side-panel"] .open-side-panel-btn {
   display: none !important;
 }
 
-/* Remote catalog setup lives inside the AI Provider card. */
+/* Remote provider setup lives inside the AI Provider card. */
 .remote-settings {
   margin-top: 14px;
   padding-top: 14px;

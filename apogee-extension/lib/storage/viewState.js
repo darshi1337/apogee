@@ -60,16 +60,19 @@ async function preparePartial(partial) {
   return { partial, scrubContent };
 }
 
-async function writeViewState(tabId, partial, expectedJob = null) {
+async function writeViewState(
+  tabId,
+  partial,
+  expectedJob = null,
+  { assertAuthorized } = {},
+) {
   if (!isValidTabId(tabId)) return null;
   const prepared = await preparePartial(partial);
   const release = await acquireViewStateLock();
   try {
     const key = viewStateKey(tabId);
-    const { viewStateOrder = [], ...rest } = await chrome.storage.local.get([
-      key,
-      "viewStateOrder",
-    ]);
+    const previous = await chrome.storage.local.get([key, "viewStateOrder"]);
+    const { viewStateOrder = [], ...rest } = previous;
     const current = rest[key] || {};
     if (
       expectedJob &&
@@ -98,6 +101,7 @@ async function writeViewState(tabId, partial, expectedJob = null) {
       extraBytes: estimateByteSize(state),
     });
 
+    await assertAuthorized?.();
     try {
       await chrome.storage.local.set({ [key]: state, viewStateOrder: order });
     } catch (err) {
@@ -106,11 +110,36 @@ async function writeViewState(tabId, partial, expectedJob = null) {
       // once, else drop the write with a warning.
       const extra = order.splice(0, Math.ceil(order.length / 2));
       removeKeys.push(...extra);
+      await assertAuthorized?.();
       try {
         await chrome.storage.local.set({ [key]: state, viewStateOrder: order });
       } catch (retryErr) {
         console.warn("View state dropped: browser storage is full.", retryErr);
         return null;
+      }
+    }
+    if (assertAuthorized) {
+      try {
+        await assertAuthorized();
+      } catch (err) {
+        // A rollback failure must not mask the original error.
+        const restore = {};
+        const remove = [];
+        for (const restoreKey of [key, "viewStateOrder"]) {
+          if (previous[restoreKey] === undefined) remove.push(restoreKey);
+          else restore[restoreKey] = previous[restoreKey];
+        }
+        try {
+          if (Object.keys(restore).length)
+            await chrome.storage.local.set(restore);
+          if (remove.length) await chrome.storage.local.remove(remove);
+        } catch (rollbackErr) {
+          console.warn(
+            "Failed to roll back view-state write after revocation.",
+            rollbackErr,
+          );
+        }
+        throw err;
       }
     }
     if (removeKeys.length > 0) await chrome.storage.local.remove(removeKeys);
@@ -129,9 +158,10 @@ export function saveViewStateIfJobMatches(
   jobId,
   partial,
   subview = null,
+  options = {},
 ) {
   if (!jobId) return Promise.resolve(null);
-  return writeViewState(tabId, partial, { jobId, subview });
+  return writeViewState(tabId, partial, { jobId, subview }, options);
 }
 
 export async function loadViewState(tabId) {

@@ -60,7 +60,7 @@ test("truncation prefix sticks to later stages and the ticker", () => {
   ]);
 });
 
-// Wiring guards: all three summarize runtimes must share this tracker
+// Wiring guards: all summarize runtimes must share this tracker
 // instead of growing their own stage-mapping copies (same style as
 // offscreenKeepAlive.test.js).
 test("all summarize runtimes share the progress tracker", () => {
@@ -80,8 +80,8 @@ test("all summarize runtimes share the progress tracker", () => {
   );
   assert.strictEqual(
     (worker.match(/onProgress: tracker\.onProgress/g) || []).length,
-    2,
-    "worker routes both local-HTTP and transformers progress through the tracker",
+    3,
+    "worker routes local-HTTP, transformers and remote progress through the tracker",
   );
   assert.ok(
     !worker.includes("longNote") && !worker.includes("stageLabel"),
