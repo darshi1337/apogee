@@ -1,5 +1,10 @@
 import { REMOTE_PROVIDER_IDS } from "./remoteModels.js";
 
+// Every category is sent on a remote Summary or Ask job:
+// authenticationInfo is the provider key, websiteContent is the visible page
+// text, browsingActivity is the title and URL included in the prompt, and
+// personalCommunications covers selected, pasted, or extracted text that is
+// an email, chat, or social post. Catalog requests send only the key.
 export const REMOTE_GENERATION_DATA = [
   "authenticationInfo",
   "websiteContent",

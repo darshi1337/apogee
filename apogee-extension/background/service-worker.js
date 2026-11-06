@@ -1576,7 +1576,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             };
             await context.assertActive();
             await recordPopupSummaryStream(payload, streamId);
-            startRemoteStream(streamId, payload, context);
+            startRemoteStream(streamId, payload, context).catch((error) =>
+              console.error("Remote stream failed:", error),
+            );
             sendResponse({
               streamId,
               execution: {

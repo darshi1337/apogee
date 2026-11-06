@@ -1726,6 +1726,26 @@ async function returnHomeAfterCancel(tabId, jobId = null) {
   showOnlyView("homeView");
 }
 
+// A failed stream must not leave its id in the saved view state, or a later
+// restore tries to attach to a dead stream and shows the spinner again.
+async function clearFailedStreamState(tabId, jobId = null) {
+  if (tabId == null) return;
+  try {
+    if (jobId) {
+      await saveViewStateIfJobMatches(
+        tabId,
+        jobId,
+        { streamId: null },
+        "summarizing",
+      );
+    } else {
+      await saveViewState(tabId, { streamId: null });
+    }
+  } catch (error) {
+    console.warn("Could not clear failed stream state:", error);
+  }
+}
+
 function showSummaryContext(questions = []) {
   summaryView.classList.remove("ask-mode");
   summaryCard.classList.remove("hidden");
@@ -2136,6 +2156,7 @@ async function summarizeActivePage() {
       await returnHomeAfterCancel(activeTabId, jobId);
     } else {
       renderSummaryError(error);
+      await clearFailedStreamState(activeTabId, jobId);
     }
   } finally {
     summaryStartGate.release(startToken);
@@ -2283,6 +2304,7 @@ async function submitQuestion(question) {
     } else {
       console.error(error);
       renderError(answerBox, toUserMessage(error));
+      await clearFailedStreamState(activeTabId);
     }
   } finally {
     askStartGate.release(startToken);
@@ -2924,6 +2946,7 @@ async function summarizeCustomContent(title, content, url = "") {
     } else {
       console.error(error);
       renderSummaryError(error);
+      await clearFailedStreamState(activeTabId, jobId);
     }
   } finally {
     summaryStartGate.release(startToken);

@@ -619,3 +619,61 @@ test("cancelled and timed out chat requests report safe errors", async (t) => {
     if (timeout) t.mock.timers.reset();
   }
 });
+
+test("object-style OpenRouter endpoint entries still mark chat models eligible", () => {
+  for (const endpoints of [
+    [{ endpoint: "/api/v1/chat/completions" }],
+    [{ path: "/api/v1/chat/completions", provider: "acme" }],
+    [{ name: "chat/completions" }],
+    [{ endpoint: "responses" }],
+  ]) {
+    install(authorized());
+    const models = normalizeRemoteModels("openrouter", {
+      data: [{ ...freeModel(), endpoints }],
+    });
+    const eligible =
+      endpoints[0].endpoint === "/api/v1/chat/completions" ||
+      endpoints[0].path === "/api/v1/chat/completions" ||
+      endpoints[0].name === "chat/completions";
+    assert.equal(models.length, eligible ? 1 : 0);
+  }
+});
+
+test("generation consent without catalog consent is rejected and legacy state is healed", async () => {
+  install({ openrouterConsent: false, openrouterApiKey: "router-secret" });
+  await assert.rejects(
+    saveRemoteSettings({
+      provider: "openrouter",
+      generationConsent: true,
+    }),
+    /Remote consent is required before enabling remote generation/,
+  );
+  install({
+    openrouterConsent: false,
+    openrouterGenerationConsent: true,
+    openrouterApiKey: "router-secret",
+  });
+  const view = await getRemoteSettings();
+  assert.equal(view.providers.openrouter.generationConsent, false);
+});
+
+test("chat with a reused catalog does not fetch the catalog again", async () => {
+  install(authorized());
+  let catalogGets = 0;
+  globalThis.fetch = async (url) => {
+    if (url.endsWith("/models")) {
+      catalogGets++;
+      return catalog();
+    }
+    return new Response(
+      'data: {"choices":[{"delta":{"content":"hello"}}]}\n\ndata: [DONE]\n\n',
+    );
+  };
+  const tokens = [];
+  await streamRemoteChat("openrouter", "private prompt", {
+    catalog: [{ id: "test/free", label: "Test", contextTokens: 8192 }],
+    onToken: (token) => tokens.push(token),
+  });
+  assert.deepEqual(tokens, ["hello"]);
+  assert.equal(catalogGets, 0);
+});

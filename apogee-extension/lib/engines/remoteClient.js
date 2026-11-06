@@ -15,7 +15,9 @@ import { UserFacingError } from "../util/userError.js";
 
 const active = new Map();
 const holds = new Map();
-const REMOTE_REQUEST_TIMEOUT_MS = 30000;
+// Connecting and stream reads share one idle window. The timer re-arms after
+// every chunk, so a healthy long generation is not cut off at 30 seconds.
+const REMOTE_IDLE_TIMEOUT_MS = 30000;
 export const REMOTE_RESPONSE_MAX_BYTES = 4 * 1024 * 1024;
 const MAX_EVENT_CHARS = 65536;
 let watchedCredentials = false;
@@ -67,10 +69,15 @@ async function withRemoteRequest(
   };
   chrome.permissions?.onRemoved?.addListener(onPermissionsRemoved);
   let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    abort();
-  }, REMOTE_REQUEST_TIMEOUT_MS);
+  let timer;
+  const armTimeout = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      timedOut = true;
+      abort();
+    }, REMOTE_IDLE_TIMEOUT_MS);
+  };
+  armTimeout();
   let reader;
   let safeFailure =
     "Remote request failed. Check consent, credentials and connectivity.";
@@ -128,11 +135,15 @@ async function withRemoteRequest(
       await response.body?.cancel().catch(() => {});
       throw new Error();
     }
+    // Headers arrived. The idle window now covers the first chunk and every
+    // gap between chunks, not the total stream duration.
+    armTimeout();
     reader = response.body.getReader();
     let bytes = 0;
     const read = async () => {
       const result = await reader.read();
       if (controller.signal.aborted) throw new Error();
+      armTimeout();
       bytes += result.value?.byteLength || 0;
       if (bytes > REMOTE_RESPONSE_MAX_BYTES) throw new Error();
       return result;
@@ -186,7 +197,7 @@ async function readText(read) {
 export async function streamRemoteChat(
   provider,
   prompt,
-  { signal, system, onToken, assertAuthorized } = {},
+  { signal, system, onToken, assertAuthorized, catalog } = {},
 ) {
   await assertAuthorized?.();
   const settings = await getRemoteCredentialsSettings();
@@ -200,7 +211,11 @@ export async function streamRemoteChat(
     (system != null && (typeof system !== "string" || system.length > 20000))
   )
     throw new UserFacingError("Invalid remote chat request.");
-  const models = await fetchRemoteModels(provider, { signal });
+  // Background jobs already hold a fresh catalog from job creation. Reusing it
+  // avoids one catalog GET before every map/reduce request.
+  const models = Array.isArray(catalog)
+    ? catalog
+    : await fetchRemoteModels(provider, { signal });
   if (!models.some((entry) => entry.id === model))
     throw new UserFacingError("Select an eligible remote model.");
   await assertAuthorized?.();

@@ -142,6 +142,21 @@ test("pinned remote finalization ignores payload identity and records execution 
   assert.ok(!JSON.stringify(state).includes(settings.openrouterApiKey));
 });
 
+test("remote trusted finalize omits the loopback host key", async () => {
+  const finalize = await buildTrustedFinalize(
+    { url: "https://example.com/no-host", finalize: { jobId: "no-host" } },
+    {
+      provider: "openrouter",
+      openrouterModel: "same/model:version",
+      responseFormat: "bullets",
+      summaryLanguage: "auto",
+      translationEngine: "llm",
+    },
+  );
+  assert.equal(finalize.providerType, "openrouter");
+  assert.equal(Object.hasOwn(finalize, "host"), false);
+});
+
 test("remote suggestions do not start generation, offscreen work, or fetches", async () => {
   let offscreenCalls = 0;
   let fetchCalls = 0;

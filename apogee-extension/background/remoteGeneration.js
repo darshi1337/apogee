@@ -202,6 +202,9 @@ export async function createRemoteJobContext({ signal } = {}) {
     );
     const model = settings[`${provider}Model`];
     const revision = settings[`${provider}GenerationRevision`];
+    // saveHistory is intentionally not re-checked here. Turning history off
+    // mid-generation must exclude persistence at commit time, not abort the
+    // live generation that the user already authorized.
     const assertActive = async () => {
       const current = await getSettings();
       if (
@@ -236,6 +239,9 @@ export async function createRemoteJobContext({ signal } = {}) {
       provider,
       model,
       settings,
+      // The catalog is fresh and already checked for the selected model. Chat
+      // requests reuse it instead of fetching the catalog again per chunk.
+      catalog: setup.catalog.models,
       controller,
       signal: controller.signal,
       assertActive,
@@ -269,6 +275,7 @@ export async function* remoteChatStream(context, prompt, { system } = {}) {
     signal: controller.signal,
     system,
     assertAuthorized: context.assertActive,
+    catalog: context.catalog,
     onToken: (token) => {
       queue.push(token);
       wake?.();

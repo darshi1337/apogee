@@ -230,7 +230,10 @@ export async function buildTrustedFinalize(payload, executionSettings = null) {
     model,
     pageType,
     selectionText,
-    host: settings.ollamaHost,
+    // Only the loopback Ollama path needs a host. Remote jobs never reach
+    // the suggest-questions local path, and the key must not appear as
+    // host: undefined in the trusted payload.
+    ...(isRemoteProvider(providerType) ? {} : { host: settings.ollamaHost }),
     notifyOnFinish,
     sensitive,
     tabId,

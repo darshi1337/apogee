@@ -323,9 +323,9 @@ test("cancel during actual SSE streaming discards partial generation without per
 
 test("generation revoke between map calls prevents every later POST and successful persistence", async () => {
   await setup();
-  let catalogs = 0;
-  const calls = intercept(async ({ url: address }) => {
-    if (address.endsWith("/models") && ++catalogs === 2)
+  let posts = 0;
+  const calls = intercept(async ({ body }) => {
+    if (body && ++posts === 1)
       await saveRemoteSettings({
         provider: "openrouter",
         generationConsent: false,

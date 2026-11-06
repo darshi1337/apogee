@@ -108,7 +108,10 @@ export async function getRemoteSettings() {
     const hasApiKey = !!settings[`${provider}ApiKey`];
     providers[provider] = {
       consent,
-      generationConsent: settings[`${provider}GenerationConsent`],
+      // Heal legacy state where generation consent was saved without catalog
+      // consent: generation consent is a subset and must not appear enabled.
+      generationConsent:
+        consent && settings[`${provider}GenerationConsent`] === true,
       generationRevision: settings[`${provider}GenerationRevision`],
       hasApiKey,
       model: settings[`${provider}Model`],
@@ -188,6 +191,21 @@ export async function saveRemoteSettings(payload) {
         has("apiKey") && settings[`${provider}ApiKey`] !== apiKey;
       const consentChanged =
         has("consent") && settings[`${provider}Consent`] !== payload.consent;
+      const nextConsent = has("consent")
+        ? payload.consent
+        : settings[`${provider}Consent`] === true;
+      // Generation consent is a strict subset of catalog consent. Accepting it
+      // without consent would persist an unusable state and weaken the
+      // boundary that keeps catalog and generation opt-ins separate. Revoking
+      // catalog consent clears generation consent instead of throwing.
+      if (
+        has("generationConsent") &&
+        payload.generationConsent === true &&
+        !nextConsent
+      )
+        throw new Error(
+          "Remote consent is required before enabling remote generation.",
+        );
       if (has("model") && payload.model) {
         const cache = await readCatalog(provider);
         if (
@@ -204,7 +222,10 @@ export async function saveRemoteSettings(payload) {
       if (has("consent") && !payload.consent)
         settings[`${provider}GenerationConsent`] = false;
       if (has("model")) settings[`${provider}Model`] = payload.model;
-      if (!settings[`${provider}Consent`] || !settings[`${provider}ApiKey`])
+      if (!settings[`${provider}Consent`]) {
+        settings[`${provider}GenerationConsent`] = false;
+        settings[`${provider}Model`] = "";
+      } else if (!settings[`${provider}ApiKey`])
         settings[`${provider}Model`] = "";
       await updateRemoteCredentialsSettings(
         Object.fromEntries(
