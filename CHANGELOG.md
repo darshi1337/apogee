@@ -4,6 +4,29 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.6](https://github.com/darshi1337/apogee/compare/v0.2.5...v0.2.6) (2026-11-06)
+
+
+### Added
+
+* Add RTL summary languages ([#622](https://github.com/darshi1337/apogee/issues/622)) ([8afc5e4](https://github.com/darshi1337/apogee/commit/8afc5e4f5f1fc1a40bd4413d73e1cbe25381c42b))
+* Add shared remote client and opt-in setup (stage A) ([#606](https://github.com/darshi1337/apogee/issues/606)) ([bde073d](https://github.com/darshi1337/apogee/commit/bde073da029f68ff97ea81eb2fef64133b6169f4))
+* Enable opt-in remote Summary and Ask (B1) ([#617](https://github.com/darshi1337/apogee/issues/617)) ([bb219ba](https://github.com/darshi1337/apogee/commit/bb219baa7c049d6c36bf36c3545bd59d85b27414))
+* Support multiple llama-server models in router mode ([#618](https://github.com/darshi1337/apogee/issues/618)) ([101c06c](https://github.com/darshi1337/apogee/commit/101c06c0906f39b80ee662a9a5bc26cc0b14eb88))
+
+
+### Fixed
+
+* Bump reviewdog/action-actionlint ([#635](https://github.com/darshi1337/apogee/issues/635)) ([196c028](https://github.com/darshi1337/apogee/commit/196c02841d16b87b59ccf6b2957ca5b2fcb45699))
+* **deps:** Override minimatch to 11.0.4 for GHSA-g3hv-75wg-m249 ([#603](https://github.com/darshi1337/apogee/issues/603)) ([3924ebf](https://github.com/darshi1337/apogee/commit/3924ebf9eb33471946f4f91584e5bed42c478d69))
+* Handle late stream finishes post-cleanup ([b819a4f](https://github.com/darshi1337/apogee/commit/b819a4fd3a86863a243c1feaa1b9d2a977617473))
+* Past-summary cards no longer put buttons inside a button ([#550](https://github.com/darshi1337/apogee/issues/550)) ([#588](https://github.com/darshi1337/apogee/issues/588)) ([1962a69](https://github.com/darshi1337/apogee/commit/1962a69efc1696327184ef3935f2ded8ecb6f28f))
+* Preserve shared offscreen runs until the last viewer closes ([#595](https://github.com/darshi1337/apogee/issues/595)) ([b948cc7](https://github.com/darshi1337/apogee/commit/b948cc777fab6ef6c1e4408186ce8c8806243df0))
+* **release:** Include contributors in release notes ([#591](https://github.com/darshi1337/apogee/issues/591)) ([086a7ad](https://github.com/darshi1337/apogee/commit/086a7add3754b50afb12fa877d054b973e1542ef))
+* **release:** Keep release PRs passing checks ([#598](https://github.com/darshi1337/apogee/issues/598)) ([043a520](https://github.com/darshi1337/apogee/commit/043a5207adeba3869bbc4bcdf2af382f81f74a2d))
+* Tighten late stream-finish retention ([ae31c7c](https://github.com/darshi1337/apogee/commit/ae31c7cdc6779622d54df3350a35df61259e76e2))
+* Use existing github_actions label for Dependabot workflow PRs ([#620](https://github.com/darshi1337/apogee/issues/620)) ([bf241cd](https://github.com/darshi1337/apogee/commit/bf241cda272e8cd2c7aae2ce96fd7a13d6d125f4))
+
 ## [0.2.5](https://github.com/darshi1337/apogee/compare/v0.2.4...v0.2.5) (2026-10-28)
 
 
