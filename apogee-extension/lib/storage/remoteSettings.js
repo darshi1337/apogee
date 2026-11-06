@@ -191,17 +191,19 @@ export async function saveRemoteSettings(payload) {
         has("apiKey") && settings[`${provider}ApiKey`] !== apiKey;
       const consentChanged =
         has("consent") && settings[`${provider}Consent`] !== payload.consent;
-      const nextConsent = has("consent")
-        ? payload.consent
-        : settings[`${provider}Consent`] === true;
+      const previousConsent = settings[`${provider}Consent`] === true;
+      const nextConsent = has("consent") ? payload.consent : previousConsent;
+      const revokingCatalogConsent =
+        has("consent") && payload.consent === false;
       // Generation consent is a strict subset of catalog consent. Accepting it
-      // without consent would persist an unusable state and weaken the
-      // boundary that keeps catalog and generation opt-ins separate. Revoking
-      // catalog consent clears generation consent instead of throwing.
+      // on its own without consent would persist an unusable state and weaken
+      // the boundary that keeps the two opt-ins separate. Revoking catalog
+      // consent in the same save clears generation consent instead of throwing.
       if (
         has("generationConsent") &&
         payload.generationConsent === true &&
-        !nextConsent
+        !nextConsent &&
+        !revokingCatalogConsent
       )
         throw new Error(
           "Remote consent is required before enabling remote generation.",
@@ -219,7 +221,17 @@ export async function saveRemoteSettings(payload) {
       if (has("consent")) settings[`${provider}Consent`] = payload.consent;
       if (has("generationConsent"))
         settings[`${provider}GenerationConsent`] = payload.generationConsent;
-      if (has("consent") && !payload.consent)
+      if (revokingCatalogConsent)
+        settings[`${provider}GenerationConsent`] = false;
+      else if (
+        has("consent") &&
+        payload.consent &&
+        !previousConsent &&
+        !has("generationConsent")
+      )
+        // A legacy or externally written state can hold generation consent
+        // while catalog consent is off. Enabling catalog consent again must not
+        // resurrect that hidden value.
         settings[`${provider}GenerationConsent`] = false;
       if (has("model")) settings[`${provider}Model`] = payload.model;
       if (!settings[`${provider}Consent`]) {

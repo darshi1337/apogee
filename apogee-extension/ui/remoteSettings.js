@@ -187,7 +187,10 @@ export async function initRemoteSettings({
       const payload = {
         provider: panel.provider,
         consent: c.consent.checked,
-        generationConsent: c.generationConsent.checked,
+        // Generation consent is a subset of catalog consent. Normalize here so
+        // unchecking catalog consent revokes both in one Save instead of
+        // sending a rejected combination to the worker.
+        generationConsent: c.consent.checked && c.generationConsent.checked,
       };
       if (c.key.value.trim()) payload.apiKey = c.key.value.trim();
       if (payload.consent || payload.generationConsent) {

@@ -80,6 +80,15 @@ const authorized = () => ({
 });
 const catalog = () => Response.json({ data: [freeModel()] });
 
+// The test runner mocks setTimeout below, so wait on microtasks instead.
+async function until(predicate) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (predicate()) return;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  throw new Error("condition was not met");
+}
+
 test("fresh remote state has an empty, non-stale catalog", async () => {
   install({});
   const view = await getRemoteSettings();
@@ -620,22 +629,59 @@ test("cancelled and timed out chat requests report safe errors", async (t) => {
   }
 });
 
+test("each chunk re-arms the idle window instead of hitting a whole-request deadline", async (t) => {
+  install(authorized());
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const encoder = new TextEncoder();
+  const tokens = [];
+  let controller;
+  globalThis.fetch = async () =>
+    new Response(
+      new ReadableStream({
+        start(streamController) {
+          controller = streamController;
+        },
+      }),
+    );
+  try {
+    const request = streamRemoteChat("openrouter", "private prompt", {
+      catalog: [{ id: "test/free", label: "Test", contextTokens: 8192 }],
+      onToken: (token) => tokens.push(token),
+    });
+    await until(() => controller);
+    const chunk = (text) =>
+      encoder.encode(`data: {"choices":[{"delta":{"content":"${text}"}}]}\n\n`);
+    controller.enqueue(chunk("first"));
+    await until(() => tokens.length === 1);
+    t.mock.timers.tick(25000);
+    controller.enqueue(chunk("second"));
+    await until(() => tokens.length === 2);
+    // Past the old whole-request deadline, but only 6s into the new idle window.
+    t.mock.timers.tick(6000);
+    controller.enqueue(chunk("third"));
+    await until(() => tokens.length === 3);
+    controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+    controller.close();
+    await request;
+    assert.deepEqual(tokens, ["first", "second", "third"]);
+  } finally {
+    t.mock.timers.reset();
+  }
+});
+
 test("object-style OpenRouter endpoint entries still mark chat models eligible", () => {
-  for (const endpoints of [
-    [{ endpoint: "/api/v1/chat/completions" }],
-    [{ path: "/api/v1/chat/completions", provider: "acme" }],
-    [{ name: "chat/completions" }],
-    [{ endpoint: "responses" }],
+  for (const [endpoints, expected] of [
+    [[{ endpoint: "/api/v1/chat/completions" }], 1],
+    [[{ path: "/api/v1/chat/completions", provider: "acme" }], 1],
+    [[{ name: "chat/completions" }], 1],
+    [[{ url: "/api/v1/chat/completions" }], 1],
+    [[{ endpoint: "responses" }], 0],
   ]) {
     install(authorized());
     const models = normalizeRemoteModels("openrouter", {
       data: [{ ...freeModel(), endpoints }],
     });
-    const eligible =
-      endpoints[0].endpoint === "/api/v1/chat/completions" ||
-      endpoints[0].path === "/api/v1/chat/completions" ||
-      endpoints[0].name === "chat/completions";
-    assert.equal(models.length, eligible ? 1 : 0);
+    assert.equal(models.length, expected, JSON.stringify(endpoints));
   }
 });
 
@@ -655,6 +701,26 @@ test("generation consent without catalog consent is rejected and legacy state is
   });
   const view = await getRemoteSettings();
   assert.equal(view.providers.openrouter.generationConsent, false);
+
+  const reenabled = await saveRemoteSettings({
+    provider: "openrouter",
+    consent: true,
+  });
+  assert.equal(reenabled.providers.openrouter.consent, true);
+  assert.equal(reenabled.providers.openrouter.generationConsent, false);
+
+  install({
+    openrouterConsent: true,
+    openrouterGenerationConsent: true,
+    openrouterApiKey: "router-secret",
+  });
+  const revoked = await saveRemoteSettings({
+    provider: "openrouter",
+    consent: false,
+    generationConsent: true,
+  });
+  assert.equal(revoked.providers.openrouter.consent, false);
+  assert.equal(revoked.providers.openrouter.generationConsent, false);
 });
 
 test("chat with a reused catalog does not fetch the catalog again", async () => {

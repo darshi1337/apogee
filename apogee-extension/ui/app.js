@@ -1728,7 +1728,7 @@ async function returnHomeAfterCancel(tabId, jobId = null) {
 
 // A failed stream must not leave its id in the saved view state, or a later
 // restore tries to attach to a dead stream and shows the spinner again.
-async function clearFailedStreamState(tabId, jobId = null) {
+async function clearFailedStreamState(tabId, jobId = null, subview = null) {
   if (tabId == null) return;
   try {
     if (jobId) {
@@ -1736,11 +1736,16 @@ async function clearFailedStreamState(tabId, jobId = null) {
         tabId,
         jobId,
         { streamId: null },
-        "summarizing",
+        subview ?? "summarizing",
       );
-    } else {
-      await saveViewState(tabId, { streamId: null });
+      return;
     }
+    // Without a job id, do not clear a stream that a different subview owns.
+    if (subview) {
+      const state = await loadViewState(tabId);
+      if (state?.subview !== subview) return;
+    }
+    await saveViewState(tabId, { streamId: null });
   } catch (error) {
     console.warn("Could not clear failed stream state:", error);
   }
@@ -1977,6 +1982,7 @@ async function summarizeActivePage() {
   if (!startToken) return;
   let startedStreamId = null;
   let jobId = null;
+  let tab = null;
   try {
     if (activeSummarizeStreamId) {
       cancelStream(activeSummarizeStreamId);
@@ -1987,7 +1993,7 @@ async function summarizeActivePage() {
     setLoadingIndicator(summaryText, randomSummarizeVerb());
 
     jobId = `summary-${crypto.randomUUID()}`;
-    const [tab] = await chrome.tabs.query({
+    [tab] = await chrome.tabs.query({
       active: true,
       currentWindow: true,
     });
@@ -2152,11 +2158,12 @@ async function summarizeActivePage() {
 
     announce("Summary ready.");
   } catch (error) {
+    const jobTabId = tab?.id ?? activeTabId;
     if (error instanceof StreamCancelledError) {
-      await returnHomeAfterCancel(activeTabId, jobId);
+      await returnHomeAfterCancel(jobTabId, jobId);
     } else {
       renderSummaryError(error);
-      await clearFailedStreamState(activeTabId, jobId);
+      await clearFailedStreamState(jobTabId, jobId);
     }
   } finally {
     summaryStartGate.release(startToken);
@@ -2208,13 +2215,14 @@ async function submitQuestion(question) {
   const startToken = askStartGate.tryStart();
   if (!startToken) return;
   let startedStreamId = null;
+  let tab = null;
   try {
     if (activeAskStreamId) {
       cancelStream(activeAskStreamId);
     }
     showAnswerContext(trimmed);
 
-    const [tab] = await chrome.tabs.query({
+    [tab] = await chrome.tabs.query({
       active: true,
       currentWindow: true,
     });
@@ -2299,12 +2307,15 @@ async function submitQuestion(question) {
         renderExtractedTextFallback(answerBox, fallbackText),
     });
   } catch (error) {
+    const jobTabId = tab?.id ?? activeTabId;
     if (error instanceof StreamCancelledError) {
-      returnToAskAfterCancel(activeTabId);
+      returnToAskAfterCancel(jobTabId);
     } else {
       console.error(error);
       renderError(answerBox, toUserMessage(error));
-      await clearFailedStreamState(activeTabId);
+      // Only clear the answer view. A summary may have started in the same tab
+      // while this stream was finishing.
+      await clearFailedStreamState(jobTabId, null, "answer");
     }
   } finally {
     askStartGate.release(startToken);
@@ -2849,6 +2860,7 @@ async function summarizeCustomContent(title, content, url = "") {
   if (!startToken) return;
   let startedStreamId = null;
   let jobId = null;
+  let tab = null;
   try {
     if (activeSummarizeStreamId) {
       cancelStream(activeSummarizeStreamId);
@@ -2869,7 +2881,7 @@ async function summarizeCustomContent(title, content, url = "") {
     setLoadingIndicator(summaryText, randomSummarizeVerb());
 
     jobId = `summary-${crypto.randomUUID()}`;
-    const [tab] = await chrome.tabs.query({
+    [tab] = await chrome.tabs.query({
       active: true,
       currentWindow: true,
     });
@@ -2941,12 +2953,13 @@ async function summarizeCustomContent(title, content, url = "") {
       },
     });
   } catch (error) {
+    const jobTabId = tab?.id ?? activeTabId;
     if (error instanceof StreamCancelledError) {
-      if (activeTabId) returnHomeAfterCancel(activeTabId, jobId);
+      if (jobTabId) returnHomeAfterCancel(jobTabId, jobId);
     } else {
       console.error(error);
       renderSummaryError(error);
-      await clearFailedStreamState(activeTabId, jobId);
+      await clearFailedStreamState(jobTabId, jobId);
     }
   } finally {
     summaryStartGate.release(startToken);

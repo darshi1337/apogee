@@ -65,6 +65,16 @@ test("submitQuestion takes its own start gate before its first await", () => {
   );
 });
 
+test("failed-stream cleanup uses the job tab, not the currently active tab", () => {
+  for (const body of [summarizeBody, customBody, askBody]) {
+    assert.match(body, /let tab = null;/);
+    assert.match(body, /const jobTabId = tab\?\.id \?\? activeTabId;/);
+    assert.doesNotMatch(body, /clearFailedStreamState\(activeTabId/);
+    assert.doesNotMatch(body, /return(Home|ToAsk)AfterCancel\(activeTabId/);
+  }
+  assert.match(askBody, /clearFailedStreamState\(jobTabId, null, "answer"\)/);
+});
+
 test("the old boolean guard and cancel wrappers are gone (#547)", () => {
   assert.doesNotMatch(appSource, /isSummarizeStarting/);
   assert.doesNotMatch(

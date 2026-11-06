@@ -359,6 +359,35 @@ test("generation opt-in requests content permission from Save and stays separate
   assert.equal(calls[2].payload.generationConsent, true);
 });
 
+test("unchecking catalog consent revokes generation consent in the same Save", async () => {
+  const initial = view({
+    consent: true,
+    generationConsent: true,
+    hasApiKey: true,
+  });
+  const requested = [];
+  const { calls, control, fire } = await setup(
+    initial,
+    (message) =>
+      message.action === "remote-settings-save"
+        ? view({ consent: false, generationConsent: false, hasApiKey: true })
+        : initial,
+    async (generation) => {
+      requested.push(generation);
+      return true;
+    },
+  );
+  control("consent").checked = false;
+  fire("save");
+  await tick();
+  assert.deepEqual(calls[1].payload, {
+    provider: "openrouter",
+    consent: false,
+    generationConsent: false,
+  });
+  assert.deepEqual(requested, []);
+});
+
 test("denied generation permission never saves generation consent", async () => {
   const { calls, control, fire } = await setup(
     view(),
