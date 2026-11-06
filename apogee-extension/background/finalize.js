@@ -21,7 +21,7 @@ import {
   getModelForSettings,
 } from "../lib/engines/providers.js";
 import { MAX_FINALIZE_TEXT_CHARS } from "../lib/extract/fileLimits.js";
-import { REMOTE_PROVIDER_IDS } from "../lib/engines/remoteModels.js";
+import { isRemoteProvider } from "../lib/engines/remoteModels.js";
 import { broadcastToStream } from "../lib/util/streamBroadcast.js";
 import { activeStreams, registerStreamJob } from "./streams.js";
 import { runSuggestQuestionsJob } from "./suggestQuestions.js";
@@ -163,10 +163,11 @@ export async function buildTrustedFinalize(payload, executionSettings = null) {
 
   const settings = executionSettings || (await getSettings());
   const providerType = getProviderType(settings);
-  const model =
-    executionSettings || REMOTE_PROVIDER_IDS.includes(providerType)
-      ? getModelForSettings(settings)
-      : payload.model || getModelForSettings(settings);
+  const useSettingsModel =
+    Boolean(executionSettings) || isRemoteProvider(providerType);
+  const model = useSettingsModel
+    ? getModelForSettings(settings)
+    : payload.model || getModelForSettings(settings);
   const isSelection = Boolean(rawFinalize.isSelection);
   // The summary key keeps the selection fragment (unchanged behavior). The
   // prompts key uses the plain page identity: the page type and the selected
@@ -404,7 +405,23 @@ export async function finalizeSummaryJob(
     return { ok: true, persisted: !!persisted };
   } catch (err) {
     if (authorizationFailed) throw err;
-    await assertCommitAuthorized?.();
+    // Re-verify before preserving a retry so a revoked job cannot be
+    // resurrected. Fail closed on a user-facing revocation; a transient
+    // failure (e.g. storage unavailable) while re-checking must not mask
+    // the original error, so preserve the retry and return it instead.
+    try {
+      await assertCommitAuthorized?.();
+    } catch (recheckErr) {
+      if (
+        recheckErr?.isUserFacing ||
+        /Revoked|authorization changed/i.test(recheckErr?.message || "")
+      )
+        throw recheckErr;
+      console.warn(
+        "Could not re-verify remote authorization before preserving retry.",
+        recheckErr,
+      );
+    }
     preservePendingFinalize({ finalize, model, title, url, text });
     notifyFinalizeFailure({ finalize, title, error: err, streamId });
     return { ok: false, error: err };

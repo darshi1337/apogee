@@ -6,7 +6,7 @@ This guide explains the Apogee codebase layout and repo folder structure. It cov
 
 - **Node.js**: Version 24.0.0 or newer. The repo `.nvmrc` pins Node 24.
 - **Package Manager**: npm version 10 or newer.
-- **Supported Browsers**: Chrome 116+, Edge 116+, or Firefox 140+ for extension testing.
+- **Supported Browsers**: Chrome 116+, Edge 116+, Firefox 140+ on desktop, or Firefox for Android 142+ for extension testing.
 
 ## Local Environment Setup
 

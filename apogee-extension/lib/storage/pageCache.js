@@ -3,7 +3,7 @@ import { TRANSLATION_ENGINES } from "../constants.js";
 import { sha256Hex } from "../util/hash.js";
 import { createLock } from "../util/mutex.js";
 import { tryParseUrl } from "../util/url.js";
-import { REMOTE_PROVIDER_IDS } from "../engines/remoteModels.js";
+import { isRemoteProvider } from "../engines/remoteModels.js";
 
 const acquireIndexLock = createLock();
 
@@ -72,9 +72,7 @@ export async function getSummaryCacheKey(
     translationEngine,
     focusKeyword,
   );
-  return REMOTE_PROVIDER_IDS.includes(providerType)
-    ? `${key}:p${providerType}`
-    : key;
+  return isRemoteProvider(providerType) ? `${key}:p${providerType}` : key;
 }
 
 // Inverse of the cache key for display: best-effort, with trailing
@@ -85,9 +83,12 @@ export function parseSummaryCacheKey(cacheKey) {
   if (typeof cacheKey !== "string" || !cacheKey.startsWith("summary:")) {
     return fallback;
   }
-  const providerType = REMOTE_PROVIDER_IDS.find((provider) =>
-    cacheKey.endsWith(`:p${provider}`),
-  );
+  const suffixIndex = cacheKey.lastIndexOf(":p");
+  const possibleProvider =
+    suffixIndex >= 0 ? cacheKey.slice(suffixIndex + 2) : "";
+  const providerType = isRemoteProvider(possibleProvider)
+    ? possibleProvider
+    : undefined;
   const scopedKey = providerType
     ? cacheKey.slice(0, -`:p${providerType}`.length)
     : cacheKey;
@@ -334,15 +335,23 @@ export async function persistSummary(
       } catch (err) {
         // Keep the writer lock until the failed commit has been undone; old
         // eviction targets still exist because removal happens after this check.
+        // A rollback failure must not mask the original error.
         const restore = {};
         const remove = [];
         for (const key of [cacheKey, "cacheOrder"]) {
           if (previous[key] === undefined) remove.push(key);
           else restore[key] = previous[key];
         }
-        if (Object.keys(restore).length)
-          await chrome.storage.local.set(restore);
-        if (remove.length) await chrome.storage.local.remove(remove);
+        try {
+          if (Object.keys(restore).length)
+            await chrome.storage.local.set(restore);
+          if (remove.length) await chrome.storage.local.remove(remove);
+        } catch (rollbackErr) {
+          console.warn(
+            "Failed to roll back cache write after revocation.",
+            rollbackErr,
+          );
+        }
         throw err;
       }
     }

@@ -2,6 +2,7 @@ import { getRemoteCredentialsSettings } from "../storage/settings.js";
 import {
   hasRemoteCatalogPermissions,
   hasRemoteGenerationPermissions,
+  REMOTE_GENERATION_DATA,
   onRemoteCredentialChange,
   onRemoteGenerationChange,
 } from "./remoteCredentials.js";
@@ -55,6 +56,16 @@ async function withRemoteRequest(
   const abort = () => controller.abort();
   signal?.addEventListener("abort", abort, { once: true });
   if (signal?.aborted) controller.abort();
+  // Abort mid-flight if the Firefox data-collection permission that allows
+  // this request is revoked, so catalog and generation both fail closed.
+  const onPermissionsRemoved = (permissions) => {
+    const removed = permissions?.data_collection;
+    if (!Array.isArray(removed) || removed.length === 0) return;
+    const relevant = body ? REMOTE_GENERATION_DATA : ["authenticationInfo"];
+    if (removed.some((category) => relevant.includes(category)))
+      controller.abort();
+  };
+  chrome.permissions?.onRemoved?.addListener(onPermissionsRemoved);
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
@@ -84,8 +95,7 @@ async function withRemoteRequest(
       )
         throw new Error();
       await assertAuthorized?.();
-    }
-    if (!(await hasRemoteCatalogPermissions())) throw new Error();
+    } else if (!(await hasRemoteCatalogPermissions())) throw new Error();
     if (controller.signal.aborted || holds.get(provider)) throw new Error();
     const response = await fetch(url, {
       method: method || (body ? "POST" : "GET"),
@@ -140,6 +150,7 @@ async function withRemoteRequest(
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", abort);
+    chrome.permissions?.onRemoved?.removeListener(onPermissionsRemoved);
     controller.abort();
     if (reader) {
       await reader.cancel().catch(() => {});

@@ -122,15 +122,23 @@ async function writeViewState(
       try {
         await assertAuthorized();
       } catch (err) {
+        // A rollback failure must not mask the original error.
         const restore = {};
         const remove = [];
         for (const restoreKey of [key, "viewStateOrder"]) {
           if (previous[restoreKey] === undefined) remove.push(restoreKey);
           else restore[restoreKey] = previous[restoreKey];
         }
-        if (Object.keys(restore).length)
-          await chrome.storage.local.set(restore);
-        if (remove.length) await chrome.storage.local.remove(remove);
+        try {
+          if (Object.keys(restore).length)
+            await chrome.storage.local.set(restore);
+          if (remove.length) await chrome.storage.local.remove(remove);
+        } catch (rollbackErr) {
+          console.warn(
+            "Failed to roll back view-state write after revocation.",
+            rollbackErr,
+          );
+        }
         throw err;
       }
     }
