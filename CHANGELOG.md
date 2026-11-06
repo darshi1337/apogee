@@ -350,6 +350,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Add shared remote client and opt-in setup (stage A) (#606) ([bde073d](https://github.com/darshi1337/apogee/commit/bde073da029f68ff97ea81eb2fef64133b6169f4))
 - Add RTL summary languages (#622) ([8afc5e4](https://github.com/darshi1337/apogee/commit/8afc5e4f5f1fc1a40bd4413d73e1cbe25381c42b))
 - Support multiple llama-server models in router mode (#618) ([101c06c](https://github.com/darshi1337/apogee/commit/101c06c0906f39b80ee662a9a5bc26cc0b14eb88))
+- Enable opt-in remote Summary and Ask (B1) (#617) ([bb219ba](https://github.com/darshi1337/apogee/commit/bb219baa7c049d6c36bf36c3545bd59d85b27414))
 
 ### Fixed
 
@@ -360,6 +361,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Override minimatch to 11.0.4 for GHSA-g3hv-75wg-m249 (#603) ([3924ebf](https://github.com/darshi1337/apogee/commit/3924ebf9eb33471946f4f91584e5bed42c478d69))
 - Use existing github_actions label for Dependabot workflow PRs (#620) ([bf241cd](https://github.com/darshi1337/apogee/commit/bf241cda272e8cd2c7aae2ce96fd7a13d6d125f4))
 - Tighten late stream-finish retention ([ae31c7c](https://github.com/darshi1337/apogee/commit/ae31c7cdc6779622d54df3350a35df61259e76e2))
+- Bump reviewdog/action-actionlint (#635) ([196c028](https://github.com/darshi1337/apogee/commit/196c02841d16b87b59ccf6b2957ca5b2fcb45699))
 
 ## [0.2.1] - 2026-08-19
 
