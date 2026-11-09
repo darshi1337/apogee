@@ -118,7 +118,7 @@
     "description": "Past summaries heading"
   },
   "filterByTitle": {
-    "message": "Filter by title…",
+    "message": "Filter by title�",
     "description": "Past summaries filter placeholder"
   },
   "filterPastByTitle": {
@@ -203,7 +203,7 @@
   },
   "questionTag": { "message": "Question", "description": "Prompts toggle tag" },
   "askPlaceholder": {
-    "message": "Type here to ask · Enter to send",
+    "message": "Type here to ask � Enter to send",
     "description": "Question input placeholder"
   },
   "askAboutPage": {
@@ -558,5 +558,17 @@
   "remoteGenerationConsent": {
     "message": "I consent to sending content for remote summaries and Ask to this provider and its upstream model providers.",
     "description": "Separate consent to transmit content for remote generation"
+  },
+  "remoteBackgroundConsent": {
+    "message": "I allow remote summaries started from shortcuts, context menus, selections, and selected tabs.",
+    "description": "Separate consent for explicit remote background and multi-tab summaries"
+  },
+  "remoteSuggestionsConsent": {
+    "message": "I allow sending generated summary text to this provider for automatic follow-up questions after I start a summary.",
+    "description": "Separate consent to transmit generated summary text for suggested questions"
+  },
+  "remoteGenerateQuestions": {
+    "message": "Generate follow-up questions",
+    "description": "Explicitly request follow-up questions for a restored remote summary"
   }
 }

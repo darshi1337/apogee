@@ -119,6 +119,8 @@ test("explicit save carries key and consent; key field clears; refresh stays pro
       provider: "openrouter",
       consent: true,
       generationConsent: false,
+      backgroundConsent: false,
+      suggestionsConsent: false,
       apiKey: "secret-key",
     },
   });
@@ -384,6 +386,8 @@ test("unchecking catalog consent revokes generation consent in the same Save", a
     provider: "openrouter",
     consent: false,
     generationConsent: false,
+    backgroundConsent: false,
+    suggestionsConsent: false,
   });
   assert.deepEqual(requested, []);
 });
@@ -416,4 +420,29 @@ test("remote setup changes refresh readiness without startup notifications", asy
   fire("save");
   await tick();
   assert.deepEqual(changes, ["openrouter"]);
+});
+
+test("B2 grants require explicit generation consent and saving never starts inference", async () => {
+  const { calls, control, fire } = await setup(view({ consent: true }));
+  assert.equal(control("background-consent").checked, false);
+  assert.equal(control("suggestions-consent").checked, false);
+  control("background-consent").checked = true;
+  control("suggestions-consent").checked = true;
+  fire("save");
+  await tick();
+  assert.equal(calls[1].payload.backgroundConsent, false);
+  assert.equal(calls[1].payload.suggestionsConsent, false);
+  control("consent").checked = true;
+  control("generation-consent").checked = true;
+  control("background-consent").checked = true;
+  control("suggestions-consent").checked = true;
+  fire("save");
+  await tick();
+  assert.equal(calls[2].payload.backgroundConsent, true);
+  assert.equal(calls[2].payload.suggestionsConsent, true);
+  assert.ok(
+    calls.every((call) =>
+      ["remote-settings-get", "remote-settings-save"].includes(call.action),
+    ),
+  );
 });
