@@ -24,7 +24,7 @@ Packaging: upload a ZIP of the Chromium build (`dist/chrome`), not a CRX. The st
 
 ### Description
 
-Apogee is an AI assistant for articles, YouTube videos, PDFs, DOCX files, pasted text, emails, and more. It summarizes and answers questions locally by default. Local generation needs no account or API key and sends no content to a cloud service. Optional OpenRouter and OpenCode generation uses your own key after separate catalog and generation consent and an explicit foreground Summary or Ask action. There is no telemetry.
+Apogee is an AI assistant for articles, YouTube videos, PDFs, DOCX files, pasted text, emails, and more. It summarizes and answers questions locally by default. Local generation needs no account or API key and sends no content to a cloud service. Optional OpenRouter and OpenCode generation uses your own key after separate catalog and generation consent and an explicit user generation action. There is no telemetry.
 
 WHY APOGEE
 
@@ -94,9 +94,9 @@ PRIVACY
 
   - For Reddit threads, the thread JSON of the viewed page (same-origin fetch, no extra host).
 
-  - Explicit opt-in catalogs: `https://openrouter.ai/api/v1/models` and `https://opencode.ai/inference/v1/models`. Requests send connection metadata and the matching saved credential. Keys remain in extension-local storage, which is not encrypted at rest; only the worker credential helper reads them, and public settings, exports, and diagnostics redact them. Separate generation consent enables foreground Summary and Ask at `https://openrouter.ai/api/v1/chat/completions` and `https://opencode.ai/inference/openai/v1/chat/completions`. These send page, selected, pasted, or extracted uploaded text, title/URL when present, questions, instructions, and needed intermediate generated text. Map/reduce and language handling can make multiple requests. OpenRouter requires fresh explicitly zero prices and `allow_fallbacks: false`; OpenCode Console / Go uses paid credits/Go models and this client preset excludes free models. Credentials go only to the matching fixed origin.
+  - Explicit opt-in catalogs: `https://openrouter.ai/api/v1/models` and `https://opencode.ai/inference/v1/models`. Requests send connection metadata and the matching saved credential. Keys remain in extension-local storage, which is not encrypted at rest; only the worker credential helper reads them, and public settings, exports, and diagnostics redact them. Separate generation consent enables Summary and Ask at `https://openrouter.ai/api/v1/chat/completions` and `https://opencode.ai/inference/openai/v1/chat/completions`. These send page, selected, pasted, or extracted uploaded text, title/URL when present, questions, instructions, and needed intermediate generated text. Map/reduce and language handling can make multiple requests. OpenRouter requires fresh explicitly zero prices and `allow_fallbacks: false`; OpenCode Console / Go uses paid credits/Go models and this client preset excludes free models. Credentials go only to the matching fixed origin.
 
-- Page content stays local for local generation. Explicit remote generation sends the input described above to your selected provider under its and any upstream model provider's policies. Revocation stops future transmissions and aborts active requests, but cannot recall data already sent. Remote providers never enter automatic selection or fallback. Remote background/context-menu runs, multi-tab synthesis, and automatic suggestions are disabled with a safe explanation.
+- Page content stays local for local generation. Explicit remote generation sends the input described above to your selected provider under its and any upstream model provider's policies. Revocation stops future transmissions and aborts active requests, but cannot recall data already sent. Remote providers never enter automatic selection or fallback. Background/context-menu and selected-tab summaries require an additional default-off provider consent and an explicit user start. Sending generated summary text for follow-up questions requires a separate default-off suggestions consent. Automatic suggestions follow only a newly requested summary; restoring a summary never starts remote generation. Remote providers never enter automatic selection or fallback.
 
 REQUIREMENTS
 
@@ -116,7 +116,7 @@ Apogee is free and open source (MIT licensed). Source, issues, and releases: htt
 
 Apogee summarizes the web page, video, or PDF the user currently views and answers questions about that content. Both tasks use a local AI model by default through WebGPU, WebAssembly, Ollama, or llama.cpp. Explicitly selected remote generation is optional and requires separate consent.
 
-Each permission and feature serves summarization and question-answering of content the user actively selects. Local generation keeps content on device; opt-in foreground remote generation transmits input to the selected provider as disclosed above.
+Each permission and feature serves summarization and question-answering of content the user actively selects. Local generation keeps content on device; opt-in remote generation transmits input to the selected provider as disclosed above.
 
 ## Permission justifications
 
@@ -126,7 +126,7 @@ Each permission and feature serves summarization and question-answering of conte
 
 **tabs** Apogee sees which tab is active so the persistent side panel re-renders when the user switches tabs. It reads only the active tab id, URL, and title. It reads no browsing history and tracks no other tabs.
 
-**storage** Stores local settings, the selected provider/model, summary format, provider keys, and separate catalog and generation consent choices between sessions. Credentials are sent only to their matching fixed origin for an explicitly requested catalog refresh or authorized foreground generation. Public settings redact credentials.
+**storage** Stores local settings, the selected provider/model, summary format, provider keys, and separate catalog and generation consent choices between sessions. Credentials are sent only to their matching fixed origin for an explicitly requested catalog refresh or authorized generation. Public settings redact credentials.
 
 **offscreen** On Chromium, the extension service worker cannot reach WebGPU. Apogee uses an offscreen document to run the in-browser AI model outside any visible tab. It runs WebLLM on WebGPU, or Transformers.js on WebAssembly. Summarization runs in the background with no dedicated page.
 
@@ -162,7 +162,7 @@ Runtime downloads include model weight files from Hugging Face, extractor data, 
 
 ## Data usage
 
-B1 keeps local generation as the default. Optional authenticated catalogs transmit the user's provider credential and connection metadata. Separately authorized foreground Summary and Ask generation transmits website content, title/URL (browsing activity), selected/pasted/extracted uploaded text (which may include personal communications), questions, and instructions to the selected provider and its upstream model provider. Store data-use disclosures must cover authentication information, website content, browsing activity, and personal communications for this optional flow; do not reuse a blanket no-data-transmission statement. Revocation stops future transmissions but cannot recall sent data. There is no telemetry or automatic remote fallback.
+B2 keeps local generation as the default. Optional authenticated catalogs transmit the user's provider credential and connection metadata. Separately authorized remote generation transmits website content, title/URL (browsing activity), selected/pasted/extracted uploaded text (which may include personal communications), questions, and instructions to the selected provider and its upstream model provider. Store data-use disclosures must cover authentication information, website content, browsing activity, and personal communications for this optional flow; do not reuse a blanket no-data-transmission statement. Revocation stops future transmissions but cannot recall sent data. There is no telemetry or automatic remote fallback.
 
 Firefox declares no required data collection (`required: ["none"]`) and optional `authenticationInfo`, `websiteContent`, `browsingActivity`, and `personalCommunications`. Catalog-only setup requests authentication permission; generation consent requests the content-related permissions as well. The worker rechecks these permissions before sending content. See [Mozilla's data-consent documentation](https://extensionworkshop.com/documentation/develop/firefox-builtin-data-consent/).
 
