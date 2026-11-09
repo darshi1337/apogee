@@ -540,12 +540,59 @@ async function restoreSuggestedPrompts({
   selectionText = "",
   providerType = settings.provider,
 }) {
-  if (
+  const remote =
     isRemoteProvider(providerType) ||
     isRemoteProvider(settings.provider) ||
-    /:p(?:openrouter|opencode)(?=:|$)/.test(promptsCacheKey || "")
-  ) {
+    /:p(?:openrouter|opencode)(?=:|$)/.test(promptsCacheKey || "");
+  const button = document.getElementById("generateRemoteQuestionsBtn");
+  button?.classList.add("hidden");
+  if (remote) {
+    currentPromptsCacheKey = promptsCacheKey;
     showSummaryContext([]);
+    if (useStored && promptsCacheKey) {
+      const stored = await chrome.storage.local.get(promptsCacheKey);
+      if (Array.isArray(stored[promptsCacheKey])) {
+        showSummaryContext(stored[promptsCacheKey]);
+        return;
+      }
+    }
+    if (
+      button &&
+      isRemoteProvider(settings.provider) &&
+      providerType === settings.provider
+    ) {
+      button.classList.remove("hidden");
+      button.textContent = `${t("remoteGenerateQuestions")} (${providerType})`;
+      button.onclick = async () => {
+        button.disabled = true;
+        try {
+          const response = await chrome.runtime.sendMessage({
+            target: "service-worker",
+            action: "remote-suggest-questions",
+            payload: {
+              title: tab.title || "",
+              url: tab.url || "",
+              summary,
+              tabId: tab.id,
+              pageType,
+              selectionText,
+              focusKeyword,
+            },
+          });
+          if (response?.started) {
+            currentPromptsCacheKey = response.promptsCacheKey;
+            setSuggestedQuestionsLoading();
+            button.classList.add("hidden");
+          } else {
+            announce(response?.error || t("remoteSettingsError"));
+          }
+        } catch {
+          announce(t("remoteSettingsError"));
+        } finally {
+          button.disabled = false;
+        }
+      };
+    }
     return;
   }
   if (useStored && promptsCacheKey) {
@@ -1158,6 +1205,14 @@ document.addEventListener("click", (e) => {
   }
 });
 
+function resetRemoteQuestionsAction() {
+  const button = document.getElementById("generateRemoteQuestionsBtn");
+  if (button) {
+    button.classList.add("hidden");
+    button.onclick = null;
+  }
+}
+
 function resetQuestionCards() {
   setSuggestedQuestions([]);
 }
@@ -1403,6 +1458,7 @@ if (pastSummariesFilter) {
 }
 
 function showSummarizingContext() {
+  resetRemoteQuestionsAction();
   summaryCard.classList.remove("hidden");
   promptsSection.classList.add("hidden");
   chatSection.classList.add("hidden");
@@ -1752,6 +1808,7 @@ async function clearFailedStreamState(tabId, jobId = null, subview = null) {
 }
 
 function showSummaryContext(questions = []) {
+  resetRemoteQuestionsAction();
   summaryView.classList.remove("ask-mode");
   summaryCard.classList.remove("hidden");
   promptsSection.classList.remove("hidden");
@@ -1770,6 +1827,7 @@ function showSummaryContext(questions = []) {
 }
 
 function showAskContext() {
+  resetRemoteQuestionsAction();
   summaryView.classList.add("ask-mode");
   summaryCard.classList.add("hidden");
   promptsSection.classList.add("hidden");
@@ -1787,6 +1845,7 @@ function showAskContext() {
 }
 
 function showAnswerContext(question) {
+  resetRemoteQuestionsAction();
   summaryView.classList.add("ask-mode");
   const container = document.getElementById("questionContainer");
   container.innerHTML = "";
@@ -1918,7 +1977,10 @@ async function consumeSummaryStream(stream, { tab, promptsCacheKey, jobId }) {
   );
   currentPromptsCacheKey = promptsCacheKey;
   if (/:p(?:openrouter|opencode)(?=:|$)/.test(promptsCacheKey || "")) {
-    setSuggestedQuestions([]);
+    const stored = await chrome.storage.local.get(promptsCacheKey);
+    setSuggestedQuestions(
+      Array.isArray(stored[promptsCacheKey]) ? stored[promptsCacheKey] : [],
+    );
     return text;
   }
   setSuggestedQuestionsLoading();
@@ -2442,6 +2504,7 @@ function updateConnectionUI(connected) {
 }
 
 function showOnlyView(view) {
+  resetRemoteQuestionsAction();
   homeView.classList.toggle("hidden", view !== "homeView");
   summaryView.classList.toggle("hidden", view !== "summaryView");
   settingsView.classList.toggle("hidden", view !== "settingsView");
@@ -2735,6 +2798,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                 summary: state.summaryText,
                 settings,
                 providerType: state.providerType,
+                pageType: state.pageType || "",
+                selectionText: state.isSelection
+                  ? state.selectionText || ""
+                  : "",
                 persist: false,
               });
               return;

@@ -13,7 +13,15 @@ chrome.alarms = {
   clear: async () => {},
   onAlarm: { addListener() {} },
 };
-chrome.permissions.onRemoved = { addListener() {}, removeListener() {} };
+const removedPermissionListeners = new Set();
+chrome.permissions.onRemoved = {
+  addListener(listener) {
+    removedPermissionListeners.add(listener);
+  },
+  removeListener(listener) {
+    removedPermissionListeners.delete(listener);
+  },
+};
 const broadcasts = [];
 const sendMessage = chrome.runtime.sendMessage;
 chrome.runtime.sendMessage = async (message) => {
@@ -512,17 +520,248 @@ test("trusted extension tabs can attach to a remote stream while content-script 
   }
 });
 
-test("background and multi-tab paths reject remote configuration before network calls", async () => {
+test("background and multi-tab paths require their separate consent before network calls", async () => {
   await setup();
   const calls = intercept();
   await assert.rejects(
     runBackgroundSummarize({ id: tabId, url }),
-    /not available in this stage/,
+    /authorization changed/,
   );
   await assert.rejects(
     summarizeMultiTab([{ id: tabId, url }]),
-    /not available in this stage/,
+    /authorization changed/,
   );
   assert.equal(calls.length, 0);
   assert.equal(activeStreams.size, 0);
+});
+
+test("B2 background and selected-tabs use both explicit provider models", async () => {
+  chrome.scripting = {
+    executeScript: async () => [
+      { result: chrome.runtime.getManifest().version },
+    ],
+  };
+  chrome.tabs.sendMessage = async () => ({
+    content: "Article evidence with sufficient content.",
+    title: "Evidence",
+    type: "article",
+  });
+  for (const provider of Object.keys(models)) {
+    await setup(provider, { [`${provider}BackgroundConsent`]: true });
+    const calls = intercept();
+    await runBackgroundSummarize(
+      { id: tabId, url },
+      { selectionText: "Selected article evidence with enough content." },
+    );
+    await waitFor(
+      () => [...activeStreams.values()].some((stream) => stream.done),
+      "background complete",
+    );
+    assert.equal(calls.filter((call) => call.body).length, 1);
+    assert.equal(calls.find((call) => call.body).body.model, models[provider]);
+    const result = await summarizeMultiTab([
+      { id: tabId, url },
+      { id: tabId + 1, url: "https://example.org/other" },
+    ]);
+    assert.ok(result.summary);
+    const state = await loadViewState(tabId);
+    assert.equal(state.providerType, provider);
+    assert.equal(state.pageType, "multi-tab");
+    assert.equal(state.sourceUrls.includes("https://example.org/other"), true);
+    assert.ok(state.promptsCacheKey.includes(":tmulti-tab"));
+  }
+});
+
+test("B2 background and multi-tab authorization changes prevent result persistence", async () => {
+  chrome.scripting = {
+    executeScript: async () => [
+      { result: chrome.runtime.getManifest().version },
+    ],
+  };
+  chrome.tabs.sendMessage = async () => ({
+    content: "Article evidence with sufficient content.",
+    title: "Evidence",
+    type: "article",
+  });
+  for (const provider of Object.keys(models)) {
+    for (const path of ["background", "multi-tab"]) {
+      for (const patch of [
+        { [`${provider}BackgroundConsent`]: false },
+        { [`${provider}GenerationConsent`]: false },
+        { [`${provider}ApiKey`]: "replacement-key" },
+        { [`${provider}Model`]: "changed/model" },
+      ]) {
+        await setup(provider, { [`${provider}BackgroundConsent`]: true });
+        let posts = 0;
+        intercept(async (request) => {
+          if (request.body && ++posts === 1) {
+            const stored = getStorageData().settings;
+            await chrome.storage.local.set({
+              settings: { ...stored, ...patch },
+            });
+          }
+        });
+        if (path === "background") {
+          await runBackgroundSummarize(
+            { id: tabId, url },
+            { selectionText: "Selected article evidence with enough content." },
+          );
+          await waitFor(
+            () => [...activeStreams.values()].some((stream) => stream.done),
+            "revoked background complete",
+          );
+          assert.ok([...activeStreams.values()].some((stream) => stream.error));
+        } else {
+          await assert.rejects(summarizeMultiTab([{ id: tabId, url }]));
+        }
+        assertNoSummarySaved();
+        assert.notEqual((await loadViewState(tabId))?.subview, "summary");
+        assert.equal(posts, 1);
+      }
+    }
+  }
+});
+
+test("remote selection capture requires a single-use UI grant", async () => {
+  await setup("openrouter", { openrouterBackgroundConsent: true });
+  const calls = intercept();
+  chrome.tabs.get = async (id) => ({ id, url });
+  const selectionSender = {
+    id: chrome.runtime.id,
+    tab: { id: tabId, url },
+    url,
+    documentId: "document-a",
+  };
+  const message = (grant) => ({
+    target: "service-worker",
+    action: "summarize-selection",
+    payload: {
+      selectionText: "Selected article evidence with enough content.",
+      grant,
+    },
+  });
+  router(message("invalid"), selectionSender, () => {});
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(calls.length, 0);
+  const armed = await dispatch("arm-remote-selection", { tabId });
+  assert.ok(armed.grant);
+  router(message(armed.grant), selectionSender, () => {});
+  await waitFor(
+    () => [...activeStreams.values()].some((stream) => stream.done),
+    "selection complete",
+  );
+  assert.equal(calls.filter((call) => call.body).length, 1);
+  router(message(armed.grant), selectionSender, () => {});
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(calls.filter((call) => call.body).length, 1);
+});
+
+test("a local-only selection start cannot adopt a newly selected remote provider", async () => {
+  await setup("openrouter", { openrouterBackgroundConsent: true });
+  const calls = intercept();
+  await assert.rejects(
+    runBackgroundSummarize(
+      { id: tabId, url },
+      {
+        localOnly: true,
+        selectionText: "Selected article evidence with enough content.",
+      },
+    ),
+    /selection capture again/,
+  );
+  assert.equal(calls.length, 0);
+});
+
+test("B2 native worker permission removal aborts every provider and path", async () => {
+  chrome.scripting = {
+    executeScript: async () => [
+      { result: chrome.runtime.getManifest().version },
+    ],
+  };
+  chrome.tabs.sendMessage = async () => ({
+    content: "Article evidence with sufficient content.",
+    title: "Evidence",
+    type: "article",
+  });
+  for (const provider of Object.keys(models)) {
+    for (const path of ["background", "multi-tab"]) {
+      await setup(provider, { [`${provider}BackgroundConsent`]: true });
+      let posts = 0;
+      intercept(async (request) => {
+        if (request.body) {
+          posts++;
+          for (const listener of removedPermissionListeners)
+            listener({ data_collection: ["websiteContent"] });
+        }
+      });
+      if (path === "background") {
+        await runBackgroundSummarize(
+          { id: tabId, url },
+          { selectionText: "Selected article evidence with enough content." },
+        );
+        await waitFor(
+          () => [...activeStreams.values()].some((stream) => stream.done),
+          "permission removed background",
+        );
+        assert.ok([...activeStreams.values()].some((stream) => stream.error));
+      } else await assert.rejects(summarizeMultiTab([{ id: tabId, url }]));
+      assert.equal(posts, 1);
+      assertNoSummarySaved();
+      assert.notEqual((await loadViewState(tabId))?.subview, "summary");
+      assert.equal(removedPermissionListeners.size, 0);
+    }
+  }
+});
+
+test("B2 multi-tab rechecks non-owner persistence policy and rolls back an issued write", async () => {
+  chrome.scripting = {
+    executeScript: async () => [
+      { result: chrome.runtime.getManifest().version },
+    ],
+  };
+  chrome.tabs.sendMessage = async () => ({
+    content: "Article evidence with sufficient content.",
+    title: "Evidence",
+    type: "article",
+  });
+  const tabs = [
+    { id: tabId, url },
+    { id: tabId + 1, url: "https://private-source.example/other" },
+  ];
+  for (const provider of Object.keys(models)) {
+    for (const phase of ["generation", "commit"]) {
+      await setup(provider, { [`${provider}BackgroundConsent`]: true });
+      const prior = await loadViewState(tabId);
+      const backingSet = chrome.storage.local.set;
+      const changePolicy = () =>
+        backingSet({
+          settings: {
+            ...getStorageData().settings,
+            privateHosts: "private-source.example",
+          },
+        });
+      intercept(async (request) => {
+        if (phase === "generation" && request.body) await changePolicy();
+      });
+      let changed = false;
+      if (phase === "commit")
+        chrome.storage.local.set = async (items) => {
+          await backingSet(items);
+          if (
+            !changed &&
+            items[`popupViewState:${tabId}`]?.pageType === "multi-tab"
+          ) {
+            changed = true;
+            await changePolicy();
+          }
+        };
+      try {
+        const result = await summarizeMultiTab(tabs);
+        assert.ok(result.summary);
+        assert.deepEqual(await loadViewState(tabId), prior);
+      } finally {
+        chrome.storage.local.set = backingSet;
+      }
+    }
+  }
 });
