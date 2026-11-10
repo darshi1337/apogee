@@ -183,6 +183,12 @@ export const DEFAULT_LLAMACPP_HOST = "http://127.0.0.1:8080";
 
 export const OFFSCREEN_READY_TIMEOUT_MS = 8000;
 
+// A healthy model document answers status checks and stream starts at once.
+// Generation and the first embedding-model load can take minutes, so they
+// get the longer cap.
+export const OFFSCREEN_CALL_TIMEOUT_MS = 15 * 1000;
+export const OFFSCREEN_WORK_TIMEOUT_MS = 5 * 60 * 1000;
+
 export const LLM_HEALTH_CHECK_TIMEOUT_MS = 3000;
 
 // A router answers `/props?model=` only after that model is loaded, so this

@@ -85,6 +85,7 @@ import {
 import { PROVIDERS } from "../lib/constants.js";
 import {
   OFFSCREEN_READY_TIMEOUT_MS,
+  OFFSCREEN_WORK_TIMEOUT_MS,
   LLM_HEALTH_CHECK_TIMEOUT_MS,
   SPONSORBLOCK_FETCH_TIMEOUT_MS,
   BILIBILI_FETCH_TIMEOUT_MS,
@@ -125,6 +126,7 @@ import {
   relayToOffscreenStream,
   clearOffscreenRelayRefs,
   claimStreamFinish,
+  sendToOffscreen,
 } from "./streams.js";
 import {
   OLLAMA_PROVIDER,
@@ -288,11 +290,14 @@ async function getRelevantAskContent(content, question) {
   }
   try {
     await ensureOffscreenDocument();
-    const resp = await chrome.runtime.sendMessage({
-      target: "offscreen",
-      action: "retrieve-context",
-      payload: { content, question },
-    });
+    const resp = await sendToOffscreen(
+      {
+        target: "offscreen",
+        action: "retrieve-context",
+        payload: { content, question },
+      },
+      OFFSCREEN_WORK_TIMEOUT_MS,
+    );
     if (resp?.error) throw new Error(resp.error);
     return resp.content;
   } catch (err) {
@@ -906,7 +911,7 @@ export async function runBackgroundSummarize(
   } else if (providerType === PROVIDERS.TRANSFORMERS) {
     startTransformersStream(streamId, common);
   } else {
-    const resp = await chrome.runtime.sendMessage({
+    const resp = await sendToOffscreen({
       target: "offscreen",
       action: "summarize",
       streamId,
@@ -1631,7 +1636,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           await recordPopupSummaryStream(payload, streamId);
 
           const { customInstructions } = await getSettings();
-          const resp = await chrome.runtime.sendMessage({
+          const resp = await sendToOffscreen({
             target: "offscreen",
             action: message.action,
             streamId,
@@ -1741,7 +1746,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           if (hasOffscreenAPI) {
             await ensureOffscreenDocument();
             const { action, ...jobPayload } = payload;
-            const resp = await chrome.runtime.sendMessage({
+            const resp = await sendToOffscreen({
               target: "offscreen",
               action,
               streamId,
@@ -1762,7 +1767,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case "transformers-status": {
           if (hasOffscreenAPI) {
             await ensureOffscreenDocument();
-            const response = await chrome.runtime.sendMessage({
+            const response = await sendToOffscreen({
               target: "offscreen",
               action: "transformers-status",
             });
@@ -1880,7 +1885,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case "status": {
           await ensureOffscreenDocument();
 
-          const response = await chrome.runtime.sendMessage({
+          const response = await sendToOffscreen({
             target: "offscreen",
             action: "status",
           });
@@ -1901,11 +1906,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             break;
           }
           await ensureOffscreenDocument();
-          const response = await chrome.runtime.sendMessage({
-            target: "offscreen",
-            action: "find-passage",
-            payload: message.payload,
-          });
+          const response = await sendToOffscreen(
+            {
+              target: "offscreen",
+              action: "find-passage",
+              payload: message.payload,
+            },
+            OFFSCREEN_WORK_TIMEOUT_MS,
+          );
           sendResponse(response);
           break;
         }
@@ -1925,11 +1933,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             break;
           }
           await ensureOffscreenDocument();
-          const response = await chrome.runtime.sendMessage({
-            target: "offscreen",
-            action: "retrieve-context",
-            payload: message.payload,
-          });
+          const response = await sendToOffscreen(
+            {
+              target: "offscreen",
+              action: "retrieve-context",
+              payload: message.payload,
+            },
+            OFFSCREEN_WORK_TIMEOUT_MS,
+          );
           sendResponse(response);
           break;
         }
@@ -1955,7 +1966,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           for (const delay of delays) {
             if (delay > 0) await new Promise((r) => setTimeout(r, delay));
             try {
-              wgpuResponse = await chrome.runtime.sendMessage({
+              wgpuResponse = await sendToOffscreen({
                 target: "offscreen",
                 action: "check-webgpu",
               });
@@ -2303,18 +2314,21 @@ export async function summarizeMultiTab(tabsToSummarize, opts = {}) {
     if (signal?.aborted) return null;
     await ensureOffscreenDocument();
     if (signal?.aborted) return null;
-    const response = await chrome.runtime.sendMessage({
-      target: "offscreen",
-      action: "generate-text",
-      payload: {
-        prompt,
-        model,
-        provider:
-          providerType === PROVIDERS.TRANSFORMERS ? "transformers" : "webllm",
-        language: settings.summaryLanguage,
-        translationEngine: settings.translationEngine,
+    const response = await sendToOffscreen(
+      {
+        target: "offscreen",
+        action: "generate-text",
+        payload: {
+          prompt,
+          model,
+          provider:
+            providerType === PROVIDERS.TRANSFORMERS ? "transformers" : "webllm",
+          language: settings.summaryLanguage,
+          translationEngine: settings.translationEngine,
+        },
       },
-    });
+      OFFSCREEN_WORK_TIMEOUT_MS,
+    );
     if (signal?.aborted) return null;
     if (response?.error) throw new Error(response.error);
     summaryResult = response?.text || "";

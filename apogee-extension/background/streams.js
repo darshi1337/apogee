@@ -8,6 +8,8 @@ import {
   msToAlarmMinutes,
   STREAM_CLEANUP_MS,
 } from "../lib/util/streamExpiry.js";
+import { OFFSCREEN_CALL_TIMEOUT_MS } from "../lib/constants.js";
+import { withTimeout } from "../lib/util/withTimeout.js";
 
 // Stream registry and lifecycle: buffered local-HTTP streams, offscreen
 // relay tracking, sliding expiry alarms, and the worker keep-alive. The
@@ -18,6 +20,23 @@ export const hasOffscreenAPI =
   typeof chrome !== "undefined" &&
   typeof chrome.offscreen !== "undefined" &&
   typeof chrome.offscreen.createDocument === "function";
+
+export const OFFSCREEN_UNRESPONSIVE_ERROR =
+  "The in-browser model stopped responding. Reload the extension and retry.";
+
+// The popup waits on the worker, and the worker waits on the model document.
+// A document that is alive but stuck (hung engine load, wedged GPU device)
+// never answers, so without a cap the popup spins until the worker dies.
+export function sendToOffscreen(
+  message,
+  timeoutMs = OFFSCREEN_CALL_TIMEOUT_MS,
+) {
+  return withTimeout(chrome.runtime.sendMessage(message), timeoutMs, {
+    onTimeout: () => {
+      throw new Error(OFFSCREEN_UNRESPONSIVE_ERROR);
+    },
+  });
+}
 
 export function nextStreamId(kind) {
   return `${kind}-${crypto.randomUUID()}`;
