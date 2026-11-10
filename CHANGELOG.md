@@ -362,6 +362,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Use existing github_actions label for Dependabot workflow PRs (#620) ([bf241cd](https://github.com/darshi1337/apogee/commit/bf241cda272e8cd2c7aae2ce96fd7a13d6d125f4))
 - Tighten late stream-finish retention ([ae31c7c](https://github.com/darshi1337/apogee/commit/ae31c7cdc6779622d54df3350a35df61259e76e2))
 - Bump reviewdog/action-actionlint (#635) ([196c028](https://github.com/darshi1337/apogee/commit/196c02841d16b87b59ccf6b2957ca5b2fcb45699))
+- Bump the npm-minor-patch group in /apogee-extension with 4 updates (#646) ([a25db52](https://github.com/darshi1337/apogee/commit/a25db521c8567b50a152a374efad2d72fe8cff76))
+- Bump zizmorcore/zizmor-action (#647) ([2b9d65f](https://github.com/darshi1337/apogee/commit/2b9d65f7d3636afd9cbf2ed251a164e76db95a3d))
+- Bump the github-actions group with 2 updates (#648) ([a227211](https://github.com/darshi1337/apogee/commit/a22721156dd4fd30e194ec650fbaf66c9098d4c4))
+- Finish each stream once (#628) (#649) ([eb35057](https://github.com/darshi1337/apogee/commit/eb35057c862658ccbc532a74446043bbdc7fdd9b))
 
 ## [0.2.1] - 2026-08-19
 
