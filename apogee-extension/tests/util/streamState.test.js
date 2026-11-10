@@ -6,6 +6,7 @@ import {
   emitChunkToState,
   warmedStatsForState,
   finishStateWithStats,
+  isStreamTerminal,
   replayStreamToPort,
 } from "../../lib/util/streamState.js";
 import { MAX_STREAM_TEXT_CHARS } from "../../lib/extract/fileLimits.js";
@@ -66,6 +67,21 @@ test("appendChunkToState ignores empty or cancelled chunks", () => {
   const cancelledState = createStreamState({ cancelled: true });
   assert.strictEqual(appendChunkToState(cancelledState, "hello"), false);
   assert.strictEqual(cancelledState.text, "");
+});
+
+test("a terminal stream rejects late chunks and reports its state (#628)", () => {
+  const live = createStreamState();
+  assert.strictEqual(isStreamTerminal(live), false);
+  assert.strictEqual(isStreamTerminal(createStreamState({ done: true })), true);
+  assert.strictEqual(
+    isStreamTerminal(createStreamState({ cancelled: true })),
+    true,
+  );
+
+  const doneState = createStreamState({ done: true });
+  assert.strictEqual(appendChunkToState(doneState, "late token"), false);
+  assert.strictEqual(doneState.text, "");
+  assert.strictEqual(doneState.firstTokenTime, null);
 });
 
 test("appendChunkToState sets firstTokenTime and increments text and tokenCount", () => {
