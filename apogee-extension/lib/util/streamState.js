@@ -26,10 +26,16 @@ export function createStreamState(extra = {}) {
   };
 }
 
+// A stream stops accepting work at its first terminal state. A done stream
+// must not take late chunks, and a cancelled one must not either (#628).
+export function isStreamTerminal(state) {
+  return state.cancelled || state.done;
+}
+
 // Capped accumulation (#269): keep the head so a runaway model cannot
 // bloat memory. False when nothing new was accepted.
 export function appendChunkToState(state, text) {
-  if (!text || state.cancelled) return false;
+  if (!text || isStreamTerminal(state)) return false;
   const capped = appendStreamTextCapped(state.text, text);
   const accepted = capped.text.length - state.text.length;
   state.text = capped.text;

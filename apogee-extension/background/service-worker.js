@@ -12,6 +12,7 @@ import {
   createStreamState,
   emitChunkToState,
   finishStateWithStats,
+  isStreamTerminal,
   replayStreamToPort,
 } from "../lib/util/streamState.js";
 import { chunkBySections } from "../lib/summarize/sections.js";
@@ -123,6 +124,7 @@ import {
   forwardCancelToOffscreen,
   relayToOffscreenStream,
   clearOffscreenRelayRefs,
+  claimStreamFinish,
 } from "./streams.js";
 import {
   OLLAMA_PROVIDER,
@@ -302,7 +304,7 @@ async function getRelevantAskContent(content, question) {
   }
 }
 
-function createBufferedStream(
+export function createBufferedStream(
   streamId,
   {
     finalize,
@@ -325,7 +327,10 @@ function createBufferedStream(
   startKeepAlive();
 
   const finish = (msg) => {
-    if (stream.cancelled) return;
+    // A stream reaches its terminal state once. Cleanup marks a reclaimed
+    // stream done, so a late or duplicate finish must not broadcast another
+    // done or save the same job twice (#628).
+    if (isStreamTerminal(stream)) return;
     if (msg.type === "done") {
       msg = finishStateWithStats(stream, msg);
     }
@@ -1469,6 +1474,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // disconnect handlers.
     clearOffscreenRelayRefs(message.streamId);
     if (message.error) return false;
+    // One job, one finish: a duplicate late message must not rebuild the
+    // payload from current settings and save the same summary again (#628).
+    if (!claimStreamFinish(message.streamId)) return false;
     (async () => {
       const streamId = message.streamId;
       const fallbackTitle = message.title;

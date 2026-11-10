@@ -35,6 +35,7 @@ import {
   createStreamState,
   emitChunkToState,
   finishStateWithStats,
+  isStreamTerminal,
   replayStreamToPort,
 } from "../lib/util/streamState.js";
 import {
@@ -582,7 +583,9 @@ async function runStream(streamId, pending, stream) {
   stream.controller = controller;
 
   const emit = (msg) => {
-    if (stream.cancelled) return;
+    // One terminal message per stream. A late finish after cancel or cleanup
+    // must not broadcast another done or send a second finish to the worker.
+    if (isStreamTerminal(stream)) return;
     if (msg.type === "chunk") {
       emitChunkToState(stream, msg.text || "", () =>
         scheduleStreamCleanup(streamId),

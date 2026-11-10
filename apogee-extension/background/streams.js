@@ -27,8 +27,27 @@ export const activeStreams = new Map();
 
 export const registeredStreamJobs = new Map();
 
+// The finish handler saves once per stream. A duplicate late message for the
+// same id must not rebuild the payload and save a second time (#628). Oldest
+// entries fall out first, and real ids are UUIDs, so a new run never inherits
+// another run's claim.
+const MAX_FINISHED_STREAM_IDS = 100;
+const finishedStreamIds = new Set();
+
+export function claimStreamFinish(streamId) {
+  if (!streamId) return true;
+  if (finishedStreamIds.has(streamId)) return false;
+  if (finishedStreamIds.size >= MAX_FINISHED_STREAM_IDS) {
+    finishedStreamIds.delete(finishedStreamIds.values().next().value);
+  }
+  finishedStreamIds.add(streamId);
+  return true;
+}
+
 export function registerStreamJob(streamId, jobData) {
   if (!streamId || !jobData?.finalize) return;
+  // A fresh run may reuse an id in tests; give it its own single finish.
+  finishedStreamIds.delete(streamId);
   registeredStreamJobs.set(streamId, jobData);
   scheduleStreamCleanup(streamId);
 }
