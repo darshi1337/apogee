@@ -11,6 +11,28 @@ const manifestDir = dirname(manifestFile);
 const manifestRaw = readFileSync(manifestFile, "utf8");
 const manifest = JSON.parse(manifestRaw);
 
+test("store listing documents Edge submission and assets (#645)", () => {
+  const listing = readFileSync(
+    new URL("../../docs/STORE-LISTING.md", import.meta.url),
+    "utf8",
+  );
+  const edge = listing.match(
+    /^## Microsoft Edge Add-ons listing[ \t]*\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/m,
+  );
+  assert.ok(edge, "Store listing must have a Microsoft Edge Add-ons section");
+  for (const [topic, pattern] of [
+    ["submission steps", /Partner Center[\s\S]*?upload[\s\S]*?submit/i],
+    ["asset requirements", /logo[\s\S]*?screenshots[\s\S]*?promotional/i],
+    ["asset differences", /Chrome[\s\S]*?Firefox[\s\S]*?Edge/i],
+    [
+      "official source",
+      /https:\/\/learn\.microsoft\.com\/en-us\/microsoft-edge\/extensions\/publish\/publish-extension/,
+    ],
+  ]) {
+    assert.match(edge[1], pattern, `Edge section must cover ${topic}`);
+  }
+});
+
 test("manifest.json conforms to Manifest V3 requirements", () => {
   assert.strictEqual(manifest.manifest_version, 3);
   assert.strictEqual(manifest.name, "Apogee");

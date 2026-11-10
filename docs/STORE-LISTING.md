@@ -248,3 +248,29 @@ One HTML file drives both aspect ratios: `1rem` ties to `vmin`. The type scale m
 Each set carries only its own store install CTA, so the Chrome screenshots never advertise Firefox or the reverse.
 
 Both tiles come from 2x captures, downsampled with Lanczos instead of 1:1 renders. The type reads cleanly at tile scale.
+
+## Microsoft Edge Add-ons listing
+
+Edge 116+ uses the Chromium build (`dist/chrome`), with the manifest minimum Chrome version of 116. Follow Microsoft's [publishing and listing guide](https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/publish-extension) and [developer policies](https://learn.microsoft.com/en-us/legal/microsoft-edge/extensions/developer-policies).
+
+### Submission steps
+
+1. In Partner Center, create a new extension and upload the Chromium release ZIP from `npm run package`. Resolve any package validation errors.
+2. Set availability and markets, then enter the category and other properties. Use the product details above where applicable.
+3. Complete Privacy: single purpose, permission justifications, remote code, data usage and the privacy policy URL. Use the disclosures above, including the separately consented remote generation.
+4. Complete each language's store listing, upload the logo and any screenshots or promotional tiles, and review the fields. The short description comes from the package manifest; change it there and re-upload the package. Microsoft's guide states no separate short-description character limit; do not assume one.
+5. Review and submit for certification in Partner Center. Track the review status there; submission is not publication.
+
+### Asset requirements
+
+Microsoft requires a square logo for each language, at least 128x128, with 300x300 recommended. Screenshots are optional, up to six, at 640x480 or 1280x800. Optional promotional tiles are 440x280 (small) and 1400x560 PNG (large). The per-language description is required and must be 250 to 10,000 characters. See Microsoft's [listing details](https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/publish-extension#step-7-enter-store-listing-details-for-each-language).
+
+### Chrome, Firefox, and Edge asset comparison
+
+| Store   | Existing assets and differences |
+| ------- | ------------------------------- |
+| Chrome  | Five 1280x800 screenshots with Chrome install CTA; 128x128 store icon and optional 440x280 and 1400x560 promo tiles. |
+| Firefox | Five 2400x1800 screenshots with Firefox install CTA. The manifest also declares 16, 32, 48, 96, and 128px icons. |
+| Edge    | The 1280x800 screenshot dimensions and both promo tile dimensions match Edge's options; the 128x128 `apogee-extension/assets/icon.png` meets its logo minimum. The Chrome slides carry a Chrome install CTA, so adapt those slides for Edge before using them. The Firefox 2400x1800 slides are not an Edge screenshot size. |
+
+The stores therefore do not have one ready-to-upload shared screenshot set, even where dimensions match. Check the current store guidance and listing content before submission.
