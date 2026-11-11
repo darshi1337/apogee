@@ -366,6 +366,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Bump zizmorcore/zizmor-action (#647) ([2b9d65f](https://github.com/darshi1337/apogee/commit/2b9d65f7d3636afd9cbf2ed251a164e76db95a3d))
 - Bump the github-actions group with 2 updates (#648) ([a227211](https://github.com/darshi1337/apogee/commit/a22721156dd4fd30e194ec650fbaf66c9098d4c4))
 - Finish each stream once (#628) (#649) ([eb35057](https://github.com/darshi1337/apogee/commit/eb35057c862658ccbc532a74446043bbdc7fdd9b))
+- Model document calls time out instead of hanging the popup (#469) (#651) ([92d56c6](https://github.com/darshi1337/apogee/commit/92d56c64f3ff854f4814b5063e9bcb6b0c6c40ba))
+- Add focus-visible rings to the home action and chip buttons (#653) ([be7f4df](https://github.com/darshi1337/apogee/commit/be7f4df5506d614507ef3fdfacd32446e9a4f5d9))
 
 ## [0.2.1] - 2026-08-19
 
