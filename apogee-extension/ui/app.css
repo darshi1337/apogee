@@ -438,6 +438,8 @@ body {
   z-index: 1;
 }
 .chip-btn:focus-visible {
+  position: relative;
+  z-index: 1;
   outline: 2px solid var(--input-focus-border);
   outline-offset: 1px;
 }
@@ -592,6 +594,8 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
   border-color: var(--btn-hover-border);
 }
 .action-btn:focus-visible {
+  position: relative;
+  z-index: 1;
   outline: 2px solid var(--input-focus-border);
   outline-offset: 1px;
 }
