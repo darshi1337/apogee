@@ -437,6 +437,12 @@ body {
   position: relative;
   z-index: 1;
 }
+.chip-btn:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--input-focus-border);
+  outline-offset: 1px;
+}
 
 .chip-btn:first-child {
   margin-left: 0;
@@ -586,6 +592,12 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
 .action-btn:hover {
   background: var(--btn-hover-bg);
   border-color: var(--btn-hover-border);
+}
+.action-btn:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--input-focus-border);
+  outline-offset: 1px;
 }
 
 .action-btn .ico svg {
