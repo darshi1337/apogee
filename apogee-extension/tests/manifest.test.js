@@ -18,6 +18,24 @@ test("manifest.json conforms to Manifest V3 requirements", () => {
   assert.ok(manifest.description, "Manifest must have a description");
 });
 
+test("store summary and manifest description fit Chrome's 132 character limit", () => {
+  const listing = readFileSync(
+    new URL("../../docs/STORE-LISTING.md", import.meta.url),
+    "utf8",
+  );
+  const summary = listing.match(/^- \*\*Summary:\*\* (.+)$/m);
+  assert.ok(summary, "Store listing must contain a summary");
+  for (const [name, text] of [
+    ["Store summary", summary[1]],
+    ["Manifest description", manifest.description],
+  ]) {
+    assert.ok(
+      text.length <= 132,
+      `${name} is ${text.length} characters (max 132)`,
+    );
+  }
+});
+
 test("manifest.json declares valid background service worker", () => {
   assert.ok(manifest.background, "Manifest must declare a background script");
   assert.strictEqual(
