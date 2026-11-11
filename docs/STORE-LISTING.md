@@ -8,7 +8,7 @@ Packaging: upload a ZIP of the Chromium build (`dist/chrome`), not a CRX. The st
 
 - **Title:** Apogee
 
-- **Summary:** AI browser assistant for articles, videos, emails and more. Runs in-browser via WebGPU and WebAssembly, or locally via Ollama and llama.cpp.
+- **Summary:** AI browser assistant for articles, videos, emails and more. Runs in-browser via WebGPU/WASM, or locally via Ollama and llama.cpp.
 
 - **Category:** Productivity
 
