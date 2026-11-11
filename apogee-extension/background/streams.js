@@ -8,6 +8,13 @@ import {
   msToAlarmMinutes,
   STREAM_CLEANUP_MS,
 } from "../lib/util/streamExpiry.js";
+import {
+  OFFSCREEN_CALL_TIMEOUT_MS,
+  OFFSCREEN_UNRESPONSIVE_ERROR_CODE,
+} from "../lib/constants.js";
+import { OFFSCREEN_UNRESPONSIVE_ERROR_MSG } from "../lib/util/messages.js";
+import { UserFacingError } from "../lib/util/userError.js";
+import { withTimeout } from "../lib/util/withTimeout.js";
 
 // Stream registry and lifecycle: buffered local-HTTP streams, offscreen
 // relay tracking, sliding expiry alarms, and the worker keep-alive. The
@@ -18,6 +25,25 @@ export const hasOffscreenAPI =
   typeof chrome !== "undefined" &&
   typeof chrome.offscreen !== "undefined" &&
   typeof chrome.offscreen.createDocument === "function";
+
+// The popup waits on the worker, and the worker waits on the model document.
+// A document that is alive but stuck (hung engine load, wedged GPU device)
+// never answers, so without a cap the popup spins until the worker dies.
+// withTimeout only stops the wait: generation already running in the
+// document keeps going, so a retried call can queue behind it on the engine
+// mutex until that work finishes.
+export function sendToOffscreen(
+  message,
+  timeoutMs = OFFSCREEN_CALL_TIMEOUT_MS,
+) {
+  return withTimeout(chrome.runtime.sendMessage(message), timeoutMs, {
+    onTimeout: () => {
+      const error = new UserFacingError(OFFSCREEN_UNRESPONSIVE_ERROR_MSG);
+      error.code = OFFSCREEN_UNRESPONSIVE_ERROR_CODE;
+      throw error;
+    },
+  });
+}
 
 export function nextStreamId(kind) {
   return `${kind}-${crypto.randomUUID()}`;
