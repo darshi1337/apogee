@@ -86,6 +86,8 @@ import { PROVIDERS } from "../lib/constants.js";
 import {
   OFFSCREEN_READY_TIMEOUT_MS,
   OFFSCREEN_WORK_TIMEOUT_MS,
+  OFFSCREEN_PROBE_TIMEOUT_MS,
+  OFFSCREEN_UNRESPONSIVE_ERROR_CODE,
   LLM_HEALTH_CHECK_TIMEOUT_MS,
   SPONSORBLOCK_FETCH_TIMEOUT_MS,
   BILIBILI_FETCH_TIMEOUT_MS,
@@ -1259,13 +1261,18 @@ async function closeOffscreenIfIdle() {
   let hasActiveJob = hasBackgroundJobsInflight();
   if (!hasActiveJob && (await offscreenDocumentExists())) {
     try {
-      const resp = await chrome.runtime.sendMessage({
+      const resp = await sendToOffscreen({
         target: "offscreen",
         action: "has-active-streams",
       });
       hasActiveJob = !!resp?.active;
-    } catch {
-      // intent: best-effort, ignore if already closed/unavailable
+    } catch (err) {
+      // A silent document may still be loading a model. Assume it is busy
+      // and reschedule rather than close the document under a running job.
+      if (err?.code === OFFSCREEN_UNRESPONSIVE_ERROR_CODE) {
+        hasActiveJob = true;
+      }
+      // Otherwise it is already closed/unavailable: fall through to close.
     }
   }
   if (hasActiveJob || popupConnected) {
@@ -1966,10 +1973,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           for (const delay of delays) {
             if (delay > 0) await new Promise((r) => setTimeout(r, delay));
             try {
-              wgpuResponse = await sendToOffscreen({
-                target: "offscreen",
-                action: "check-webgpu",
-              });
+              wgpuResponse = await sendToOffscreen(
+                {
+                  target: "offscreen",
+                  action: "check-webgpu",
+                },
+                OFFSCREEN_PROBE_TIMEOUT_MS,
+              );
             } catch {
               wgpuResponse = null;
             }
@@ -2021,7 +2031,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ error: `Unknown action: ${message.action}` });
       }
     } catch (err) {
-      sendResponse({ error: err.message });
+      sendResponse({
+        error: err?.message || String(err),
+        ...(err?.isUserFacing ? { userFacing: true } : {}),
+        ...(err?.code ? { code: err.code } : {}),
+      });
     }
   };
 

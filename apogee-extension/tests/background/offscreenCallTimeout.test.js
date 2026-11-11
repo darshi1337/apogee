@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert";
 import { createExtensionApiMock } from "../helpers/extensionApiMock.js";
+import { OFFSCREEN_UNRESPONSIVE_ERROR_CODE } from "../../lib/constants.js";
+import { OFFSCREEN_UNRESPONSIVE_ERROR_MSG } from "../../lib/util/messages.js";
 
 // --- #469: calls into the model document have no time cap ---
 //
@@ -39,8 +41,9 @@ chrome.runtime.getContexts = async () => [
 // default mock routing.
 const routeToListeners = chrome.runtime.sendMessage;
 const offscreenActions = [];
-chrome.runtime.sendMessage = (msg) => {
-  if (msg?.target !== "offscreen") return routeToListeners(msg);
+chrome.runtime.sendMessage = (...args) => {
+  const [msg] = args;
+  if (msg?.target !== "offscreen") return routeToListeners(...args);
   offscreenActions.push(msg.action);
   return new Promise(() => {});
 };
@@ -53,6 +56,16 @@ const router = getMessageListeners()[0];
 assert.ok(router, "service worker must register its message router");
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+function assertUnresponsiveError(response, action) {
+  assert.ok(
+    response,
+    `the popup must get a reply for "${action}" instead of hanging`,
+  );
+  assert.strictEqual(response.error, OFFSCREEN_UNRESPONSIVE_ERROR_MSG);
+  assert.strictEqual(response.userFacing, true);
+  assert.strictEqual(response.code, OFFSCREEN_UNRESPONSIVE_ERROR_CODE);
+}
 
 async function callRouter(t, message) {
   t.mock.timers.enable({ apis: ["setTimeout"] });
@@ -77,9 +90,7 @@ test("a status request to a silent model document answers with an error", async 
     target: "service-worker",
     action: "status",
   });
-  assert.ok(response, "the popup must get a reply instead of hanging");
-  assert.strictEqual(typeof response.error, "string");
-  assert.ok(response.error.length > 0);
+  assertUnresponsiveError(response, "status");
 });
 
 test("starting a WebLLM Ask against a silent model document answers with an error", async (t) => {
@@ -96,7 +107,5 @@ test("starting a WebLLM Ask against a silent model document answers with an erro
       translationEngine: "off",
     },
   });
-  assert.ok(response, "the popup must get a reply instead of hanging");
-  assert.strictEqual(typeof response.error, "string");
-  assert.ok(response.error.length > 0);
+  assertUnresponsiveError(response, "ask");
 });

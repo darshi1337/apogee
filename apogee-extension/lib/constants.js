@@ -189,6 +189,14 @@ export const OFFSCREEN_READY_TIMEOUT_MS = 8000;
 export const OFFSCREEN_CALL_TIMEOUT_MS = 15 * 1000;
 export const OFFSCREEN_WORK_TIMEOUT_MS = 5 * 60 * 1000;
 
+// The WebGPU probe retries a few times behind a document that is still
+// booting. A health check should not spend the full call timeout on each try.
+export const OFFSCREEN_PROBE_TIMEOUT_MS = 2 * 1000;
+
+// Router error code for a model document that stopped answering. The popup
+// rethrows this instead of falling back to the extracted page text.
+export const OFFSCREEN_UNRESPONSIVE_ERROR_CODE = "offscreen-unresponsive";
+
 export const LLM_HEALTH_CHECK_TIMEOUT_MS = 3000;
 
 // A router answers `/props?model=` only after that model is loaded, so this
