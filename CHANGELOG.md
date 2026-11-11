@@ -368,6 +368,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Finish each stream once (#628) (#649) ([eb35057](https://github.com/darshi1337/apogee/commit/eb35057c862658ccbc532a74446043bbdc7fdd9b))
 - Model document calls time out instead of hanging the popup (#469) (#651) ([92d56c6](https://github.com/darshi1337/apogee/commit/92d56c64f3ff854f4814b5063e9bcb6b0c6c40ba))
 - Add focus-visible rings to the home action and chip buttons (#653) ([be7f4df](https://github.com/darshi1337/apogee/commit/be7f4df5506d614507ef3fdfacd32446e9a4f5d9))
+- Bump the github-actions group with 3 updates (#657) ([c10b7cb](https://github.com/darshi1337/apogee/commit/c10b7cb8fe64769f3a845064ef747a53702c5aa7))
+- Bump node-forge from 1.4.2 to 1.4.3 in /apogee-extension (#658) ([4912091](https://github.com/darshi1337/apogee/commit/49120915864f8dc6400ddd1a5496637fe6b453e2))
+- Keep the worker awake until the summary save ends (#659) ([ea6af1b](https://github.com/darshi1337/apogee/commit/ea6af1babc2582f4a672fee0857455064eb5aadc))
 
 ## [0.2.1] - 2026-08-19
 
