@@ -23,13 +23,25 @@ test("store listing documents Edge submission and assets (#645)", () => {
   for (const [topic, pattern] of [
     ["submission steps", /Partner Center[\s\S]*?upload[\s\S]*?submit/i],
     ["asset requirements", /logo[\s\S]*?screenshots[\s\S]*?promotional/i],
-    ["asset differences", /Chrome[\s\S]*?Firefox[\s\S]*?Edge/i],
     [
       "official source",
       /https:\/\/learn\.microsoft\.com\/en-us\/microsoft-edge\/extensions\/publish\/publish-extension/,
     ],
   ]) {
     assert.match(edge[1], pattern, `Edge section must cover ${topic}`);
+  }
+  for (const [store, pattern] of [
+    ["Chrome", /1280x800[^\n]*440x280[^\n]*1400x560/],
+    ["Firefox", /2400x1800/],
+    ["Edge", /1280x800[^\n]*128x128/],
+  ]) {
+    const row = edge[1].match(new RegExp(`^\\|\\s*${store}\\s*\\|(.+)$`, "m"));
+    assert.ok(row, `Edge section must have a ${store} comparison row`);
+    assert.match(
+      row[1],
+      pattern,
+      `${store} comparison row must cover its assets`,
+    );
   }
 });
 

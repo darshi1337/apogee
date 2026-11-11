@@ -259,7 +259,7 @@ Edge 116+ uses the Chromium build (`dist/chrome`), with the manifest minimum Chr
 2. Set availability and markets, then enter the category and other properties. Use the product details above where applicable.
 3. Complete Privacy: single purpose, permission justifications, remote code, data usage and the privacy policy URL. Use the disclosures above, including the separately consented remote generation.
 4. Complete each language's store listing, upload the logo and any screenshots or promotional tiles, and review the fields. The short description comes from the package manifest; change it there and re-upload the package. Microsoft's guide states no separate short-description character limit; do not assume one.
-5. Review and submit for certification in Partner Center. Track the review status there; submission is not publication.
+5. Add optional certification notes, then click Publish to submit the extension for certification. Track the review status in Partner Center. Submission is not publication.
 
 ### Asset requirements
 
