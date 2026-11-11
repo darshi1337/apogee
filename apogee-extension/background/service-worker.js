@@ -128,6 +128,7 @@ import {
   relayToOffscreenStream,
   clearOffscreenRelayRefs,
   claimStreamFinish,
+  trackFinalizeJob,
   sendToOffscreen,
 } from "./streams.js";
 import {
@@ -348,7 +349,10 @@ export function createBufferedStream(
     }
     broadcastToStream(stream, msg);
     scheduleStreamCleanup(streamId);
-    if (msg.type === "done" && autoFinalize) {
+    if (msg.type === "done" && autoFinalize && finalize) {
+      // The stream is already done, so the save itself must hold the
+      // keep-alive until the write settles.
+      const releaseFinalize = trackFinalizeJob(streamId);
       finalizeSummaryJob(
         {
           finalize,
@@ -359,7 +363,9 @@ export function createBufferedStream(
           streamId,
         },
         { ensureOffscreenDocument },
-      ).catch((err) => console.error("Failed to finalize summary:", err));
+      )
+        .catch((err) => console.error("Failed to finalize summary:", err))
+        .finally(() => releaseFinalize?.());
     }
   };
 
@@ -1489,6 +1495,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // One job, one finish: a duplicate late message must not rebuild the
     // payload from current settings and save the same summary again (#628).
     if (!claimStreamFinish(message.streamId)) return false;
+    let releaseFinalize = null;
     (async () => {
       const streamId = message.streamId;
       const fallbackTitle = message.title;
@@ -1501,6 +1508,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           ? (registeredStreamJobs.get(streamId) ??
             takeExpiredStreamJob(streamId))
           : null;
+        // No save work means no keep-alive: a bare finish has nothing to
+        // write. Otherwise, the relay refs are gone but the save has not run
+        // yet, so hold the keep-alive through the trusted rebuild and write.
+        if (registeredJob?.finalize || message.finalize) {
+          releaseFinalize = trackFinalizeJob(streamId);
+        }
         if (
           isRemoteProvider(registeredJob?.finalize?.providerType) ||
           (!registeredJob && isRemoteProvider((await getSettings()).provider))
@@ -1557,7 +1570,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           streamId,
         });
       }
-    })().catch((err) => console.error("stream-finished handler failed:", err));
+    })()
+      .catch((err) => console.error("stream-finished handler failed:", err))
+      .finally(() => releaseFinalize?.());
     return false;
   }
 

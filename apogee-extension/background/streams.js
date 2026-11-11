@@ -127,8 +127,9 @@ export function clearOffscreenRelayRefs(streamId) {
   forgetOffscreenRelay(streamId);
 }
 
-// Fire-and-forget background jobs (suggest-questions) with no stream entry:
-// tracked by key so the keep-alive below sees them as work in flight.
+// Fire-and-forget background jobs (suggest-questions, summary saves) with no
+// live stream entry: tracked by key so the keep-alive below sees them as work
+// in flight.
 const backgroundJobsInflight = new Set();
 
 export function trackBackgroundJob(key) {
@@ -140,6 +141,19 @@ export function trackBackgroundJob(key) {
 
 export function untrackBackgroundJob(key) {
   backgroundJobsInflight.delete(key);
+}
+
+// A finished stream stops counting as work before its summary is written:
+// finish() marks the stream done and the stream-finished handler clears its
+// relay refs first. Track the save itself so the keep-alive cannot stop in
+// the gap and let the worker sleep mid-save. The returned release function
+// stops the tracking; null means there is no save id or another caller
+// already tracks this save.
+export function trackFinalizeJob(streamId) {
+  if (!streamId) return null;
+  const key = `finalize:${streamId}`;
+  if (!trackBackgroundJob(key)) return null;
+  return () => untrackBackgroundJob(key);
 }
 
 export function hasBackgroundJobsInflight() {
