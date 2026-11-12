@@ -9,6 +9,7 @@ import {
   DEFAULT_OLLAMA_HOST,
   DEFAULT_LLAMACPP_HOST,
   LOCAL_PROVIDER_TYPES,
+  OFFSCREEN_UNRESPONSIVE_ERROR_CODE,
 } from "../constants.js";
 import { isRemoteProvider } from "./remoteModels.js";
 import { hasRemoteGenerationPermissions } from "./remoteCredentials.js";
@@ -19,7 +20,13 @@ function sendToServiceWorker(message) {
       if (chrome.runtime.lastError) {
         reject(new Error(chrome.runtime.lastError.message));
       } else if (response?.error) {
-        reject(new Error(response.error));
+        if (response.userFacing) {
+          const error = new UserFacingError(response.error);
+          if (response.code) error.code = response.code;
+          reject(error);
+        } else {
+          reject(new Error(response.error));
+        }
       } else {
         resolve(response);
       }
@@ -641,6 +648,10 @@ export async function runWithEngineFallback(settings, chain, runFn, opts = {}) {
       return { type, result, errors };
     } catch (err) {
       if (err instanceof StreamCancelledError) throw err;
+      // A model document that stopped answering is not an engine failure:
+      // every other in-browser engine needs the same document, and the
+      // extracted-text fallback would hide the reload message.
+      if (err?.code === OFFSCREEN_UNRESPONSIVE_ERROR_CODE) throw err;
       errors.push({ type, error: err });
     }
   }

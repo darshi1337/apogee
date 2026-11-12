@@ -362,6 +362,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Use existing github_actions label for Dependabot workflow PRs (#620) ([bf241cd](https://github.com/darshi1337/apogee/commit/bf241cda272e8cd2c7aae2ce96fd7a13d6d125f4))
 - Tighten late stream-finish retention ([ae31c7c](https://github.com/darshi1337/apogee/commit/ae31c7cdc6779622d54df3350a35df61259e76e2))
 - Bump reviewdog/action-actionlint (#635) ([196c028](https://github.com/darshi1337/apogee/commit/196c02841d16b87b59ccf6b2957ca5b2fcb45699))
+- Bump the npm-minor-patch group in /apogee-extension with 4 updates (#646) ([a25db52](https://github.com/darshi1337/apogee/commit/a25db521c8567b50a152a374efad2d72fe8cff76))
+- Bump zizmorcore/zizmor-action (#647) ([2b9d65f](https://github.com/darshi1337/apogee/commit/2b9d65f7d3636afd9cbf2ed251a164e76db95a3d))
+- Bump the github-actions group with 2 updates (#648) ([a227211](https://github.com/darshi1337/apogee/commit/a22721156dd4fd30e194ec650fbaf66c9098d4c4))
+- Finish each stream once (#628) (#649) ([eb35057](https://github.com/darshi1337/apogee/commit/eb35057c862658ccbc532a74446043bbdc7fdd9b))
+- Model document calls time out instead of hanging the popup (#469) (#651) ([92d56c6](https://github.com/darshi1337/apogee/commit/92d56c64f3ff854f4814b5063e9bcb6b0c6c40ba))
+- Add focus-visible rings to the home action and chip buttons (#653) ([be7f4df](https://github.com/darshi1337/apogee/commit/be7f4df5506d614507ef3fdfacd32446e9a4f5d9))
+- Bump the github-actions group with 3 updates (#657) ([c10b7cb](https://github.com/darshi1337/apogee/commit/c10b7cb8fe64769f3a845064ef747a53702c5aa7))
+- Bump node-forge from 1.4.2 to 1.4.3 in /apogee-extension (#658) ([4912091](https://github.com/darshi1337/apogee/commit/49120915864f8dc6400ddd1a5496637fe6b453e2))
+- Keep the worker awake until the summary save ends (#659) ([ea6af1b](https://github.com/darshi1337/apogee/commit/ea6af1babc2582f4a672fee0857455064eb5aadc))
+- Keep the model document open while a run starts (#662) ([131f519](https://github.com/darshi1337/apogee/commit/131f51973dd8630509cf31830071a1f73c00a52e))
 
 ## [0.2.1] - 2026-08-19
 

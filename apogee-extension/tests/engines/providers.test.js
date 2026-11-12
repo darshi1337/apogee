@@ -16,7 +16,10 @@ import {
   DEFAULT_PROVIDER,
   DEFAULT_SETTINGS,
   DEFAULT_LLAMACPP_HOST,
+  OFFSCREEN_UNRESPONSIVE_ERROR_CODE,
 } from "../../lib/constants.js";
+import { OFFSCREEN_UNRESPONSIVE_ERROR_MSG } from "../../lib/util/messages.js";
+import { UserFacingError } from "../../lib/util/userError.js";
 
 const settings = (overrides) => ({ ...DEFAULT_SETTINGS, ...overrides });
 
@@ -425,6 +428,29 @@ test("runWithEngineFallback rethrows cancellation without trying more", async ()
     StreamCancelledError,
   );
   assert.deepStrictEqual(tried, [PROVIDERS.LOCAL]);
+});
+
+test("runWithEngineFallback rethrows an unresponsive model document", async () => {
+  const unresponsive = new UserFacingError(OFFSCREEN_UNRESPONSIVE_ERROR_MSG);
+  unresponsive.code = OFFSCREEN_UNRESPONSIVE_ERROR_CODE;
+  const tried = [];
+  await assert.rejects(
+    runWithEngineFallback(
+      settings({ provider: PROVIDERS.WEBLLM }),
+      [PROVIDERS.WEBLLM, PROVIDERS.LOCAL],
+      async (type) => {
+        tried.push(type);
+        throw unresponsive;
+      },
+      { content: "page text" },
+    ),
+    (err) => err === unresponsive,
+  );
+  assert.deepStrictEqual(
+    tried,
+    [PROVIDERS.WEBLLM],
+    "a dead model document must not be retried on the next engine",
+  );
 });
 
 test("buildExtractedTextFallback trims and caps long text", () => {

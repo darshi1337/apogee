@@ -8,6 +8,13 @@ import {
   msToAlarmMinutes,
   STREAM_CLEANUP_MS,
 } from "../lib/util/streamExpiry.js";
+import {
+  OFFSCREEN_CALL_TIMEOUT_MS,
+  OFFSCREEN_UNRESPONSIVE_ERROR_CODE,
+} from "../lib/constants.js";
+import { OFFSCREEN_UNRESPONSIVE_ERROR_MSG } from "../lib/util/messages.js";
+import { UserFacingError } from "../lib/util/userError.js";
+import { withTimeout } from "../lib/util/withTimeout.js";
 
 // Stream registry and lifecycle: buffered local-HTTP streams, offscreen
 // relay tracking, sliding expiry alarms, and the worker keep-alive. The
@@ -19,6 +26,43 @@ export const hasOffscreenAPI =
   typeof chrome.offscreen !== "undefined" &&
   typeof chrome.offscreen.createDocument === "function";
 
+// The popup waits on the worker, and the worker waits on the model document.
+// A document that is alive but stuck (hung engine load, wedged GPU device)
+// never answers, so without a cap the popup spins until the worker dies.
+// withTimeout only stops the wait: generation already running in the
+// document keeps going, so a retried call can queue behind it on the engine
+// mutex until that work finishes.
+
+// Offscreen calls currently awaiting a reply. has-active-streams only reports
+// generation streams, so a long retrieve-context/find-passage (up to
+// OFFSCREEN_WORK_TIMEOUT_MS) would otherwise look like an idle document and
+// the idle close could shut it mid-call.
+const offscreenCallsInflight = new Set();
+
+export function hasOffscreenWorkInflight() {
+  return offscreenCallsInflight.size > 0;
+}
+
+export function sendToOffscreen(
+  message,
+  timeoutMs = OFFSCREEN_CALL_TIMEOUT_MS,
+) {
+  const call = withTimeout(chrome.runtime.sendMessage(message), timeoutMs, {
+    onTimeout: () => {
+      const error = new UserFacingError(OFFSCREEN_UNRESPONSIVE_ERROR_MSG);
+      error.code = OFFSCREEN_UNRESPONSIVE_ERROR_CODE;
+      throw error;
+    },
+  });
+  offscreenCallsInflight.add(call);
+  const untrack = () => offscreenCallsInflight.delete(call);
+  // Settle the tracker on both outcomes so it never outlives the call. This
+  // derived promise always resolves, so it cannot surface an unhandled
+  // rejection; the caller still gets the original (possibly rejecting) one.
+  call.then(untrack, untrack);
+  return call;
+}
+
 export function nextStreamId(kind) {
   return `${kind}-${crypto.randomUUID()}`;
 }
@@ -27,8 +71,27 @@ export const activeStreams = new Map();
 
 export const registeredStreamJobs = new Map();
 
+// The finish handler saves once per stream. A duplicate late message for the
+// same id must not rebuild the payload and save a second time (#628). Oldest
+// entries fall out first, and real ids are UUIDs, so a new run never inherits
+// another run's claim.
+const MAX_FINISHED_STREAM_IDS = 100;
+const finishedStreamIds = new Set();
+
+export function claimStreamFinish(streamId) {
+  if (!streamId) return true;
+  if (finishedStreamIds.has(streamId)) return false;
+  if (finishedStreamIds.size >= MAX_FINISHED_STREAM_IDS) {
+    finishedStreamIds.delete(finishedStreamIds.values().next().value);
+  }
+  finishedStreamIds.add(streamId);
+  return true;
+}
+
 export function registerStreamJob(streamId, jobData) {
   if (!streamId || !jobData?.finalize) return;
+  // A fresh run may reuse an id in tests; give it its own single finish.
+  finishedStreamIds.delete(streamId);
   registeredStreamJobs.set(streamId, jobData);
   scheduleStreamCleanup(streamId);
 }
@@ -82,8 +145,9 @@ export function clearOffscreenRelayRefs(streamId) {
   forgetOffscreenRelay(streamId);
 }
 
-// Fire-and-forget background jobs (suggest-questions) with no stream entry:
-// tracked by key so the keep-alive below sees them as work in flight.
+// Fire-and-forget background jobs (suggest-questions, summary saves) with no
+// live stream entry: tracked by key so the keep-alive below sees them as work
+// in flight.
 const backgroundJobsInflight = new Set();
 
 export function trackBackgroundJob(key) {
@@ -95,6 +159,19 @@ export function trackBackgroundJob(key) {
 
 export function untrackBackgroundJob(key) {
   backgroundJobsInflight.delete(key);
+}
+
+// A finished stream stops counting as work before its summary is written:
+// finish() marks the stream done and the stream-finished handler clears its
+// relay refs first. Track the save itself so the keep-alive cannot stop in
+// the gap and let the worker sleep mid-save. The returned release function
+// stops the tracking; null means there is no save id or another caller
+// already tracks this save.
+export function trackFinalizeJob(streamId) {
+  if (!streamId) return null;
+  const key = `finalize:${streamId}`;
+  if (!trackBackgroundJob(key)) return null;
+  return () => untrackBackgroundJob(key);
 }
 
 export function hasBackgroundJobsInflight() {
@@ -182,6 +259,7 @@ export function hasWorkInFlight() {
     if (!stream.done) return true;
   }
   if (offscreenRelayInflight.size > 0) return true;
+  if (offscreenCallsInflight.size > 0) return true;
   return hasBackgroundJobsInflight();
 }
 

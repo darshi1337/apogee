@@ -12,6 +12,7 @@ import {
   createStreamState,
   emitChunkToState,
   finishStateWithStats,
+  isStreamTerminal,
   replayStreamToPort,
 } from "../lib/util/streamState.js";
 import { chunkBySections } from "../lib/summarize/sections.js";
@@ -85,6 +86,9 @@ import {
 import { PROVIDERS } from "../lib/constants.js";
 import {
   OFFSCREEN_READY_TIMEOUT_MS,
+  OFFSCREEN_WORK_TIMEOUT_MS,
+  OFFSCREEN_PROBE_TIMEOUT_MS,
+  OFFSCREEN_UNRESPONSIVE_ERROR_CODE,
   LLM_HEALTH_CHECK_TIMEOUT_MS,
   SPONSORBLOCK_FETCH_TIMEOUT_MS,
   BILIBILI_FETCH_TIMEOUT_MS,
@@ -123,10 +127,14 @@ import {
   EXPIRED_STREAM_ERROR,
   startKeepAlive,
   hasBackgroundJobsInflight,
+  hasOffscreenWorkInflight,
   isOffscreenStream,
   forwardCancelToOffscreen,
   relayToOffscreenStream,
   clearOffscreenRelayRefs,
+  claimStreamFinish,
+  trackFinalizeJob,
+  sendToOffscreen,
 } from "./streams.js";
 import {
   OLLAMA_PROVIDER,
@@ -179,7 +187,10 @@ initDebugLogging();
 let offscreenReady = false;
 const offscreenLogs = [];
 
-let popupConnected = false;
+let popupConnections = 0;
+// Multiple popup contexts can be open at once (e.g. two windows), so track
+// them by count: one disconnect must not mark the others as gone.
+const isPopupConnected = () => popupConnections > 0;
 
 let _offscreenScriptReadyResolve = null;
 let offscreenScriptReadyPromise = new Promise((resolve) => {
@@ -187,8 +198,22 @@ let offscreenScriptReadyPromise = new Promise((resolve) => {
 });
 
 let ensureOffscreenPromise = null;
+let offscreenLifecycleVersion = 0;
+let offscreenLastStartAt = 0;
+let offscreenClosePromise = null;
 
 function ensureOffscreenDocument() {
+  // A close already passed its last idle check. Let it finish, then create a
+  // fresh document for this run instead of handing it one that is shutting.
+  if (offscreenClosePromise) {
+    const closing = offscreenClosePromise;
+    return closing.then(() => {
+      if (offscreenClosePromise === closing) offscreenClosePromise = null;
+      return ensureOffscreenDocument();
+    });
+  }
+  offscreenLifecycleVersion += 1;
+  offscreenLastStartAt = Date.now();
   if (!ensureOffscreenPromise) {
     ensureOffscreenPromise = ensureOffscreenDocumentOnce().finally(() => {
       ensureOffscreenPromise = null;
@@ -220,7 +245,7 @@ async function ensureOffscreenDocumentOnce() {
 
   if (await offscreenDocumentExists()) {
     offscreenReady = true;
-    if (!popupConnected) scheduleOffscreenIdleClose();
+    if (!isPopupConnected()) scheduleOffscreenIdleClose();
     return;
   }
 
@@ -255,7 +280,7 @@ async function ensureOffscreenDocumentOnce() {
 
   offscreenReady = true;
 
-  if (!popupConnected) scheduleOffscreenIdleClose();
+  if (!isPopupConnected()) scheduleOffscreenIdleClose();
 }
 
 // Shared head for the ollama/llamacpp/transformers stream actions: rebuild
@@ -291,11 +316,14 @@ async function getRelevantAskContent(content, question) {
   }
   try {
     await ensureOffscreenDocument();
-    const resp = await chrome.runtime.sendMessage({
-      target: "offscreen",
-      action: "retrieve-context",
-      payload: { content, question },
-    });
+    const resp = await sendToOffscreen(
+      {
+        target: "offscreen",
+        action: "retrieve-context",
+        payload: { content, question },
+      },
+      OFFSCREEN_WORK_TIMEOUT_MS,
+    );
     if (resp?.error) throw new Error(resp.error);
     return resp.content;
   } catch (err) {
@@ -307,7 +335,7 @@ async function getRelevantAskContent(content, question) {
   }
 }
 
-function createBufferedStream(
+export function createBufferedStream(
   streamId,
   {
     finalize,
@@ -330,7 +358,10 @@ function createBufferedStream(
   startKeepAlive();
 
   const finish = (msg) => {
-    if (stream.cancelled) return;
+    // A stream reaches its terminal state once. Cleanup marks a reclaimed
+    // stream done, so a late or duplicate finish must not broadcast another
+    // done or save the same job twice (#628).
+    if (isStreamTerminal(stream)) return;
     if (msg.type === "done") {
       msg = finishStateWithStats(stream, msg);
     }
@@ -341,7 +372,10 @@ function createBufferedStream(
     }
     broadcastToStream(stream, msg);
     scheduleStreamCleanup(streamId);
-    if (msg.type === "done" && autoFinalize) {
+    if (msg.type === "done" && autoFinalize && finalize) {
+      // The stream is already done, so the save itself must hold the
+      // keep-alive until the write settles.
+      const releaseFinalize = trackFinalizeJob(streamId);
       finalizeSummaryJob(
         {
           finalize,
@@ -352,7 +386,9 @@ function createBufferedStream(
           streamId,
         },
         { ensureOffscreenDocument },
-      ).catch((err) => console.error("Failed to finalize summary:", err));
+      )
+        .catch((err) => console.error("Failed to finalize summary:", err))
+        .finally(() => releaseFinalize?.());
     }
   };
 
@@ -1019,7 +1055,7 @@ export async function runBackgroundSummarize(
     } else if (providerType === PROVIDERS.TRANSFORMERS) {
       startTransformersStream(streamId, common);
     } else {
-      const resp = await chrome.runtime.sendMessage({
+      const resp = await sendToOffscreen({
         target: "offscreen",
         action: "summarize",
         streamId,
@@ -1362,6 +1398,11 @@ if (typeof chrome.notifications !== "undefined") {
 
 const OFFSCREEN_IDLE_ALARM = "offscreen-idle-close";
 const OFFSCREEN_IDLE_MINUTES = 5;
+// A run claims the document in ensureOffscreenDocument(), then may do some
+// async setup before its first message reaches the document. Keep the idle
+// close away for that window even if an alarm event was already queued.
+// Offscreen calls that outlive it are tracked by sendToOffscreen().
+const OFFSCREEN_START_GRACE_MS = 30 * 1000;
 
 function cancelOffscreenIdleClose() {
   chrome.alarms.clear(OFFSCREEN_IDLE_ALARM);
@@ -1373,37 +1414,85 @@ function scheduleOffscreenIdleClose() {
   });
 }
 
-async function closeOffscreenIfIdle() {
-  let hasActiveJob = hasBackgroundJobsInflight();
-  if (!hasActiveJob && (await offscreenDocumentExists())) {
-    try {
-      const resp = await chrome.runtime.sendMessage({
-        target: "offscreen",
-        action: "has-active-streams",
-      });
-      hasActiveJob = !!resp?.active;
-    } catch {
-      // intent: best-effort, ignore if already closed/unavailable
-    }
-  }
-  if (hasActiveJob || popupConnected) {
+// Exported for tests: the idle alarm listener is the only production caller.
+export async function closeOffscreenIfIdle() {
+  // Both cheap guards come first so a queued alarm costs no round trips.
+  if (offscreenClosePromise) {
+    // A close is already running. Reschedule instead of racing it: if
+    // closeDocument() failed the document may still be alive, and a run that
+    // starts now arms its own close when it (re)creates the document.
     scheduleOffscreenIdleClose();
     return;
   }
-  try {
-    if (typeof chrome !== "undefined" && chrome.offscreen) {
-      await chrome.offscreen.closeDocument();
-    }
-  } catch {
-    // intent: best-effort, ignore if already closed/unavailable
+  if (isPopupConnected()) {
+    // The popup's connect handler clears this alarm; a queued one can still
+    // arrive. Keep the safety net, but skip the document lookups.
+    scheduleOffscreenIdleClose();
+    return;
   }
-  offscreenReady = false;
+
+  const versionAtStart = offscreenLifecycleVersion;
+  const isBusy = () =>
+    hasBackgroundJobsInflight() ||
+    hasOffscreenWorkInflight() ||
+    ensureOffscreenPromise !== null ||
+    offscreenLifecycleVersion !== versionAtStart ||
+    Date.now() - offscreenLastStartAt < OFFSCREEN_START_GRACE_MS;
+
+  let streamsActive = isBusy();
+  if (!streamsActive && (await offscreenDocumentExists())) {
+    try {
+      const resp = await sendToOffscreen({
+        target: "offscreen",
+        action: "has-active-streams",
+      });
+      streamsActive = !!resp?.active;
+    } catch (err) {
+      // A silent document may still be loading a model. Assume it is busy
+      // and reschedule rather than close the document under a running job.
+      if (err?.code === OFFSCREEN_UNRESPONSIVE_ERROR_CODE) {
+        streamsActive = true;
+      }
+      // Otherwise it is already closed/unavailable: fall through to close.
+    }
+  }
+  // A run or a popup can arrive at any await above, so re-check the live
+  // guards here before closing. `streamsActive` is a snapshot from before the
+  // awaits; one that went stale only defers the close.
+  if (streamsActive || isPopupConnected() || isBusy()) {
+    scheduleOffscreenIdleClose();
+    return;
+  }
+
+  // Set the closing promise before the await so a start that lands now waits
+  // for the close and then creates a fresh document.
+  const closePromise = (async () => {
+    try {
+      if (typeof chrome !== "undefined" && chrome.offscreen) {
+        await chrome.offscreen.closeDocument();
+      }
+    } catch {
+      // intent: best-effort, ignore if already closed/unavailable
+    } finally {
+      offscreenReady = false;
+    }
+  })();
+  offscreenClosePromise = closePromise;
+  try {
+    await closePromise;
+  } finally {
+    if (offscreenClosePromise === closePromise) offscreenClosePromise = null;
+  }
 }
 
 if (typeof chrome !== "undefined" && chrome.alarms?.onAlarm?.addListener) {
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === OFFSCREEN_IDLE_ALARM) {
-      closeOffscreenIfIdle();
+      // getContexts can reject, so keep the alarm path free of unhandled
+      // rejections; the next alarm retries.
+      closeOffscreenIfIdle().catch((err) =>
+        console.error("Idle close failed:", err),
+      );
       return;
     }
     if (alarm.name.startsWith(STREAM_CLEANUP_PREFIX)) {
@@ -1454,11 +1543,13 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onConnect?.addListener) {
     }
 
     if (port.name === "popup-lifecycle") {
-      popupConnected = true;
+      popupConnections += 1;
       cancelOffscreenIdleClose();
       port.onDisconnect.addListener(() => {
-        popupConnected = false;
-        scheduleOffscreenIdleClose();
+        popupConnections -= 1;
+        // Another popup may still be open; only the last one to leave arms
+        // the idle close.
+        if (!isPopupConnected()) scheduleOffscreenIdleClose();
       });
       return;
     }
@@ -1637,6 +1728,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // disconnect handlers.
     clearOffscreenRelayRefs(message.streamId);
     if (message.error) return false;
+    // One job, one finish: a duplicate late message must not rebuild the
+    // payload from current settings and save the same summary again (#628).
+    if (!claimStreamFinish(message.streamId)) return false;
+    let releaseFinalize = null;
     (async () => {
       const streamId = message.streamId;
       const fallbackTitle = message.title;
@@ -1649,6 +1744,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           ? (registeredStreamJobs.get(streamId) ??
             takeExpiredStreamJob(streamId))
           : null;
+        // No save work means no keep-alive: a bare finish has nothing to
+        // write. Otherwise, the relay refs are gone but the save has not run
+        // yet, so hold the keep-alive through the trusted rebuild and write.
+        if (registeredJob?.finalize || message.finalize) {
+          releaseFinalize = trackFinalizeJob(streamId);
+        }
         if (
           isRemoteProvider(registeredJob?.finalize?.providerType) ||
           (!registeredJob && isRemoteProvider((await getSettings()).provider))
@@ -1705,7 +1806,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           streamId,
         });
       }
-    })().catch((err) => console.error("stream-finished handler failed:", err));
+    })()
+      .catch((err) => console.error("stream-finished handler failed:", err))
+      .finally(() => releaseFinalize?.());
     return false;
   }
 
@@ -1918,7 +2021,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           await recordPopupSummaryStream(payload, streamId);
 
           const { customInstructions } = await getSettings();
-          const resp = await chrome.runtime.sendMessage({
+          const resp = await sendToOffscreen({
             target: "offscreen",
             action: message.action,
             streamId,
@@ -2028,7 +2131,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           if (hasOffscreenAPI) {
             await ensureOffscreenDocument();
             const { action, ...jobPayload } = payload;
-            const resp = await chrome.runtime.sendMessage({
+            const resp = await sendToOffscreen({
               target: "offscreen",
               action,
               streamId,
@@ -2049,7 +2152,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case "transformers-status": {
           if (hasOffscreenAPI) {
             await ensureOffscreenDocument();
-            const response = await chrome.runtime.sendMessage({
+            const response = await sendToOffscreen({
               target: "offscreen",
               action: "transformers-status",
             });
@@ -2167,7 +2270,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case "status": {
           await ensureOffscreenDocument();
 
-          const response = await chrome.runtime.sendMessage({
+          const response = await sendToOffscreen({
             target: "offscreen",
             action: "status",
           });
@@ -2188,11 +2291,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             break;
           }
           await ensureOffscreenDocument();
-          const response = await chrome.runtime.sendMessage({
-            target: "offscreen",
-            action: "find-passage",
-            payload: message.payload,
-          });
+          const response = await sendToOffscreen(
+            {
+              target: "offscreen",
+              action: "find-passage",
+              payload: message.payload,
+            },
+            OFFSCREEN_WORK_TIMEOUT_MS,
+          );
           sendResponse(response);
           break;
         }
@@ -2212,11 +2318,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             break;
           }
           await ensureOffscreenDocument();
-          const response = await chrome.runtime.sendMessage({
-            target: "offscreen",
-            action: "retrieve-context",
-            payload: message.payload,
-          });
+          const response = await sendToOffscreen(
+            {
+              target: "offscreen",
+              action: "retrieve-context",
+              payload: message.payload,
+            },
+            OFFSCREEN_WORK_TIMEOUT_MS,
+          );
           sendResponse(response);
           break;
         }
@@ -2242,10 +2351,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           for (const delay of delays) {
             if (delay > 0) await new Promise((r) => setTimeout(r, delay));
             try {
-              wgpuResponse = await chrome.runtime.sendMessage({
-                target: "offscreen",
-                action: "check-webgpu",
-              });
+              wgpuResponse = await sendToOffscreen(
+                {
+                  target: "offscreen",
+                  action: "check-webgpu",
+                },
+                OFFSCREEN_PROBE_TIMEOUT_MS,
+              );
             } catch {
               wgpuResponse = null;
             }
@@ -2297,7 +2409,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ error: `Unknown action: ${message.action}` });
       }
     } catch (err) {
-      sendResponse({ error: err.message });
+      sendResponse({
+        error: err?.message || String(err),
+        ...(err?.isUserFacing ? { userFacing: true } : {}),
+        ...(err?.code ? { code: err.code } : {}),
+      });
     }
   };
 
@@ -2624,18 +2740,23 @@ export async function summarizeMultiTab(tabsToSummarize, opts = {}) {
       if (signal?.aborted) return null;
       await ensureOffscreenDocument();
       if (signal?.aborted) return null;
-      const response = await chrome.runtime.sendMessage({
-        target: "offscreen",
-        action: "generate-text",
-        payload: {
-          prompt,
-          model,
-          provider:
-            providerType === PROVIDERS.TRANSFORMERS ? "transformers" : "webllm",
-          language: settings.summaryLanguage,
-          translationEngine: settings.translationEngine,
+      const response = await sendToOffscreen(
+        {
+          target: "offscreen",
+          action: "generate-text",
+          payload: {
+            prompt,
+            model,
+            provider:
+              providerType === PROVIDERS.TRANSFORMERS
+                ? "transformers"
+                : "webllm",
+            language: settings.summaryLanguage,
+            translationEngine: settings.translationEngine,
+          },
         },
-      });
+        OFFSCREEN_WORK_TIMEOUT_MS,
+      );
       if (signal?.aborted) return null;
       if (response?.error) throw new Error(response.error);
       summaryResult = response?.text || "";

@@ -12,7 +12,7 @@ import {
   shouldPersist,
   persistSuggestedQuestionsIfAllowed,
 } from "../lib/storage/pageCache.js";
-import { PROVIDERS } from "../lib/constants.js";
+import { OFFSCREEN_WORK_TIMEOUT_MS, PROVIDERS } from "../lib/constants.js";
 import { REMOTE_PROVIDER_IDS } from "../lib/engines/remoteModels.js";
 import {
   createRemoteJobContext,
@@ -26,6 +26,7 @@ import {
 } from "./loopbackProviders.js";
 import {
   hasOffscreenAPI,
+  sendToOffscreen,
   startKeepAlive,
   trackBackgroundJob,
   untrackBackgroundJob,
@@ -194,24 +195,27 @@ export async function runSuggestQuestionsJob(
         });
       } else {
         await ensureOffscreenDocument?.();
-        const resp = await chrome.runtime.sendMessage({
-          target: "offscreen",
-          action: "suggest-questions",
-          payload: {
-            title,
-            url,
-            summary,
-            model,
-            language,
-            translationEngine,
-            customInstructions,
-            focusKeyword,
-            provider:
-              providerType === PROVIDERS.TRANSFORMERS
-                ? "transformers"
-                : "webllm",
+        const resp = await sendToOffscreen(
+          {
+            target: "offscreen",
+            action: "suggest-questions",
+            payload: {
+              title,
+              url,
+              summary,
+              model,
+              language,
+              translationEngine,
+              customInstructions,
+              focusKeyword,
+              provider:
+                providerType === PROVIDERS.TRANSFORMERS
+                  ? "transformers"
+                  : "webllm",
+            },
           },
-        });
+          OFFSCREEN_WORK_TIMEOUT_MS,
+        );
         questions = resp?.questions || [];
       }
       suggestStatus =
