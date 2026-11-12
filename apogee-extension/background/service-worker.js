@@ -2774,17 +2774,21 @@ if (
         selectionText: info.selectionText,
       }).catch((err) => notifyJobFailed(err));
     } else if (info.menuItemId === SUMMARIZE_TABS_CONTEXT_MENU_ID) {
-      let targetTabs = [tab];
-      if (typeof chrome.tabs?.query === "function") {
-        const highlighted = await chrome.tabs.query({
-          highlighted: true,
-          currentWindow: true,
-        });
-        if (highlighted && highlighted.length > 0) {
-          targetTabs = highlighted;
+      try {
+        let targetTabs = [tab];
+        if (typeof chrome.tabs?.query === "function") {
+          const highlighted = await chrome.tabs.query({
+            highlighted: true,
+            currentWindow: true,
+          });
+          if (highlighted && highlighted.length > 0) {
+            targetTabs = highlighted;
+          }
         }
+        await summarizeMultiTab(targetTabs);
+      } catch (error) {
+        notifyJobFailed(error);
       }
-      await summarizeMultiTab(targetTabs);
     }
   });
 }

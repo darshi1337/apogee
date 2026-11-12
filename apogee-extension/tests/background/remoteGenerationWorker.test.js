@@ -1160,3 +1160,77 @@ test("remote startup failures clean prepared streams without inference or stale 
     }
   }
 });
+
+test("native multi-tab failures resolve with a safe failure notification and no ready result", async () => {
+  const originalQuery = chrome.tabs.query;
+  const originalNotifications = chrome.notifications;
+  chrome.scripting = {
+    executeScript: async () => [
+      { result: chrome.runtime.getManifest().version },
+    ],
+  };
+  chrome.tabs.sendMessage = async () => ({
+    content: "Private article evidence must not appear in errors.",
+    title: "Private article",
+    type: "article",
+  });
+  try {
+    for (const provider of Object.keys(models)) {
+      for (const failure of ["tab-query", "provider-response"]) {
+        await setup(provider, { [`${provider}BackgroundConsent`]: true });
+        const previousState = await loadViewState(tabId);
+        const notifications = [];
+        chrome.notifications = {
+          create(id, options) {
+            notifications.push({ id, ...options });
+          },
+        };
+        chrome.tabs.query = async () => {
+          if (failure === "tab-query")
+            throw new Error("Browser query unavailable.");
+          return [{ id: tabId, url }];
+        };
+        const calls = intercept(({ body }) => {
+          if (body)
+            return new Response(
+              "sensitive-provider-body router-secret code-secret",
+              { status: 503 },
+            );
+        });
+        await assert.doesNotReject(
+          contextMenuListeners[0](
+            { menuItemId: "apogee-summarize-tabs" },
+            { id: tabId, url },
+          ),
+        );
+        const failures = notifications.filter(
+          (notification) => notification.title === "Summarize failed",
+        );
+        assert.equal(failures.length, 1);
+        assert.ok(failures[0].message.length > 0);
+        assert.ok(
+          !notifications.some((notification) =>
+            /ready/i.test(notification.title),
+          ),
+        );
+        const visible = JSON.stringify(notifications);
+        assert.ok(
+          !/sensitive-provider-body|router-secret|code-secret|Private article evidence/.test(
+            visible,
+          ),
+        );
+        assert.equal(
+          calls.filter((call) => call.body).length,
+          failure === "provider-response" ? 1 : 0,
+        );
+        assertNoSummarySaved();
+        assert.deepEqual(await loadViewState(tabId), previousState);
+        assert.equal(removedPermissionListeners.size, 0);
+      }
+    }
+  } finally {
+    chrome.tabs.query = originalQuery;
+    if (originalNotifications === undefined) delete chrome.notifications;
+    else chrome.notifications = originalNotifications;
+  }
+});
