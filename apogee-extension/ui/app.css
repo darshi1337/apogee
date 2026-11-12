@@ -934,6 +934,44 @@ html:not([data-surface="side-panel"]) #uploadFileBtn {
   color: var(--text-main);
 }
 
+.generate-questions-btn {
+  width: calc(100% - 32px);
+  height: auto;
+  min-height: 44px;
+  margin: 20px 16px 0;
+  padding: 12px 14px;
+  justify-content: center;
+  border-color: var(--send-btn-bg);
+  background: var(--send-btn-bg);
+  color: var(--send-btn-text);
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+  transition:
+    filter 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.generate-questions-btn:hover:not(:disabled) {
+  border-color: var(--send-btn-bg);
+  background: var(--send-btn-bg);
+  filter: brightness(1.12);
+}
+
+.generate-questions-btn:active:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+.generate-questions-btn:focus-visible {
+  outline: 2px solid var(--input-focus-border);
+  outline-offset: 3px;
+}
+
+.generate-questions-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .prompts {
   margin: 0 16px;
   margin-top: 20px;
