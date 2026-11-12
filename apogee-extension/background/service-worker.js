@@ -189,11 +189,28 @@ let offscreenScriptReadyPromise = new Promise((resolve) => {
 });
 
 let ensureOffscreenPromise = null;
+let offscreenStartInFlight = false;
+let offscreenLifecycleVersion = 0;
+let offscreenLastStartAt = 0;
+let offscreenClosePromise = null;
 
 function ensureOffscreenDocument() {
+  // A close already passed its last idle check. Let it finish, then create a
+  // fresh document for this run instead of handing it one that is shutting.
+  if (offscreenClosePromise) {
+    const closing = offscreenClosePromise;
+    return closing.then(() => {
+      if (offscreenClosePromise === closing) offscreenClosePromise = null;
+      return ensureOffscreenDocument();
+    });
+  }
+  offscreenLifecycleVersion += 1;
+  offscreenLastStartAt = Date.now();
   if (!ensureOffscreenPromise) {
+    offscreenStartInFlight = true;
     ensureOffscreenPromise = ensureOffscreenDocumentOnce().finally(() => {
       ensureOffscreenPromise = null;
+      offscreenStartInFlight = false;
     });
   }
   return ensureOffscreenPromise;
@@ -1252,6 +1269,10 @@ if (typeof chrome.notifications !== "undefined") {
 
 const OFFSCREEN_IDLE_ALARM = "offscreen-idle-close";
 const OFFSCREEN_IDLE_MINUTES = 5;
+// A run claims the document in ensureOffscreenDocument(), then may do some
+// async setup before its first message reaches the document. Keep the idle
+// close away for that window even if an alarm event was already queued.
+const OFFSCREEN_START_GRACE_MS = 30 * 1000;
 
 function cancelOffscreenIdleClose() {
   chrome.alarms.clear(OFFSCREEN_IDLE_ALARM);
@@ -1263,8 +1284,21 @@ function scheduleOffscreenIdleClose() {
   });
 }
 
-async function closeOffscreenIfIdle() {
-  let hasActiveJob = hasBackgroundJobsInflight();
+export async function closeOffscreenIfIdle() {
+  if (offscreenClosePromise) {
+    scheduleOffscreenIdleClose();
+    return;
+  }
+
+  const versionAtStart = offscreenLifecycleVersion;
+  const isBusy = () =>
+    hasBackgroundJobsInflight() ||
+    offscreenStartInFlight ||
+    ensureOffscreenPromise !== null ||
+    offscreenLifecycleVersion !== versionAtStart ||
+    Date.now() - offscreenLastStartAt < OFFSCREEN_START_GRACE_MS;
+
+  let hasActiveJob = isBusy();
   if (!hasActiveJob && (await offscreenDocumentExists())) {
     try {
       const resp = await sendToOffscreen({
@@ -1281,18 +1315,32 @@ async function closeOffscreenIfIdle() {
       // Otherwise it is already closed/unavailable: fall through to close.
     }
   }
-  if (hasActiveJob || popupConnected) {
+  // A new run can start at any await above. Re-check every guard here so the
+  // idle close cannot shut the document under a run that just claimed it.
+  if (hasActiveJob || popupConnected || isBusy()) {
     scheduleOffscreenIdleClose();
     return;
   }
-  try {
-    if (typeof chrome !== "undefined" && chrome.offscreen) {
-      await chrome.offscreen.closeDocument();
+
+  // Set the closing promise before the await so a start that lands now waits
+  // for the close and then creates a fresh document.
+  const closePromise = (async () => {
+    try {
+      if (typeof chrome !== "undefined" && chrome.offscreen) {
+        await chrome.offscreen.closeDocument();
+      }
+    } catch {
+      // intent: best-effort, ignore if already closed/unavailable
+    } finally {
+      offscreenReady = false;
     }
-  } catch {
-    // intent: best-effort, ignore if already closed/unavailable
+  })();
+  offscreenClosePromise = closePromise;
+  try {
+    await closePromise;
+  } finally {
+    if (offscreenClosePromise === closePromise) offscreenClosePromise = null;
   }
-  offscreenReady = false;
 }
 
 if (typeof chrome !== "undefined" && chrome.alarms?.onAlarm?.addListener) {
