@@ -371,6 +371,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Bump the github-actions group with 3 updates (#657) ([c10b7cb](https://github.com/darshi1337/apogee/commit/c10b7cb8fe64769f3a845064ef747a53702c5aa7))
 - Bump node-forge from 1.4.2 to 1.4.3 in /apogee-extension (#658) ([4912091](https://github.com/darshi1337/apogee/commit/49120915864f8dc6400ddd1a5496637fe6b453e2))
 - Keep the worker awake until the summary save ends (#659) ([ea6af1b](https://github.com/darshi1337/apogee/commit/ea6af1babc2582f4a672fee0857455064eb5aadc))
+- Keep the model document open while a run starts (#662) ([131f519](https://github.com/darshi1337/apogee/commit/131f51973dd8630509cf31830071a1f73c00a52e))
 
 ## [0.2.1] - 2026-08-19
 
