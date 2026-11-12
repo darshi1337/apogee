@@ -8,10 +8,15 @@ const connectListeners = [];
 chrome.runtime.onConnect = {
   addListener: (listener) => connectListeners.push(listener),
 };
+const alarmListeners = [];
 chrome.alarms = {
   create() {},
   clear: async () => {},
-  onAlarm: { addListener() {} },
+  onAlarm: {
+    addListener(listener) {
+      alarmListeners.push(listener);
+    },
+  },
 };
 const removedPermissionListeners = new Set();
 chrome.permissions.onRemoved = {
@@ -764,4 +769,147 @@ test("B2 multi-tab rechecks non-owner persistence policy and rolls back an issue
       }
     }
   }
+});
+
+test("provider heartbeat and hidden reasoning keep the real worker alive past its cleanup deadline", async (t) => {
+  const originalCreate = chrome.alarms.create;
+  const originalClear = chrome.alarms.clear;
+  let responseController;
+  let streamId;
+  t.after(() => {
+    if (streamId) expireStreamForCleanup(streamId);
+    chrome.alarms.create = originalCreate;
+    chrome.alarms.clear = originalClear;
+    try {
+      responseController?.close();
+    } catch {
+      /* Already closed by cancellation. */
+    }
+  });
+  for (const provider of Object.keys(models)) {
+    for (const activity of [
+      ": provider heartbeat\n\n",
+      'data: {"choices":[{"delta":{"reasoning":"hidden reasoning"}}]}\n\n',
+    ]) {
+      await setup(provider);
+      let now = 0;
+      const deadlines = new Map();
+      chrome.alarms.create = (name, options) =>
+        deadlines.set(name, now + options.delayInMinutes * 60000);
+      chrome.alarms.clear = async (name) => deadlines.delete(name);
+      intercept(({ body, options }) => {
+        if (!body) return;
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              responseController = controller;
+              options.signal.addEventListener(
+                "abort",
+                () => {
+                  try {
+                    controller.error(new Error("Request aborted"));
+                  } catch {
+                    /* Already closed. */
+                  }
+                },
+                { once: true },
+              );
+            },
+          }),
+        );
+      });
+      const started = await dispatch("remote-stream", args());
+      streamId = started.streamId;
+      const stream = activeStreams.get(streamId);
+      assert.ok(stream);
+      const alarmName = `stream-cleanup:${streamId}`;
+      assert.equal(deadlines.get(alarmName), 120000);
+      await waitFor(
+        () => responseController != null,
+        "provider response headers",
+      );
+      // Only the browser alarm clock advances: no real two-minute wait and no
+      // change to catalog freshness or the transport's separate idle timeout.
+      for (let elapsed = 20000; elapsed <= 160000; elapsed += 20000) {
+        now = elapsed;
+        responseController.enqueue(new TextEncoder().encode(activity));
+        await waitFor(
+          () => deadlines.get(alarmName) === now + 120000,
+          "provider activity extends cleanup",
+        );
+        for (const [name, deadline] of deadlines) {
+          if (deadline <= now) {
+            deadlines.delete(name);
+            for (const listener of alarmListeners) listener({ name });
+          }
+        }
+        assert.equal(activeStreams.get(streamId), stream);
+        assert.equal(stream.controller.signal.aborted, false);
+        assert.equal(
+          stream.text,
+          "",
+          "hidden activity must not become visible output",
+        );
+        assertNoSummarySaved();
+      }
+      responseController.enqueue(
+        new TextEncoder().encode(
+          'data: {"choices":[{"delta":{"content":"Completed after reasoning"}}]}\n\ndata: [DONE]\n\n',
+        ),
+      );
+      responseController.close();
+      responseController = null;
+      await waitFor(
+        () => stream.done && !registeredStreamJobs.has(streamId),
+        "summary finishes after hidden activity",
+      );
+      assert.equal(stream.error, null);
+      assert.equal(stream.text, "Completed after reasoning");
+      assert.equal(
+        (await loadViewState(tabId)).summaryText,
+        "Completed after reasoning",
+      );
+      assert.ok((getStorageData().cacheOrder || []).length > 0);
+    }
+  }
+});
+
+test("a remote response without provider activity still expires at the worker deadline", async (t) => {
+  await setup();
+  const originalCreate = chrome.alarms.create;
+  const deadlines = new Map();
+  chrome.alarms.create = (name, options) =>
+    deadlines.set(name, options.delayInMinutes * 60000);
+  t.after(() => {
+    chrome.alarms.create = originalCreate;
+  });
+  intercept(({ body, options }) => {
+    if (!body) return;
+    return new Response(
+      new ReadableStream({
+        start(controller) {
+          options.signal.addEventListener(
+            "abort",
+            () => controller.error(new Error("Request aborted")),
+            { once: true },
+          );
+        },
+      }),
+    );
+  });
+  const { streamId } = await dispatch("remote-stream", args());
+  const stream = activeStreams.get(streamId);
+  assert.ok(stream);
+  const alarmName = `stream-cleanup:${streamId}`;
+  assert.equal(deadlines.get(alarmName), 120000);
+  for (const listener of alarmListeners) listener({ name: alarmName });
+  await waitFor(
+    () => !registeredStreamJobs.has(streamId),
+    "expired silent response cleanup",
+  );
+  assert.equal(activeStreams.has(streamId), false);
+  assert.equal(stream.controller.signal.aborted, true);
+  assert.equal(stream.done, true);
+  assert.match(stream.error, /expired/);
+  assertNoSummarySaved();
 });

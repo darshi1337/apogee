@@ -302,6 +302,9 @@ export async function* remoteChatStream(context, prompt, { system } = {}) {
     system,
     assertAuthorized: context.assertActive,
     catalog: context.catalog,
+    onActivity: () => {
+      if (!context.signal.aborted) context.onActivity?.();
+    },
     onToken: (token) => {
       queue.push(token);
       wake?.();

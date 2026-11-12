@@ -197,7 +197,7 @@ async function readText(read) {
 export async function streamRemoteChat(
   provider,
   prompt,
-  { signal, system, onToken, assertAuthorized, catalog } = {},
+  { signal, system, onToken, onActivity, assertAuthorized, catalog } = {},
 ) {
   await assertAuthorized?.();
   const settings = await getRemoteCredentialsSettings();
@@ -279,6 +279,7 @@ export async function streamRemoteChat(
       };
       while (true) {
         const { value, done } = await read();
+        if (value?.byteLength) onActivity?.();
         buffer += done
           ? decoder.decode()
           : decoder.decode(value, { stream: true });

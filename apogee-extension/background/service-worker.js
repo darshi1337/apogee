@@ -367,6 +367,12 @@ async function startRemoteStream(streamId, payload, context) {
     controller: context.controller,
     autoFinalize: false,
   });
+  // Reasoning, keep-alives and map-stage tokens may precede visible output.
+  // Keep the worker deadline aligned with the transport's activity checks.
+  context.onActivity = () => {
+    if (!stream.done && !stream.cancelled && !context.signal.aborted)
+      scheduleStreamCleanup(streamId);
+  };
   const tracker = createSummarizeProgressTracker((text) => {
     chrome.runtime
       .sendMessage({
@@ -415,6 +421,7 @@ async function startRemoteStream(streamId, payload, context) {
       userFacing: true,
     });
   } finally {
+    context.onActivity = null;
     registeredStreamJobs.delete(streamId);
     context.dispose();
   }

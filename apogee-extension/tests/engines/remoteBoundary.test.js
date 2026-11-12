@@ -378,6 +378,37 @@ test("chat streams fragmented CRLF SSE, keeps zero-price routing, and stops on D
   assert.equal(chat.options.redirect, "error");
 });
 
+test("remote response activity includes keep-alives and reasoning without exposing them as output", async () => {
+  install(authorized());
+  const encoder = new TextEncoder();
+  const chunks = [
+    ": keep-alive\n\n",
+    'data: {"choices":[{"delta":{"reasoning":"private intermediate work"}}]}\n\n',
+    'data: {"choices":[{"delta":{"content":"final summary"}}]}\n\n',
+    "data: [DONE]\n\n",
+  ];
+  globalThis.fetch = async (url) =>
+    url.endsWith("/models")
+      ? catalog()
+      : new Response(
+          new ReadableStream({
+            start(controller) {
+              for (const chunk of chunks)
+                controller.enqueue(encoder.encode(chunk));
+              controller.close();
+            },
+          }),
+        );
+  let activity = 0;
+  const tokens = [];
+  await streamRemoteChat("openrouter", "prompt", {
+    onActivity: () => activity++,
+    onToken: (token) => tokens.push(token),
+  });
+  assert.equal(activity, chunks.length);
+  assert.deepEqual(tokens, ["final summary"]);
+});
+
 test("diagnostics redact both keys and serialized settings writes preserve unrelated fields", async () => {
   install(authorized());
   await Promise.all([
