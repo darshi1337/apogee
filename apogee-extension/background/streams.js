@@ -32,17 +32,35 @@ export const hasOffscreenAPI =
 // withTimeout only stops the wait: generation already running in the
 // document keeps going, so a retried call can queue behind it on the engine
 // mutex until that work finishes.
+
+// Offscreen calls currently awaiting a reply. has-active-streams only reports
+// generation streams, so a long retrieve-context/find-passage (up to
+// OFFSCREEN_WORK_TIMEOUT_MS) would otherwise look like an idle document and
+// the idle close could shut it mid-call.
+const offscreenCallsInflight = new Set();
+
+export function hasOffscreenWorkInflight() {
+  return offscreenCallsInflight.size > 0;
+}
+
 export function sendToOffscreen(
   message,
   timeoutMs = OFFSCREEN_CALL_TIMEOUT_MS,
 ) {
-  return withTimeout(chrome.runtime.sendMessage(message), timeoutMs, {
+  const call = withTimeout(chrome.runtime.sendMessage(message), timeoutMs, {
     onTimeout: () => {
       const error = new UserFacingError(OFFSCREEN_UNRESPONSIVE_ERROR_MSG);
       error.code = OFFSCREEN_UNRESPONSIVE_ERROR_CODE;
       throw error;
     },
   });
+  offscreenCallsInflight.add(call);
+  const untrack = () => offscreenCallsInflight.delete(call);
+  // Settle the tracker on both outcomes so it never outlives the call. This
+  // derived promise always resolves, so it cannot surface an unhandled
+  // rejection; the caller still gets the original (possibly rejecting) one.
+  call.then(untrack, untrack);
+  return call;
 }
 
 export function nextStreamId(kind) {
@@ -241,6 +259,7 @@ export function hasWorkInFlight() {
     if (!stream.done) return true;
   }
   if (offscreenRelayInflight.size > 0) return true;
+  if (offscreenCallsInflight.size > 0) return true;
   return hasBackgroundJobsInflight();
 }
 
