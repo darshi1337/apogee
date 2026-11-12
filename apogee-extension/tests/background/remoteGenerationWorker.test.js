@@ -4,6 +4,18 @@ import { createExtensionApiMock } from "../helpers/extensionApiMock.js";
 
 const { chrome, getMessageListeners, getStorageData } =
   createExtensionApiMock();
+const contextMenuListeners = [];
+chrome.contextMenus = {
+  removeAll(callback) {
+    callback();
+  },
+  create() {},
+  onClicked: {
+    addListener(listener) {
+      contextMenuListeners.push(listener);
+    },
+  },
+};
 const connectListeners = [];
 chrome.runtime.onConnect = {
   addListener: (listener) => connectListeners.push(listener),
@@ -912,4 +924,239 @@ test("a remote response without provider activity still expires at the worker de
   assert.equal(stream.done, true);
   assert.match(stream.error, /expired/);
   assertNoSummarySaved();
+});
+
+test("a popup can attach when a background selection first publishes its stream id", async () => {
+  await setup("openrouter", { openrouterBackgroundConsent: true });
+  intercept();
+  const backingSet = chrome.storage.local.set;
+  const messages = [];
+  let publishedStreamId;
+  let disconnected = false;
+  chrome.storage.local.set = async (items) => {
+    await backingSet(items);
+    const state = items[`popupViewState:${tabId}`];
+    if (publishedStreamId || !state?.streamId || state.pageType !== "selection")
+      return;
+    publishedStreamId = state.streamId;
+    const port = {
+      name: `popup-stream-${state.streamId}`,
+      sender,
+      postMessage: (message) => messages.push(message),
+      disconnect: () => {
+        disconnected = true;
+      },
+      onDisconnect: { addListener() {} },
+    };
+    for (const listener of connectListeners) listener(port);
+  };
+  try {
+    await runBackgroundSummarize(
+      { id: tabId, url },
+      {
+        selectionText: "Selected article evidence with enough content.",
+        notifyOnFinish: true,
+      },
+    );
+    assert.ok(publishedStreamId);
+    const stream = activeStreams.get(publishedStreamId);
+    await waitFor(
+      () => stream.done && !registeredStreamJobs.has(publishedStreamId),
+      "background selection finalization",
+    );
+    const state = await loadViewState(tabId);
+    assert.equal(state.subview, "summary");
+    assert.equal(state.streamId, null);
+    assert.equal(state.summaryText, "Remote answer");
+    assertNoSummarySaved();
+    assert.equal(
+      disconnected,
+      false,
+      "publishing the stream must not expose an unavailable port",
+    );
+    assert.ok(!messages.some((message) => message.type === "error"));
+    assert.equal(messages.at(-1)?.type, "done");
+  } finally {
+    chrome.storage.local.set = backingSet;
+  }
+});
+
+test("native selection survives hidden activity and restores after the completed stream expires", async (t) => {
+  const originalCreate = chrome.alarms.create;
+  let responseController;
+  let streamId;
+  t.after(() => {
+    chrome.alarms.create = originalCreate;
+    if (streamId) expireStreamForCleanup(streamId);
+    try {
+      responseController?.close();
+    } catch {
+      /* Transport may already be closed. */
+    }
+  });
+  for (const provider of Object.keys(models)) {
+    await setup(provider, { [`${provider}BackgroundConsent`]: true });
+    let now = 0;
+    const deadlines = new Map();
+    chrome.alarms.create = (name, options) =>
+      deadlines.set(name, now + options.delayInMinutes * 60000);
+    intercept(({ body, options }) => {
+      if (!body) return;
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            responseController = controller;
+            options.signal.addEventListener(
+              "abort",
+              () => {
+                try {
+                  controller.error(new Error("Request aborted"));
+                } catch {
+                  /* Transport may already be closed. */
+                }
+              },
+              { once: true },
+            );
+          },
+        }),
+      );
+    });
+    assert.equal(contextMenuListeners.length, 1);
+    await contextMenuListeners[0](
+      {
+        menuItemId: "apogee-summarize-selection",
+        selectionText:
+          "A paragraph selected with the native context menu, long enough to summarize.",
+      },
+      { id: tabId, url },
+    );
+    await waitFor(
+      () =>
+        getStorageData()[`popupViewState:${tabId}`]?.streamId &&
+        responseController,
+      "native selection request",
+    );
+    streamId = getStorageData()[`popupViewState:${tabId}`].streamId;
+    const stream = activeStreams.get(streamId);
+    const alarmName = `stream-cleanup:${streamId}`;
+    for (now = 20000; now <= 160000; now += 20000) {
+      responseController.enqueue(
+        new TextEncoder().encode(
+          'data: {"choices":[{"delta":{"reasoning":"hidden reasoning"}}]}\n\n',
+        ),
+      );
+      await waitFor(
+        () => deadlines.get(alarmName) === now + 120000,
+        "native selection activity",
+      );
+      assert.equal(stream.done, false);
+      assert.equal(stream.text, "");
+      assert.equal(stream.controller.signal.aborted, false);
+    }
+    responseController.enqueue(
+      new TextEncoder().encode(
+        'data: {"choices":[{"delta":{"content":"Selection summary after reasoning"}}]}\n\ndata: [DONE]\n\n',
+      ),
+    );
+    responseController.close();
+    responseController = null;
+    await waitFor(
+      () => stream.done && !registeredStreamJobs.has(streamId),
+      "native selection complete",
+    );
+    assert.equal(stream.error, null);
+    const completed = await loadViewState(tabId);
+    assert.equal(completed.subview, "summary");
+    assert.equal(completed.streamId, null);
+    assert.equal(completed.summaryText, "Selection summary after reasoning");
+    assert.equal(completed.isSelection, true);
+    assertNoSummarySaved();
+    for (const listener of alarmListeners) listener({ name: alarmName });
+    assert.equal(activeStreams.has(streamId), false);
+    assert.deepEqual(
+      await loadViewState(tabId),
+      completed,
+      "reopening restores completed selection without attaching to expired stream",
+    );
+  }
+});
+
+test("remote startup failures clean prepared streams without inference or stale pending ids", async () => {
+  for (const kind of ["foreground", "background"]) {
+    for (const failure of ["storage", "revocation", "cancellation"]) {
+      await setup("openrouter", { openrouterBackgroundConsent: true });
+      const calls = intercept();
+      const backingSet = chrome.storage.local.set;
+      const originalClear = chrome.alarms.clear;
+      const cleared = [];
+      const messages = [];
+      let disconnected = false;
+      let preparedId;
+      let failureApplied = false;
+      chrome.alarms.clear = async (name) => {
+        cleared.push(name);
+      };
+      chrome.storage.local.set = async (items) => {
+        await backingSet(items);
+        const state = items[`popupViewState:${tabId}`];
+        if (failureApplied || !state?.streamId) return;
+        failureApplied = true;
+        preparedId = state.streamId;
+        const port = {
+          name: `popup-stream-${preparedId}`,
+          sender,
+          postMessage: (message) => messages.push(message),
+          disconnect: () => {
+            disconnected = true;
+          },
+          onDisconnect: { addListener() {} },
+        };
+        for (const listener of connectListeners) listener(port);
+        if (failure === "storage")
+          throw new Error("Storage unavailable during startup");
+        if (failure === "revocation")
+          await saveRemoteSettings({
+            provider: "openrouter",
+            generationConsent: false,
+          });
+        if (failure === "cancellation")
+          await dispatch("cancel-stream", { streamId: preparedId });
+      };
+      try {
+        if (kind === "foreground") {
+          const result = await dispatch("remote-stream", args());
+          assert.ok(result.error);
+          assert.equal(result.streamId, undefined);
+        } else {
+          await assert.rejects(
+            runBackgroundSummarize(
+              { id: tabId, url },
+              {
+                selectionText:
+                  "A paragraph selected with enough context for summarizing.",
+              },
+            ),
+          );
+        }
+        assert.ok(preparedId);
+        assert.equal(activeStreams.has(preparedId), false);
+        assert.equal(registeredStreamJobs.has(preparedId), false);
+        assert.equal((await loadViewState(tabId))?.streamId ?? null, null);
+        assert.ok(cleared.includes(`stream-cleanup:${preparedId}`));
+        assert.equal(disconnected, true);
+        assert.ok(
+          messages.some(
+            (message) =>
+              message.type === "error" || message.type === "cancelled",
+          ),
+        );
+        assert.equal(calls.length, 0);
+        assertNoSummarySaved();
+        assert.equal(removedPermissionListeners.size, 0);
+      } finally {
+        chrome.storage.local.set = backingSet;
+        chrome.alarms.clear = originalClear;
+      }
+    }
+  }
 });

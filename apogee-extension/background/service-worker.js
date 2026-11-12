@@ -91,6 +91,7 @@ import {
 } from "../lib/constants.js";
 import {
   broadcastToStream,
+  disconnectStreamPorts,
   safeDisconnect,
   safePost,
 } from "../lib/util/streamBroadcast.js";
@@ -99,6 +100,7 @@ import { withTimeout } from "../lib/util/withTimeout.js";
 import {
   loadViewState,
   saveViewState,
+  saveViewStateIfJobMatches,
   removeViewState,
   cleanupOrphanedViewStates,
 } from "../lib/storage/viewState.js";
@@ -360,13 +362,44 @@ function createBufferedStream(
   return { stream, finish, emitChunk };
 }
 
-async function startRemoteStream(streamId, payload, context) {
-  const { stream, finish, emitChunk } = createBufferedStream(streamId, {
+function prepareRemoteStream(streamId, payload, context) {
+  return createBufferedStream(streamId, {
     ...payload,
     model: context.model,
     controller: context.controller,
     autoFinalize: false,
   });
+}
+
+async function discardPreparedRemoteStream(streamId, prepared, finalize) {
+  registeredStreamJobs.delete(streamId);
+  if (prepared) {
+    prepared.stream.controller.abort();
+    prepared.finish({
+      type: "error",
+      error: "Remote generation could not start. Review Settings and retry.",
+      userFacing: true,
+    });
+    disconnectStreamPorts(prepared.stream);
+    activeStreams.delete(streamId);
+    await chrome.alarms.clear(`${STREAM_CLEANUP_PREFIX}${streamId}`);
+  }
+  if (finalize?.tabId != null && finalize.jobId) {
+    try {
+      await saveViewStateIfJobMatches(
+        finalize.tabId,
+        finalize.jobId,
+        { streamId: null },
+        "summarizing",
+      );
+    } catch {
+      // Storage may be the startup failure; cleanup must preserve that error.
+    }
+  }
+}
+
+async function startRemoteStream(streamId, payload, context, prepared) {
+  const { stream, finish, emitChunk } = prepared;
   // Reasoning, keep-alives and map-stage tokens may precede visible output.
   // Keep the worker deadline aligned with the transport's activity checks.
   context.onActivity = () => {
@@ -747,6 +780,9 @@ export async function runBackgroundSummarize(
   const providerType = getProviderType(settings);
   const model = getModelForSettings(settings);
   let handedOff = false;
+  let preparedRemote;
+  let remoteStreamId;
+  let remoteFinalize;
   try {
     // Selected text arrives whole from the capture script and the context menu,
     // then fans out to view state, the finalize payload, and the prompt, so cap
@@ -814,6 +850,9 @@ export async function runBackgroundSummarize(
       };
       payload.finalize = await buildTrustedFinalize(payload, settings);
       await remote.assertActive();
+      remoteStreamId = streamId;
+      remoteFinalize = payload.finalize;
+      preparedRemote = prepareRemoteStream(streamId, payload, remote);
       await saveViewState(
         tab.id,
         {
@@ -843,7 +882,7 @@ export async function runBackgroundSummarize(
         url: payload.url,
       });
       handedOff = true;
-      void startRemoteStream(streamId, payload, remote);
+      void startRemoteStream(streamId, payload, remote, preparedRemote);
       return;
     }
     const persist = isSelection ? false : await shouldPersist(tab.url);
@@ -989,7 +1028,14 @@ export async function runBackgroundSummarize(
       if (resp?.error) throw new Error(resp.error);
     }
   } finally {
-    if (remote && !handedOff) remote.dispose();
+    if (remote && !handedOff) {
+      remote.dispose();
+      await discardPreparedRemoteStream(
+        remoteStreamId,
+        preparedRemote,
+        remoteFinalize,
+      );
+    }
   }
 }
 
@@ -1804,9 +1850,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case "remote-stream": {
           const clean = validateRemoteGenerationPayload(message.payload);
           const context = await createRemoteJobContext();
+          const streamId = nextStreamId("remote");
+          let prepared;
+          let finalize;
           try {
-            const streamId = nextStreamId("remote");
-            const finalize =
+            finalize =
               clean.action === "summarize"
                 ? await buildTrustedFinalize(clean, context.settings)
                 : null;
@@ -1817,11 +1865,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               finalize,
             };
             await context.assertActive();
+            prepared = prepareRemoteStream(streamId, payload, context);
             await recordPopupSummaryStream(payload, streamId, {
               assertAuthorized: context.assertActive,
             });
-            startRemoteStream(streamId, payload, context).catch((error) =>
-              console.error("Remote stream failed:", error),
+            await context.assertActive();
+            startRemoteStream(streamId, payload, context, prepared).catch(
+              (error) => console.error("Remote stream failed:", error),
             );
             sendResponse({
               streamId,
@@ -1836,6 +1886,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             });
           } catch (error) {
             context.dispose();
+            await discardPreparedRemoteStream(streamId, prepared, finalize);
             throw error;
           }
           break;
