@@ -134,6 +134,8 @@ These should never reach the UI. If one does, report it as a bug with the steps 
 | Unknown action: ... | An unknown message reached the service worker or the offscreen document dispatcher. |
 | Unknown Transformers.js model: ... | Someone asked for a model id missing from the registry, often after a settings value lives past a version downgrade. |
 
+A remote response that exceeds the 4 MiB transport limit shows "Remote response exceeded the size limit. Try a shorter input or another model." The cap includes all received stream bytes. OpenRouter requests omit returned reasoning with `reasoning.exclude: true`; this does not disable the model's internal reasoning.
+
 ## Reporting one
 
 If your symptom matches a known failure, the [Troubleshooting](TROUBLESHOOTING.md) page may fix it faster than a report.

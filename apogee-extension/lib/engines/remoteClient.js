@@ -132,6 +132,12 @@ async function withRemoteRequest(
       !response.body ||
       Number(response.headers.get("content-length")) > REMOTE_RESPONSE_MAX_BYTES
     ) {
+      if (
+        Number(response.headers.get("content-length")) >
+        REMOTE_RESPONSE_MAX_BYTES
+      )
+        safeFailure =
+          "Remote response exceeded the size limit. Try a shorter input or another model.";
       await response.body?.cancel().catch(() => {});
       throw new Error();
     }
@@ -145,7 +151,11 @@ async function withRemoteRequest(
       if (controller.signal.aborted) throw new Error();
       armTimeout();
       bytes += result.value?.byteLength || 0;
-      if (bytes > REMOTE_RESPONSE_MAX_BYTES) throw new Error();
+      if (bytes > REMOTE_RESPONSE_MAX_BYTES) {
+        safeFailure =
+          "Remote response exceeded the size limit. Try a shorter input or another model.";
+        throw new Error();
+      }
       return result;
     };
     return await consume(read);
@@ -238,6 +248,8 @@ export async function streamRemoteChat(
     stream: true,
     ...(provider === "openrouter"
       ? {
+          // Hidden reasoning can exhaust the transport budget before an answer.
+          reasoning: { exclude: true },
           provider: {
             max_price: { prompt: 0, completion: 0, request: 0 },
             allow_fallbacks: false,

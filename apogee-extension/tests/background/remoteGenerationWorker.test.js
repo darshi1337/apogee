@@ -1234,3 +1234,69 @@ test("native multi-tab failures resolve with a safe failure notification and no 
     else chrome.notifications = originalNotifications;
   }
 });
+
+test("oversized hidden reasoning cannot persist or announce a multi-tab result", async () => {
+  const originalNotifications = chrome.notifications;
+  chrome.scripting = {
+    executeScript: async () => [
+      { result: chrome.runtime.getManifest().version },
+    ],
+  };
+  chrome.tabs.sendMessage = async () => ({
+    content: "Article evidence with enough text.",
+    title: "Evidence",
+    type: "article",
+  });
+  try {
+    for (const provider of Object.keys(models)) {
+      await setup(provider, { [`${provider}BackgroundConsent`]: true });
+      const previousState = await loadViewState(tabId);
+      const notifications = [];
+      chrome.notifications = {
+        create(id, options) {
+          notifications.push({ id, ...options });
+        },
+      };
+      const frame = new TextEncoder().encode(
+        `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "private-reasoning router-secret code-secret " + "x".repeat(16000) } }] })}\n\n`,
+      );
+      const frames = Math.floor((4 * 1024 * 1024) / frame.byteLength) + 1;
+      const calls = intercept(({ body }) => {
+        if (!body) return;
+        let sent = 0;
+        return new Response(
+          new ReadableStream({
+            pull(controller) {
+              if (sent++ < frames) controller.enqueue(frame);
+              else
+                controller.enqueue(
+                  new TextEncoder().encode(
+                    'data: {"choices":[{"delta":{"content":"not a completed summary"}}]}\n\ndata: [DONE]\n\n',
+                  ),
+                );
+            },
+          }),
+        );
+      });
+      await assert.rejects(summarizeMultiTab([{ id: tabId, url }]), (error) => {
+        assert.match(error.message, /size limit/i);
+        assert.ok(
+          !/private-reasoning|router-secret|code-secret/.test(error.message),
+        );
+        return true;
+      });
+      assertNoSummarySaved();
+      assert.deepEqual(await loadViewState(tabId), previousState);
+      assert.ok(
+        !notifications.some((notification) =>
+          /ready/i.test(notification.title),
+        ),
+      );
+      assert.equal(calls.filter((call) => call.body).length, 1);
+      assert.equal(removedPermissionListeners.size, 0);
+    }
+  } finally {
+    if (originalNotifications === undefined) delete chrome.notifications;
+    else chrome.notifications = originalNotifications;
+  }
+});
