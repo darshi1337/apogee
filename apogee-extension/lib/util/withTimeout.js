@@ -15,6 +15,10 @@ export function withTimeout(promise, ms, { onTimeout } = {}) {
       }
     }, ms);
   });
+  // Node test runners hold the event loop for a pending timer, so a failed
+  // assertion can hang the file for the full timeout. Browsers return a
+  // number here, where this is a no-op.
+  if (timer.unref) timer.unref();
 
   return Promise.race([Promise.resolve(promise), timeout]).finally(() =>
     clearTimeout(timer),

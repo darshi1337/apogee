@@ -123,6 +123,7 @@ import {
   EXPIRED_STREAM_ERROR,
   startKeepAlive,
   hasBackgroundJobsInflight,
+  hasOffscreenWorkInflight,
   isOffscreenStream,
   forwardCancelToOffscreen,
   relayToOffscreenStream,
@@ -181,7 +182,10 @@ initDebugLogging();
 let offscreenReady = false;
 const offscreenLogs = [];
 
-let popupConnected = false;
+let popupConnections = 0;
+// Multiple popup contexts can be open at once (e.g. two windows), so track
+// them by count: one disconnect must not mark the others as gone.
+const isPopupConnected = () => popupConnections > 0;
 
 let _offscreenScriptReadyResolve = null;
 let offscreenScriptReadyPromise = new Promise((resolve) => {
@@ -189,7 +193,6 @@ let offscreenScriptReadyPromise = new Promise((resolve) => {
 });
 
 let ensureOffscreenPromise = null;
-let offscreenStartInFlight = false;
 let offscreenLifecycleVersion = 0;
 let offscreenLastStartAt = 0;
 let offscreenClosePromise = null;
@@ -207,10 +210,8 @@ function ensureOffscreenDocument() {
   offscreenLifecycleVersion += 1;
   offscreenLastStartAt = Date.now();
   if (!ensureOffscreenPromise) {
-    offscreenStartInFlight = true;
     ensureOffscreenPromise = ensureOffscreenDocumentOnce().finally(() => {
       ensureOffscreenPromise = null;
-      offscreenStartInFlight = false;
     });
   }
   return ensureOffscreenPromise;
@@ -239,7 +240,7 @@ async function ensureOffscreenDocumentOnce() {
 
   if (await offscreenDocumentExists()) {
     offscreenReady = true;
-    if (!popupConnected) scheduleOffscreenIdleClose();
+    if (!isPopupConnected()) scheduleOffscreenIdleClose();
     return;
   }
 
@@ -274,7 +275,7 @@ async function ensureOffscreenDocumentOnce() {
 
   offscreenReady = true;
 
-  if (!popupConnected) scheduleOffscreenIdleClose();
+  if (!isPopupConnected()) scheduleOffscreenIdleClose();
 }
 
 // Shared head for the ollama/llamacpp/transformers stream actions: rebuild
@@ -1272,6 +1273,7 @@ const OFFSCREEN_IDLE_MINUTES = 5;
 // A run claims the document in ensureOffscreenDocument(), then may do some
 // async setup before its first message reaches the document. Keep the idle
 // close away for that window even if an alarm event was already queued.
+// Offscreen calls that outlive it are tracked by sendToOffscreen().
 const OFFSCREEN_START_GRACE_MS = 30 * 1000;
 
 function cancelOffscreenIdleClose() {
@@ -1284,8 +1286,19 @@ function scheduleOffscreenIdleClose() {
   });
 }
 
+// Exported for tests: the idle alarm listener is the only production caller.
 export async function closeOffscreenIfIdle() {
+  // Both cheap guards come first so a queued alarm costs no round trips.
   if (offscreenClosePromise) {
+    // A close is already running. Reschedule instead of racing it: if
+    // closeDocument() failed the document may still be alive, and a run that
+    // starts now arms its own close when it (re)creates the document.
+    scheduleOffscreenIdleClose();
+    return;
+  }
+  if (isPopupConnected()) {
+    // The popup's connect handler clears this alarm; a queued one can still
+    // arrive. Keep the safety net, but skip the document lookups.
     scheduleOffscreenIdleClose();
     return;
   }
@@ -1293,31 +1306,32 @@ export async function closeOffscreenIfIdle() {
   const versionAtStart = offscreenLifecycleVersion;
   const isBusy = () =>
     hasBackgroundJobsInflight() ||
-    offscreenStartInFlight ||
+    hasOffscreenWorkInflight() ||
     ensureOffscreenPromise !== null ||
     offscreenLifecycleVersion !== versionAtStart ||
     Date.now() - offscreenLastStartAt < OFFSCREEN_START_GRACE_MS;
 
-  let hasActiveJob = isBusy();
-  if (!hasActiveJob && (await offscreenDocumentExists())) {
+  let streamsActive = isBusy();
+  if (!streamsActive && (await offscreenDocumentExists())) {
     try {
       const resp = await sendToOffscreen({
         target: "offscreen",
         action: "has-active-streams",
       });
-      hasActiveJob = !!resp?.active;
+      streamsActive = !!resp?.active;
     } catch (err) {
       // A silent document may still be loading a model. Assume it is busy
       // and reschedule rather than close the document under a running job.
       if (err?.code === OFFSCREEN_UNRESPONSIVE_ERROR_CODE) {
-        hasActiveJob = true;
+        streamsActive = true;
       }
       // Otherwise it is already closed/unavailable: fall through to close.
     }
   }
-  // A new run can start at any await above. Re-check every guard here so the
-  // idle close cannot shut the document under a run that just claimed it.
-  if (hasActiveJob || popupConnected || isBusy()) {
+  // A run or a popup can arrive at any await above, so re-check the live
+  // guards here before closing. `streamsActive` is a snapshot from before the
+  // awaits; one that went stale only defers the close.
+  if (streamsActive || isPopupConnected() || isBusy()) {
     scheduleOffscreenIdleClose();
     return;
   }
@@ -1346,7 +1360,11 @@ export async function closeOffscreenIfIdle() {
 if (typeof chrome !== "undefined" && chrome.alarms?.onAlarm?.addListener) {
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === OFFSCREEN_IDLE_ALARM) {
-      closeOffscreenIfIdle();
+      // getContexts can reject, so keep the alarm path free of unhandled
+      // rejections; the next alarm retries.
+      closeOffscreenIfIdle().catch((err) =>
+        console.error("Idle close failed:", err),
+      );
       return;
     }
     if (alarm.name.startsWith(STREAM_CLEANUP_PREFIX)) {
@@ -1397,11 +1415,13 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onConnect?.addListener) {
     }
 
     if (port.name === "popup-lifecycle") {
-      popupConnected = true;
+      popupConnections += 1;
       cancelOffscreenIdleClose();
       port.onDisconnect.addListener(() => {
-        popupConnected = false;
-        scheduleOffscreenIdleClose();
+        popupConnections -= 1;
+        // Another popup may still be open; only the last one to leave arms
+        // the idle close.
+        if (!isPopupConnected()) scheduleOffscreenIdleClose();
       });
       return;
     }
