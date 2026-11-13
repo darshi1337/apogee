@@ -179,17 +179,32 @@ export function hasBackgroundJobsInflight() {
 }
 
 export const STREAM_CLEANUP_PREFIX = "stream-cleanup:";
-// Single source of truth for the 2-min window lives in lib/util/streamExpiry.js
-// (the offscreen document consumes it as ms); alarms take minutes.
-const STREAM_CLEANUP_MINUTES = msToAlarmMinutes(STREAM_CLEANUP_MS);
-// Sliding expiry: re-creating an alarm with the same name overwrites it, so
-// every call pushes expiry 2 min out. Callers refresh on each chunk of
-// progress (emitChunk, relayed offscreen chunks); a stream with no progress
-// for the full window is reclaimed by the alarm handler below.
+// Deadline per stream. The alarm is armed once and rechecks this map when it
+// fires; progress only moves the deadline, so chunks never recreate it.
+const streamCleanupDeadlines = new Map();
+
 export function scheduleStreamCleanup(streamId) {
-  chrome.alarms.create(`${STREAM_CLEANUP_PREFIX}${streamId}`, {
-    delayInMinutes: STREAM_CLEANUP_MINUTES,
+  const hasDeadline = streamCleanupDeadlines.has(streamId);
+  streamCleanupDeadlines.set(streamId, performance.now() + STREAM_CLEANUP_MS);
+  if (!hasDeadline) armStreamCleanupAlarm(streamId, STREAM_CLEANUP_MS);
+}
+
+function armStreamCleanupAlarm(streamId, delayMs) {
+  chrome.alarms.create(STREAM_CLEANUP_PREFIX + streamId, {
+    delayInMinutes: msToAlarmMinutes(delayMs, { warn: null }),
   });
+}
+
+export function handleStreamCleanupAlarm(streamId) {
+  // Progress only moves the deadline. Re-arm here if the pending alarm
+  // wakes before the stream has been idle for the full window.
+  const remainingMs =
+    (streamCleanupDeadlines.get(streamId) ?? 0) - performance.now();
+  if (remainingMs > 0) {
+    armStreamCleanupAlarm(streamId, remainingMs);
+    return;
+  }
+  expireStreamForCleanup(streamId);
 }
 
 export const EXPIRED_STREAM_ERROR =
@@ -197,6 +212,7 @@ export const EXPIRED_STREAM_ERROR =
   "Try summarizing again.";
 
 export function expireStreamForCleanup(streamId) {
+  streamCleanupDeadlines.delete(streamId);
   const stream = activeStreams.get(streamId);
   if (stream && !stream.done) {
     stream.controller?.abort();

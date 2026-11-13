@@ -465,10 +465,7 @@ async function runSummarize(eng, pending, emit, signal) {
 
 const streams = new Map();
 
-// Sliding expiry: every chunk of progress reschedules (slides) the timer,
-// so a long map-reduce job that keeps emitting tokens never expires
-// mid-generation; a stream with no progress for the full window is still
-// reclaimed.
+// Progress extends the deadline while the pending timeout waits to recheck it.
 const streamExpiry = createSlidingExpiry({
   timeoutMs: STREAM_CLEANUP_MS,
   onExpire: (streamId) => {
