@@ -10,6 +10,7 @@ import {
   UPLOAD_MIME_TYPES,
 } from "../../lib/extract/fileLimits.js";
 import { toUserMessage } from "../../lib/util/userError.js";
+import { t } from "../../lib/util/i18n.js";
 
 const appCode = readFileSync(
   new URL("../../ui/app.js", import.meta.url),
@@ -65,6 +66,7 @@ function uploadHarness({ summarize } = {}) {
     assertUploadSizeOk,
     readTextHead,
     toUserMessage,
+    t,
     renderError: (target, message) => {
       target.textContent = message;
     },
