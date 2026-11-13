@@ -38,6 +38,7 @@ export function createSlidingExpiry({
   timeoutMs = STREAM_CLEANUP_MS,
   onExpire,
 } = {}) {
+  // Deadlines use elapsed time so system clock changes cannot move them.
   const timers = new Map();
 
   function cancel(id) {
@@ -49,7 +50,7 @@ export function createSlidingExpiry({
 
   function arm(id, timer, delayMs) {
     timer.handle = setTimeout(() => {
-      const remainingMs = timer.deadline - Date.now();
+      const remainingMs = timer.deadline - performance.now();
       if (remainingMs > 0) {
         arm(id, timer, remainingMs);
         return;
@@ -68,7 +69,7 @@ export function createSlidingExpiry({
   }
 
   function schedule(id) {
-    const deadline = Date.now() + timeoutMs;
+    const deadline = performance.now() + timeoutMs;
     const pending = timers.get(id);
     if (pending) {
       pending.deadline = deadline;

@@ -24,6 +24,7 @@ test("minimum alarm delay constant is 0.5 minutes", () => {
 
 test("idle stream is reclaimed after the window", (t) => {
   t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+  t.mock.method(performance, "now", Date.now.bind(Date));
   try {
     const expired = [];
     const expiry = createSlidingExpiry({
@@ -41,6 +42,7 @@ test("idle stream is reclaimed after the window", (t) => {
 
 test("progress slides the window so an active stream never expires mid-generation", (t) => {
   t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+  t.mock.method(performance, "now", Date.now.bind(Date));
   try {
     const expired = [];
     const expiry = createSlidingExpiry({
@@ -64,6 +66,7 @@ test("progress slides the window so an active stream never expires mid-generatio
 
 test("offscreen expiry keeps one timer through a burst and reclaims after the last chunk (#640)", (t) => {
   t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+  t.mock.method(performance, "now", Date.now.bind(Date));
   const timer = t.mock.method(globalThis, "setTimeout");
   const expired = [];
   const expiry = createSlidingExpiry({ onExpire: (id) => expired.push(id) });
@@ -88,6 +91,7 @@ test("offscreen expiry keeps one timer through a burst and reclaims after the la
 
 test("cancel stops expiry", (t) => {
   t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+  t.mock.method(performance, "now", Date.now.bind(Date));
   try {
     let calls = 0;
     const expiry = createSlidingExpiry({
@@ -299,4 +303,35 @@ test("opening an unknown stream reports expired guidance as user-facing", () => 
       `${file} marks the expired-stream error user-facing`,
     );
   }
+});
+
+test("offscreen expiry uses elapsed time across wall-clock changes (#640)", (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+  const elapsed = Date.now.bind(Date);
+  t.mock.method(performance, "now", elapsed);
+  const expired = [];
+  const expiry = createSlidingExpiry({ onExpire: (id) => expired.push(id) });
+
+  expiry.schedule("clock-change");
+  t.mock.timers.tick(90_000);
+  expiry.schedule("clock-change");
+
+  let wallClockOffset = 3_600_000;
+  t.mock.method(Date, "now", () => elapsed() + wallClockOffset);
+  t.mock.timers.tick(30_000);
+  assert.deepStrictEqual(
+    expired,
+    [],
+    "a forward clock jump must not expire the stream early",
+  );
+
+  wallClockOffset = -3_600_000;
+  t.mock.timers.tick(89_999);
+  assert.deepStrictEqual(expired, []);
+  t.mock.timers.tick(1);
+  assert.deepStrictEqual(
+    expired,
+    ["clock-change"],
+    "a backward clock jump must not extend the deadline",
+  );
 });

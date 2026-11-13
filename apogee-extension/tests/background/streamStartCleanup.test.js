@@ -112,6 +112,7 @@ test("a local Ask start with no chunks still gets a cleanup deadline", async () 
 
 test("a chunk burst keeps the original alarm and slides expiry to the last chunk (#640)", (t) => {
   t.mock.timers.enable({ apis: ["Date"] });
+  t.mock.method(performance, "now", Date.now.bind(Date));
   const streamId = "burst";
   const name = STREAM_CLEANUP_PREFIX + streamId;
   const { stream, emitChunk } = createBufferedStream(streamId, {});
@@ -143,6 +144,7 @@ test("a chunk burst keeps the original alarm and slides expiry to the last chunk
 
 test("worker alarm recheck respects the browser minimum delay (#640)", (t) => {
   t.mock.timers.enable({ apis: ["Date"] });
+  t.mock.method(performance, "now", Date.now.bind(Date));
   const streamId = "short-extension";
   const name = STREAM_CLEANUP_PREFIX + streamId;
   const { stream, emitChunk } = createBufferedStream(streamId, {});
@@ -158,4 +160,30 @@ test("worker alarm recheck respects the browser minimum delay (#640)", (t) => {
   t.mock.timers.tick(MIN_ALARM_DELAY_MINUTES * 60_000);
   onAlarm({ name });
   assert.strictEqual(activeStreams.has(streamId), false);
+});
+
+test("worker cleanup uses elapsed time across wall-clock changes (#640)", (t) => {
+  t.mock.timers.enable({ apis: ["Date"] });
+  const elapsed = Date.now.bind(Date);
+  t.mock.method(performance, "now", elapsed);
+  const streamId = "clock-change";
+  const name = STREAM_CLEANUP_PREFIX + streamId;
+  const { stream, emitChunk } = createBufferedStream(streamId, {});
+  t.after(() => expireStreamForCleanup(streamId));
+
+  t.mock.timers.tick(90_000);
+  emitChunk("word ");
+
+  let wallClockOffset = 3_600_000;
+  t.mock.method(Date, "now", () => elapsed() + wallClockOffset);
+  t.mock.timers.tick(30_000);
+  onAlarm({ name });
+  assert.strictEqual(activeStreams.get(streamId), stream);
+  assert.strictEqual(alarms.at(-1).delayInMinutes, 1.5);
+
+  wallClockOffset = -3_600_000;
+  t.mock.timers.tick(90_000);
+  onAlarm({ name });
+  assert.strictEqual(activeStreams.has(streamId), false);
+  assert.strictEqual(stream.controller.signal.aborted, true);
 });

@@ -183,7 +183,7 @@ const streamCleanupDeadlines = new Map();
 
 export function scheduleStreamCleanup(streamId) {
   const pending = streamCleanupDeadlines.has(streamId);
-  streamCleanupDeadlines.set(streamId, Date.now() + STREAM_CLEANUP_MS);
+  streamCleanupDeadlines.set(streamId, performance.now() + STREAM_CLEANUP_MS);
   if (!pending) armStreamCleanupAlarm(streamId, STREAM_CLEANUP_MS);
 }
 
@@ -196,7 +196,8 @@ function armStreamCleanupAlarm(streamId, delayMs) {
 export function handleStreamCleanupAlarm(streamId) {
   // Progress only moves the deadline. Re-arm here if the pending alarm
   // wakes before the stream has been idle for the full window.
-  const remainingMs = (streamCleanupDeadlines.get(streamId) ?? 0) - Date.now();
+  const remainingMs =
+    (streamCleanupDeadlines.get(streamId) ?? 0) - performance.now();
   if (remainingMs > 0) {
     armStreamCleanupAlarm(streamId, remainingMs);
     return;
