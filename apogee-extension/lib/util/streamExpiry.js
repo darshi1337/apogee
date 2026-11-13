@@ -11,8 +11,8 @@ const defaultWarn =
 // Convert an ms delay to chrome.alarms minutes, clamping to minMinutes.
 // Values below the floor (or non-finite/non-number input) return minMinutes.
 // Pass warn: null/undefined/false to silence the clamp warning; any function
-// receives the warning message. Runs silently on the in-range path, so the
-// service worker can call it once at module load without noise.
+// receives the warning message. Runs silently on the in-range path; the worker
+// passes warn: null because a short re-arm delay is expected.
 export function msToAlarmMinutes(
   ms,
   { minMinutes = MIN_ALARM_DELAY_MINUTES, warn = defaultWarn } = {},
@@ -72,10 +72,10 @@ export function createSlidingExpiry({
     const deadline = performance.now() + timeoutMs;
     const pending = timers.get(id);
     if (pending) {
+      // Let the existing timeout recheck the deadline to avoid timer churn.
       pending.deadline = deadline;
       return;
     }
-    // Let the existing timeout recheck the deadline to avoid timer churn.
     const timer = { deadline };
     timers.set(id, timer);
     arm(id, timer, timeoutMs);

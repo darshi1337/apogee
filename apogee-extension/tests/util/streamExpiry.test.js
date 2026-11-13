@@ -9,6 +9,13 @@ import {
   msToAlarmMinutes,
 } from "../../lib/util/streamExpiry.js";
 
+function useMockClock(t) {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+  const elapsed = Date.now.bind(Date);
+  t.mock.method(performance, "now", elapsed);
+  return elapsed;
+}
+
 // Issue #314: a fixed 2-min cleanup expired long map-reduce summaries
 // mid-generation even though tokens were still arriving. Expiry must slide
 // on progress: an actively progressing stream never expires, while an idle
@@ -23,8 +30,7 @@ test("minimum alarm delay constant is 0.5 minutes", () => {
 });
 
 test("idle stream is reclaimed after the window", (t) => {
-  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
-  t.mock.method(performance, "now", Date.now.bind(Date));
+  useMockClock(t);
   try {
     const expired = [];
     const expiry = createSlidingExpiry({
@@ -41,8 +47,7 @@ test("idle stream is reclaimed after the window", (t) => {
 });
 
 test("progress slides the window so an active stream never expires mid-generation", (t) => {
-  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
-  t.mock.method(performance, "now", Date.now.bind(Date));
+  useMockClock(t);
   try {
     const expired = [];
     const expiry = createSlidingExpiry({
@@ -65,33 +70,36 @@ test("progress slides the window so an active stream never expires mid-generatio
 });
 
 test("offscreen expiry keeps one timer through a burst and reclaims after the last chunk (#640)", (t) => {
-  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
-  t.mock.method(performance, "now", Date.now.bind(Date));
+  useMockClock(t);
   const timer = t.mock.method(globalThis, "setTimeout");
   const expired = [];
   const expiry = createSlidingExpiry({ onExpire: (id) => expired.push(id) });
+  const beforeBurstMs = STREAM_CLEANUP_MS - 1_000;
+  const chunkGapMs = 10;
+  const burstChunks = 20;
+  const lastChunkAtMs = beforeBurstMs + burstChunks * chunkGapMs;
+  const firstFireGapMs = STREAM_CLEANUP_MS - lastChunkAtMs;
 
   expiry.schedule("s");
-  t.mock.timers.tick(STREAM_CLEANUP_MS - 1000);
-  for (let i = 0; i < 20; i++) {
-    t.mock.timers.tick(10);
+  t.mock.timers.tick(beforeBurstMs);
+  for (let i = 0; i < burstChunks; i++) {
+    t.mock.timers.tick(chunkGapMs);
     expiry.schedule("s");
   }
   assert.strictEqual(timer.mock.callCount(), 1);
 
-  t.mock.timers.tick(800);
+  t.mock.timers.tick(firstFireGapMs);
   assert.deepStrictEqual(expired, []);
   assert.strictEqual(timer.mock.callCount(), 2);
 
-  t.mock.timers.tick(STREAM_CLEANUP_MS - 801);
+  t.mock.timers.tick(lastChunkAtMs - 1);
   assert.deepStrictEqual(expired, []);
   t.mock.timers.tick(1);
   assert.deepStrictEqual(expired, ["s"]);
 });
 
 test("cancel stops expiry", (t) => {
-  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
-  t.mock.method(performance, "now", Date.now.bind(Date));
+  useMockClock(t);
   try {
     let calls = 0;
     const expiry = createSlidingExpiry({
@@ -306,9 +314,7 @@ test("opening an unknown stream reports expired guidance as user-facing", () => 
 });
 
 test("offscreen expiry uses elapsed time across wall-clock changes (#640)", (t) => {
-  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
-  const elapsed = Date.now.bind(Date);
-  t.mock.method(performance, "now", elapsed);
+  const elapsed = useMockClock(t);
   const expired = [];
   const expiry = createSlidingExpiry({ onExpire: (id) => expired.push(id) });
 

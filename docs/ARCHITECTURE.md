@@ -157,7 +157,7 @@ sequenceDiagram
 
 ### Stream retention
 
-Streams buffer tokens, so a reopened popup replays the text instead of restarting the job. Each stream has a 2-minute inactivity deadline that moves forward as tokens arrive. The pending timer or alarm checks the deadline when it fires and reschedules only if the stream has progressed. Worker cleanup can run slightly after the deadline because browser alarms have a minimum delay. A popup that arrives after reclaim shows the expired-stream message and asks you to summarize again.
+Streams buffer tokens, so a reopened popup replays the text instead of restarting the job. Each stream has a 2-minute inactivity deadline that moves forward as tokens arrive. The pending timer or alarm checks the deadline when it fires and reschedules only while the deadline is still in the future. Worker cleanup can run slightly after the deadline because browser alarms have a minimum delay. A popup that arrives after reclaim shows the expired-stream message and asks you to summarize again.
 
 ## Retrieval and Question Answering Flow
 

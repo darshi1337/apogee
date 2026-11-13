@@ -179,12 +179,14 @@ export function hasBackgroundJobsInflight() {
 }
 
 export const STREAM_CLEANUP_PREFIX = "stream-cleanup:";
+// Deadline per stream. The alarm is armed once and rechecks this map when it
+// fires; progress only moves the deadline, so chunks never recreate it.
 const streamCleanupDeadlines = new Map();
 
 export function scheduleStreamCleanup(streamId) {
-  const pending = streamCleanupDeadlines.has(streamId);
+  const hasDeadline = streamCleanupDeadlines.has(streamId);
   streamCleanupDeadlines.set(streamId, performance.now() + STREAM_CLEANUP_MS);
-  if (!pending) armStreamCleanupAlarm(streamId, STREAM_CLEANUP_MS);
+  if (!hasDeadline) armStreamCleanupAlarm(streamId, STREAM_CLEANUP_MS);
 }
 
 function armStreamCleanupAlarm(streamId, delayMs) {
