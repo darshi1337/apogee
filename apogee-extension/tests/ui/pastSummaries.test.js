@@ -3,6 +3,7 @@ import assert from "node:assert";
 import fs from "node:fs";
 import { searchPastSummaries } from "../../lib/retrieval/pastSummariesSearch.js";
 import { parseHTML } from "linkedom";
+import { t } from "../../lib/util/i18n.js";
 
 // app.js owns DOM globals at import time, so these tests assert on its
 // source (same precedent as finalizeFailure.test.js) plus the search
@@ -271,6 +272,7 @@ function makeCard(entry = { s: "k1", p: "p1", t: "My Title" }) {
     "loadPastSummaries",
     "chrome",
     "pastSummariesController",
+    "t",
     fnSource + "\nreturn buildPastSummaryCard;",
   )(
     document,
@@ -287,6 +289,7 @@ function makeCard(entry = { s: "k1", p: "p1", t: "My Title" }) {
     async () => {},
     {},
     { invalidate: () => {} },
+    t,
   );
 
   const card = build(entry, "First line\nSecond line");
