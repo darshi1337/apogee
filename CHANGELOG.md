@@ -372,6 +372,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Bump node-forge from 1.4.2 to 1.4.3 in /apogee-extension (#658) ([4912091](https://github.com/darshi1337/apogee/commit/49120915864f8dc6400ddd1a5496637fe6b453e2))
 - Keep the worker awake until the summary save ends (#659) ([ea6af1b](https://github.com/darshi1337/apogee/commit/ea6af1babc2582f4a672fee0857455064eb5aadc))
 - Keep the model document open while a run starts (#662) ([131f519](https://github.com/darshi1337/apogee/commit/131f51973dd8630509cf31830071a1f73c00a52e))
+- Localize dynamic popup strings (#641) (#665) ([91eac2f](https://github.com/darshi1337/apogee/commit/91eac2ff1c25f49b278e5a47949f3ce8d4dfa28d))
 
 ## [0.2.1] - 2026-08-19
 
