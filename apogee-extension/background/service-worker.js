@@ -17,6 +17,7 @@ import {
 } from "../lib/util/streamState.js";
 import { chunkBySections } from "../lib/summarize/sections.js";
 import { UserFacingError } from "../lib/util/userError.js";
+import { t } from "../lib/util/i18n.js";
 import { hasHostPermissions } from "../lib/util/permissions.js";
 import { disconnectIfUnknownPort } from "../lib/util/streamBroadcast.js";
 import { ensureLoopbackCorsRule } from "../lib/util/loopbackCors.js";
@@ -730,7 +731,7 @@ async function startTransformersStream(
 // text as page data so the generic extraction path is skipped.
 function buildSelectionPageData(tab, selection) {
   return {
-    title: tab.title || "Selected text",
+    title: tab.title || t("selectedText"),
     url: tab.url,
     content: selection,
     type: "generic",

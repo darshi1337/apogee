@@ -3,8 +3,6 @@
 export const ERROR_HELP_URL =
   "https://github.com/darshi1337/apogee/blob/main/docs/ERROR.md";
 
-export const ERROR_HELP_LABEL = "What does this mean?";
-
 // Order matters: internal strings first, then in-browser over Ollama,
 // since the WebLLM message names Ollama as the fix.
 const SECTIONS = [

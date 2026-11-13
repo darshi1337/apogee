@@ -145,6 +145,14 @@ test("dynamic popup messages reference existing catalog keys (#641)", () => {
   )?.[1];
   assert.ok(progressKeys, "summary progress has a list of locale keys");
   keys.push(...[...progressKeys.matchAll(/"([^"]+)"/g)].map(([, key]) => key));
+
+  for (const mapName of ["AUDIT_EGRESS_KEYS", "AUDIT_TYPE_KEYS"]) {
+    const mapBody = appSource.match(
+      new RegExp(`const ${mapName} = \\{([\\s\\S]*?)\\};`),
+    )?.[1];
+    assert.ok(mapBody, `${mapName} must be defined in app.js`);
+    keys.push(...[...mapBody.matchAll(/:\s*"([^"]+)"/g)].map(([, key]) => key));
+  }
   assert.deepStrictEqual(
     [...new Set(keys)].filter((key) => !messages[key]?.message),
     [],

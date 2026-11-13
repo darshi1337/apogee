@@ -691,6 +691,36 @@
   "auditPage": {
     "message": "page"
   },
+  "auditTypeArticle": {
+    "message": "article"
+  },
+  "auditTypeSelection": {
+    "message": "selection"
+  },
+  "auditLocalSponsorBlock": {
+    "message": "Local + SponsorBlock API"
+  },
+  "auditRemoteCatalog": {
+    "message": "Local inference + remote model catalog"
+  },
+  "auditRemoteCatalogSponsorBlock": {
+    "message": "Local inference + remote model catalog + SponsorBlock API"
+  },
+  "auditRemoteGeneration": {
+    "message": "Opt-in remote generation + remote model catalog"
+  },
+  "auditRemoteGenerationSponsorBlock": {
+    "message": "Opt-in remote generation + remote model catalog + SponsorBlock API"
+  },
+  "generalQuestion": {
+    "message": "General question"
+  },
+  "selectedText": {
+    "message": "Selected text"
+  },
+  "pastedText": {
+    "message": "Pasted Text"
+  },
   "resummarizeLanguage": {
     "message": "This summary isn't in $LANGUAGE$. Re-summarize to apply.",
     "placeholders": {

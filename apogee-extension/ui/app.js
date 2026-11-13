@@ -825,8 +825,8 @@ async function updatePrivacyAuditUI() {
     });
 
     const zeroEgress = summary.networkEgress?.zeroEgress;
-    const msg = summary.networkEgress?.statusMessage || t("auditLocal");
-    networkEl.textContent = msg;
+    const statusKey = AUDIT_EGRESS_KEYS[summary.networkEgress?.status];
+    networkEl.textContent = t(statusKey || "auditLocal");
     networkEl.className = `audit-badge ${zeroEgress ? "success" : "info"}`;
 
     countEl.textContent = `${summary.pageAccessCount || 0}`;
@@ -852,7 +852,7 @@ async function updatePrivacyAuditUI() {
           ? new Date(entry.timestamp).toLocaleTimeString()
           : "";
         metaSpan.textContent = t("auditAccessDetails", [
-          entry.type || t("auditPage"),
+          auditTypeLabel(entry.type),
           String(entry.contentLength || 0),
           timeStr,
         ]);
@@ -893,6 +893,29 @@ const EXTRACTOR_INFO = {
   "multi-tab": { label: t("multiTabExtractor"), icon: "lines" },
   pdf: { label: "PDF", icon: "filetext" },
 };
+
+const AUDIT_EGRESS_KEYS = {
+  local: "auditLocal",
+  localSponsorBlock: "auditLocalSponsorBlock",
+  remoteCatalog: "auditRemoteCatalog",
+  remoteCatalogSponsorBlock: "auditRemoteCatalogSponsorBlock",
+  remoteGeneration: "auditRemoteGeneration",
+  remoteGenerationSponsorBlock: "auditRemoteGenerationSponsorBlock",
+};
+
+const AUDIT_TYPE_KEYS = {
+  generic: "auditPage",
+  article: "auditTypeArticle",
+  selection: "auditTypeSelection",
+  "multi-tab": "multiTabExtractor",
+};
+
+// Audit entries store machine type ids; the log shows a localized label.
+function auditTypeLabel(type) {
+  const key = AUDIT_TYPE_KEYS[type];
+  if (key) return t(key);
+  return EXTRACTOR_INFO[type]?.label || t("auditPage");
+}
 
 // Gate on type support (#319): the input is hidden for video, discussion,
 // and multi-tab pages, but a value typed before the type resolves (or left
@@ -2247,7 +2270,7 @@ async function submitQuestion(question) {
     }
     if (!pageData) {
       pageData = {
-        title: tab.title || "General question",
+        title: tab.title || t("generalQuestion"),
         url: tab.url,
         content:
           currentSummaryText ||
@@ -2553,7 +2576,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (state?.isSelection && state.selectionText) {
           currentPageData = {
-            title: tab.title || "Selected text",
+            title: tab.title || t("selectedText"),
             url: tab.url,
             content: state.selectionText,
             type: "selection",
@@ -2979,13 +3002,13 @@ document.getElementById("pasteTextBtn")?.addEventListener("click", async () => {
       text = await requestPasteText();
     }
     if (text && text.trim()) {
-      await summarizeCustomContent("Pasted Text", text.trim());
+      await summarizeCustomContent(t("pastedText"), text.trim());
     }
   } catch (err) {
     console.error("Paste text failed:", err);
     const text = await requestPasteText();
     if (text && text.trim()) {
-      await summarizeCustomContent("Pasted Text", text.trim());
+      await summarizeCustomContent(t("pastedText"), text.trim());
     }
   }
 });

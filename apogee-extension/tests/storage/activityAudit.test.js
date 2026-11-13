@@ -55,6 +55,18 @@ test("recordPageAccessEvent stores audit entries and caps at 20", async () => {
   assert.equal(logs[0].title, "Test Page 25");
 });
 
+test("recordPageAccessEvent leaves a missing title for the UI to localize", async () => {
+  storageMap.clear();
+  await recordPageAccessEvent({
+    url: "https://example.com/no-title",
+    contentLength: 10,
+    type: "generic",
+  });
+
+  const [entry] = await getPageAccessLog();
+  assert.equal(entry.title, "");
+});
+
 test("getActivityAuditSummary returns privacy & activity audit metrics", async () => {
   storageMap.clear();
   await recordPageAccessEvent({
@@ -66,7 +78,7 @@ test("getActivityAuditSummary returns privacy & activity audit metrics", async (
 
   const summary = await getActivityAuditSummary();
   assert.equal(summary.pageAccessCount, 1);
-  assert.equal(typeof summary.networkEgress.statusMessage, "string");
+  assert.equal(summary.networkEgress.status, "localSponsorBlock");
   assert.equal(typeof summary.storageRetention.saveHistory, "boolean");
 });
 
@@ -77,6 +89,7 @@ test("getActivityAuditSummary reports zero egress when SponsorBlock is off", asy
   const summary = await getActivityAuditSummary();
   assert.equal(summary.networkEgress.sponsorBlockActive, false);
   assert.equal(summary.networkEgress.zeroEgress, true);
+  assert.equal(summary.networkEgress.status, "local");
 });
 
 test("getActivityAuditSummary reports SponsorBlock active by default", async () => {
@@ -85,6 +98,7 @@ test("getActivityAuditSummary reports SponsorBlock active by default", async () 
   const summary = await getActivityAuditSummary();
   assert.equal(summary.networkEgress.sponsorBlockActive, true);
   assert.equal(summary.networkEgress.zeroEgress, false);
+  assert.equal(summary.networkEgress.status, "localSponsorBlock");
 });
 
 for (const provider of ["openrouter", "opencode"]) {
@@ -100,10 +114,7 @@ for (const provider of ["openrouter", "opencode"]) {
     const { networkEgress } = await getActivityAuditSummary();
     assert.equal(networkEgress.zeroEgress, false);
     assert.equal(networkEgress.remoteCatalogActive, true);
-    assert.equal(
-      networkEgress.statusMessage,
-      "Local inference + remote model catalog",
-    );
+    assert.equal(networkEgress.status, "remoteCatalog");
   });
 
   test(`audit distinguishes ${provider} generation consent from catalog access`, async () => {
@@ -120,10 +131,7 @@ for (const provider of ["openrouter", "opencode"]) {
     assert.equal(summary.networkEgress.remoteCatalogActive, true);
     assert.equal(summary.networkEgress.remoteGenerationActive, true);
     assert.equal(summary.networkEgress.zeroEgress, false);
-    assert.equal(
-      summary.networkEgress.statusMessage,
-      "Opt-in remote generation + remote model catalog",
-    );
+    assert.equal(summary.networkEgress.status, "remoteGeneration");
     assert.equal(JSON.stringify(summary).includes("private-key"), false);
   });
 }
@@ -144,7 +152,7 @@ test("generation consent without catalog consent or a key stays inactive", async
     const { networkEgress } = await getActivityAuditSummary();
     assert.equal(networkEgress.remoteGenerationActive, false);
     assert.equal(networkEgress.remoteCatalogActive, false);
-    assert.equal(networkEgress.statusMessage, "100% local");
+    assert.equal(networkEgress.status, "local");
   }
 });
 
@@ -158,10 +166,7 @@ test("generation capability label includes SponsorBlock independently", async ()
     },
   });
   const { networkEgress } = await getActivityAuditSummary();
-  assert.equal(
-    networkEgress.statusMessage,
-    "Opt-in remote generation + remote model catalog + SponsorBlock API",
-  );
+  assert.equal(networkEgress.status, "remoteGenerationSponsorBlock");
 });
 
 test("audit does not claim catalog access when consent has no key", async () => {
@@ -172,7 +177,7 @@ test("audit does not claim catalog access when consent has no key", async () => 
   const { networkEgress } = await getActivityAuditSummary();
   assert.equal(networkEgress.zeroEgress, true);
   assert.equal(networkEgress.remoteCatalogActive, false);
-  assert.equal(networkEgress.statusMessage, "100% local");
+  assert.equal(networkEgress.status, "local");
 });
 
 test("audit includes both optional catalog and SponsorBlock access", async () => {
@@ -181,10 +186,7 @@ test("audit includes both optional catalog and SponsorBlock access", async () =>
     settings: { openrouterConsent: true, openrouterApiKey: "secret" },
   });
   const { networkEgress } = await getActivityAuditSummary();
-  assert.equal(
-    networkEgress.statusMessage,
-    "Local inference + remote model catalog + SponsorBlock API",
-  );
+  assert.equal(networkEgress.status, "remoteCatalogSponsorBlock");
 });
 
 test("audit does not claim remote access after the Firefox permission is removed", async () => {
@@ -206,7 +208,7 @@ test("audit does not claim remote access after the Firefox permission is removed
     assert.equal(networkEgress.remoteCatalogActive, false);
     assert.equal(networkEgress.remoteGenerationActive, false);
     assert.equal(networkEgress.zeroEgress, true);
-    assert.equal(networkEgress.statusMessage, "100% local");
+    assert.equal(networkEgress.status, "local");
   } finally {
     if (previousBrowser === undefined) delete process.env.TARGET_BROWSER;
     else process.env.TARGET_BROWSER = previousBrowser;
