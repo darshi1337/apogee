@@ -119,7 +119,7 @@ import {
   takeExpiredStreamJob,
   registerStreamJob,
   scheduleStreamCleanup,
-  expireStreamForCleanup,
+  handleStreamCleanupAlarm,
   STREAM_CLEANUP_PREFIX,
   EXPIRED_STREAM_ERROR,
   startKeepAlive,
@@ -1370,7 +1370,7 @@ if (typeof chrome !== "undefined" && chrome.alarms?.onAlarm?.addListener) {
     }
     if (alarm.name.startsWith(STREAM_CLEANUP_PREFIX)) {
       const streamId = alarm.name.slice(STREAM_CLEANUP_PREFIX.length);
-      expireStreamForCleanup(streamId);
+      handleStreamCleanupAlarm(streamId);
     }
   });
 }

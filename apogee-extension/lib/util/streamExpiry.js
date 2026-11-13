@@ -1,7 +1,4 @@
-// Sliding expiry for buffered streams: each chunk reschedules a full
-// window out, so active streams survive while idle ones are reclaimed.
-// setTimeout only, so offscreen and unit tests share it; the worker
-// mirrors it with chrome.alarms.
+// Stream cleanup uses the same inactivity window in the worker and offscreen document.
 
 export const STREAM_CLEANUP_MS = 2 * 60 * 1000;
 // Chrome (120+) clamps delayInMinutes/periodInMinutes below 0.5 to 30s with
@@ -44,28 +41,43 @@ export function createSlidingExpiry({
   const timers = new Map();
 
   function cancel(id) {
-    const handle = timers.get(id);
-    if (handle !== undefined) {
-      clearTimeout(handle);
-      timers.delete(id);
-    }
+    const timer = timers.get(id);
+    if (!timer) return;
+    clearTimeout(timer.handle);
+    timers.delete(id);
   }
 
-  function schedule(id) {
-    cancel(id);
-    const handle = setTimeout(() => {
+  function arm(id, timer, delayMs) {
+    timer.handle = setTimeout(() => {
+      const remainingMs = timer.deadline - Date.now();
+      if (remainingMs > 0) {
+        arm(id, timer, remainingMs);
+        return;
+      }
       timers.delete(id);
       onExpire?.(id);
-    }, timeoutMs);
+    }, delayMs);
     // Browsers return a number here, so this is a no-op in the extension.
-    if (typeof handle?.unref === "function") {
+    if (typeof timer.handle?.unref === "function") {
       try {
-        handle.unref();
+        timer.handle.unref();
       } catch {
         // unref is unavailable in some environments.
       }
     }
-    timers.set(id, handle);
+  }
+
+  function schedule(id) {
+    const deadline = Date.now() + timeoutMs;
+    const pending = timers.get(id);
+    if (pending) {
+      pending.deadline = deadline;
+      return;
+    }
+    // Let the existing timeout recheck the deadline to avoid timer churn.
+    const timer = { deadline };
+    timers.set(id, timer);
+    arm(id, timer, timeoutMs);
   }
 
   return { schedule, cancel };

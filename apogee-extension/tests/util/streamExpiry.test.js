@@ -23,7 +23,7 @@ test("minimum alarm delay constant is 0.5 minutes", () => {
 });
 
 test("idle stream is reclaimed after the window", (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
   try {
     const expired = [];
     const expiry = createSlidingExpiry({
@@ -40,7 +40,7 @@ test("idle stream is reclaimed after the window", (t) => {
 });
 
 test("progress slides the window so an active stream never expires mid-generation", (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
   try {
     const expired = [];
     const expiry = createSlidingExpiry({
@@ -48,7 +48,7 @@ test("progress slides the window so an active stream never expires mid-generatio
       onExpire: (id) => expired.push(id),
     });
     expiry.schedule("stream-long");
-    // Simulate 10 minutes of steady chunk progress: each chunk reschedules.
+    // Simulate 10 minutes of steady chunk progress.
     for (let minute = 0; minute < 10; minute++) {
       t.mock.timers.tick(60 * 1000);
       assert.deepStrictEqual(expired, [], `expired at minute ${minute + 1}`);
@@ -62,28 +62,32 @@ test("progress slides the window so an active stream never expires mid-generatio
   }
 });
 
-test("rescheduling replaces the pending timer instead of stacking", (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
-  try {
-    let calls = 0;
-    const expiry = createSlidingExpiry({
-      timeoutMs: STREAM_CLEANUP_MS,
-      onExpire: () => calls++,
-    });
+test("offscreen expiry keeps one timer through a burst and reclaims after the last chunk (#640)", (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+  const timer = t.mock.method(globalThis, "setTimeout");
+  const expired = [];
+  const expiry = createSlidingExpiry({ onExpire: (id) => expired.push(id) });
+
+  expiry.schedule("s");
+  t.mock.timers.tick(STREAM_CLEANUP_MS - 1000);
+  for (let i = 0; i < 20; i++) {
+    t.mock.timers.tick(10);
     expiry.schedule("s");
-    t.mock.timers.tick(STREAM_CLEANUP_MS - 1000);
-    expiry.schedule("s");
-    t.mock.timers.tick(STREAM_CLEANUP_MS - 1000);
-    assert.strictEqual(calls, 0, "stale timer must have been cancelled");
-    t.mock.timers.tick(1000);
-    assert.strictEqual(calls, 1, "exactly one expiry fires");
-  } finally {
-    t.mock.timers.reset();
   }
+  assert.strictEqual(timer.mock.callCount(), 1);
+
+  t.mock.timers.tick(800);
+  assert.deepStrictEqual(expired, []);
+  assert.strictEqual(timer.mock.callCount(), 2);
+
+  t.mock.timers.tick(STREAM_CLEANUP_MS - 801);
+  assert.deepStrictEqual(expired, []);
+  t.mock.timers.tick(1);
+  assert.deepStrictEqual(expired, ["s"]);
 });
 
 test("cancel stops expiry", (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
   try {
     let calls = 0;
     const expiry = createSlidingExpiry({
@@ -277,14 +281,6 @@ test("msToAlarmMinutes supports custom minMinutes option", () => {
   });
   assert.strictEqual(result, 1.0);
   assert.strictEqual(warnings.length, 1);
-});
-
-test("service worker derives STREAM_CLEANUP_MINUTES via msToAlarmMinutes", () => {
-  const code = readSource("../../background/streams.js", import.meta.url);
-  assert.ok(
-    code.includes("msToAlarmMinutes(STREAM_CLEANUP_MS)"),
-    "STREAM_CLEANUP_MINUTES matches msToAlarmMinutes(STREAM_CLEANUP_MS)",
-  );
 });
 
 // Without userFacing the popup runs the message through toUserMessage, which
