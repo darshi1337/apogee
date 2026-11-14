@@ -20,8 +20,6 @@ import { opusTranslateFnFor } from "../lib/language/opusTranslateEngine.js";
 import { UserFacingError } from "../lib/util/userError.js";
 
 export { isRemoteProvider };
-export const REMOTE_B1_UNSUPPORTED =
-  "Remote background and multi-tab generation are not available in this stage. Use Summary or Ask in the Apogee panel.";
 const AUTHORIZATION_CHANGED =
   "Remote generation authorization changed. Review Settings and start a new request.";
 
@@ -127,7 +125,21 @@ export function awaitRemoteStep(promise, signal) {
   });
 }
 
-export async function createRemoteJobContext({ signal } = {}) {
+export async function createRemoteJobContext({
+  signal,
+  purpose = "foreground",
+  expected,
+} = {}) {
+  if (
+    !["foreground", "background", "multi-tab", "suggestions"].includes(purpose)
+  )
+    throw new UserFacingError("Invalid remote generation purpose.");
+  const requiredConsent =
+    purpose === "suggestions"
+      ? "SuggestionsConsent"
+      : purpose === "foreground"
+        ? null
+        : "BackgroundConsent";
   const controller = new AbortController();
   let settings;
   const abort = () => controller.abort();
@@ -143,12 +155,16 @@ export async function createRemoteJobContext({ signal } = {}) {
           "ApiKey",
           "Consent",
           "GenerationConsent",
+          "BackgroundConsent",
+          "SuggestionsConsent",
           "GenerationRevision",
           "Model",
-        ].some(
-          (suffix) =>
-            oldValue[`${provider}${suffix}`] !==
-            newValue[`${provider}${suffix}`],
+        ].some((suffix) =>
+          ["BackgroundConsent", "SuggestionsConsent"].includes(suffix)
+            ? (oldValue[`${provider}${suffix}`] === true) !==
+              (newValue[`${provider}${suffix}`] === true)
+            : oldValue[`${provider}${suffix}`] !==
+              newValue[`${provider}${suffix}`],
         ),
       )
     )
@@ -202,6 +218,13 @@ export async function createRemoteJobContext({ signal } = {}) {
     );
     const model = settings[`${provider}Model`];
     const revision = settings[`${provider}GenerationRevision`];
+    if (
+      expected &&
+      (expected.provider !== provider ||
+        expected.model !== model ||
+        expected.revision !== revision)
+    )
+      throw new UserFacingError(AUTHORIZATION_CHANGED);
     // saveHistory is intentionally not re-checked here. Turning history off
     // mid-generation must exclude persistence at commit time, not abort the
     // live generation that the user already authorized.
@@ -213,6 +236,8 @@ export async function createRemoteJobContext({ signal } = {}) {
         current.autoEngine ||
         current[`${provider}Consent`] !== true ||
         current[`${provider}GenerationConsent`] !== true ||
+        (requiredConsent &&
+          current[`${provider}${requiredConsent}`] !== true) ||
         current[`${provider}Model`] !== model ||
         current[`${provider}GenerationRevision`] !== revision ||
         !(await hasRemoteGenerationPermissions())
@@ -238,6 +263,7 @@ export async function createRemoteJobContext({ signal } = {}) {
     return {
       provider,
       model,
+      revision,
       settings,
       // The catalog is fresh and already checked for the selected model. Chat
       // requests reuse it instead of fetching the catalog again per chunk.
@@ -276,6 +302,9 @@ export async function* remoteChatStream(context, prompt, { system } = {}) {
     system,
     assertAuthorized: context.assertActive,
     catalog: context.catalog,
+    onActivity: () => {
+      if (!context.signal.aborted) context.onActivity?.();
+    },
     onToken: (token) => {
       queue.push(token);
       wake?.();

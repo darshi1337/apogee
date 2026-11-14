@@ -493,6 +493,14 @@
             </div>
           </section>
 
+          <button
+            id="generateRemoteQuestionsBtn"
+            type="button"
+            class="action-btn generate-questions-btn hidden"
+            data-i18n="remoteGenerateQuestions"
+          >
+            Generate follow-up questions
+          </button>
           <section id="promptsSection" class="prompts">
             <div class="section-header">
               <h3
@@ -799,6 +807,31 @@
                       to this provider and its upstream model providers.</span
                     >
                   </label>
+                  <label class="remote-consent">
+                    <input
+                      data-remote="background-consent"
+                      type="checkbox"
+                      aria-describedby="remoteDisclosure"
+                      disabled
+                    />
+                    <span data-i18n="remoteBackgroundConsent"
+                      >I allow remote summaries started from shortcuts, context
+                      menus, selections, and selected tabs.</span
+                    >
+                  </label>
+                  <label class="remote-consent">
+                    <input
+                      data-remote="suggestions-consent"
+                      type="checkbox"
+                      aria-describedby="remoteDisclosure"
+                      disabled
+                    />
+                    <span data-i18n="remoteSuggestionsConsent"
+                      >I allow sending generated summary text to this provider
+                      for automatic follow-up questions after I start a
+                      summary.</span
+                    >
+                  </label>
                   <label class="settings-field">
                     <span data-i18n="remoteApiKey">Provider API key</span>
                     <input
@@ -920,6 +953,31 @@
                     <span data-i18n="remoteGenerationConsent"
                       >I consent to sending content for remote summaries and Ask
                       to this provider and its upstream model providers.</span
+                    >
+                  </label>
+                  <label class="remote-consent">
+                    <input
+                      data-remote="background-consent"
+                      type="checkbox"
+                      aria-describedby="remoteDisclosure"
+                      disabled
+                    />
+                    <span data-i18n="remoteBackgroundConsent"
+                      >I allow remote summaries started from shortcuts, context
+                      menus, selections, and selected tabs.</span
+                    >
+                  </label>
+                  <label class="remote-consent">
+                    <input
+                      data-remote="suggestions-consent"
+                      type="checkbox"
+                      aria-describedby="remoteDisclosure"
+                      disabled
+                    />
+                    <span data-i18n="remoteSuggestionsConsent"
+                      >I allow sending generated summary text to this provider
+                      for automatic follow-up questions after I start a
+                      summary.</span
                     >
                   </label>
                   <label class="settings-field">

@@ -61,6 +61,7 @@ import {
 } from "../lib/storage/remoteSettings.js";
 import { initDebugLogging, sanitizeLogMessage } from "../lib/util/log.js";
 import {
+  hashUrl,
   asFocusKeyword,
   getPromptsCacheKeyForSettings,
   getSummaryCacheKeyForSettings,
@@ -95,13 +96,16 @@ import {
 } from "../lib/constants.js";
 import {
   broadcastToStream,
+  disconnectStreamPorts,
   safeDisconnect,
   safePost,
 } from "../lib/util/streamBroadcast.js";
 import { tryParseUrl } from "../lib/util/url.js";
 import { withTimeout } from "../lib/util/withTimeout.js";
 import {
+  loadViewState,
   saveViewState,
+  saveViewStateIfJobMatches,
   removeViewState,
   cleanupOrphanedViewStates,
 } from "../lib/storage/viewState.js";
@@ -156,7 +160,8 @@ import {
   createRemoteJobContext,
   generateRemote,
   isRemoteProvider,
-  REMOTE_B1_UNSUPPORTED,
+  remoteChatStream,
+  awaitRemoteStep,
   validateRemoteGenerationPayload,
 } from "./remoteGeneration.js";
 import { hasRemoteGenerationPermissions } from "../lib/engines/remoteCredentials.js";
@@ -394,13 +399,50 @@ export function createBufferedStream(
   return { stream, finish, emitChunk };
 }
 
-async function startRemoteStream(streamId, payload, context) {
-  const { stream, finish, emitChunk } = createBufferedStream(streamId, {
+function prepareRemoteStream(streamId, payload, context) {
+  return createBufferedStream(streamId, {
     ...payload,
     model: context.model,
     controller: context.controller,
     autoFinalize: false,
   });
+}
+
+async function discardPreparedRemoteStream(streamId, prepared, finalize) {
+  registeredStreamJobs.delete(streamId);
+  if (prepared) {
+    prepared.stream.controller.abort();
+    prepared.finish({
+      type: "error",
+      error: "Remote generation could not start. Review Settings and retry.",
+      userFacing: true,
+    });
+    disconnectStreamPorts(prepared.stream);
+    activeStreams.delete(streamId);
+    await chrome.alarms.clear(`${STREAM_CLEANUP_PREFIX}${streamId}`);
+  }
+  if (finalize?.tabId != null && finalize.jobId) {
+    try {
+      await saveViewStateIfJobMatches(
+        finalize.tabId,
+        finalize.jobId,
+        { streamId: null },
+        "summarizing",
+      );
+    } catch {
+      // Storage may be the startup failure; cleanup must preserve that error.
+    }
+  }
+}
+
+async function startRemoteStream(streamId, payload, context, prepared) {
+  const { stream, finish, emitChunk } = prepared;
+  // Reasoning, keep-alives and map-stage tokens may precede visible output.
+  // Keep the worker deadline aligned with the transport's activity checks.
+  context.onActivity = () => {
+    if (!stream.done && !stream.cancelled && !context.signal.aborted)
+      scheduleStreamCleanup(streamId);
+  };
   const tracker = createSummarizeProgressTracker((text) => {
     chrome.runtime
       .sendMessage({
@@ -449,6 +491,7 @@ async function startRemoteStream(streamId, payload, context) {
       userFacing: true,
     });
   } finally {
+    context.onActivity = null;
     registeredStreamJobs.delete(streamId);
     context.dispose();
   }
@@ -760,191 +803,276 @@ async function extractPdfTextOrThrow(tab) {
 
 export async function runBackgroundSummarize(
   tab,
-  { notifyOnFinish, selectionText } = {},
+  { notifyOnFinish, selectionText, expected, localOnly = false } = {},
 ) {
-  const settings = await getSettings();
+  const initialSettings = await getSettings();
+  if (localOnly && isRemoteProvider(initialSettings.provider))
+    throw new UserFacingError(
+      "Start selection capture again after changing providers.",
+    );
+  const remote = isRemoteProvider(initialSettings.provider)
+    ? await createRemoteJobContext({ purpose: "background", expected })
+    : null;
+  const settings = remote?.settings || initialSettings;
   const providerType = getProviderType(settings);
   const model = getModelForSettings(settings);
+  let handedOff = false;
+  let preparedRemote;
+  let remoteStreamId;
+  let remoteFinalize;
+  try {
+    // Selected text arrives whole from the capture script and the context menu,
+    // then fans out to view state, the finalize payload, and the prompt, so cap
+    // it before any of them (#471).
+    const selection = truncateWithNote(
+      normalizeSelectedText(selectionText),
+      MAX_PASTED_CHARS,
+      "selected",
+    ).text;
+    if (selection && !isSummarizableSelection(selection)) {
+      throw new UserFacingError(
+        `Select at least ${MIN_SELECTION_LENGTH} characters to summarize.`,
+      );
+    }
+    const isSelection = selection.length > 0;
 
-  if (isRemoteProvider(providerType))
-    throw new UserFacingError(REMOTE_B1_UNSUPPORTED);
-
-  // Selected text arrives whole from the capture script and the context menu,
-  // then fans out to view state, the finalize payload, and the prompt, so cap
-  // it before any of them (#471).
-  const selection = truncateWithNote(
-    normalizeSelectedText(selectionText),
-    MAX_PASTED_CHARS,
-    "selected",
-  ).text;
-  if (selection && !isSummarizableSelection(selection)) {
-    throw new UserFacingError(
-      `Select at least ${MIN_SELECTION_LENGTH} characters to summarize.`,
-    );
-  }
-  const isSelection = selection.length > 0;
-
-  let pageData;
-  if (isSelection) {
-    pageData = buildSelectionPageData(tab, selection);
-  } else {
-    // Reuse already-extracted content when available, so a re-summarize in
-    // another format only re-runs the model (#177).
-    const cached = await getCachedContent(tab.url);
-    if (cached && CACHEABLE_PAGE_TYPES.has(cached.type)) {
-      pageData = cached;
+    let pageData;
+    if (isSelection) {
+      pageData = buildSelectionPageData(tab, selection);
     } else {
-      pageData = await extractFromActiveTab(tab);
+      // Reuse already-extracted content when available, so a re-summarize in
+      // another format only re-runs the model (#177).
+      const cached = remote
+        ? await awaitRemoteStep(getCachedContent(tab.url), remote.signal)
+        : await getCachedContent(tab.url);
+      if (cached && CACHEABLE_PAGE_TYPES.has(cached.type)) {
+        pageData = cached;
+      } else {
+        pageData = remote
+          ? await awaitRemoteStep(extractFromActiveTab(tab), remote.signal)
+          : await extractFromActiveTab(tab);
+      }
+      if (!pageData) {
+        throw new UserFacingError(COULD_NOT_READ_THIS_PAGE_ERROR_MSG);
+      }
+      if (!pageData.isPdf && !pageData.content) {
+        throw new UserFacingError(NOTHING_TO_SUMMARIZE_ERROR_MSG);
+      }
     }
-    if (!pageData) {
-      throw new UserFacingError(COULD_NOT_READ_THIS_PAGE_ERROR_MSG);
-    }
-    if (!pageData.isPdf && !pageData.content) {
-      throw new UserFacingError(NOTHING_TO_SUMMARIZE_ERROR_MSG);
-    }
-  }
 
-  const persist = isSelection ? false : await shouldPersist(tab.url);
-  // The summary key keeps its selection fragment. The prompts key uses the
-  // plain URL, matching the UI and the suggest-questions handler; page type
-  // plus the selected-text hash isolate selections (#497).
-  const cacheUrl = isSelection ? `${tab.url}#apogee-selection` : tab.url;
-  const pageType = isSelection ? "selection" : pageData.type || "";
-
-  if (!isSelection && CACHEABLE_PAGE_TYPES.has(pageData.type) && persist) {
-    // Caching the page is a convenience, not a precondition for the summary:
-    // a full storage quota must not cost the user their summary (#495).
-    try {
-      await persistContent(tab.url, pageData);
-    } catch (err) {
-      console.warn("Content cache write failed, continuing without it:", err);
+    if (remote) {
+      const content =
+        pageData.isPdf && !pageData.content
+          ? await awaitRemoteStep(extractPdfTextOrThrow(tab), remote.signal)
+          : pageData.content;
+      await remote.assertActive();
+      const streamId = nextStreamId("remote");
+      const payload = {
+        action: "summarize",
+        title: pageData.title,
+        url: tab.url,
+        content,
+        mode: settings.responseFormat,
+        type: pageData.type,
+        isSelection,
+        finalize: {
+          jobId: `summary-${crypto.randomUUID()}`,
+          tabId: tab.id,
+          windowId: tab.windowId,
+          notifyOnFinish: !!notifyOnFinish,
+          isSelection,
+          selectionText: isSelection ? selection : "",
+          pageType: pageData.type,
+        },
+      };
+      payload.finalize = await buildTrustedFinalize(payload, settings);
+      await remote.assertActive();
+      remoteStreamId = streamId;
+      remoteFinalize = payload.finalize;
+      preparedRemote = prepareRemoteStream(streamId, payload, remote);
+      await saveViewState(
+        tab.id,
+        {
+          view: "summaryView",
+          subview: "summarizing",
+          url: tab.url,
+          streamId,
+          jobId: payload.finalize.jobId,
+          summaryText: "",
+          promptsCacheKey: payload.finalize.promptsCacheKey,
+          pageType: payload.finalize.pageType,
+          providerType,
+          model,
+          isSelection,
+          selectionText: isSelection ? selection : "",
+          focusKeyword: "",
+          summaryLanguage: settings.summaryLanguage,
+          translationEngine: settings.translationEngine,
+        },
+        { assertAuthorized: remote.assertActive },
+      );
+      await remote.assertActive();
+      registerStreamJob(streamId, {
+        finalize: payload.finalize,
+        model,
+        title: payload.title,
+        url: payload.url,
+      });
+      handedOff = true;
+      void startRemoteStream(streamId, payload, remote, preparedRemote);
+      return;
     }
-  }
+    const persist = isSelection ? false : await shouldPersist(tab.url);
+    // The summary key keeps its selection fragment. The prompts key uses the
+    // plain URL, matching the UI and the suggest-questions handler; page type
+    // plus the selected-text hash isolate selections (#497).
+    const cacheUrl = isSelection ? `${tab.url}#apogee-selection` : tab.url;
+    const pageType = isSelection ? "selection" : pageData.type || "";
 
-  // The audit log lives in on-disk storage alongside the cache, so it
-  // follows the same persistence decision: sensitive pages and "Don't save"
-  // sessions (persist === false) leave no title+URL trace behind.
-  if (persist) {
-    recordPageAccessEvent({
+    if (!isSelection && CACHEABLE_PAGE_TYPES.has(pageData.type) && persist) {
+      // Caching the page is a convenience, not a precondition for the summary:
+      // a full storage quota must not cost the user their summary (#495).
+      try {
+        await persistContent(tab.url, pageData);
+      } catch (err) {
+        console.warn("Content cache write failed, continuing without it:", err);
+      }
+    }
+
+    // The audit log lives in on-disk storage alongside the cache, so it
+    // follows the same persistence decision: sensitive pages and "Don't save"
+    // sessions (persist === false) leave no title+URL trace behind.
+    if (persist) {
+      recordPageAccessEvent({
+        title: pageData.title,
+        url: pageData.url,
+        contentLength: (pageData.content || "").length,
+        type: pageData.type,
+      }).catch(() => {});
+    }
+
+    let content = pageData.content;
+    if (pageData.isPdf && !content) {
+      content = await extractPdfTextOrThrow(tab);
+    }
+
+    const jobId = `summary-${crypto.randomUUID()}`;
+    const finalize = {
+      cacheKey: await getSummaryCacheKeyForSettings(cacheUrl, settings, model),
+      promptsCacheKey: await getPromptsCacheKeyForSettings(
+        tab.url,
+        settings,
+        model,
+        "",
+        {
+          providerType,
+          pageType,
+          selectionText: isSelection ? selection : "",
+        },
+      ),
+      pageType,
+      persist,
+      persistUrl: tab.url,
+      isSelection,
+      providerType,
+      host: settings.ollamaHost,
+      notifyOnFinish,
+      language: settings.summaryLanguage,
+      translationEngine: settings.translationEngine,
+      sensitive: await isPrivateUrl(tab.url, settings),
+      tabId: tab.id,
+      jobId,
+      windowId: tab.windowId,
+      customInstructions: settings.customInstructions || "",
+      ...(isSelection ? { selectionText: selection } : {}),
+    };
+
+    const common = {
+      action: "summarize",
       title: pageData.title,
       url: pageData.url,
-      contentLength: (pageData.content || "").length,
+      content,
+      mode: settings.responseFormat,
       type: pageData.type,
-    }).catch(() => {});
-  }
-
-  let content = pageData.content;
-  if (pageData.isPdf && !content) {
-    content = await extractPdfTextOrThrow(tab);
-  }
-
-  const jobId = `summary-${crypto.randomUUID()}`;
-  const finalize = {
-    cacheKey: await getSummaryCacheKeyForSettings(cacheUrl, settings, model),
-    promptsCacheKey: await getPromptsCacheKeyForSettings(
-      tab.url,
-      settings,
       model,
-      "",
-      {
-        providerType,
-        pageType,
-        selectionText: isSelection ? selection : "",
-      },
-    ),
-    pageType,
-    persist,
-    persistUrl: tab.url,
-    isSelection,
-    providerType,
-    host: settings.ollamaHost,
-    notifyOnFinish,
-    language: settings.summaryLanguage,
-    translationEngine: settings.translationEngine,
-    sensitive: await isPrivateUrl(tab.url, settings),
-    tabId: tab.id,
-    jobId,
-    windowId: tab.windowId,
-    customInstructions: settings.customInstructions || "",
-    ...(isSelection ? { selectionText: selection } : {}),
-  };
+      language: settings.summaryLanguage,
+      translationEngine: settings.translationEngine,
+      customInstructions: settings.customInstructions,
+      isSelection,
+      finalize,
+    };
 
-  const common = {
-    action: "summarize",
-    title: pageData.title,
-    url: pageData.url,
-    content,
-    mode: settings.responseFormat,
-    type: pageData.type,
-    model,
-    language: settings.summaryLanguage,
-    translationEngine: settings.translationEngine,
-    customInstructions: settings.customInstructions,
-    isSelection,
-    finalize,
-  };
+    let streamId;
+    if (providerType === PROVIDERS.LOCAL) {
+      streamId = nextStreamId("ollama");
+    } else if (providerType === PROVIDERS.LLAMACPP) {
+      streamId = nextStreamId("llamacpp");
+    } else if (providerType === PROVIDERS.TRANSFORMERS) {
+      streamId = nextStreamId("transformers");
+    } else {
+      await ensureOffscreenDocument();
+      streamId = nextStreamId("webllm");
+    }
 
-  let streamId;
-  if (providerType === PROVIDERS.LOCAL) {
-    streamId = nextStreamId("ollama");
-  } else if (providerType === PROVIDERS.LLAMACPP) {
-    streamId = nextStreamId("llamacpp");
-  } else if (providerType === PROVIDERS.TRANSFORMERS) {
-    streamId = nextStreamId("transformers");
-  } else {
-    await ensureOffscreenDocument();
-    streamId = nextStreamId("webllm");
-  }
-
-  registerStreamJob(streamId, {
-    finalize,
-    model,
-    title: pageData.title,
-    url: pageData.url,
-  });
-
-  await saveViewState(tab.id, {
-    view: "summaryView",
-    subview: "summarizing",
-    url: tab.url,
-    streamId,
-    jobId,
-    summaryText: "",
-    timeSaved: null,
-    promptsCacheKey: finalize.promptsCacheKey,
-    pageType: finalize.pageType,
-    // Background summaries have no focus input; clear any value left by a
-    // popup job in this tab. Selection fields are explicit for the same
-    // reason: the view-state write merges into the previous job's entry.
-    focusKeyword: "",
-    isSelection,
-    selectionText: isSelection ? selection : "",
-    summaryLanguage: settings.summaryLanguage,
-    translationEngine: settings.translationEngine,
-  });
-
-  if (providerType === PROVIDERS.LOCAL) {
-    startLocalHttpStream(streamId, { ...common, host: settings.ollamaHost });
-  } else if (providerType === PROVIDERS.LLAMACPP) {
-    startLocalHttpStream(
-      streamId,
-      {
-        ...common,
-        host: settings.llamaHost,
-        apiKey: settings.llamaApiKey,
-      },
-      LLAMACPP_PROVIDER,
-    );
-  } else if (providerType === PROVIDERS.TRANSFORMERS) {
-    startTransformersStream(streamId, common);
-  } else {
-    const resp = await sendToOffscreen({
-      target: "offscreen",
-      action: "summarize",
-      streamId,
-      payload: common,
+    registerStreamJob(streamId, {
+      finalize,
+      model,
+      title: pageData.title,
+      url: pageData.url,
     });
-    if (resp?.error) throw new Error(resp.error);
+
+    await saveViewState(tab.id, {
+      view: "summaryView",
+      subview: "summarizing",
+      url: tab.url,
+      streamId,
+      jobId,
+      summaryText: "",
+      timeSaved: null,
+      promptsCacheKey: finalize.promptsCacheKey,
+      pageType: finalize.pageType,
+      // Background summaries have no focus input; clear any value left by a
+      // popup job in this tab. Selection fields are explicit for the same
+      // reason: the view-state write merges into the previous job's entry.
+      focusKeyword: "",
+      isSelection,
+      selectionText: isSelection ? selection : "",
+      summaryLanguage: settings.summaryLanguage,
+      translationEngine: settings.translationEngine,
+    });
+
+    if (providerType === PROVIDERS.LOCAL) {
+      startLocalHttpStream(streamId, { ...common, host: settings.ollamaHost });
+    } else if (providerType === PROVIDERS.LLAMACPP) {
+      startLocalHttpStream(
+        streamId,
+        {
+          ...common,
+          host: settings.llamaHost,
+          apiKey: settings.llamaApiKey,
+        },
+        LLAMACPP_PROVIDER,
+      );
+    } else if (providerType === PROVIDERS.TRANSFORMERS) {
+      startTransformersStream(streamId, common);
+    } else {
+      const resp = await sendToOffscreen({
+        target: "offscreen",
+        action: "summarize",
+        streamId,
+        payload: common,
+      });
+      if (resp?.error) throw new Error(resp.error);
+    }
+  } finally {
+    if (remote && !handedOff) {
+      remote.dispose();
+      await discardPreparedRemoteStream(
+        remoteStreamId,
+        preparedRemote,
+        remoteFinalize,
+      );
+    }
   }
 }
 
@@ -1460,6 +1588,51 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onConnect?.addListener) {
   });
 }
 
+// The worker can stop between arming a selection capture and the user's
+// selection. Keep the single-use grant in session storage so it survives that
+// restart for the rest of the browser session without touching disk. The map
+// is only a fallback for browsers without storage.session.
+const SELECTION_GRANT_PREFIX = "remoteSelectionGrant:";
+const memorySelectionGrants = new Map();
+const selectionGrantKey = (tabId) => `${SELECTION_GRANT_PREFIX}${tabId}`;
+
+async function writeRemoteSelectionGrant(tabId, grant) {
+  if (chrome.storage?.session) {
+    await chrome.storage.session.set({ [selectionGrantKey(tabId)]: grant });
+    return;
+  }
+  memorySelectionGrants.set(tabId, grant);
+}
+
+async function takeRemoteSelectionGrant(tabId) {
+  if (chrome.storage?.session) {
+    const key = selectionGrantKey(tabId);
+    const stored = await chrome.storage.session.get(key);
+    if (stored[key] === undefined) return null;
+    await chrome.storage.session.remove(key);
+    return stored[key];
+  }
+  const grant = memorySelectionGrants.get(tabId);
+  memorySelectionGrants.delete(tabId);
+  return grant ?? null;
+}
+
+async function clearRemoteSelectionGrant(tabId) {
+  if (chrome.storage?.session) {
+    await chrome.storage.session.remove(selectionGrantKey(tabId));
+    return;
+  }
+  memorySelectionGrants.delete(tabId);
+}
+
+chrome.tabs?.onUpdated?.addListener((tabId, change) => {
+  if (change.status === "loading" || change.url)
+    void clearRemoteSelectionGrant(tabId);
+});
+chrome.tabs?.onRemoved?.addListener(
+  (tabId) => void clearRemoteSelectionGrant(tabId),
+);
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.target !== "service-worker") return false;
 
@@ -1476,7 +1649,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     typeof sender.url === "string" &&
     sender.url.split(/[?#]/, 1)[0] === chrome.runtime.getURL("ui/app.html");
   if (
-    (remoteSetupAction || message.action === "remote-stream") &&
+    (remoteSetupAction ||
+      [
+        "remote-stream",
+        "arm-remote-selection",
+        "remote-suggest-questions",
+      ].includes(message.action)) &&
     !extensionPage
   )
     return false;
@@ -1523,10 +1701,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === "summarize-selection" && sender.tab) {
-    runBackgroundSummarize(sender.tab, {
-      notifyOnFinish: true,
-      selectionText: message.payload?.selectionText,
-    })
+    (async () => {
+      const settings = await getSettings();
+      let expected;
+      if (isRemoteProvider(settings.provider)) {
+        const grant = await takeRemoteSelectionGrant(sender.tab.id);
+        if (
+          !grant ||
+          grant.token !== message.payload?.grant ||
+          grant.expires < Date.now() ||
+          grant.url !== sender.tab.url ||
+          (grant.documentId && grant.documentId !== sender.documentId)
+        )
+          throw new UserFacingError(
+            "Start selection capture from the Apogee panel before selecting text.",
+          );
+        const context = await createRemoteJobContext({
+          purpose: "background",
+          expected: grant.expected,
+        });
+        context.dispose();
+        expected = grant.expected;
+      }
+      return runBackgroundSummarize(sender.tab, {
+        notifyOnFinish: true,
+        selectionText: message.payload?.selectionText,
+        expected,
+        localOnly: !expected,
+      });
+    })()
       .then(() =>
         chrome.runtime
           .sendMessage({ type: "selection-summary-started" })
@@ -1654,7 +1857,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         case "remote-settings-save": {
           if (
-            message.payload?.generationConsent === true &&
+            (message.payload?.generationConsent === true ||
+              message.payload?.backgroundConsent === true ||
+              message.payload?.suggestionsConsent === true) &&
             !(await hasRemoteGenerationPermissions())
           )
             throw new UserFacingError(
@@ -1663,12 +1868,128 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse(await saveRemoteSettings(message.payload));
           break;
         }
+        case "arm-remote-selection": {
+          const settings = await getSettings();
+          if (!isRemoteProvider(settings.provider)) {
+            sendResponse({ grant: null });
+            break;
+          }
+          const context = await createRemoteJobContext({
+            purpose: "background",
+          });
+          try {
+            const tab = await chrome.tabs.get(message.payload?.tabId);
+            await context.assertActive();
+            const token = crypto.randomUUID();
+            await writeRemoteSelectionGrant(tab.id, {
+              token,
+              url: tab.url,
+              expires: Date.now() + 60000,
+              expected: {
+                provider: context.provider,
+                model: context.model,
+                revision: context.revision,
+              },
+            });
+            sendResponse({ grant: token });
+          } finally {
+            context.dispose();
+          }
+          break;
+        }
+        case "remote-suggest-questions": {
+          const raw = message.payload;
+          if (
+            !raw ||
+            Object.keys(raw).some(
+              (key) =>
+                ![
+                  "summary",
+                  "title",
+                  "url",
+                  "pageType",
+                  "selectionText",
+                  "focusKeyword",
+                  "tabId",
+                ].includes(key),
+            )
+          )
+            throw new UserFacingError("Invalid suggestion request.");
+          const clean = validateRemoteGenerationPayload({
+            action: "summarize",
+            content: raw.summary,
+            title: raw.title,
+            url: raw.url,
+            type: raw.pageType,
+            focusKeyword: raw.focusKeyword,
+            finalize: {
+              pageType: raw.pageType,
+              isSelection: raw.pageType === "selection",
+              selectionText: raw.selectionText,
+            },
+          });
+          const context = await createRemoteJobContext({
+            purpose: "suggestions",
+          });
+          try {
+            let finalize;
+            if (raw.pageType === "multi-tab") {
+              const state = await loadViewState(raw.tabId);
+              if (
+                !state ||
+                state.pageType !== "multi-tab" ||
+                state.summaryText !== raw.summary ||
+                state.providerType !== context.provider ||
+                state.model !== context.model ||
+                !state.promptsCacheKey ||
+                !Array.isArray(state.sourceUrls) ||
+                !state.sourceUrls.length
+              )
+                throw new UserFacingError(
+                  "Restore this selected-tab summary before generating follow-up questions.",
+                );
+              finalize = {
+                providerType: context.provider,
+                model: context.model,
+                promptsCacheKey: state.promptsCacheKey,
+                sourceUrls: state.sourceUrls,
+                persist: true,
+                persistUrl: state.sourceUrls[0],
+                language: state.summaryLanguage,
+                translationEngine: state.translationEngine,
+                customInstructions: context.settings.customInstructions || "",
+              };
+            } else
+              finalize = await buildTrustedFinalize(clean, context.settings);
+            await context.assertActive();
+            void runSuggestQuestionsJob({
+              ...finalize,
+              title: clean.title,
+              url: clean.url,
+              summary: clean.content,
+              execution: {
+                provider: context.provider,
+                model: context.model,
+                revision: context.revision,
+              },
+            });
+            sendResponse({
+              started: true,
+              promptsCacheKey: finalize.promptsCacheKey,
+            });
+          } finally {
+            context.dispose();
+          }
+          break;
+        }
         case "remote-stream": {
           const clean = validateRemoteGenerationPayload(message.payload);
           const context = await createRemoteJobContext();
+          const streamId = nextStreamId("remote");
+          let prepared;
+          let finalize;
           try {
-            const streamId = nextStreamId("remote");
-            const finalize =
+            finalize =
               clean.action === "summarize"
                 ? await buildTrustedFinalize(clean, context.settings)
                 : null;
@@ -1679,9 +2000,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               finalize,
             };
             await context.assertActive();
-            await recordPopupSummaryStream(payload, streamId);
-            startRemoteStream(streamId, payload, context).catch((error) =>
-              console.error("Remote stream failed:", error),
+            prepared = prepareRemoteStream(streamId, payload, context);
+            await recordPopupSummaryStream(payload, streamId, {
+              assertAuthorized: context.assertActive,
+            });
+            await context.assertActive();
+            startRemoteStream(streamId, payload, context, prepared).catch(
+              (error) => console.error("Remote stream failed:", error),
             );
             sendResponse({
               streamId,
@@ -1696,6 +2021,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             });
           } catch (error) {
             context.dispose();
+            await discardPreparedRemoteStream(streamId, prepared, finalize);
             throw error;
           }
           break;
@@ -2168,328 +2494,420 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onStartup?.addListener) {
 setupContextMenus();
 
 export async function summarizeMultiTab(tabsToSummarize, opts = {}) {
-  const signal = opts?.signal;
+  let signal = opts?.signal;
   if (signal?.aborted) return null;
 
-  const settings = await getSettings();
+  const initialSettings = await getSettings();
+  const remote = isRemoteProvider(initialSettings.provider)
+    ? await createRemoteJobContext({ purpose: "multi-tab", signal })
+    : null;
+  signal = remote?.signal || signal;
+  const settings = remote?.settings || initialSettings;
   const providerType = getProviderType(settings);
   const model = getModelForSettings(settings);
+  try {
+    if (remote && (tabsToSummarize || []).length > 32)
+      throw new UserFacingError("Select at most 32 tabs for a remote summary.");
 
-  if (isRemoteProvider(providerType))
-    throw new UserFacingError(REMOTE_B1_UNSUPPORTED);
+    // Bound the total input to the model's chunk budget so N tabs x M chars
+    // cannot build an unbounded prompt. Each tab gets an equal share of the
+    // map-reduce budget (maxChunks * maxChunkChars).
+    const maxChunkChars = remote?.chunkChars || getMaxChunkChars(model);
+    const maxChunks = getMaxChunks(model);
+    const totalBudget = Math.max(maxChunks * maxChunkChars, 1000);
+    const tabCount = Math.max(1, (tabsToSummarize || []).length);
+    const perTabBudget = Math.max(
+      remote ? 128 : 1000,
+      Math.floor(totalBudget / Math.min(tabCount, 32)) - (remote ? 512 : 0),
+    );
 
-  // Bound the total input to the model's chunk budget so N tabs x M chars
-  // cannot build an unbounded prompt. Each tab gets an equal share of the
-  // map-reduce budget (maxChunks * maxChunkChars).
-  const maxChunkChars = getMaxChunkChars(model);
-  const maxChunks = getMaxChunks(model);
-  const totalBudget = Math.max(maxChunks * maxChunkChars, 1000);
-  const tabCount = Math.max(1, (tabsToSummarize || []).length);
-  const perTabBudget = Math.max(
-    1000,
-    Math.floor(totalBudget / Math.min(tabCount, 32)),
-  );
-
-  const extractedResults = [];
-  for (const tab of tabsToSummarize || []) {
-    if (signal?.aborted) return null;
-    try {
-      if (!tab?.url) continue;
-      let pageData = await extractFromActiveTab(tab);
-      if (pageData?.isPdf) {
-        pageData.content = await extractPdfContent(tab);
-      }
-      const raw = (pageData?.content || "").trim();
-      if (pageData && raw) {
-        const content =
-          raw.length > perTabBudget
-            ? `${raw.slice(0, perTabBudget).trim()}\n\n[...content truncated...]`
-            : raw;
-        extractedResults.push({
-          title: pageData.title || tab.title || "Untitled Tab",
-          url: tab.url,
-          content,
-          type: pageData.type || "article",
-        });
-      }
-    } catch {
-      // Gracefully ignore unscriptable tabs
-    }
-  }
-
-  const ownerTab = (tabsToSummarize || []).find((t) => Number.isInteger(t?.id));
-  const ownerTabId = ownerTab?.id;
-  const ownerTarget = { tabId: ownerTabId, windowId: ownerTab?.windowId };
-
-  if (extractedResults.length === 0 || signal?.aborted) {
-    // #468: empty multi-tab input is "nothing to summarize", not a ready/done
-    // completion. Use the shared message and skip the Ready notification below.
-    // An abort is the user's own choice, so it stays silent.
-    if (extractedResults.length === 0 && !signal?.aborted) {
-      if (typeof chrome !== "undefined" && chrome.notifications) {
-        notificationTargets.set("apogee-multitab-error", ownerTarget);
-        chrome.notifications.create("apogee-multitab-error", {
-          type: "basic",
-          iconUrl: chrome.runtime.getURL("assets/icon.png"),
-          title: "Apogee",
-          message: NOTHING_TO_SUMMARIZE_ERROR_MSG,
-        });
-      }
-    }
-    return null;
-  }
-
-  const notificationId = `apogee-multitab-${Date.now()}`;
-  if (typeof chrome !== "undefined" && chrome.notifications) {
-    notificationTargets.set(notificationId, ownerTarget);
-    chrome.notifications.create(notificationId, {
-      type: "basic",
-      iconUrl: chrome.runtime.getURL("assets/icon.png"),
-      title: "Apogee Multi-Tab Summary",
-      message: `Extracting and summarizing ${extractedResults.length} selected tab(s)...`,
-    });
-  }
-
-  const title = `Multi-Tab Summary (${extractedResults.length} tabs)`;
-  const url = tabsToSummarize[0]?.url || extractedResults[0].url;
-
-  // Persist gate: a multi-tab synthesis mixes every tab's content into one
-  // stored summary, so one private tab (or "Don't save") poisons the whole
-  // result. Skip view-state persistence unless every URL is persistable.
-  // saveViewState() would additionally scrub on the owner URL, but that alone
-  // cannot see the other tabs' hosts.
-  let persistAllowed = settings.saveHistory !== false;
-  if (persistAllowed) {
-    const urlsToCheck = [url, ...extractedResults.map((r) => r.url)];
-    for (const u of urlsToCheck) {
+    const extractedResults = [];
+    for (const tab of tabsToSummarize || []) {
       if (signal?.aborted) return null;
-      if (await isPrivateUrl(u, settings)) {
-        persistAllowed = false;
-        break;
+      try {
+        if (!tab?.url) continue;
+        let pageData = remote
+          ? await awaitRemoteStep(extractFromActiveTab(tab), signal)
+          : await extractFromActiveTab(tab);
+        if (pageData?.isPdf) {
+          pageData.content = remote
+            ? await awaitRemoteStep(extractPdfContent(tab), signal)
+            : await extractPdfContent(tab);
+        }
+        const raw = (pageData?.content || "").trim();
+        if (pageData && raw) {
+          const content =
+            raw.length > perTabBudget
+              ? `${raw.slice(0, perTabBudget).trim()}\n\n[...content truncated...]`
+              : raw;
+          extractedResults.push({
+            title: pageData.title || tab.title || "Untitled Tab",
+            url: tab.url,
+            content,
+            type: pageData.type || "article",
+          });
+        }
+      } catch {
+        await remote?.assertActive();
+        // Gracefully ignore unscriptable tabs
       }
     }
-  }
 
-  const prompt = withCustomInstructions(
-    buildMultiTabSummaryPrompt(extractedResults, settings.responseFormat),
-    settings.customInstructions,
-  );
+    const ownerTab = (tabsToSummarize || []).find((t) =>
+      Number.isInteger(t?.id),
+    );
+    const ownerTabId = ownerTab?.id;
+    const ownerTarget = { tabId: ownerTabId, windowId: ownerTab?.windowId };
 
-  // Language detection only needs a bounded sample; the previous join() held
-  // every tab's full text in a second copy.
-  const langSample = extractedResults
-    .map((r) => (r.content || "").slice(0, 2000))
-    .join("\n")
-    .slice(0, 8000);
-  const qLanguage = await resolveEffectiveLanguage(
-    langSample,
-    settings.summaryLanguage,
-  );
-  const translateFn = opusTranslateFnFor(settings.translationEngine);
-
-  // Combined document preserves tab attribution across chunk boundaries, so
-  // the map-reduce path covers every tab instead of truncating to one prompt.
-  const combinedText = extractedResults
-    .map((t, i) => `--- TAB ${i + 1}: ${t.title} (${t.url}) ---\n${t.content}`)
-    .join("\n\n");
-
-  async function collectStream(generator) {
-    let out = "";
-    for await (const token of generator) {
-      if (signal?.aborted) return out;
-      out += token;
+    if (extractedResults.length === 0 || signal?.aborted) {
+      // #468: empty multi-tab input is "nothing to summarize", not a ready/done
+      // completion. Use the shared message and skip the Ready notification below.
+      // An abort is the user's own choice, so it stays silent.
+      if (extractedResults.length === 0 && !signal?.aborted) {
+        if (typeof chrome !== "undefined" && chrome.notifications) {
+          notificationTargets.set("apogee-multitab-error", ownerTarget);
+          chrome.notifications.create("apogee-multitab-error", {
+            type: "basic",
+            iconUrl: chrome.runtime.getURL("assets/icon.png"),
+            title: "Apogee",
+            message: NOTHING_TO_SUMMARIZE_ERROR_MSG,
+          });
+        }
+      }
+      return null;
     }
-    return out;
-  }
 
-  function multiTabBuilders() {
-    return {
-      buildSingle: () => prompt,
-      buildMap: (chunk, i, total) =>
-        buildExtractNotesPrompt(title, chunk, i, total),
-      buildReduce: (partials) =>
-        withCustomInstructions(
-          buildSynthesisPrompt(
-            title,
-            url,
-            partials.join("\n"),
-            settings.responseFormat,
+    const notificationId = `apogee-multitab-${Date.now()}`;
+    if (typeof chrome !== "undefined" && chrome.notifications) {
+      notificationTargets.set(notificationId, ownerTarget);
+      chrome.notifications.create(notificationId, {
+        type: "basic",
+        iconUrl: chrome.runtime.getURL("assets/icon.png"),
+        title: "Apogee Multi-Tab Summary",
+        message: `Extracting and summarizing ${extractedResults.length} selected tab(s)...`,
+      });
+    }
+
+    const title = `Multi-Tab Summary (${extractedResults.length} tabs)`;
+    const url = tabsToSummarize[0]?.url || extractedResults[0].url;
+
+    // Persist gate: a multi-tab synthesis mixes every tab's content into one
+    // stored summary, so one private tab (or "Don't save") poisons the whole
+    // result. Skip view-state persistence unless every URL is persistable.
+    // saveViewState() would additionally scrub on the owner URL, but that alone
+    // cannot see the other tabs' hosts.
+    let persistAllowed = settings.saveHistory !== false;
+    if (persistAllowed) {
+      const urlsToCheck = [url, ...extractedResults.map((r) => r.url)];
+      for (const u of urlsToCheck) {
+        if (signal?.aborted) return null;
+        if (await isPrivateUrl(u, settings)) {
+          persistAllowed = false;
+          break;
+        }
+      }
+    }
+
+    const prompt = withCustomInstructions(
+      buildMultiTabSummaryPrompt(extractedResults, settings.responseFormat),
+      settings.customInstructions,
+    );
+
+    // Language detection only needs a bounded sample; the previous join() held
+    // every tab's full text in a second copy.
+    const langSample = extractedResults
+      .map((r) => (r.content || "").slice(0, 2000))
+      .join("\n")
+      .slice(0, 8000);
+    const languageTask = resolveEffectiveLanguage(
+      langSample,
+      settings.summaryLanguage,
+    );
+    const qLanguage = remote
+      ? await awaitRemoteStep(languageTask, signal)
+      : await languageTask;
+    const translateFn = opusTranslateFnFor(settings.translationEngine);
+
+    // Combined document preserves tab attribution across chunk boundaries, so
+    // the map-reduce path covers every tab instead of truncating to one prompt.
+    const combinedText = extractedResults
+      .map(
+        (t, i) => `--- TAB ${i + 1}: ${t.title} (${t.url}) ---\n${t.content}`,
+      )
+      .join("\n\n");
+
+    async function collectStream(generator) {
+      let out = "";
+      for await (const token of generator) {
+        if (signal?.aborted) return out;
+        out += token;
+      }
+      return out;
+    }
+
+    function multiTabBuilders() {
+      return {
+        buildSingle: () => prompt,
+        buildMap: (chunk, i, total) =>
+          buildExtractNotesPrompt(title, chunk, i, total),
+        buildReduce: (partials) =>
+          withCustomInstructions(
+            buildSynthesisPrompt(
+              title,
+              url,
+              partials.join("\n"),
+              settings.responseFormat,
+            ),
+            settings.customInstructions,
           ),
-          settings.customInstructions,
-        ),
-    };
-  }
+      };
+    }
 
-  let summaryResult;
-  if (providerType === PROVIDERS.LOCAL) {
-    const validHost = validateLoopbackHost(
-      settings.ollamaHost,
-      OLLAMA_PROVIDER.label,
-    );
-    // mapReduceStream calls chatStreamFn(host, model, prompt, opts); pass
-    // the raw client and merge the outer cancel signal so per-chunk calls
-    // abort with the multi-tab job.
-    const ollamaChat = (host, modelArg, promptArg, streamOpts) =>
-      chatStream(host, modelArg, promptArg, {
-        ...streamOpts,
-        signal: streamOpts?.signal ?? signal,
-      });
-    summaryResult = await collectStream(
-      mapReduceStream(
-        {
-          text: combinedText,
-          model,
-          host: validHost,
-          signal,
-          language: qLanguage,
-        },
-        {
-          chunkTextFn: chunkBySections,
-          chatStreamFn: ollamaChat,
-          translateFn,
-        },
-        multiTabBuilders(),
-      ),
-    );
-  } else if (providerType === PROVIDERS.LLAMACPP) {
-    const validHost = validateLoopbackHost(
-      settings.llamaHost,
-      LLAMACPP_PROVIDER.label,
-    );
-    const llamaChat = (host, modelArg, promptArg, streamOpts) =>
-      llamaChatStream(host, modelArg, promptArg, {
-        ...streamOpts,
-        signal: streamOpts?.signal ?? signal,
-        apiKey: settings.llamaApiKey,
-      });
-    summaryResult = await collectStream(
-      mapReduceStream(
-        {
-          text: combinedText,
-          model,
-          host: validHost,
-          signal,
-          language: qLanguage,
-        },
-        {
-          chunkTextFn: chunkBySections,
-          chatStreamFn: llamaChat,
-          translateFn,
-        },
-        multiTabBuilders(),
-      ),
-    );
-  } else if (providerType === PROVIDERS.TRANSFORMERS && !hasOffscreenAPI) {
-    summaryResult = await withTransformersEngine(model, null, async (eng) => {
-      const transformersChat = (_host, _model, promptArg, streamOpts) =>
-        transformersChatStream(eng, promptArg, {
-          system: streamOpts?.system,
+    let summaryResult;
+    if (remote) {
+      await remote.assertActive();
+      summaryResult = await collectStream(
+        mapReduceStream(
+          { text: combinedText, model, signal, language: qLanguage },
+          {
+            chunkTextFn: (text) => chunkBySections(text, remote.chunkChars),
+            chatStreamFn: (_host, _model, promptArg, options) =>
+              remoteChatStream(remote, promptArg, options),
+            translateFn: translateFn
+              ? (...args) => awaitRemoteStep(translateFn(...args), signal)
+              : undefined,
+          },
+          multiTabBuilders(),
+        ),
+      );
+      await remote.assertActive();
+    } else if (providerType === PROVIDERS.LOCAL) {
+      const validHost = validateLoopbackHost(
+        settings.ollamaHost,
+        OLLAMA_PROVIDER.label,
+      );
+      // mapReduceStream calls chatStreamFn(host, model, prompt, opts); pass
+      // the raw client and merge the outer cancel signal so per-chunk calls
+      // abort with the multi-tab job.
+      const ollamaChat = (host, modelArg, promptArg, streamOpts) =>
+        chatStream(host, modelArg, promptArg, {
+          ...streamOpts,
+          signal: streamOpts?.signal ?? signal,
         });
-      return collectStream(
+      summaryResult = await collectStream(
         mapReduceStream(
           {
             text: combinedText,
             model,
-            host: null,
+            host: validHost,
             signal,
             language: qLanguage,
           },
           {
             chunkTextFn: chunkBySections,
-            chatStreamFn: transformersChat,
+            chatStreamFn: ollamaChat,
             translateFn,
           },
           multiTabBuilders(),
         ),
       );
-    });
-  } else {
-    // WebLLM/Transformers run inside the offscreen document. Multi-tab uses
-    // the single-shot "generate-text" route there (handled in
-    // offscreen/offscreen.js) because there is one synthesized prompt rather
-    // than a per-tab stream. The prompt above is already bounded to the
-    // model budget via perTabBudget.
-    if (signal?.aborted) return null;
-    await ensureOffscreenDocument();
-    if (signal?.aborted) return null;
-    const response = await sendToOffscreen(
-      {
-        target: "offscreen",
-        action: "generate-text",
-        payload: {
-          prompt,
-          model,
-          provider:
-            providerType === PROVIDERS.TRANSFORMERS ? "transformers" : "webllm",
-          language: settings.summaryLanguage,
-          translationEngine: settings.translationEngine,
+    } else if (providerType === PROVIDERS.LLAMACPP) {
+      const validHost = validateLoopbackHost(
+        settings.llamaHost,
+        LLAMACPP_PROVIDER.label,
+      );
+      const llamaChat = (host, modelArg, promptArg, streamOpts) =>
+        llamaChatStream(host, modelArg, promptArg, {
+          ...streamOpts,
+          signal: streamOpts?.signal ?? signal,
+          apiKey: settings.llamaApiKey,
+        });
+      summaryResult = await collectStream(
+        mapReduceStream(
+          {
+            text: combinedText,
+            model,
+            host: validHost,
+            signal,
+            language: qLanguage,
+          },
+          {
+            chunkTextFn: chunkBySections,
+            chatStreamFn: llamaChat,
+            translateFn,
+          },
+          multiTabBuilders(),
+        ),
+      );
+    } else if (providerType === PROVIDERS.TRANSFORMERS && !hasOffscreenAPI) {
+      summaryResult = await withTransformersEngine(model, null, async (eng) => {
+        const transformersChat = (_host, _model, promptArg, streamOpts) =>
+          transformersChatStream(eng, promptArg, {
+            system: streamOpts?.system,
+          });
+        return collectStream(
+          mapReduceStream(
+            {
+              text: combinedText,
+              model,
+              host: null,
+              signal,
+              language: qLanguage,
+            },
+            {
+              chunkTextFn: chunkBySections,
+              chatStreamFn: transformersChat,
+              translateFn,
+            },
+            multiTabBuilders(),
+          ),
+        );
+      });
+    } else {
+      // WebLLM/Transformers run inside the offscreen document. Multi-tab uses
+      // the single-shot "generate-text" route there (handled in
+      // offscreen/offscreen.js) because there is one synthesized prompt rather
+      // than a per-tab stream. The prompt above is already bounded to the
+      // model budget via perTabBudget.
+      if (signal?.aborted) return null;
+      await ensureOffscreenDocument();
+      if (signal?.aborted) return null;
+      const response = await sendToOffscreen(
+        {
+          target: "offscreen",
+          action: "generate-text",
+          payload: {
+            prompt,
+            model,
+            provider:
+              providerType === PROVIDERS.TRANSFORMERS
+                ? "transformers"
+                : "webllm",
+            language: settings.summaryLanguage,
+            translationEngine: settings.translationEngine,
+          },
         },
-      },
-      OFFSCREEN_WORK_TIMEOUT_MS,
-    );
+        OFFSCREEN_WORK_TIMEOUT_MS,
+      );
+      if (signal?.aborted) return null;
+      if (response?.error) throw new Error(response.error);
+      summaryResult = response?.text || "";
+    }
+
     if (signal?.aborted) return null;
-    if (response?.error) throw new Error(response.error);
-    summaryResult = response?.text || "";
-  }
 
-  if (signal?.aborted) return null;
-
-  const pageData = {
-    type: "multi-tab",
-    title,
-    url,
-    content: summaryResult,
-    tabs: extractedResults.map((t) => ({ title: t.title, url: t.url })),
-  };
-
-  // The popup restores per-tab state via loadViewState(tabId), so the
-  // multi-tab result must live under the owning tab's numeric id. Keying by
-  // URL string used to create unreachable `popupViewState:https://...` keys
-  // that leaked raw URLs into key names and were never cleaned on tab close.
-  // Skipped entirely when any tab is private or history is off (see
-  // persistAllowed above); viewState eviction (50 entries, FIFO) and
-  // tabs.onRemoved reaping handle the rest.
-  // Ready notification opens the popup, which restores via loadViewState.
-  // When persistence is skipped (history off / private tab), that restore
-  // finds nothing and shows home — so skip the ready ping too (#496).
-  const canSurfaceResult =
-    ownerTabId != null && persistAllowed && !signal?.aborted;
-  if (canSurfaceResult) {
-    await saveViewState(ownerTabId, {
-      view: "summaryView",
-      subview: "summary",
+    const pageData = {
+      type: "multi-tab",
+      title,
       url,
-      streamId: null,
-      summaryText: summaryResult,
-      // No per-tab prompts key exists for a multi-tab synthesis; null clears
-      // any stale single-tab key the merge would otherwise inherit. The
-      // synthesis has no page type, selection text, or focus keyword either,
-      // so clear those rather than inherit the owner tab's previous job.
-      promptsCacheKey: null,
-      pageType: "",
-      focusKeyword: "",
-      isSelection: false,
-      selectionText: "",
-      summaryLanguage: settings.summaryLanguage,
-      translationEngine: settings.translationEngine,
-    });
-  }
+      content: summaryResult,
+      tabs: extractedResults.map((t) => ({ title: t.title, url: t.url })),
+    };
 
-  if (
-    canSurfaceResult &&
-    typeof chrome !== "undefined" &&
-    chrome.notifications
-  ) {
-    notificationTargets.set(`${notificationId}-ready`, ownerTarget);
-    chrome.notifications.create(`${notificationId}-ready`, {
-      type: "basic",
-      iconUrl: chrome.runtime.getURL("assets/icon.png"),
-      title: "Apogee Multi-Tab Summary Ready",
-      message: `Synthesized summary for ${extractedResults.length} tabs. Click to view in Apogee!`,
-    });
-  }
+    // The popup restores per-tab state via loadViewState(tabId), so the
+    // multi-tab result must live under the owning tab's numeric id. Keying by
+    // URL string used to create unreachable `popupViewState:https://...` keys
+    // that leaked raw URLs into key names and were never cleaned on tab close.
+    // Skipped entirely when any tab is private or history is off (see
+    // persistAllowed above); viewState eviction (50 entries, FIFO) and
+    // tabs.onRemoved reaping handle the rest.
+    // Ready notification opens the popup, which restores via loadViewState.
+    // When persistence is skipped (history off / private tab), that restore
+    // finds nothing and shows home — so skip the ready ping too (#496).
+    let canSurfaceResult =
+      ownerTabId != null && persistAllowed && !signal?.aborted;
+    const sourceUrls = [url, ...extractedResults.map((r) => r.url)];
+    const assertPersistable = async () => {
+      await remote?.assertActive();
+      for (const source of sourceUrls) {
+        if (!(await shouldPersist(source))) {
+          const error = new Error("Multi-tab persistence policy changed.");
+          error.persistenceSkipped = true;
+          throw error;
+        }
+      }
+    };
+    const promptsCacheKey = remote
+      ? await getPromptsCacheKeyForSettings(
+          `multi-tab:${await hashUrl(JSON.stringify(extractedResults))}`,
+          settings,
+          model,
+          "",
+          { providerType, pageType: "multi-tab" },
+        )
+      : null;
+    if (canSurfaceResult) {
+      try {
+        await assertPersistable();
+        await saveViewState(
+          ownerTabId,
+          {
+            view: "summaryView",
+            subview: "summary",
+            url,
+            streamId: null,
+            summaryText: summaryResult,
+            // No per-tab prompts key exists for a multi-tab synthesis; null clears
+            // any stale single-tab key the merge would otherwise inherit. The
+            // synthesis has no page type, selection text, or focus keyword either,
+            // so clear those rather than inherit the owner tab's previous job.
+            promptsCacheKey,
+            pageType: remote ? "multi-tab" : "",
+            ...(remote ? { providerType, model, sourceUrls } : {}),
+            focusKeyword: "",
+            isSelection: false,
+            selectionText: "",
+            summaryLanguage: settings.summaryLanguage,
+            translationEngine: settings.translationEngine,
+          },
+          { assertAuthorized: assertPersistable },
+        );
+      } catch (error) {
+        if (!error.persistenceSkipped) throw error;
+        canSurfaceResult = false;
+      }
+    }
+    await remote?.assertActive();
+    if (remote && canSurfaceResult) {
+      void runSuggestQuestionsJob({
+        promptsCacheKey,
+        persist: true,
+        persistUrl: url,
+        sourceUrls,
+        providerType,
+        title,
+        url,
+        summary: summaryResult,
+        model,
+        language: settings.summaryLanguage,
+        translationEngine: settings.translationEngine,
+        customInstructions: settings.customInstructions || "",
+        execution: {
+          provider: remote.provider,
+          model: remote.model,
+          revision: remote.revision,
+        },
+      });
+    }
 
-  return { summary: summaryResult, pageData };
+    if (
+      canSurfaceResult &&
+      typeof chrome !== "undefined" &&
+      chrome.notifications
+    ) {
+      notificationTargets.set(`${notificationId}-ready`, ownerTarget);
+      chrome.notifications.create(`${notificationId}-ready`, {
+        type: "basic",
+        iconUrl: chrome.runtime.getURL("assets/icon.png"),
+        title: "Apogee Multi-Tab Summary Ready",
+        message: `Synthesized summary for ${extractedResults.length} tabs. Click to view in Apogee!`,
+      });
+    }
+
+    return { summary: summaryResult, pageData };
+  } finally {
+    remote?.dispose();
+  }
 }
 
 if (
@@ -2509,17 +2927,21 @@ if (
         selectionText: info.selectionText,
       }).catch((err) => notifyJobFailed(err));
     } else if (info.menuItemId === SUMMARIZE_TABS_CONTEXT_MENU_ID) {
-      let targetTabs = [tab];
-      if (typeof chrome.tabs?.query === "function") {
-        const highlighted = await chrome.tabs.query({
-          highlighted: true,
-          currentWindow: true,
-        });
-        if (highlighted && highlighted.length > 0) {
-          targetTabs = highlighted;
+      try {
+        let targetTabs = [tab];
+        if (typeof chrome.tabs?.query === "function") {
+          const highlighted = await chrome.tabs.query({
+            highlighted: true,
+            currentWindow: true,
+          });
+          if (highlighted && highlighted.length > 0) {
+            targetTabs = highlighted;
+          }
         }
+        await summarizeMultiTab(targetTabs);
+      } catch (error) {
+        notifyJobFailed(error);
       }
-      await summarizeMultiTab(targetTabs);
     }
   });
 }

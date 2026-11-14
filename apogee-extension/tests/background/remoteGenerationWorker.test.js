@@ -4,16 +4,41 @@ import { createExtensionApiMock } from "../helpers/extensionApiMock.js";
 
 const { chrome, getMessageListeners, getStorageData } =
   createExtensionApiMock();
+const contextMenuListeners = [];
+chrome.contextMenus = {
+  removeAll(callback) {
+    callback();
+  },
+  create() {},
+  onClicked: {
+    addListener(listener) {
+      contextMenuListeners.push(listener);
+    },
+  },
+};
 const connectListeners = [];
 chrome.runtime.onConnect = {
   addListener: (listener) => connectListeners.push(listener),
 };
+const alarmListeners = [];
 chrome.alarms = {
   create() {},
   clear: async () => {},
-  onAlarm: { addListener() {} },
+  onAlarm: {
+    addListener(listener) {
+      alarmListeners.push(listener);
+    },
+  },
 };
-chrome.permissions.onRemoved = { addListener() {}, removeListener() {} };
+const removedPermissionListeners = new Set();
+chrome.permissions.onRemoved = {
+  addListener(listener) {
+    removedPermissionListeners.add(listener);
+  },
+  removeListener(listener) {
+    removedPermissionListeners.delete(listener);
+  },
+};
 const broadcasts = [];
 const sendMessage = chrome.runtime.sendMessage;
 chrome.runtime.sendMessage = async (message) => {
@@ -23,8 +48,13 @@ chrome.runtime.sendMessage = async (message) => {
 globalThis.chrome = chrome;
 const { runBackgroundSummarize, summarizeMultiTab } =
   await import("../../background/service-worker.js");
-const { activeStreams, registeredStreamJobs, expireStreamForCleanup } =
-  await import("../../background/streams.js");
+const {
+  activeStreams,
+  registeredStreamJobs,
+  expireStreamForCleanup,
+  getStreamCleanupDeadline,
+} = await import("../../background/streams.js");
+const { STREAM_CLEANUP_MS } = await import("../../lib/util/streamExpiry.js");
 const { saveViewState, loadViewState } =
   await import("../../lib/storage/viewState.js");
 const { getSettings, updateSettings } =
@@ -64,6 +94,7 @@ async function setup(provider = "openrouter", overrides = {}) {
   for (const id of activeStreams.keys()) expireStreamForCleanup(id);
   registeredStreamJobs.clear();
   await chrome.storage.local.clear();
+  await chrome.storage.session.clear();
   broadcasts.length = 0;
   await chrome.storage.local.set({
     settings: {
@@ -512,17 +543,808 @@ test("trusted extension tabs can attach to a remote stream while content-script 
   }
 });
 
-test("background and multi-tab paths reject remote configuration before network calls", async () => {
+test("background and multi-tab paths require their separate consent before network calls", async () => {
   await setup();
   const calls = intercept();
   await assert.rejects(
     runBackgroundSummarize({ id: tabId, url }),
-    /not available in this stage/,
+    /authorization changed/,
   );
   await assert.rejects(
     summarizeMultiTab([{ id: tabId, url }]),
-    /not available in this stage/,
+    /authorization changed/,
   );
   assert.equal(calls.length, 0);
   assert.equal(activeStreams.size, 0);
+});
+
+test("B2 background and selected-tabs use both explicit provider models", async () => {
+  chrome.scripting = {
+    executeScript: async () => [
+      { result: chrome.runtime.getManifest().version },
+    ],
+  };
+  chrome.tabs.sendMessage = async () => ({
+    content: "Article evidence with sufficient content.",
+    title: "Evidence",
+    type: "article",
+  });
+  for (const provider of Object.keys(models)) {
+    await setup(provider, { [`${provider}BackgroundConsent`]: true });
+    const calls = intercept();
+    await runBackgroundSummarize(
+      { id: tabId, url },
+      { selectionText: "Selected article evidence with enough content." },
+    );
+    await waitFor(
+      () => [...activeStreams.values()].some((stream) => stream.done),
+      "background complete",
+    );
+    assert.equal(calls.filter((call) => call.body).length, 1);
+    assert.equal(calls.find((call) => call.body).body.model, models[provider]);
+    const result = await summarizeMultiTab([
+      { id: tabId, url },
+      { id: tabId + 1, url: "https://example.org/other" },
+    ]);
+    assert.ok(result.summary);
+    const state = await loadViewState(tabId);
+    assert.equal(state.providerType, provider);
+    assert.equal(state.pageType, "multi-tab");
+    const otherSource = new URL("https://example.org/other");
+    assert.ok(
+      state.sourceUrls.some(
+        (source) => new URL(source).href === otherSource.href,
+      ),
+    );
+    assert.ok(state.promptsCacheKey.includes(":tmulti-tab"));
+  }
+});
+
+test("B2 background and multi-tab authorization changes prevent result persistence", async () => {
+  chrome.scripting = {
+    executeScript: async () => [
+      { result: chrome.runtime.getManifest().version },
+    ],
+  };
+  chrome.tabs.sendMessage = async () => ({
+    content: "Article evidence with sufficient content.",
+    title: "Evidence",
+    type: "article",
+  });
+  for (const provider of Object.keys(models)) {
+    for (const path of ["background", "multi-tab"]) {
+      for (const patch of [
+        { [`${provider}BackgroundConsent`]: false },
+        { [`${provider}GenerationConsent`]: false },
+        { [`${provider}ApiKey`]: "replacement-key" },
+        { [`${provider}Model`]: "changed/model" },
+      ]) {
+        await setup(provider, { [`${provider}BackgroundConsent`]: true });
+        let posts = 0;
+        intercept(async (request) => {
+          if (request.body && ++posts === 1) {
+            const stored = getStorageData().settings;
+            await chrome.storage.local.set({
+              settings: { ...stored, ...patch },
+            });
+          }
+        });
+        if (path === "background") {
+          await runBackgroundSummarize(
+            { id: tabId, url },
+            { selectionText: "Selected article evidence with enough content." },
+          );
+          await waitFor(
+            () => [...activeStreams.values()].some((stream) => stream.done),
+            "revoked background complete",
+          );
+          assert.ok([...activeStreams.values()].some((stream) => stream.error));
+        } else {
+          await assert.rejects(summarizeMultiTab([{ id: tabId, url }]));
+        }
+        assertNoSummarySaved();
+        assert.notEqual((await loadViewState(tabId))?.subview, "summary");
+        assert.equal(posts, 1);
+      }
+    }
+  }
+});
+
+test("remote selection capture requires a single-use UI grant", async () => {
+  await setup("openrouter", { openrouterBackgroundConsent: true });
+  const calls = intercept();
+  chrome.tabs.get = async (id) => ({ id, url });
+  const selectionSender = {
+    id: chrome.runtime.id,
+    tab: { id: tabId, url },
+    url,
+    documentId: "document-a",
+  };
+  const message = (grant) => ({
+    target: "service-worker",
+    action: "summarize-selection",
+    payload: {
+      selectionText: "Selected article evidence with enough content.",
+      grant,
+    },
+  });
+  router(message("invalid"), selectionSender, () => {});
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(calls.length, 0);
+  const armed = await dispatch("arm-remote-selection", { tabId });
+  assert.ok(armed.grant);
+  const grantKey = `remoteSelectionGrant:${tabId}`;
+  const storedGrant = await chrome.storage.session.get(grantKey);
+  assert.equal(
+    storedGrant[grantKey]?.token,
+    armed.grant,
+    "the grant must survive a worker restart",
+  );
+  router(message(armed.grant), selectionSender, () => {});
+  await waitFor(
+    () => [...activeStreams.values()].some((stream) => stream.done),
+    "selection complete",
+  );
+  assert.equal(calls.filter((call) => call.body).length, 1);
+  assert.equal(
+    (await chrome.storage.session.get(grantKey))[grantKey],
+    undefined,
+  );
+  router(message(armed.grant), selectionSender, () => {});
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(calls.filter((call) => call.body).length, 1);
+});
+
+test("a local-only selection start cannot adopt a newly selected remote provider", async () => {
+  await setup("openrouter", { openrouterBackgroundConsent: true });
+  const calls = intercept();
+  await assert.rejects(
+    runBackgroundSummarize(
+      { id: tabId, url },
+      {
+        localOnly: true,
+        selectionText: "Selected article evidence with enough content.",
+      },
+    ),
+    /selection capture again/,
+  );
+  assert.equal(calls.length, 0);
+});
+
+test("B2 native worker permission removal aborts every provider and path", async () => {
+  chrome.scripting = {
+    executeScript: async () => [
+      { result: chrome.runtime.getManifest().version },
+    ],
+  };
+  chrome.tabs.sendMessage = async () => ({
+    content: "Article evidence with sufficient content.",
+    title: "Evidence",
+    type: "article",
+  });
+  for (const provider of Object.keys(models)) {
+    for (const path of ["background", "multi-tab"]) {
+      await setup(provider, { [`${provider}BackgroundConsent`]: true });
+      let posts = 0;
+      intercept(async (request) => {
+        if (request.body) {
+          posts++;
+          for (const listener of removedPermissionListeners)
+            listener({ data_collection: ["websiteContent"] });
+        }
+      });
+      if (path === "background") {
+        await runBackgroundSummarize(
+          { id: tabId, url },
+          { selectionText: "Selected article evidence with enough content." },
+        );
+        await waitFor(
+          () => [...activeStreams.values()].some((stream) => stream.done),
+          "permission removed background",
+        );
+        assert.ok([...activeStreams.values()].some((stream) => stream.error));
+      } else await assert.rejects(summarizeMultiTab([{ id: tabId, url }]));
+      assert.equal(posts, 1);
+      assertNoSummarySaved();
+      assert.notEqual((await loadViewState(tabId))?.subview, "summary");
+      assert.equal(removedPermissionListeners.size, 0);
+    }
+  }
+});
+
+test("B2 multi-tab rechecks non-owner persistence policy and rolls back an issued write", async () => {
+  chrome.scripting = {
+    executeScript: async () => [
+      { result: chrome.runtime.getManifest().version },
+    ],
+  };
+  chrome.tabs.sendMessage = async () => ({
+    content: "Article evidence with sufficient content.",
+    title: "Evidence",
+    type: "article",
+  });
+  const tabs = [
+    { id: tabId, url },
+    { id: tabId + 1, url: "https://private-source.example/other" },
+  ];
+  for (const provider of Object.keys(models)) {
+    for (const phase of ["generation", "commit"]) {
+      await setup(provider, { [`${provider}BackgroundConsent`]: true });
+      const prior = await loadViewState(tabId);
+      const backingSet = chrome.storage.local.set;
+      const changePolicy = () =>
+        backingSet({
+          settings: {
+            ...getStorageData().settings,
+            privateHosts: "private-source.example",
+          },
+        });
+      intercept(async (request) => {
+        if (phase === "generation" && request.body) await changePolicy();
+      });
+      let changed = false;
+      if (phase === "commit")
+        chrome.storage.local.set = async (items) => {
+          await backingSet(items);
+          if (
+            !changed &&
+            items[`popupViewState:${tabId}`]?.pageType === "multi-tab"
+          ) {
+            changed = true;
+            await changePolicy();
+          }
+        };
+      try {
+        const result = await summarizeMultiTab(tabs);
+        assert.ok(result.summary);
+        assert.deepEqual(await loadViewState(tabId), prior);
+      } finally {
+        chrome.storage.local.set = backingSet;
+      }
+    }
+  }
+});
+
+test("provider heartbeat and hidden reasoning keep the real worker alive past its cleanup deadline", async (t) => {
+  const originalCreate = chrome.alarms.create;
+  const originalClear = chrome.alarms.clear;
+  let now = 0;
+  t.mock.method(performance, "now", () => now);
+  let responseController;
+  let streamId;
+  t.after(() => {
+    if (streamId) expireStreamForCleanup(streamId);
+    chrome.alarms.create = originalCreate;
+    chrome.alarms.clear = originalClear;
+    try {
+      responseController?.close();
+    } catch {
+      /* Already closed by cancellation. */
+    }
+  });
+  for (const provider of Object.keys(models)) {
+    for (const activity of [
+      ": provider heartbeat\n\n",
+      'data: {"choices":[{"delta":{"reasoning":"hidden reasoning"}}]}\n\n',
+    ]) {
+      await setup(provider);
+      now = 0;
+      const deadlines = new Map();
+      const created = [];
+      chrome.alarms.create = (name, options) => {
+        created.push(name);
+        deadlines.set(name, now + options.delayInMinutes * 60000);
+      };
+      chrome.alarms.clear = async (name) => deadlines.delete(name);
+      intercept(({ body, options }) => {
+        if (!body) return;
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              responseController = controller;
+              options.signal.addEventListener(
+                "abort",
+                () => {
+                  try {
+                    controller.error(new Error("Request aborted"));
+                  } catch {
+                    /* Already closed. */
+                  }
+                },
+                { once: true },
+              );
+            },
+          }),
+        );
+      });
+      const started = await dispatch("remote-stream", args());
+      streamId = started.streamId;
+      const stream = activeStreams.get(streamId);
+      assert.ok(stream);
+      const alarmName = `stream-cleanup:${streamId}`;
+      assert.equal(deadlines.get(alarmName), 120000);
+      await waitFor(
+        () => responseController != null,
+        "provider response headers",
+      );
+      // Only the browser alarm clock advances: no real two-minute wait and no
+      // change to catalog freshness or the transport's separate idle timeout.
+      for (let elapsed = 20000; elapsed <= 160000; elapsed += 20000) {
+        now = elapsed;
+        responseController.enqueue(new TextEncoder().encode(activity));
+        await waitFor(
+          () => getStreamCleanupDeadline(streamId) === now + STREAM_CLEANUP_MS,
+          "provider activity extends cleanup",
+        );
+        for (const [name, deadline] of deadlines) {
+          if (deadline <= now) {
+            deadlines.delete(name);
+            for (const listener of alarmListeners) listener({ name });
+          }
+        }
+        // Activity moves the deadline, not the alarm. The alarm re-arms only
+        // when it fires after the original window.
+        assert.equal(
+          created.filter((name) => name === alarmName).length,
+          elapsed < STREAM_CLEANUP_MS ? 1 : 2,
+        );
+        assert.ok(deadlines.get(alarmName) > now);
+        assert.equal(activeStreams.get(streamId), stream);
+        assert.equal(stream.controller.signal.aborted, false);
+        assert.equal(
+          stream.text,
+          "",
+          "hidden activity must not become visible output",
+        );
+        assertNoSummarySaved();
+      }
+      responseController.enqueue(
+        new TextEncoder().encode(
+          'data: {"choices":[{"delta":{"content":"Completed after reasoning"}}]}\n\ndata: [DONE]\n\n',
+        ),
+      );
+      responseController.close();
+      responseController = null;
+      await waitFor(
+        () => stream.done && !registeredStreamJobs.has(streamId),
+        "summary finishes after hidden activity",
+      );
+      assert.equal(stream.error, null);
+      assert.equal(stream.text, "Completed after reasoning");
+      assert.equal(
+        (await loadViewState(tabId)).summaryText,
+        "Completed after reasoning",
+      );
+      assert.ok((getStorageData().cacheOrder || []).length > 0);
+    }
+  }
+});
+
+test("a remote response without provider activity still expires at the worker deadline", async (t) => {
+  await setup();
+  let now = 0;
+  t.mock.method(performance, "now", () => now);
+  const originalCreate = chrome.alarms.create;
+  const deadlines = new Map();
+  chrome.alarms.create = (name, options) =>
+    deadlines.set(name, options.delayInMinutes * 60000);
+  t.after(() => {
+    chrome.alarms.create = originalCreate;
+  });
+  intercept(({ body, options }) => {
+    if (!body) return;
+    return new Response(
+      new ReadableStream({
+        start(controller) {
+          options.signal.addEventListener(
+            "abort",
+            () => controller.error(new Error("Request aborted")),
+            { once: true },
+          );
+        },
+      }),
+    );
+  });
+  const { streamId } = await dispatch("remote-stream", args());
+  const stream = activeStreams.get(streamId);
+  assert.ok(stream);
+  const alarmName = `stream-cleanup:${streamId}`;
+  assert.equal(deadlines.get(alarmName), STREAM_CLEANUP_MS);
+  now = STREAM_CLEANUP_MS;
+  for (const listener of alarmListeners) listener({ name: alarmName });
+  await waitFor(
+    () => !registeredStreamJobs.has(streamId),
+    "expired silent response cleanup",
+  );
+  assert.equal(activeStreams.has(streamId), false);
+  assert.equal(stream.controller.signal.aborted, true);
+  assert.equal(stream.done, true);
+  assert.match(stream.error, /expired/);
+  assertNoSummarySaved();
+});
+
+test("a popup can attach when a background selection first publishes its stream id", async () => {
+  await setup("openrouter", { openrouterBackgroundConsent: true });
+  intercept();
+  const backingSet = chrome.storage.local.set;
+  const messages = [];
+  let publishedStreamId;
+  let disconnected = false;
+  chrome.storage.local.set = async (items) => {
+    await backingSet(items);
+    const state = items[`popupViewState:${tabId}`];
+    if (publishedStreamId || !state?.streamId || state.pageType !== "selection")
+      return;
+    publishedStreamId = state.streamId;
+    const port = {
+      name: `popup-stream-${state.streamId}`,
+      sender,
+      postMessage: (message) => messages.push(message),
+      disconnect: () => {
+        disconnected = true;
+      },
+      onDisconnect: { addListener() {} },
+    };
+    for (const listener of connectListeners) listener(port);
+  };
+  try {
+    await runBackgroundSummarize(
+      { id: tabId, url },
+      {
+        selectionText: "Selected article evidence with enough content.",
+        notifyOnFinish: true,
+      },
+    );
+    assert.ok(publishedStreamId);
+    const stream = activeStreams.get(publishedStreamId);
+    await waitFor(
+      () => stream.done && !registeredStreamJobs.has(publishedStreamId),
+      "background selection finalization",
+    );
+    const state = await loadViewState(tabId);
+    assert.equal(state.subview, "summary");
+    assert.equal(state.streamId, null);
+    assert.equal(state.summaryText, "Remote answer");
+    assertNoSummarySaved();
+    assert.equal(
+      disconnected,
+      false,
+      "publishing the stream must not expose an unavailable port",
+    );
+    assert.ok(!messages.some((message) => message.type === "error"));
+    assert.equal(messages.at(-1)?.type, "done");
+  } finally {
+    chrome.storage.local.set = backingSet;
+  }
+});
+
+test("native selection survives hidden activity and restores after the completed stream expires", async (t) => {
+  const originalCreate = chrome.alarms.create;
+  let now = 0;
+  t.mock.method(performance, "now", () => now);
+  let responseController;
+  let streamId;
+  t.after(() => {
+    chrome.alarms.create = originalCreate;
+    if (streamId) expireStreamForCleanup(streamId);
+    try {
+      responseController?.close();
+    } catch {
+      /* Transport may already be closed. */
+    }
+  });
+  for (const provider of Object.keys(models)) {
+    await setup(provider, { [`${provider}BackgroundConsent`]: true });
+    now = 0;
+    const deadlines = new Map();
+    chrome.alarms.create = (name, options) =>
+      deadlines.set(name, now + options.delayInMinutes * 60000);
+    intercept(({ body, options }) => {
+      if (!body) return;
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            responseController = controller;
+            options.signal.addEventListener(
+              "abort",
+              () => {
+                try {
+                  controller.error(new Error("Request aborted"));
+                } catch {
+                  /* Transport may already be closed. */
+                }
+              },
+              { once: true },
+            );
+          },
+        }),
+      );
+    });
+    assert.equal(contextMenuListeners.length, 1);
+    await contextMenuListeners[0](
+      {
+        menuItemId: "apogee-summarize-selection",
+        selectionText:
+          "A paragraph selected with the native context menu, long enough to summarize.",
+      },
+      { id: tabId, url },
+    );
+    await waitFor(
+      () =>
+        getStorageData()[`popupViewState:${tabId}`]?.streamId &&
+        responseController,
+      "native selection request",
+    );
+    streamId = getStorageData()[`popupViewState:${tabId}`].streamId;
+    const stream = activeStreams.get(streamId);
+    const alarmName = `stream-cleanup:${streamId}`;
+    const lastActivityMs = 160000;
+    for (let elapsed = 20000; elapsed <= lastActivityMs; elapsed += 20000) {
+      now = elapsed;
+      responseController.enqueue(
+        new TextEncoder().encode(
+          'data: {"choices":[{"delta":{"reasoning":"hidden reasoning"}}]}\n\n',
+        ),
+      );
+      await waitFor(
+        () => getStreamCleanupDeadline(streamId) === now + STREAM_CLEANUP_MS,
+        "native selection activity",
+      );
+      for (const [name, deadline] of deadlines) {
+        if (deadline <= now) {
+          deadlines.delete(name);
+          for (const listener of alarmListeners) listener({ name });
+        }
+      }
+      assert.equal(stream.done, false);
+      assert.equal(stream.text, "");
+      assert.equal(stream.controller.signal.aborted, false);
+    }
+    responseController.enqueue(
+      new TextEncoder().encode(
+        'data: {"choices":[{"delta":{"content":"Selection summary after reasoning"}}]}\n\ndata: [DONE]\n\n',
+      ),
+    );
+    responseController.close();
+    responseController = null;
+    await waitFor(
+      () => stream.done && !registeredStreamJobs.has(streamId),
+      "native selection complete",
+    );
+    assert.equal(stream.error, null);
+    const completed = await loadViewState(tabId);
+    assert.equal(completed.subview, "summary");
+    assert.equal(completed.streamId, null);
+    assert.equal(completed.summaryText, "Selection summary after reasoning");
+    assert.equal(completed.isSelection, true);
+    assertNoSummarySaved();
+    now = lastActivityMs + STREAM_CLEANUP_MS;
+    for (const listener of alarmListeners) listener({ name: alarmName });
+    assert.equal(activeStreams.has(streamId), false);
+    assert.deepEqual(
+      await loadViewState(tabId),
+      completed,
+      "reopening restores completed selection without attaching to expired stream",
+    );
+  }
+});
+
+test("remote startup failures clean prepared streams without inference or stale pending ids", async () => {
+  for (const kind of ["foreground", "background"]) {
+    for (const failure of ["storage", "revocation", "cancellation"]) {
+      await setup("openrouter", { openrouterBackgroundConsent: true });
+      const calls = intercept();
+      const backingSet = chrome.storage.local.set;
+      const originalClear = chrome.alarms.clear;
+      const cleared = [];
+      const messages = [];
+      let disconnected = false;
+      let preparedId;
+      let failureApplied = false;
+      chrome.alarms.clear = async (name) => {
+        cleared.push(name);
+      };
+      chrome.storage.local.set = async (items) => {
+        await backingSet(items);
+        const state = items[`popupViewState:${tabId}`];
+        if (failureApplied || !state?.streamId) return;
+        failureApplied = true;
+        preparedId = state.streamId;
+        const port = {
+          name: `popup-stream-${preparedId}`,
+          sender,
+          postMessage: (message) => messages.push(message),
+          disconnect: () => {
+            disconnected = true;
+          },
+          onDisconnect: { addListener() {} },
+        };
+        for (const listener of connectListeners) listener(port);
+        if (failure === "storage")
+          throw new Error("Storage unavailable during startup");
+        if (failure === "revocation")
+          await saveRemoteSettings({
+            provider: "openrouter",
+            generationConsent: false,
+          });
+        if (failure === "cancellation")
+          await dispatch("cancel-stream", { streamId: preparedId });
+      };
+      try {
+        if (kind === "foreground") {
+          const result = await dispatch("remote-stream", args());
+          assert.ok(result.error);
+          assert.equal(result.streamId, undefined);
+        } else {
+          await assert.rejects(
+            runBackgroundSummarize(
+              { id: tabId, url },
+              {
+                selectionText:
+                  "A paragraph selected with enough context for summarizing.",
+              },
+            ),
+          );
+        }
+        assert.ok(preparedId);
+        assert.equal(activeStreams.has(preparedId), false);
+        assert.equal(registeredStreamJobs.has(preparedId), false);
+        assert.equal((await loadViewState(tabId))?.streamId ?? null, null);
+        assert.ok(cleared.includes(`stream-cleanup:${preparedId}`));
+        assert.equal(disconnected, true);
+        assert.ok(
+          messages.some(
+            (message) =>
+              message.type === "error" || message.type === "cancelled",
+          ),
+        );
+        assert.equal(calls.length, 0);
+        assertNoSummarySaved();
+        assert.equal(removedPermissionListeners.size, 0);
+      } finally {
+        chrome.storage.local.set = backingSet;
+        chrome.alarms.clear = originalClear;
+      }
+    }
+  }
+});
+
+test("native multi-tab failures resolve with a safe failure notification and no ready result", async () => {
+  const originalQuery = chrome.tabs.query;
+  const originalNotifications = chrome.notifications;
+  chrome.scripting = {
+    executeScript: async () => [
+      { result: chrome.runtime.getManifest().version },
+    ],
+  };
+  chrome.tabs.sendMessage = async () => ({
+    content: "Private article evidence must not appear in errors.",
+    title: "Private article",
+    type: "article",
+  });
+  try {
+    for (const provider of Object.keys(models)) {
+      for (const failure of ["tab-query", "provider-response"]) {
+        await setup(provider, { [`${provider}BackgroundConsent`]: true });
+        const previousState = await loadViewState(tabId);
+        const notifications = [];
+        chrome.notifications = {
+          create(id, options) {
+            notifications.push({ id, ...options });
+          },
+        };
+        chrome.tabs.query = async () => {
+          if (failure === "tab-query")
+            throw new Error("Browser query unavailable.");
+          return [{ id: tabId, url }];
+        };
+        const calls = intercept(({ body }) => {
+          if (body)
+            return new Response(
+              "sensitive-provider-body router-secret code-secret",
+              { status: 503 },
+            );
+        });
+        await assert.doesNotReject(
+          contextMenuListeners[0](
+            { menuItemId: "apogee-summarize-tabs" },
+            { id: tabId, url },
+          ),
+        );
+        const failures = notifications.filter(
+          (notification) => notification.title === "Summarize failed",
+        );
+        assert.equal(failures.length, 1);
+        assert.ok(failures[0].message.length > 0);
+        assert.ok(
+          !notifications.some((notification) =>
+            /ready/i.test(notification.title),
+          ),
+        );
+        const visible = JSON.stringify(notifications);
+        assert.ok(
+          !/sensitive-provider-body|router-secret|code-secret|Private article evidence/.test(
+            visible,
+          ),
+        );
+        assert.equal(
+          calls.filter((call) => call.body).length,
+          failure === "provider-response" ? 1 : 0,
+        );
+        assertNoSummarySaved();
+        assert.deepEqual(await loadViewState(tabId), previousState);
+        assert.equal(removedPermissionListeners.size, 0);
+      }
+    }
+  } finally {
+    chrome.tabs.query = originalQuery;
+    if (originalNotifications === undefined) delete chrome.notifications;
+    else chrome.notifications = originalNotifications;
+  }
+});
+
+test("oversized hidden reasoning cannot persist or announce a multi-tab result", async () => {
+  const originalNotifications = chrome.notifications;
+  chrome.scripting = {
+    executeScript: async () => [
+      { result: chrome.runtime.getManifest().version },
+    ],
+  };
+  chrome.tabs.sendMessage = async () => ({
+    content: "Article evidence with enough text.",
+    title: "Evidence",
+    type: "article",
+  });
+  try {
+    for (const provider of Object.keys(models)) {
+      await setup(provider, { [`${provider}BackgroundConsent`]: true });
+      const previousState = await loadViewState(tabId);
+      const notifications = [];
+      chrome.notifications = {
+        create(id, options) {
+          notifications.push({ id, ...options });
+        },
+      };
+      const frame = new TextEncoder().encode(
+        `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "private-reasoning router-secret code-secret " + "x".repeat(16000) } }] })}\n\n`,
+      );
+      const frames = Math.floor((4 * 1024 * 1024) / frame.byteLength) + 1;
+      const calls = intercept(({ body }) => {
+        if (!body) return;
+        let sent = 0;
+        return new Response(
+          new ReadableStream({
+            pull(controller) {
+              if (sent++ < frames) controller.enqueue(frame);
+              else
+                controller.enqueue(
+                  new TextEncoder().encode(
+                    'data: {"choices":[{"delta":{"content":"not a completed summary"}}]}\n\ndata: [DONE]\n\n',
+                  ),
+                );
+            },
+          }),
+        );
+      });
+      await assert.rejects(summarizeMultiTab([{ id: tabId, url }]), (error) => {
+        assert.match(error.message, /size limit/i);
+        assert.ok(
+          !/private-reasoning|router-secret|code-secret/.test(error.message),
+        );
+        return true;
+      });
+      assertNoSummarySaved();
+      assert.deepEqual(await loadViewState(tabId), previousState);
+      assert.ok(
+        !notifications.some((notification) =>
+          /ready/i.test(notification.title),
+        ),
+      );
+      assert.equal(calls.filter((call) => call.body).length, 1);
+      assert.equal(removedPermissionListeners.size, 0);
+    }
+  } finally {
+    if (originalNotifications === undefined) delete chrome.notifications;
+    else chrome.notifications = originalNotifications;
+  }
 });

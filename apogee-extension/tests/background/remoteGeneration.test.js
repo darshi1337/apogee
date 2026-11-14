@@ -350,3 +350,34 @@ test("remote payload validation rejects configuration overrides at either bounda
       /Invalid remote generation/,
     );
 });
+
+test("B2 purposes require independent grants and pin parent execution", async () => {
+  for (const purpose of ["background", "multi-tab", "suggestions"]) {
+    install();
+    await assert.rejects(
+      createRemoteJobContext({ purpose }),
+      /authorization changed/,
+    );
+    const field =
+      purpose === "suggestions"
+        ? "openrouterSuggestionsConsent"
+        : "openrouterBackgroundConsent";
+    install({ [field]: true });
+    const context = await createRemoteJobContext({
+      purpose,
+      expected: { provider: "openrouter", model: "test/free", revision: 3 },
+    });
+    assert.equal(context.revision, 3);
+    removed.emit({ data_collection: ["websiteContent"] });
+    assert.equal(context.signal.aborted, true);
+    await assert.rejects(context.assertActive());
+    context.dispose();
+    install({ [field]: true });
+    await assert.rejects(
+      createRemoteJobContext({
+        purpose,
+        expected: { provider: "openrouter", model: "old/model", revision: 3 },
+      }),
+    );
+  }
+});

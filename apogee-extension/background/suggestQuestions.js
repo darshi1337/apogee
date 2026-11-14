@@ -8,9 +8,17 @@ import {
   transformersChatStream,
 } from "../lib/engines/transformersEngine.js";
 import { getSettings } from "../lib/storage/settings.js";
-import { shouldPersist } from "../lib/storage/pageCache.js";
+import {
+  shouldPersist,
+  persistSuggestedQuestionsIfAllowed,
+} from "../lib/storage/pageCache.js";
 import { OFFSCREEN_WORK_TIMEOUT_MS, PROVIDERS } from "../lib/constants.js";
 import { REMOTE_PROVIDER_IDS } from "../lib/engines/remoteModels.js";
+import {
+  createRemoteJobContext,
+  remoteChatStream,
+  awaitRemoteStep,
+} from "./remoteGeneration.js";
 import {
   OLLAMA_PROVIDER,
   LLAMACPP_PROVIDER,
@@ -144,7 +152,9 @@ export async function runSuggestQuestionsJob(
     customInstructions = "",
     focusKeyword = "",
   } = payload || {};
-  if (REMOTE_PROVIDER_IDS.includes(providerType)) return;
+  const remote = REMOTE_PROVIDER_IDS.includes(providerType);
+  if (remote) return runRemoteSuggestions(payload);
+
   if (!trackBackgroundJob(promptsCacheKey)) return;
   startKeepAlive();
 
@@ -252,6 +262,85 @@ export async function runSuggestQuestionsJob(
       // intent: best-effort, ignore if already closed/unavailable
     }
   } finally {
+    untrackBackgroundJob(promptsCacheKey);
+  }
+}
+
+async function runRemoteSuggestions(payload) {
+  const { promptsCacheKey, execution, summary } = payload;
+  if (
+    !execution ||
+    !promptsCacheKey ||
+    typeof summary !== "string" ||
+    !summary.trim()
+  )
+    return;
+  if (!trackBackgroundJob(promptsCacheKey)) return;
+  let context;
+  try {
+    context = await createRemoteJobContext({
+      purpose: "suggestions",
+      expected: execution,
+    });
+    startKeepAlive();
+    const step = (promise) => awaitRemoteStep(promise, context.signal);
+    const settings = context.settings;
+    const prompt = buildSuggestQuestionsPrompt(
+      payload.title || "",
+      payload.url || "",
+      summary.slice(0, context.chunkChars),
+      settings.customInstructions || "",
+      payload.focusKeyword || "",
+    );
+    const language = await step(
+      resolveEffectiveLanguage(summary, settings.summaryLanguage),
+    );
+    const translate = opusTranslateFnFor(settings.translationEngine);
+    const translateFn = translate
+      ? async (...args) => {
+          await context.assertActive();
+          const result = await step(translate(...args));
+          await context.assertActive();
+          return result;
+        }
+      : undefined;
+    const text = await step(
+      generateInTargetLanguage(
+        (prompt, options) => remoteChatStream(context, prompt, options),
+        prompt,
+        language,
+        { signal: context.signal, translateFn },
+      ),
+    );
+    const questions = parseSuggestedQuestions(text);
+    await context.assertActive();
+    if (payload.persist !== false) {
+      try {
+        await persistSuggestedQuestionsIfAllowed(
+          promptsCacheKey,
+          questions,
+          payload.sourceUrls || [payload.persistUrl || payload.url || ""],
+          { assertAuthorized: context.assertActive },
+        );
+      } catch {
+        await context.assertActive();
+      }
+    }
+    await context.assertActive();
+    await chrome.runtime
+      .sendMessage({
+        type: "suggested-prompts-ready",
+        promptsCacheKey,
+        questions,
+        status: questions.length
+          ? SKIP_LOOKUP_STATUS.OK
+          : SKIP_LOOKUP_STATUS.EMPTY,
+      })
+      .catch(() => {});
+  } catch {
+    // A separately authorized child job cannot turn a completed summary into a failure.
+  } finally {
+    context?.dispose();
     untrackBackgroundJob(promptsCacheKey);
   }
 }

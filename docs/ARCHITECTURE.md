@@ -2,11 +2,11 @@
 
 Apogee is an offline-first browser extension. Local generation uses in-browser AI engines or a loopback Ollama/llama.cpp server. Explicitly selected remote generation sends input to the selected provider after separate consent.
 
-## Remote-provider generation boundary (B1)
+## Remote-provider generation boundary (B2)
 
 Catalog and generation have separate consent controls. Catalog requests target `https://openrouter.ai/api/v1/models` and `https://opencode.ai/inference/v1/models`. Foreground Summary and Ask requests target `https://openrouter.ai/api/v1/chat/completions` and `https://opencode.ai/inference/openai/v1/chat/completions`. Only the worker credential helper reads saved keys; public settings and diagnostics are redacted. Credentials go only to their matching fixed provider origin. Firefox requires optional `authenticationInfo`, `websiteContent`, `browsingActivity`, and `personalCommunications` data permissions, requested from the generation consent gesture.
 
-The worker pins nonsecret execution settings and validates consent, permission, selected model, and revision before sending each request. Requests can contain page/selected/pasted/extracted uploaded text, title and URL, questions, instructions, and intermediate generated text. Map/reduce and language handling may require multiple requests. Revocation aborts requests and blocks future transmissions, but cannot recall data already sent; provider and upstream model policies apply. OpenRouter requires fresh free-only catalog eligibility and sets `allow_fallbacks: false`. OpenCode Console / Go uses paid credits/Go models; this client preset excludes free models. Both fixed origins are in the source and Firefox CSP and covered by existing all-sites host access. Remote providers never enter automatic selection or fallback. B1 rejects remote background/context-menu runs, multi-tab synthesis, and automatic suggestions with a safe explanation.
+The worker pins nonsecret execution settings and validates consent, permission, selected model, and revision before sending each request. Requests can contain page/selected/pasted/extracted uploaded text, title and URL, questions, instructions, and intermediate generated text. Map/reduce and language handling may require multiple requests. Revocation aborts requests and blocks future transmissions, but cannot recall data already sent; provider and upstream model policies apply. OpenRouter requires fresh free-only catalog eligibility and sets `allow_fallbacks: false`. Requests also set `reasoning.exclude: true`: models can reason internally, but hidden reasoning is omitted from the returned stream so it does not consume the 4 MiB response budget before an answer. Response and event-size limits remain enforced. OpenCode Console / Go uses paid credits/Go models; this client preset excludes free models. Both fixed origins are in the source and Firefox CSP and covered by existing all-sites host access. Background/context-menu and selected-tab summaries require an additional default-off provider consent and an explicit user start. Sending generated summary text for follow-up questions requires a separate default-off suggestions consent. Automatic suggestions follow only a newly requested summary; restoring a summary never starts remote generation. Remote providers never enter automatic selection or fallback.
 
 The Activity & Privacy Audit badge describes enabled network features, not a measured traffic log. Catalog consent plus a saved key reads **Local inference + remote model catalog**; separate generation consent adds **Opt-in remote generation + remote model catalog**. SponsorBlock is appended when enabled. The audit uses redacted `getRemoteSettings()` capability state and reports catalog and generation separately.
 
@@ -110,7 +110,7 @@ flowchart TD
 
     host -.->|"download once and cache locally"| HF
     ROUTER -.->|"video pages only"| APIS
-    ROUTER <-->|"explicit foreground remote Summary / Ask"| REMOTE
+    ROUTER <-->|"explicitly authorized remote generation"| REMOTE
 
     classDef local fill:#e6f4ea,stroke:#1e7e34,color:#12351f
     classDef remote fill:#fff4e0,stroke:#c2680a,color:#4a2905
@@ -207,7 +207,7 @@ When you click a summary bullet in Chromium browsers, Apogee highlights the exac
 
 - **Local File Parsing**: Extension code parses PDF and DOCX files picked or dropped into the popup. It checks DOCX ZIP entries for valid structure. It rejects encrypted archives.
 
-  Original document bytes stay local. Extracted text can reach a remote provider after generation consent and an explicit foreground action. Picked files cap at 50 MB. Pasted, selected, and plain-text input caps at 100,000 characters, with a truncation note.
+  Original document bytes stay local. Extracted text can reach a remote provider after generation consent and an explicit user action. Picked files cap at 50 MB. Pasted, selected, and plain-text input caps at 100,000 characters, with a truncation note.
 
 - **Memory Limits & Out-Of-Memory (OOM) Resilience**: In-browser models catch WebGPU buffer allocation failures and WASM memory limits on their own. They call `resetEngineState` and fall back to bounded `chunkTextOverview` sampling. Runs stay stable under tight memory.
 

@@ -36,6 +36,7 @@ test("activateSelectionCapture handles missing tab or chrome gracefully", async 
 test("activateSelectionCapture injects script with timeout parameter", async () => {
   let executed = null;
   globalThis.chrome = {
+    runtime: { sendMessage: async () => ({ grant: null }) },
     scripting: {
       executeScript: async (options) => {
         executed = options;
@@ -47,7 +48,7 @@ test("activateSelectionCapture injects script with timeout parameter", async () 
     const success = await activateSelectionCapture({ id: 123 }, 30000);
     assert.strictEqual(success, true);
     assert.strictEqual(executed.target.tabId, 123);
-    assert.deepStrictEqual(executed.args, [MIN_SELECTION_LENGTH, 30000]);
+    assert.deepStrictEqual(executed.args, [MIN_SELECTION_LENGTH, 30000, null]);
   } finally {
     delete globalThis.chrome;
   }
@@ -56,6 +57,7 @@ test("activateSelectionCapture injects script with timeout parameter", async () 
 test("activateSelectionCapture defaults to SELECTION_CAPTURE_TIMEOUT_MS", async () => {
   let executed = null;
   globalThis.chrome = {
+    runtime: { sendMessage: async () => ({ grant: null }) },
     scripting: {
       executeScript: async (options) => {
         executed = options;
@@ -69,6 +71,7 @@ test("activateSelectionCapture defaults to SELECTION_CAPTURE_TIMEOUT_MS", async 
     assert.deepStrictEqual(executed.args, [
       MIN_SELECTION_LENGTH,
       SELECTION_CAPTURE_TIMEOUT_MS,
+      null,
     ]);
   } finally {
     delete globalThis.chrome;
@@ -78,6 +81,7 @@ test("activateSelectionCapture defaults to SELECTION_CAPTURE_TIMEOUT_MS", async 
 test("injected capture function auto-tears-down on timeout and clears guard", async () => {
   let injectedOptions = null;
   globalThis.chrome = {
+    runtime: { sendMessage: async () => ({ grant: null }) },
     scripting: {
       executeScript: async (options) => {
         injectedOptions = options;
@@ -139,6 +143,7 @@ test("injected capture function sends message on valid selection and tears down"
   let injectedOptions = null;
   const sent = [];
   globalThis.chrome = {
+    runtime: { sendMessage: async () => ({ grant: null }) },
     scripting: {
       executeScript: async (options) => {
         injectedOptions = options;
@@ -218,6 +223,7 @@ test("injected capture function sends message on valid selection and tears down"
 test("injected capture function allows re-entry and resets prior capture", async () => {
   let injectedOptions = null;
   globalThis.chrome = {
+    runtime: { sendMessage: async () => ({ grant: null }) },
     scripting: {
       executeScript: async (options) => {
         injectedOptions = options;

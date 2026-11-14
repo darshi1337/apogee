@@ -112,6 +112,8 @@ export async function getRemoteSettings() {
       // consent: generation consent is a subset and must not appear enabled.
       generationConsent:
         consent && settings[`${provider}GenerationConsent`] === true,
+      backgroundConsent: settings[`${provider}BackgroundConsent`] === true,
+      suggestionsConsent: settings[`${provider}SuggestionsConsent`] === true,
       generationRevision: settings[`${provider}GenerationRevision`],
       hasApiKey,
       model: settings[`${provider}Model`],
@@ -143,6 +145,8 @@ export async function saveRemoteSettings(payload) {
           "apiKey",
           "consent",
           "generationConsent",
+          "backgroundConsent",
+          "suggestionsConsent",
           "model",
         ].includes(key),
     )
@@ -163,6 +167,9 @@ export async function saveRemoteSettings(payload) {
     typeof payload.generationConsent !== "boolean"
   )
     throw new Error("Invalid generation consent.");
+  for (const field of ["backgroundConsent", "suggestionsConsent"])
+    if (has(field) && typeof payload[field] !== "boolean")
+      throw new Error("Invalid remote consent.");
   if (
     has("model") &&
     payload.model !== "" &&
@@ -178,6 +185,8 @@ export async function saveRemoteSettings(payload) {
       has("apiKey") ||
       has("consent") ||
       has("generationConsent") ||
+      has("backgroundConsent") ||
+      has("suggestionsConsent") ||
       has("model"),
   });
   const operation = pendingSave
@@ -208,6 +217,27 @@ export async function saveRemoteSettings(payload) {
         throw new Error(
           "Remote consent is required before enabling remote generation.",
         );
+      const nextGenerationConsent = has("generationConsent")
+        ? payload.generationConsent
+        : settings[`${provider}GenerationConsent`];
+      if (
+        nextConsent &&
+        !nextGenerationConsent &&
+        ["backgroundConsent", "suggestionsConsent"].some(
+          (field) => payload[field] === true,
+        )
+      )
+        throw new Error(
+          "Generation consent is required before enabling additional remote generation.",
+        );
+      for (const [field, suffix] of [
+        ["backgroundConsent", "BackgroundConsent"],
+        ["suggestionsConsent", "SuggestionsConsent"],
+      ]) {
+        if (!nextConsent || !nextGenerationConsent)
+          settings[`${provider}${suffix}`] = false;
+        else if (has(field)) settings[`${provider}${suffix}`] = payload[field];
+      }
       if (has("model") && payload.model) {
         const cache = await readCatalog(provider);
         if (
@@ -241,7 +271,14 @@ export async function saveRemoteSettings(payload) {
         settings[`${provider}Model`] = "";
       await updateRemoteCredentialsSettings(
         Object.fromEntries(
-          ["ApiKey", "Consent", "Model", "GenerationConsent"].map((suffix) => [
+          [
+            "ApiKey",
+            "Consent",
+            "Model",
+            "GenerationConsent",
+            "BackgroundConsent",
+            "SuggestionsConsent",
+          ].map((suffix) => [
             `${provider}${suffix}`,
             settings[`${provider}${suffix}`],
           ]),

@@ -2,7 +2,7 @@
 
 Apogee uses local generation by default: page content, summaries, and answers stay on your device through WebGPU, WebAssembly, or local loopback to Ollama or llama.cpp (`http://127.0.0.1`). If you separately enable and explicitly select remote generation, the selected provider receives your input and returns the generated response.
 
-The details below state which network requests happen and what stays on disk. B1 supports optional remote catalogs and explicit foreground Summary and Ask generation. Catalog access and generation require separate consent. There is no automatic remote selection or fallback.
+The details below state which network requests happen and what stays on disk. B2 supports optional remote catalogs, explicit Summary and Ask, and separately authorized background and selected-tab summaries. Catalog access and generation require separate consent. There is no automatic remote selection or fallback.
 
 ## Where Inference Happens
 
@@ -52,7 +52,7 @@ Apogee makes only a small set of outbound network requests:
 
   OpenRouter uses the `https://openrouter.ai/api/v1` API base; its free preset requires fresh catalog validation with all advertised prices explicitly zero. Generation sets `allow_fallbacks: false`. OpenCode Console / Go uses `https://opencode.ai/inference/openai/v1` for chat and the separate catalog endpoint above. It uses paid credits/Go access; the client excludes free models from this preset. Catalog results are metadata, not model weights or executable code.
 
-- **Optional Remote Generation (B1)**: After separate generation consent, explicitly choosing a remote provider and clicking Summary or Ask sends page text, selected text, pasted text, or locally extracted uploaded-file text, the title and URL when present, the question, custom instructions, and generated intermediate text needed for the job. Chat requests go only to `https://openrouter.ai/api/v1/chat/completions` or `https://opencode.ai/inference/openai/v1/chat/completions`, with the matching saved credential. Long inputs can require multiple map/reduce calls; language handling can require additional calls. No automatic remote selection or fallback occurs. Remote background/context-menu runs, multi-tab synthesis, and automatic suggestions are disabled and return a safe explanation.
+- **Optional Remote Generation (B2)**: After separate generation consent, explicitly choosing a remote provider and clicking Summary or Ask sends page text, selected text, pasted text, or locally extracted uploaded-file text, the title and URL when present, the question, custom instructions, and generated intermediate text needed for the job. Chat requests go only to `https://openrouter.ai/api/v1/chat/completions` or `https://opencode.ai/inference/openai/v1/chat/completions`, with the matching saved credential. Long inputs can require multiple map/reduce calls; language handling can require additional calls. No automatic remote selection or fallback occurs. Background/context-menu and selected-tab summaries require an additional default-off provider consent and an explicit user start. Sending generated summary text for follow-up questions requires a separate default-off suggestions consent. Automatic suggestions follow only a newly requested summary; restoring a summary never starts remote generation. Remote providers never enter automatic selection or fallback.
 
   Firefox requests optional `authenticationInfo`, `websiteContent`, `browsingActivity`, and `personalCommunications` data permissions from the generation consent gesture. Consent and permission are checked before transmission. Revoking consent or permission stops future transmissions and aborts active requests, but cannot recall data already sent. The selected provider and any upstream model provider handle transmitted data under their own policies. Local history exclusions control storage; they do not prevent an explicitly requested remote send.
 
@@ -72,7 +72,7 @@ PDF text extraction runs fully client-side with `pdf.js`, bundled directly into 
 
 The popup parses DOCX files picked or dropped into it locally from their ZIP/XML structure. No document-conversion service or heavy parser dep takes part. Apogee also reads text, Markdown, JSON, and HTML files locally, plus pasted text. Picked files cap at 50 MB.
 
-Pasted, selected, or plain-text input caps at 100,000 characters. A note tells you when truncation happens. These inputs reach the selected local engine or, after separate remote generation consent and an explicit foreground action, the selected remote provider. Original file bytes stay local; extracted text can be transmitted.
+Pasted, selected, or plain-text input caps at 100,000 characters. A note tells you when truncation happens. These inputs reach the selected local engine or, after separate remote generation consent and an explicit user action, the selected remote provider. Original file bytes stay local; extracted text can be transmitted.
 
 ## Local Ollama Connection Architecture
 
@@ -124,7 +124,7 @@ Apogee asks for a tight set of browser permissions to enforce security sandboxes
 
   The popup reads local files and pasted text only after you pick or give them there.
 
-- **`storage`**: It holds your prefs, provider keys and separate consent choices, plus the local cache stated above. Provider keys are local credentials, sent only to their fixed provider origin for explicitly requested authenticated catalog refresh or authorized foreground generation.
+- **`storage`**: It holds your prefs, provider keys and separate consent choices, plus the local cache stated above. Provider keys are local credentials, sent only to their fixed provider origin for explicitly requested authenticated catalog refresh or authorized generation.
 
 - **`tabs`**: It lets the side panel see which tab is active so it re-renders on tab switches. It reads only the active tab id, URL, and title. It reads no browsing history.
 

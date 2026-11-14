@@ -76,9 +76,9 @@ Content
 
 ## Development Notes
 
-- Stage A supports explicit opt-in OpenRouter/OpenCode catalog setup only. Do not enable remote summary or Ask inference before maintainer security review. Never select or fall back to a remote provider automatically.
+- B2 supports opt-in remote Summary and Ask plus separately consented, user-started background and selected-tab summaries. Suggestions require separate consent to send summary text. Never select or fall back to remote providers automatically.
 
-- Do not send page content, transcripts, PDFs, questions, or summaries to external servers in Stage A. Send provider credentials only to their fixed matching origin, with explicit setup consent and Firefox authentication data permission where applicable. Catalog metadata refresh is network traffic. With remote setup enabled the privacy audit reads Local inference + remote model catalog; it does not imply remote prompt inference.
+- Keep all remote generation in the worker-owned authorization boundary. Check consent, permissions, pinned provider/model and revision before transmission and persistence. Popup restoration must never trigger remote generation. Credentials go only to fixed matching origins and remain redacted from public settings.
 
 - Keep inference compatible with the existing WebGPU, WebAssembly, Ollama, and llama.cpp architecture.
 
