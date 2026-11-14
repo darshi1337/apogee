@@ -17,6 +17,7 @@ import {
 } from "../lib/util/streamState.js";
 import { chunkBySections } from "../lib/summarize/sections.js";
 import { UserFacingError } from "../lib/util/userError.js";
+import { t } from "../lib/util/i18n.js";
 import { hasHostPermissions } from "../lib/util/permissions.js";
 import { disconnectIfUnknownPort } from "../lib/util/streamBroadcast.js";
 import { ensureLoopbackCorsRule } from "../lib/util/loopbackCors.js";
@@ -122,7 +123,7 @@ import {
   takeExpiredStreamJob,
   registerStreamJob,
   scheduleStreamCleanup,
-  expireStreamForCleanup,
+  handleStreamCleanupAlarm,
   STREAM_CLEANUP_PREFIX,
   EXPIRED_STREAM_ERROR,
   startKeepAlive,
@@ -773,7 +774,7 @@ async function startTransformersStream(
 // text as page data so the generic extraction path is skipped.
 function buildSelectionPageData(tab, selection) {
   return {
-    title: tab.title || "Selected text",
+    title: tab.title || t("selectedText"),
     url: tab.url,
     content: selection,
     type: "generic",
@@ -1497,7 +1498,7 @@ if (typeof chrome !== "undefined" && chrome.alarms?.onAlarm?.addListener) {
     }
     if (alarm.name.startsWith(STREAM_CLEANUP_PREFIX)) {
       const streamId = alarm.name.slice(STREAM_CLEANUP_PREFIX.length);
-      expireStreamForCleanup(streamId);
+      handleStreamCleanupAlarm(streamId);
     }
   });
 }

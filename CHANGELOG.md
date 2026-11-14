@@ -372,6 +372,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Bump node-forge from 1.4.2 to 1.4.3 in /apogee-extension (#658) ([4912091](https://github.com/darshi1337/apogee/commit/49120915864f8dc6400ddd1a5496637fe6b453e2))
 - Keep the worker awake until the summary save ends (#659) ([ea6af1b](https://github.com/darshi1337/apogee/commit/ea6af1babc2582f4a672fee0857455064eb5aadc))
 - Keep the model document open while a run starts (#662) ([131f519](https://github.com/darshi1337/apogee/commit/131f51973dd8630509cf31830071a1f73c00a52e))
+- Localize dynamic popup strings (#641) (#665) ([91eac2f](https://github.com/darshi1337/apogee/commit/91eac2ff1c25f49b278e5a47949f3ce8d4dfa28d))
+- Bump vite in /apogee-extension in the npm-minor-patch group (#675) ([313e4bd](https://github.com/darshi1337/apogee/commit/313e4bd4b40103e3ff9a95cfc7c2528d08555923))
+- Bump reviewdog/action-actionlint (#676) ([f9b8e87](https://github.com/darshi1337/apogee/commit/f9b8e87d40db6ebd4e18b19a41511d47621259f6))
+- Avoid rescheduling stream cleanup on every chunk (#640) (#677) ([5f9e3ca](https://github.com/darshi1337/apogee/commit/5f9e3cabaf60a0b8f0df9ea61a35bece13791ac6))
 
 ## [0.2.1] - 2026-08-19
 

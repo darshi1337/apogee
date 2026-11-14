@@ -67,7 +67,7 @@ import {
   formatDiagnosticSettings,
   formatDiagnosticsMarkdown,
 } from "../lib/util/diagnostics.js";
-import { errorHelpUrl, ERROR_HELP_LABEL } from "../lib/util/errorHelp.js";
+import { errorHelpUrl } from "../lib/util/errorHelp.js";
 import { toUserMessage, UserFacingError } from "../lib/util/userError.js";
 import {
   formatTimeSaved,
@@ -256,11 +256,9 @@ function setSidePanelButtons({ panelOpen, available }) {
   for (const button of openSidePanelBtns) {
     button.classList.toggle("hidden", !showClose && !showOpen);
     button.dataset.sidePanelOpen = String(panelOpen);
-    button.setAttribute(
-      "aria-label",
-      showClose ? "Close" : "Open in side panel",
-    );
-    button.title = showClose ? "Close" : "Open in side panel";
+    const label = showClose ? t("closeSidePanel") : t("openInSidePanel");
+    button.setAttribute("aria-label", label);
+    button.title = label;
     button
       .querySelector(".side-panel-icon")
       ?.classList.toggle("hidden", !showOpen);
@@ -453,16 +451,14 @@ async function updateResummarizeHint(settings) {
     return;
   }
   if (languageStale && engineStale) {
-    resummarizeHintText.textContent =
-      "The summary language and translation engine changed. Re-summarize to apply.";
+    resummarizeHintText.textContent = t("resummarizeLanguageAndEngine");
   } else if (engineStale) {
-    resummarizeHintText.textContent =
-      "This summary used a different translation engine. Re-summarize to apply.";
+    resummarizeHintText.textContent = t("resummarizeEngine");
   } else {
     resummarizeHintText.textContent =
       target === "auto"
-        ? "This summary isn't in the page's original language. Re-summarize to apply."
-        : `This summary isn't in ${LANGUAGE_LABELS.get(target) || target}. Re-summarize to apply.`;
+        ? t("resummarizeOriginalLanguage")
+        : t("resummarizeLanguage", [LANGUAGE_LABELS.get(target) || target]);
   }
   resummarizeHint.classList.remove("hidden");
 }
@@ -876,8 +872,8 @@ async function updatePrivacyAuditUI() {
     });
 
     const zeroEgress = summary.networkEgress?.zeroEgress;
-    const msg = summary.networkEgress?.statusMessage || "100% local";
-    networkEl.textContent = msg;
+    const statusKey = AUDIT_EGRESS_KEYS[summary.networkEgress?.status];
+    networkEl.textContent = t(statusKey || "auditLocal");
     networkEl.className = `audit-badge ${zeroEgress ? "success" : "info"}`;
 
     countEl.textContent = `${summary.pageAccessCount || 0}`;
@@ -886,20 +882,27 @@ async function updatePrivacyAuditUI() {
     listEl.innerHTML = "";
     const logs = summary.recentAccesses || [];
     if (logs.length === 0) {
-      listEl.innerHTML = '<p class="audit-empty">No page access yet.</p>';
+      const empty = document.createElement("p");
+      empty.className = "audit-empty";
+      empty.textContent = t("noAccessYet");
+      listEl.appendChild(empty);
     } else {
       for (const entry of logs) {
         const item = document.createElement("div");
         item.className = "audit-log-item";
         const titleSpan = document.createElement("span");
         titleSpan.className = "audit-log-title";
-        titleSpan.textContent = entry.title || entry.url || "Untitled";
+        titleSpan.textContent = entry.title || entry.url || t("untitled");
         const metaSpan = document.createElement("span");
         metaSpan.className = "audit-log-meta";
         const timeStr = entry.timestamp
           ? new Date(entry.timestamp).toLocaleTimeString()
           : "";
-        metaSpan.textContent = `${entry.type || "page"} • ${entry.contentLength || 0} chars • ${timeStr}`;
+        metaSpan.textContent = t("auditAccessDetails", [
+          auditTypeLabel(entry.type),
+          String(entry.contentLength || 0),
+          timeStr,
+        ]);
         item.appendChild(titleSpan);
         item.appendChild(metaSpan);
         listEl.appendChild(item);
@@ -934,9 +937,32 @@ const EXTRACTOR_INFO = {
   lobsters: { label: "Lobste.rs", icon: "globe" },
   mastodon: { label: "Mastodon", icon: "globe" },
   stackoverflow: { label: "Stack Overflow", icon: "globe" },
-  "multi-tab": { label: "Multi-Tab", icon: "lines" },
+  "multi-tab": { label: t("multiTabExtractor"), icon: "lines" },
   pdf: { label: "PDF", icon: "filetext" },
 };
+
+const AUDIT_EGRESS_KEYS = {
+  local: "auditLocal",
+  localSponsorBlock: "auditLocalSponsorBlock",
+  remoteCatalog: "auditRemoteCatalog",
+  remoteCatalogSponsorBlock: "auditRemoteCatalogSponsorBlock",
+  remoteGeneration: "auditRemoteGeneration",
+  remoteGenerationSponsorBlock: "auditRemoteGenerationSponsorBlock",
+};
+
+const AUDIT_TYPE_KEYS = {
+  generic: "auditPage",
+  article: "auditTypeArticle",
+  selection: "auditTypeSelection",
+  "multi-tab": "multiTabExtractor",
+};
+
+// Audit entries store machine type ids; the log shows a localized label.
+function auditTypeLabel(type) {
+  const key = AUDIT_TYPE_KEYS[type];
+  if (key) return t(key);
+  return EXTRACTOR_INFO[type]?.label || t("auditPage");
+}
 
 // Gate on type support (#319): the input is hidden for video, discussion,
 // and multi-tab pages, but a value typed before the type resolves (or left
@@ -1066,7 +1092,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     if (p.kind === "download") {
       clearTimeout(modelProgressHideTimer);
       modelProgress?.classList.remove("hidden");
-      modelProgressText.textContent = p.text || "Loading model...";
+      modelProgressText.textContent = p.text || t("loadingModel");
       if (typeof p.progress === "number") {
         const pct = Math.round(p.progress * 100);
         modelProgressPercent.textContent = `${pct}%`;
@@ -1108,49 +1134,51 @@ chrome.runtime.onMessage.addListener((message, sender) => {
   }
 });
 
-const SUMMARIZE_VERBS = [
-  "Summarizing",
-  "TL;DRing",
-  "Distilling",
-  "Digesting",
-  "Condensing",
-  "Skimming",
-  "Boiling down",
-  "Synthesizing",
-  "Cliffnoting",
-  "Compressing",
-  "Untangling",
-  "Cutting the fluff",
-  "Getting to the point",
-  "Extracting the gist",
-  "Orbiting",
-  "Zooming out",
-  "Paraphrasing",
-  "Recapping",
-  "Abridging",
-  "Unpacking",
-  "Parsing",
-  "Sifting through it",
-  "Making sense of it",
-  "Connecting the dots",
-  "Wrapping it up",
-  "Simplifying",
-  "Whittling down",
-  "Pruning",
-  "Refining",
-  "Crunching the text",
-  "Chewing it over",
-  "Sketching an outline",
-  "Launching",
-  "Stargazing",
-  "Charting a course",
-  "Reaching apogee",
-  "Plotting a trajectory",
-  "Navigating",
+const SUMMARIZE_VERB_KEYS = [
+  "summaryProgressSummarizing",
+  "summaryProgressTlDring",
+  "summaryProgressDistilling",
+  "summaryProgressDigesting",
+  "summaryProgressCondensing",
+  "summaryProgressSkimming",
+  "summaryProgressBoilingDown",
+  "summaryProgressSynthesizing",
+  "summaryProgressCliffnoting",
+  "summaryProgressCompressing",
+  "summaryProgressUntangling",
+  "summaryProgressCuttingTheFluff",
+  "summaryProgressGettingToThePoint",
+  "summaryProgressExtractingTheGist",
+  "summaryProgressOrbiting",
+  "summaryProgressZoomingOut",
+  "summaryProgressParaphrasing",
+  "summaryProgressRecapping",
+  "summaryProgressAbridging",
+  "summaryProgressUnpacking",
+  "summaryProgressParsing",
+  "summaryProgressSiftingThroughIt",
+  "summaryProgressMakingSenseOfIt",
+  "summaryProgressConnectingTheDots",
+  "summaryProgressWrappingItUp",
+  "summaryProgressSimplifying",
+  "summaryProgressWhittlingDown",
+  "summaryProgressPruning",
+  "summaryProgressRefining",
+  "summaryProgressCrunchingTheText",
+  "summaryProgressChewingItOver",
+  "summaryProgressSketchingAnOutline",
+  "summaryProgressLaunching",
+  "summaryProgressStargazing",
+  "summaryProgressChartingACourse",
+  "summaryProgressReachingApogee",
+  "summaryProgressPlottingATrajectory",
+  "summaryProgressNavigating",
 ];
 
 function randomSummarizeVerb() {
-  return SUMMARIZE_VERBS[Math.floor(Math.random() * SUMMARIZE_VERBS.length)];
+  const key =
+    SUMMARIZE_VERB_KEYS[Math.floor(Math.random() * SUMMARIZE_VERB_KEYS.length)];
+  return t(key);
 }
 
 function setLoadingIndicator(element, label) {
@@ -1218,7 +1246,7 @@ function resetQuestionCards() {
 }
 
 function setSuggestedQuestions(questions) {
-  questionHeading.textContent = "Suggested Prompts";
+  questionHeading.textContent = t("suggestedPrompts");
   promptsCloseBtn.classList.remove("hidden");
   const container = document.getElementById("questionContainer");
   container.innerHTML = "";
@@ -1231,13 +1259,13 @@ function setSuggestedQuestions(questions) {
 }
 
 function setSuggestedQuestionsLoading() {
-  questionHeading.textContent = "Suggested Prompts";
+  questionHeading.textContent = t("suggestedPrompts");
   const container = document.getElementById("questionContainer");
   container.innerHTML = "";
   const btn = document.createElement("button");
   btn.className = "prompt-card";
   btn.disabled = true;
-  btn.textContent = "Generating suggested prompts...";
+  btn.textContent = t("generatingSuggestedPrompts");
   container.appendChild(btn);
 }
 
@@ -1311,9 +1339,9 @@ function buildPastSummaryCard(entry, text) {
 
   const toggleBtn = makeButton(
     "past-summary-toggle",
-    "Full summary",
+    t("fullSummary"),
     "chevron",
-    "Show or hide full summary",
+    t("toggleFullSummary"),
   );
   toggleBtn.setAttribute("aria-expanded", "false");
   card.append(toggleBtn, textWrap);
@@ -1332,7 +1360,7 @@ function buildPastSummaryCard(entry, text) {
     toggleExpanded();
   });
 
-  const copyMdBtn = makeButton("copy-btn", "Copy as Markdown", "filetext");
+  const copyMdBtn = makeButton("copy-btn", t("copyAsMarkdown"), "filetext");
   copyMdBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     copyToClipboard(
@@ -1345,7 +1373,7 @@ function buildPastSummaryCard(entry, text) {
     );
   });
 
-  const copyJsonBtn = makeButton("copy-btn", "Copy as JSON", "download");
+  const copyJsonBtn = makeButton("copy-btn", t("copyAsJson"), "download");
   copyJsonBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
     try {
@@ -1364,7 +1392,7 @@ function buildPastSummaryCard(entry, text) {
   // card states: inline in the row when collapsed, pinned top-right via
   // CSS when the card is expanded. Clicking anywhere else on the card
   // toggles it open (see the card click handler above).
-  const deleteBtn = makeButton("delete-btn", "Delete this summary", "trash");
+  const deleteBtn = makeButton("delete-btn", t("deleteSummary"), "trash");
   deleteBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
     pastSummariesController.invalidate({ clearCache: true });
@@ -1405,7 +1433,7 @@ function showPastSummariesEmpty() {
   pastSummariesList.querySelector(".past-summaries-empty")?.remove();
   const msg = document.createElement("div");
   msg.className = "past-summaries-empty";
-  msg.textContent = "No matching summaries.";
+  msg.textContent = t("noMatchingSummaries");
   pastSummariesList.appendChild(msg);
 }
 
@@ -1526,7 +1554,7 @@ async function copyToClipboard(text, btn) {
     console.error("Copy to clipboard failed:", err);
     return false;
   }
-  announce("Copied to clipboard.");
+  announce(t("copiedToClipboard"));
   const original = btn.innerHTML;
   btn.innerHTML = icon("check");
   clearTimeout(btn._copyResetTimer);
@@ -1637,7 +1665,7 @@ resummarizeBtn?.addEventListener("click", () => summarizeActivePage());
 function createCancelControl(btn, getActiveId, setActiveId) {
   const show = (streamId) => {
     setActiveId(streamId);
-    btn.textContent = "Cancel";
+    btn.textContent = t("cancel");
     btn.disabled = false;
     btn.classList.remove("hidden");
   };
@@ -1651,7 +1679,7 @@ function createCancelControl(btn, getActiveId, setActiveId) {
     const streamId = getActiveId();
     if (!streamId) return;
     btn.disabled = true;
-    btn.textContent = "Cancelling...";
+    btn.textContent = t("cancelling");
     cancelStream(streamId);
   });
   return { show, hide };
@@ -1674,7 +1702,7 @@ function helpLink(message) {
   link.href = errorHelpUrl(message);
   link.target = "_blank";
   link.rel = "noopener noreferrer";
-  link.textContent = ERROR_HELP_LABEL;
+  link.textContent = t("webgpuWhatMeans");
   return link;
 }
 
@@ -1713,13 +1741,12 @@ function renderExtractedTextFallback(target, fallbackText) {
   target.textContent = "";
   const note = document.createElement("p");
   note.className = "error-message";
-  note.textContent =
-    "All summary engines failed, showing the extracted page text instead.";
+  note.textContent = t("showingExtractedText");
   target.appendChild(note);
   const body = document.createElement("p");
-  body.textContent = fallbackText || "No readable text was extracted.";
+  body.textContent = fallbackText || t("noReadableText");
   target.appendChild(body);
-  announce("All engines failed. Showing extracted text.");
+  announce(t("extractedTextFallbackAnnouncement"));
 }
 
 // Shared summarize wiring for the page and custom-content jobs: reset the
@@ -1812,8 +1839,8 @@ function showSummaryContext(questions = []) {
   summaryView.classList.remove("ask-mode");
   summaryCard.classList.remove("hidden");
   promptsSection.classList.remove("hidden");
-  questionHeading.textContent = "Suggested Prompts";
-  answerHeading.textContent = "Ask Apogee";
+  questionHeading.textContent = t("suggestedPrompts");
+  answerHeading.textContent = t("askApogee");
   setSuggestedQuestions(questions);
   chatSection.classList.remove("hidden");
   promptsCloseBtn.classList.remove("hidden");
@@ -1831,7 +1858,7 @@ function showAskContext() {
   summaryView.classList.add("ask-mode");
   summaryCard.classList.add("hidden");
   promptsSection.classList.add("hidden");
-  answerHeading.textContent = "Ask Apogee";
+  answerHeading.textContent = t("askApogee");
   resetQuestionCards();
   chatSection.classList.remove("hidden");
   questionInput.classList.remove("hidden");
@@ -1856,15 +1883,15 @@ function showAnswerContext(question) {
   container.appendChild(btn);
   summaryCard.classList.add("hidden");
   promptsSection.classList.remove("hidden");
-  questionHeading.textContent = "Question";
-  answerHeading.textContent = "Answer";
+  questionHeading.textContent = t("questionTag");
+  answerHeading.textContent = t("answerHeading");
   promptsCloseBtn.classList.add("hidden");
   togglePromptsBtn.style.display = "none";
   questionInput.classList.add("hidden");
   sendBtn.classList.add("hidden");
   answerBox.classList.remove("hidden");
   copyAnswerBtn.classList.add("hidden");
-  setLoadingIndicator(answerBox, "Thinking");
+  setLoadingIndicator(answerBox, t("thinking"));
   setTokensPerSecBadge(tokensPerSecBadgeAsk, null);
 }
 
@@ -2138,7 +2165,7 @@ async function summarizeActivePage() {
         if (tab?.url) {
           await ensurePermissionsOrThrow(tab.url);
         }
-        setLoadingIndicator(summaryText, "Extracting PDF");
+        setLoadingIndicator(summaryText, t("extractingPdf"));
         try {
           pdfContent = await extractPdfContent(tab);
         } catch (err) {
@@ -2218,7 +2245,7 @@ async function summarizeActivePage() {
       if (result !== "done") return;
     }
 
-    announce("Summary ready.");
+    announce(t("summaryReady"));
   } catch (error) {
     const jobTabId = tab?.id ?? activeTabId;
     if (error instanceof StreamCancelledError) {
@@ -2233,10 +2260,9 @@ async function summarizeActivePage() {
   }
 }
 
-const EMPTY_ANSWER_MESSAGE =
-  "No answer came back - try rephrasing the question.";
+const EMPTY_ANSWER_MESSAGE = t("emptyAnswer");
 
-const EMPTY_SUMMARY_MESSAGE = "No summary came back - try summarizing again.";
+const EMPTY_SUMMARY_MESSAGE = t("emptySummary");
 
 async function consumeAnswerStream(stream, { tab, question }) {
   let fullText = "";
@@ -2255,7 +2281,7 @@ async function consumeAnswerStream(stream, { tab, question }) {
 
   currentAnswerText = cleanModelOutput(fullText);
   copyAnswerBtn.classList.toggle("hidden", !started);
-  announce(started ? "Answer ready." : EMPTY_ANSWER_MESSAGE);
+  announce(started ? t("answerReady") : EMPTY_ANSWER_MESSAGE);
 
   await saveViewState(tab.id, {
     view: "summaryView",
@@ -2306,7 +2332,7 @@ async function submitQuestion(question) {
     }
     if (!pageData) {
       pageData = {
-        title: tab.title || "General question",
+        title: tab.title || t("generalQuestion"),
         url: tab.url,
         content:
           currentSummaryText ||
@@ -2416,10 +2442,7 @@ function updateLlamaModelUI(settings, status) {
   if (!status?.ready) {
     llamaModelPicker?.setModels([], "");
     if (llamaModelStatus) {
-      renderStatusError(
-        llamaModelStatus,
-        "Not connected. Start llama-server and check the URL above.",
-      );
+      renderStatusError(llamaModelStatus, t("llamaNotConnected"));
     }
     return;
   }
@@ -2435,22 +2458,24 @@ function updateLlamaModelUI(settings, status) {
   if (detected.length === 0) {
     // /health answered but the model lookup did not, which is what a wrong API key looks like: reachable, but nothing readable behind it.
     llamaModelStatus.textContent = settings.llamaApiKey
-      ? "Connected, but the model could not be read. Check the API key."
-      : "Connected, but the server did not report a model name.";
+      ? t("llamaModelUnreadable")
+      : t("llamaModelNameMissing");
     return;
   }
 
   if (detected.length > 1) {
     // The reported context window belongs to one model, so showing it here
     // would imply it applies to every choice in the picker.
-    llamaModelStatus.textContent = `${detected.length} models available.`;
+    llamaModelStatus.textContent = t("llamaModelsAvailable", [
+      String(detected.length),
+    ]);
     return;
   }
 
   const context = status.contextTokens
-    ? `${status.contextTokens.toLocaleString()} token context`
-    : "context window not reported";
-  llamaModelStatus.textContent = `Detected from the server, ${context}.`;
+    ? t("modelContextTokens", [status.contextTokens.toLocaleString()])
+    : t("contextWindowMissing");
+  llamaModelStatus.textContent = t("llamaModelDetected", [context]);
 }
 
 function updateLocalModelList(settings, status) {
@@ -2468,8 +2493,9 @@ function updateLocalModelList(settings, status) {
     if (localModelStatus) {
       localModelStatus.removeAttribute("role");
       localModelStatus.textContent =
-        `${liveModels.length} model${liveModels.length === 1 ? "" : "s"} ` +
-        "found on this Ollama instance.";
+        liveModels.length === 1
+          ? t("ollamaModelFound")
+          : t("ollamaModelsFound", [String(liveModels.length)]);
     }
   } else {
     buildLocalModelUI(settings.localModel, LOCAL_MODELS);
@@ -2479,15 +2505,15 @@ function updateLocalModelList(settings, status) {
         status?.error
           ? status.error
           : status?.ready
-            ? "No models found on this Ollama instance, pull one with `ollama pull <model>`."
-            : "Showing default models, connect to Ollama to see yours.",
+            ? t("ollamaNoModels")
+            : t("ollamaDefaultModels"),
       );
     }
   }
 }
 
 function updateConnectionUI(connected) {
-  const text = connected ? "Connected" : "Disconnected";
+  const text = connected ? t("connected") : t("disconnected");
   const cls = connected ? "status-dot connected" : "status-dot disconnected";
   for (const id of [
     "homeStatusText",
@@ -2613,7 +2639,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (state?.isSelection && state.selectionText) {
           currentPageData = {
-            title: tab.title || "Selected text",
+            title: tab.title || t("selectedText"),
             url: tab.url,
             content: state.selectionText,
             type: "selection",
@@ -2875,9 +2901,7 @@ summarizeSelectionBtn?.addEventListener("click", async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   try {
     await activateSelectionCapture(tab);
-    announce(
-      `Now select at least ${MIN_SELECTION_LENGTH} characters on the webpage.`,
-    );
+    announce(t("selectMinimumCharacters", [String(MIN_SELECTION_LENGTH)]));
   } catch (error) {
     renderError(summaryText, toUserMessage(error));
   }
@@ -2937,9 +2961,7 @@ async function summarizeCustomContent(title, content, url = "") {
     // content fans out into chunks, cache keys, and stored history.
     const capped = truncateWithNote(content, MAX_PASTED_CHARS, "pasted");
     if (capped.truncated) {
-      announce(
-        "Pasted content exceeded the text limit and was truncated to the first 100,000 characters.",
-      );
+      announce(t("pastedTextTruncated", [MAX_PASTED_CHARS.toLocaleString()]));
     }
     content = capped.text;
     currentPageData = { type: "article", content };
@@ -3047,13 +3069,13 @@ document.getElementById("pasteTextBtn")?.addEventListener("click", async () => {
       text = await requestPasteText();
     }
     if (text && text.trim()) {
-      await summarizeCustomContent("Pasted Text", text.trim());
+      await summarizeCustomContent(t("pastedText"), text.trim());
     }
   } catch (err) {
     console.error("Paste text failed:", err);
     const text = await requestPasteText();
     if (text && text.trim()) {
-      await summarizeCustomContent("Pasted Text", text.trim());
+      await summarizeCustomContent(t("pastedText"), text.trim());
     }
   }
 });
@@ -3148,7 +3170,9 @@ async function summarizeFile(file) {
         });
         text = result.text;
         if (result.truncated) {
-          truncationNotice = `PDF content exceeded the text limit and was truncated to the first ${MAX_EXTRACTED_TEXT_CHARS} characters.`;
+          truncationNotice = t("pdfTextTruncated", [
+            String(MAX_EXTRACTED_TEXT_CHARS),
+          ]);
         }
       } finally {
         // Intentional release: drop the view so the buffer can GC early.
@@ -3170,7 +3194,9 @@ async function summarizeFile(file) {
       );
       text = capped.text;
       if (capped.truncated) {
-        truncationNotice = `DOCX content exceeded the text limit and was truncated to the first ${MAX_EXTRACTED_TEXT_CHARS} characters.`;
+        truncationNotice = t("docxTextTruncated", [
+          String(MAX_EXTRACTED_TEXT_CHARS),
+        ]);
       }
     } finally {
       // Intentional release: drop the buffer so it can GC before summarize.
@@ -3184,12 +3210,14 @@ async function summarizeFile(file) {
     const head = await readTextHead(file);
     text = head.text;
     if (head.truncated) {
-      truncationNotice = `File content exceeded the text limit and was truncated to the first ${MAX_EXTRACTED_TEXT_CHARS} characters.`;
+      truncationNotice = t("fileTextTruncated", [
+        String(MAX_EXTRACTED_TEXT_CHARS),
+      ]);
     }
   }
 
   if (!text || !text.trim()) {
-    throw new UserFacingError("The file contains no readable text.");
+    throw new UserFacingError(t("fileHasNoText"));
   }
   if (truncationNotice) announce(truncationNotice);
   await summarizeCustomContent(file.name, text.trim());
@@ -3210,7 +3238,7 @@ async function handleFile(file) {
     showOnlyView("homeView");
     // User-facing messages already name the problem; a raw browser or
     // library string never reaches the page, it gets a plain fallback.
-    setFileUploadError(toUserMessage(err, "Couldn't read this file."));
+    setFileUploadError(toUserMessage(err, t("fileReadFailed")));
   } finally {
     if (fileUploadInput) fileUploadInput.value = "";
   }
@@ -3359,13 +3387,12 @@ function hideHistoryWipeConfirm() {
 
 function showHistoryWipeConfirm(summaryCount) {
   if (!historyWipeConfirm) return;
-  const what =
+  const message =
     summaryCount === 1
-      ? "the 1 summary"
+      ? t("deleteOneSavedSummary")
       : summaryCount > 0
-        ? `the ${summaryCount} summaries`
-        : "the page data";
-  const message = `This also deletes ${what} already saved on this device. Your settings are kept. There's no undo.`;
+        ? t("deleteSavedSummaries", [String(summaryCount)])
+        : t("deleteSavedPageData");
   if (historyWipeText) historyWipeText.textContent = message;
   historyWipeConfirm.classList.remove("hidden");
   // Focus stays on the radio the user is still arrowing through. Pulling it onto a delete button would put a destructive action one stray Space away.
@@ -3410,14 +3437,11 @@ historyWipeDeleteBtn?.addEventListener("click", async () => {
     hideHistoryWipeConfirm();
     if (clearDataStatus) {
       clearDataStatus.removeAttribute("role");
-      clearDataStatus.textContent = "History off, saved summaries deleted.";
+      clearDataStatus.textContent = t("historyDeleted");
     }
-    announce("History off, saved summaries deleted.");
+    announce(t("historyDeleted"));
   } catch (err) {
-    renderStatusError(
-      clearDataStatus,
-      `Error clearing saved history: ${err.message}`,
-    );
+    renderStatusError(clearDataStatus, t("clearHistoryFailed", [err.message]));
   } finally {
     historyWipeDeleteBtn.disabled = false;
   }
@@ -3479,13 +3503,10 @@ clearDataBtn?.addEventListener("click", async () => {
     await clearCachedData();
     if (clearDataStatus) {
       clearDataStatus.removeAttribute("role");
-      clearDataStatus.textContent = "Cached data cleared.";
+      clearDataStatus.textContent = t("cacheCleared");
     }
   } catch (err) {
-    renderStatusError(
-      clearDataStatus,
-      `Error clearing cached data: ${err.message}`,
-    );
+    renderStatusError(clearDataStatus, t("clearCacheFailed", [err.message]));
   } finally {
     clearDataBtn.disabled = false;
   }
@@ -3506,8 +3527,7 @@ backendUrlInput?.addEventListener("change", async () => {
     backendUrlInput.value = settings.ollamaHost;
     renderStatusError(
       localModelStatus,
-      `That Ollama host cannot be used. ` +
-        `Use an http:// loopback address such as ${DEFAULT_OLLAMA_HOST}.`,
+      t("invalidOllamaHost", [DEFAULT_OLLAMA_HOST]),
     );
     const status = await checkConnection();
     updateConnectionUI(status?.ready === true);
@@ -3554,8 +3574,7 @@ llamaHostInput?.addEventListener("change", async () => {
     llamaHostInput.value = settings.llamaHost;
     renderStatusError(
       llamaModelStatus,
-      `That llama.cpp URL cannot be used. ` +
-        `Use an http:// loopback address such as ${DEFAULT_LLAMACPP_HOST}.`,
+      t("invalidLlamaUrl", [DEFAULT_LLAMACPP_HOST]),
     );
     await refreshLlamaConnection();
     return;
@@ -3660,7 +3679,7 @@ function showLocateFailure(target) {
   target.classList.add("apogee-locate-failed");
   const note = document.createElement("span");
   note.className = "apogee-locate-note";
-  note.textContent = " (couldn't locate this passage on the page)";
+  note.textContent = t("passageNotFound");
   target.appendChild(note);
   setTimeout(() => {
     target.classList.remove("apogee-locate-failed");
@@ -3735,7 +3754,7 @@ function makeSummaryPassagesFocusable() {
   if (!HIGHLIGHT_SUPPORTED) return;
   summaryText?.querySelectorAll("li, p").forEach((el) => {
     el.setAttribute("tabindex", "0");
-    el.setAttribute("title", "Locate this passage on the page");
+    el.setAttribute("title", t("locatePassage"));
   });
 }
 
@@ -3795,15 +3814,13 @@ async function updateDebugLogsUI() {
       action: "get-offscreen-logs",
     });
     if (res && Array.isArray(res.logs)) {
-      const body =
-        res.logs.join("\n") ||
-        "No logs recorded. Try starting summary or chat.";
+      const body = res.logs.join("\n") || t("noLogsYet");
       debugLogsContent.removeAttribute("role");
       debugLogsContent.textContent = `${await diagnosticHeader()}\n${body}`;
       debugLogsCard.scrollTop = debugLogsCard.scrollHeight;
     }
   } catch (err) {
-    renderStatusError(debugLogsContent, `Error fetching logs: ${err.message}`);
+    renderStatusError(debugLogsContent, t("fetchLogsFailed", [err.message]));
   }
 }
 
@@ -3814,14 +3831,14 @@ toggleDebugLogsBtn?.addEventListener("click", async () => {
   const isHidden = debugLogsCard.classList.contains("hidden");
   if (isHidden) {
     debugLogsCard.classList.remove("hidden");
-    label.textContent = "Hide logs";
+    label.textContent = t("hideLogs");
     toggleDebugLogsBtn.setAttribute("aria-expanded", "true");
     await saveSettings({ debugLogs: true });
     syncDebugLogsRadios(true);
     await updateDebugLogsUI();
   } else {
     debugLogsCard.classList.add("hidden");
-    label.textContent = "Show logs";
+    label.textContent = t("showLogs");
     toggleDebugLogsBtn.setAttribute("aria-expanded", "false");
     await saveSettings({ debugLogs: false });
     syncDebugLogsRadios(false);
@@ -3835,9 +3852,9 @@ clearDebugLogsBtn?.addEventListener("click", async () => {
       action: "clear-offscreen-logs",
     });
     debugLogsContent.removeAttribute("role");
-    debugLogsContent.textContent = `${await diagnosticHeader()}\nNo logs recorded. Try starting summary or chat.`;
+    debugLogsContent.textContent = `${await diagnosticHeader()}\n${t("noLogsYet")}`;
   } catch (err) {
-    renderStatusError(debugLogsContent, `Error clearing logs: ${err.message}`);
+    renderStatusError(debugLogsContent, t("clearLogsFailed", [err.message]));
   }
 });
 
@@ -3866,9 +3883,9 @@ copyDiagnosticsBtn?.addEventListener("click", async () => {
         logs,
       ),
     );
-    copyDiagnosticsBtn.textContent = "Copied";
+    copyDiagnosticsBtn.textContent = t("copied");
   } catch {
-    copyDiagnosticsBtn.textContent = "Copy failed";
+    copyDiagnosticsBtn.textContent = t("copyFailed");
   }
   setTimeout(() => {
     copyDiagnosticsBtn.textContent = original;

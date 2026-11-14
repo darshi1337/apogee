@@ -118,7 +118,7 @@
     "description": "Past summaries heading"
   },
   "filterByTitle": {
-    "message": "Filter by title�",
+    "message": "Filter by title…",
     "description": "Past summaries filter placeholder"
   },
   "filterPastByTitle": {
@@ -203,7 +203,7 @@
   },
   "questionTag": { "message": "Question", "description": "Prompts toggle tag" },
   "askPlaceholder": {
-    "message": "Type here to ask � Enter to send",
+    "message": "Type here to ask · Enter to send",
     "description": "Question input placeholder"
   },
   "askAboutPage": {
@@ -570,5 +570,440 @@
   "remoteGenerateQuestions": {
     "message": "Generate follow-up questions",
     "description": "Explicitly request follow-up questions for a restored remote summary"
+  },
+  "answerHeading": {
+    "message": "Answer"
+  },
+  "cancelling": {
+    "message": "Cancelling..."
+  },
+  "hideLogs": {
+    "message": "Hide logs"
+  },
+  "copied": {
+    "message": "Copied"
+  },
+  "copyFailed": {
+    "message": "Copy failed"
+  },
+  "generatingSuggestedPrompts": {
+    "message": "Generating suggested prompts..."
+  },
+  "loadingModel": {
+    "message": "Loading model..."
+  },
+  "thinking": {
+    "message": "Thinking"
+  },
+  "extractingPdf": {
+    "message": "Extracting PDF"
+  },
+  "fullSummary": {
+    "message": "Full summary"
+  },
+  "toggleFullSummary": {
+    "message": "Show or hide full summary"
+  },
+  "copyAsJson": {
+    "message": "Copy as JSON"
+  },
+  "deleteSummary": {
+    "message": "Delete this summary"
+  },
+  "noMatchingSummaries": {
+    "message": "No matching summaries."
+  },
+  "copiedToClipboard": {
+    "message": "Copied to clipboard."
+  },
+  "summaryReady": {
+    "message": "Summary ready."
+  },
+  "answerReady": {
+    "message": "Answer ready."
+  },
+  "showingExtractedText": {
+    "message": "All summary engines failed, showing the extracted page text instead."
+  },
+  "noReadableText": {
+    "message": "No readable text was extracted."
+  },
+  "extractedTextFallbackAnnouncement": {
+    "message": "All engines failed. Showing extracted text."
+  },
+  "emptyAnswer": {
+    "message": "No answer came back - try rephrasing the question."
+  },
+  "emptySummary": {
+    "message": "No summary came back - try summarizing again."
+  },
+  "llamaNotConnected": {
+    "message": "Not connected. Start llama-server and check the URL above."
+  },
+  "llamaModelUnreadable": {
+    "message": "Connected, but the model could not be read. Check the API key."
+  },
+  "llamaModelNameMissing": {
+    "message": "Connected, but the server did not report a model name."
+  },
+  "contextWindowMissing": {
+    "message": "context window not reported"
+  },
+  "ollamaNoModels": {
+    "message": "No models found on this Ollama instance, pull one with `ollama pull <model>`."
+  },
+  "ollamaDefaultModels": {
+    "message": "Showing default models, connect to Ollama to see yours."
+  },
+  "connected": {
+    "message": "Connected"
+  },
+  "disconnected": {
+    "message": "Disconnected"
+  },
+  "resummarizeLanguageAndEngine": {
+    "message": "The summary language and translation engine changed. Re-summarize to apply."
+  },
+  "resummarizeEngine": {
+    "message": "This summary used a different translation engine. Re-summarize to apply."
+  },
+  "resummarizeOriginalLanguage": {
+    "message": "This summary isn't in the page's original language. Re-summarize to apply."
+  },
+  "auditLocal": {
+    "message": "100% local"
+  },
+  "untitled": {
+    "message": "Untitled"
+  },
+  "fileHasNoText": {
+    "message": "The file contains no readable text."
+  },
+  "fileReadFailed": {
+    "message": "Couldn't read this file."
+  },
+  "historyDeleted": {
+    "message": "History off, saved summaries deleted."
+  },
+  "cacheCleared": {
+    "message": "Cached data cleared."
+  },
+  "passageNotFound": {
+    "message": " (couldn't locate this passage on the page)"
+  },
+  "locatePassage": {
+    "message": "Locate this passage on the page"
+  },
+  "closeSidePanel": {
+    "message": "Close"
+  },
+  "multiTabExtractor": {
+    "message": "Multi-Tab"
+  },
+  "auditPage": {
+    "message": "page"
+  },
+  "auditTypeArticle": {
+    "message": "article"
+  },
+  "auditTypeSelection": {
+    "message": "selection"
+  },
+  "auditLocalSponsorBlock": {
+    "message": "Local + SponsorBlock API"
+  },
+  "auditRemoteCatalog": {
+    "message": "Local inference + remote model catalog"
+  },
+  "auditRemoteCatalogSponsorBlock": {
+    "message": "Local inference + remote model catalog + SponsorBlock API"
+  },
+  "auditRemoteGeneration": {
+    "message": "Opt-in remote generation + remote model catalog"
+  },
+  "auditRemoteGenerationSponsorBlock": {
+    "message": "Opt-in remote generation + remote model catalog + SponsorBlock API"
+  },
+  "generalQuestion": {
+    "message": "General question"
+  },
+  "selectedText": {
+    "message": "Selected text"
+  },
+  "pastedText": {
+    "message": "Pasted Text"
+  },
+  "resummarizeLanguage": {
+    "message": "This summary isn't in $LANGUAGE$. Re-summarize to apply.",
+    "placeholders": {
+      "language": {
+        "content": "$1"
+      }
+    }
+  },
+  "auditAccessDetails": {
+    "message": "$TYPE$ • $COUNT$ chars • $TIME$",
+    "placeholders": {
+      "type": {
+        "content": "$1"
+      },
+      "count": {
+        "content": "$2"
+      },
+      "time": {
+        "content": "$3"
+      }
+    }
+  },
+  "llamaModelsAvailable": {
+    "message": "$COUNT$ models available.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "modelContextTokens": {
+    "message": "$COUNT$ token context",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "llamaModelDetected": {
+    "message": "Detected from the server, $CONTEXT$.",
+    "placeholders": {
+      "context": {
+        "content": "$1"
+      }
+    }
+  },
+  "ollamaModelFound": {
+    "message": "1 model found on this Ollama instance."
+  },
+  "ollamaModelsFound": {
+    "message": "$COUNT$ models found on this Ollama instance.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "selectMinimumCharacters": {
+    "message": "Now select at least $COUNT$ characters on the webpage.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "pastedTextTruncated": {
+    "message": "Pasted content exceeded the text limit and was truncated to the first $LIMIT$ characters.",
+    "placeholders": {
+      "limit": {
+        "content": "$1"
+      }
+    }
+  },
+  "pdfTextTruncated": {
+    "message": "PDF content exceeded the text limit and was truncated to the first $LIMIT$ characters.",
+    "placeholders": {
+      "limit": {
+        "content": "$1"
+      }
+    }
+  },
+  "docxTextTruncated": {
+    "message": "DOCX content exceeded the text limit and was truncated to the first $LIMIT$ characters.",
+    "placeholders": {
+      "limit": {
+        "content": "$1"
+      }
+    }
+  },
+  "fileTextTruncated": {
+    "message": "File content exceeded the text limit and was truncated to the first $LIMIT$ characters.",
+    "placeholders": {
+      "limit": {
+        "content": "$1"
+      }
+    }
+  },
+  "deleteOneSavedSummary": {
+    "message": "This also deletes the 1 summary already saved on this device. Your settings are kept. There's no undo."
+  },
+  "deleteSavedSummaries": {
+    "message": "This also deletes the $COUNT$ summaries already saved on this device. Your settings are kept. There's no undo.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "deleteSavedPageData": {
+    "message": "This also deletes the page data already saved on this device. Your settings are kept. There's no undo."
+  },
+  "clearHistoryFailed": {
+    "message": "Error clearing saved history: $DETAIL$",
+    "placeholders": {
+      "detail": {
+        "content": "$1"
+      }
+    }
+  },
+  "clearCacheFailed": {
+    "message": "Error clearing cached data: $DETAIL$",
+    "placeholders": {
+      "detail": {
+        "content": "$1"
+      }
+    }
+  },
+  "fetchLogsFailed": {
+    "message": "Error fetching logs: $DETAIL$",
+    "placeholders": {
+      "detail": {
+        "content": "$1"
+      }
+    }
+  },
+  "clearLogsFailed": {
+    "message": "Error clearing logs: $DETAIL$",
+    "placeholders": {
+      "detail": {
+        "content": "$1"
+      }
+    }
+  },
+  "invalidOllamaHost": {
+    "message": "That Ollama host cannot be used. Use an http:// loopback address such as $ADDRESS$.",
+    "placeholders": {
+      "address": {
+        "content": "$1"
+      }
+    }
+  },
+  "invalidLlamaUrl": {
+    "message": "That llama.cpp URL cannot be used. Use an http:// loopback address such as $ADDRESS$.",
+    "placeholders": {
+      "address": {
+        "content": "$1"
+      }
+    }
+  },
+  "summaryProgressSummarizing": {
+    "message": "Summarizing"
+  },
+  "summaryProgressTlDring": {
+    "message": "TL;DRing"
+  },
+  "summaryProgressDistilling": {
+    "message": "Distilling"
+  },
+  "summaryProgressDigesting": {
+    "message": "Digesting"
+  },
+  "summaryProgressCondensing": {
+    "message": "Condensing"
+  },
+  "summaryProgressSkimming": {
+    "message": "Skimming"
+  },
+  "summaryProgressBoilingDown": {
+    "message": "Boiling down"
+  },
+  "summaryProgressSynthesizing": {
+    "message": "Synthesizing"
+  },
+  "summaryProgressCliffnoting": {
+    "message": "Cliffnoting"
+  },
+  "summaryProgressCompressing": {
+    "message": "Compressing"
+  },
+  "summaryProgressUntangling": {
+    "message": "Untangling"
+  },
+  "summaryProgressCuttingTheFluff": {
+    "message": "Cutting the fluff"
+  },
+  "summaryProgressGettingToThePoint": {
+    "message": "Getting to the point"
+  },
+  "summaryProgressExtractingTheGist": {
+    "message": "Extracting the gist"
+  },
+  "summaryProgressOrbiting": {
+    "message": "Orbiting"
+  },
+  "summaryProgressZoomingOut": {
+    "message": "Zooming out"
+  },
+  "summaryProgressParaphrasing": {
+    "message": "Paraphrasing"
+  },
+  "summaryProgressRecapping": {
+    "message": "Recapping"
+  },
+  "summaryProgressAbridging": {
+    "message": "Abridging"
+  },
+  "summaryProgressUnpacking": {
+    "message": "Unpacking"
+  },
+  "summaryProgressParsing": {
+    "message": "Parsing"
+  },
+  "summaryProgressSiftingThroughIt": {
+    "message": "Sifting through it"
+  },
+  "summaryProgressMakingSenseOfIt": {
+    "message": "Making sense of it"
+  },
+  "summaryProgressConnectingTheDots": {
+    "message": "Connecting the dots"
+  },
+  "summaryProgressWrappingItUp": {
+    "message": "Wrapping it up"
+  },
+  "summaryProgressSimplifying": {
+    "message": "Simplifying"
+  },
+  "summaryProgressWhittlingDown": {
+    "message": "Whittling down"
+  },
+  "summaryProgressPruning": {
+    "message": "Pruning"
+  },
+  "summaryProgressRefining": {
+    "message": "Refining"
+  },
+  "summaryProgressCrunchingTheText": {
+    "message": "Crunching the text"
+  },
+  "summaryProgressChewingItOver": {
+    "message": "Chewing it over"
+  },
+  "summaryProgressSketchingAnOutline": {
+    "message": "Sketching an outline"
+  },
+  "summaryProgressLaunching": {
+    "message": "Launching"
+  },
+  "summaryProgressStargazing": {
+    "message": "Stargazing"
+  },
+  "summaryProgressChartingACourse": {
+    "message": "Charting a course"
+  },
+  "summaryProgressReachingApogee": {
+    "message": "Reaching apogee"
+  },
+  "summaryProgressPlottingATrajectory": {
+    "message": "Plotting a trajectory"
+  },
+  "summaryProgressNavigating": {
+    "message": "Navigating"
   }
 }

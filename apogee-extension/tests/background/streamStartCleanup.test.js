@@ -2,6 +2,10 @@ import test from "node:test";
 import assert from "node:assert";
 import { createExtensionApiMock } from "../helpers/extensionApiMock.js";
 import { waitForNewStream } from "../helpers/streamTestUtils.js";
+import {
+  MIN_ALARM_DELAY_MINUTES,
+  STREAM_CLEANUP_MS,
+} from "../../lib/util/streamExpiry.js";
 
 // --- #544: a local Ask run that hangs before its first token ---
 //
@@ -22,13 +26,18 @@ const { chrome, getMessageListeners } = createExtensionApiMock({
   },
 });
 
-const alarmNames = [];
+const alarms = [];
+let onAlarm;
 chrome.alarms = {
-  create: (name) => {
-    alarmNames.push(name);
+  create: (name, options) => {
+    alarms.push({ name, ...options });
   },
   clear: async () => {},
-  onAlarm: { addListener: () => {} },
+  onAlarm: {
+    addListener: (listener) => {
+      onAlarm = listener;
+    },
+  },
 };
 chrome.notifications = {
   create: async (id) => id,
@@ -42,7 +51,8 @@ globalThis.fetch = () => new Promise(() => {});
 
 globalThis.chrome = chrome;
 
-await import("../../background/service-worker.js");
+const { createBufferedStream } =
+  await import("../../background/service-worker.js");
 const {
   activeStreams,
   expireStreamForCleanup,
@@ -56,6 +66,15 @@ assert.ok(
   "service worker must register its message router",
 );
 const router = routerListeners[0];
+
+function useMockClock(t) {
+  t.mock.timers.enable({ apis: ["Date"] });
+  const elapsed = Date.now.bind(Date);
+  t.mock.method(performance, "now", elapsed);
+  return elapsed;
+}
+
+const alarmsFor = (name) => alarms.filter((alarm) => alarm.name === name);
 
 test("a local Ask start with no chunks still gets a cleanup deadline", async () => {
   const before = new Set(activeStreams.keys());
@@ -84,7 +103,7 @@ test("a local Ask start with no chunks still gets a cleanup deadline", async () 
 
   const streamId = await waitForNewStream(activeStreams, before);
   assert.ok(
-    alarmNames.includes(`${STREAM_CLEANUP_PREFIX}${streamId}`),
+    alarms.some(({ name }) => name === `${STREAM_CLEANUP_PREFIX}${streamId}`),
     "cleanup alarm must be scheduled when the stream is created",
   );
   assert.strictEqual(
@@ -98,4 +117,91 @@ test("a local Ask start with no chunks still gets a cleanup deadline", async () 
   expireStreamForCleanup(streamId);
   assert.strictEqual(activeStreams.has(streamId), false);
   assert.strictEqual(hasWorkInFlight(), false);
+});
+
+test("a chunk burst keeps the original alarm and slides expiry to the last chunk (#640)", (t) => {
+  useMockClock(t);
+  const streamId = "burst";
+  const name = STREAM_CLEANUP_PREFIX + streamId;
+  const { stream, emitChunk } = createBufferedStream(streamId, {});
+  const beforeBurstMs = 45_000;
+  const chunkGapMs = 10;
+  const burstChunks = 20;
+  const lastChunkAtMs = beforeBurstMs + burstChunks * chunkGapMs;
+  t.after(() => expireStreamForCleanup(streamId));
+
+  t.mock.timers.tick(beforeBurstMs);
+  for (let i = 0; i < burstChunks; i++) {
+    t.mock.timers.tick(chunkGapMs);
+    emitChunk("word ");
+  }
+  assert.strictEqual(alarmsFor(name).length, 1);
+
+  t.mock.timers.tick(STREAM_CLEANUP_MS - lastChunkAtMs);
+  onAlarm({ name });
+  assert.strictEqual(activeStreams.get(streamId), stream);
+  assert.strictEqual(stream.controller.signal.aborted, false);
+  assert.deepStrictEqual(
+    alarmsFor(name).map((alarm) => alarm.delayInMinutes),
+    [STREAM_CLEANUP_MS / 60_000, lastChunkAtMs / 60_000],
+  );
+
+  t.mock.timers.tick(lastChunkAtMs);
+  onAlarm({ name });
+  assert.strictEqual(activeStreams.has(streamId), false);
+  assert.strictEqual(stream.controller.signal.aborted, true);
+  assert.strictEqual(alarmsFor(name).length, 2);
+});
+
+test("worker alarm recheck respects the browser minimum delay (#640)", (t) => {
+  useMockClock(t);
+  const streamId = "short-extension";
+  const name = STREAM_CLEANUP_PREFIX + streamId;
+  const { stream, emitChunk } = createBufferedStream(streamId, {});
+  const chunkAtMs = 1_000;
+  t.after(() => expireStreamForCleanup(streamId));
+
+  t.mock.timers.tick(chunkAtMs);
+  emitChunk("word ");
+  t.mock.timers.tick(STREAM_CLEANUP_MS - chunkAtMs);
+  onAlarm({ name });
+  assert.strictEqual(activeStreams.get(streamId), stream);
+  assert.strictEqual(
+    alarmsFor(name).at(-1).delayInMinutes,
+    MIN_ALARM_DELAY_MINUTES,
+  );
+
+  t.mock.timers.tick(MIN_ALARM_DELAY_MINUTES * 60_000);
+  onAlarm({ name });
+  assert.strictEqual(activeStreams.has(streamId), false);
+});
+
+test("worker cleanup uses elapsed time across wall-clock changes (#640)", (t) => {
+  const elapsed = useMockClock(t);
+  const streamId = "clock-change";
+  const name = STREAM_CLEANUP_PREFIX + streamId;
+  const { stream, emitChunk } = createBufferedStream(streamId, {});
+  t.after(() => expireStreamForCleanup(streamId));
+
+  t.mock.timers.tick(90_000);
+  emitChunk("word ");
+
+  let wallClockOffset = 3_600_000;
+  t.mock.method(Date, "now", () => elapsed() + wallClockOffset);
+  t.mock.timers.tick(30_000);
+  onAlarm({ name });
+  assert.strictEqual(activeStreams.get(streamId), stream);
+  assert.strictEqual(alarmsFor(name).at(-1).delayInMinutes, 1.5);
+
+  wallClockOffset = -3_600_000;
+  t.mock.timers.tick(90_000);
+  onAlarm({ name });
+  assert.strictEqual(activeStreams.has(streamId), false);
+  assert.strictEqual(stream.controller.signal.aborted, true);
+});
+
+test("a cleanup alarm with no deadline does not throw (#640)", () => {
+  assert.doesNotThrow(() =>
+    onAlarm({ name: `${STREAM_CLEANUP_PREFIX}missing` }),
+  );
 });

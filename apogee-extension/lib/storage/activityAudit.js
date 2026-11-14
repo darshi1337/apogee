@@ -25,7 +25,7 @@ export async function recordPageAccessEvent({
     const logs = Array.isArray(data[AUDIT_LOG_KEY]) ? data[AUDIT_LOG_KEY] : [];
     const entry = {
       timestamp: new Date().toISOString(),
-      title: title || "Untitled Page",
+      title: title || "",
       url: url || "",
       contentLength: contentLength || 0,
       type: type || "generic",
@@ -105,13 +105,17 @@ export async function getActivityAuditSummary() {
       sponsorBlockActive,
       remoteCatalogActive,
       remoteGenerationActive,
-      statusMessage: remoteGenerationActive
-        ? `Opt-in remote generation + remote model catalog${sponsorBlockActive ? " + SponsorBlock API" : ""}`
+      status: remoteGenerationActive
+        ? sponsorBlockActive
+          ? "remoteGenerationSponsorBlock"
+          : "remoteGeneration"
         : remoteCatalogActive
-          ? `Local inference + remote model catalog${sponsorBlockActive ? " + SponsorBlock API" : ""}`
-          : !externalRequestsAllowed
-            ? "100% local"
-            : "Local + SponsorBlock API",
+          ? sponsorBlockActive
+            ? "remoteCatalogSponsorBlock"
+            : "remoteCatalog"
+          : externalRequestsAllowed
+            ? "localSponsorBlock"
+            : "local",
     },
     storageRetention: {
       saveHistory: settings.saveHistory !== false,

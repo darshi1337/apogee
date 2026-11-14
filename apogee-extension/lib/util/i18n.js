@@ -1,9 +1,20 @@
 import enMessages from "../../_locales/en/messages.json" with { type: "json" };
 
-function lookupFallback(key) {
+function lookupFallback(key, substitutions) {
   const entry = enMessages?.[key];
-  if (typeof entry?.message === "string") return entry.message;
-  return "";
+  if (typeof entry?.message !== "string") return "";
+  const values = Array.isArray(substitutions) ? substitutions : [substitutions];
+  return entry.message.replace(
+    /\$\$|\$([a-z][a-z0-9_]*)\$/gi,
+    (token, name) => {
+      if (!name) return "$";
+      const content = entry.placeholders?.[name.toLowerCase()]?.content;
+      if (typeof content !== "string") return token;
+      return content.replace(/\$\$|\$([1-9][0-9]*)/g, (_, index) =>
+        index ? String(values[Number(index) - 1] ?? "") : "$",
+      );
+    },
+  );
 }
 
 export function t(key, substitutions) {
@@ -16,7 +27,7 @@ export function t(key, substitutions) {
   } catch {
     // Fall back to the bundled message when the i18n API is unavailable.
   }
-  const fallback = lookupFallback(key);
+  const fallback = lookupFallback(key, substitutions);
   if (fallback) return fallback;
   return key;
 }
