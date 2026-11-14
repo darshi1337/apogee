@@ -48,8 +48,13 @@ chrome.runtime.sendMessage = async (message) => {
 globalThis.chrome = chrome;
 const { runBackgroundSummarize, summarizeMultiTab } =
   await import("../../background/service-worker.js");
-const { activeStreams, registeredStreamJobs, expireStreamForCleanup } =
-  await import("../../background/streams.js");
+const {
+  activeStreams,
+  registeredStreamJobs,
+  expireStreamForCleanup,
+  getStreamCleanupDeadline,
+} = await import("../../background/streams.js");
+const { STREAM_CLEANUP_MS } = await import("../../lib/util/streamExpiry.js");
 const { saveViewState, loadViewState } =
   await import("../../lib/storage/viewState.js");
 const { getSettings, updateSettings } =
@@ -89,6 +94,7 @@ async function setup(provider = "openrouter", overrides = {}) {
   for (const id of activeStreams.keys()) expireStreamForCleanup(id);
   registeredStreamJobs.clear();
   await chrome.storage.local.clear();
+  await chrome.storage.session.clear();
   broadcasts.length = 0;
   await chrome.storage.local.set({
     settings: {
@@ -584,7 +590,12 @@ test("B2 background and selected-tabs use both explicit provider models", async 
     const state = await loadViewState(tabId);
     assert.equal(state.providerType, provider);
     assert.equal(state.pageType, "multi-tab");
-    assert.equal(state.sourceUrls.includes("https://example.org/other"), true);
+    const otherSource = new URL("https://example.org/other");
+    assert.ok(
+      state.sourceUrls.some(
+        (source) => new URL(source).href === otherSource.href,
+      ),
+    );
     assert.ok(state.promptsCacheKey.includes(":tmulti-tab"));
   }
 });
@@ -662,12 +673,23 @@ test("remote selection capture requires a single-use UI grant", async () => {
   assert.equal(calls.length, 0);
   const armed = await dispatch("arm-remote-selection", { tabId });
   assert.ok(armed.grant);
+  const grantKey = `remoteSelectionGrant:${tabId}`;
+  const storedGrant = await chrome.storage.session.get(grantKey);
+  assert.equal(
+    storedGrant[grantKey]?.token,
+    armed.grant,
+    "the grant must survive a worker restart",
+  );
   router(message(armed.grant), selectionSender, () => {});
   await waitFor(
     () => [...activeStreams.values()].some((stream) => stream.done),
     "selection complete",
   );
   assert.equal(calls.filter((call) => call.body).length, 1);
+  assert.equal(
+    (await chrome.storage.session.get(grantKey))[grantKey],
+    undefined,
+  );
   router(message(armed.grant), selectionSender, () => {});
   await new Promise((resolve) => setTimeout(resolve, 10));
   assert.equal(calls.filter((call) => call.body).length, 1);
@@ -786,6 +808,8 @@ test("B2 multi-tab rechecks non-owner persistence policy and rolls back an issue
 test("provider heartbeat and hidden reasoning keep the real worker alive past its cleanup deadline", async (t) => {
   const originalCreate = chrome.alarms.create;
   const originalClear = chrome.alarms.clear;
+  let now = 0;
+  t.mock.method(performance, "now", () => now);
   let responseController;
   let streamId;
   t.after(() => {
@@ -804,10 +828,13 @@ test("provider heartbeat and hidden reasoning keep the real worker alive past it
       'data: {"choices":[{"delta":{"reasoning":"hidden reasoning"}}]}\n\n',
     ]) {
       await setup(provider);
-      let now = 0;
+      now = 0;
       const deadlines = new Map();
-      chrome.alarms.create = (name, options) =>
+      const created = [];
+      chrome.alarms.create = (name, options) => {
+        created.push(name);
         deadlines.set(name, now + options.delayInMinutes * 60000);
+      };
       chrome.alarms.clear = async (name) => deadlines.delete(name);
       intercept(({ body, options }) => {
         if (!body) return;
@@ -846,7 +873,7 @@ test("provider heartbeat and hidden reasoning keep the real worker alive past it
         now = elapsed;
         responseController.enqueue(new TextEncoder().encode(activity));
         await waitFor(
-          () => deadlines.get(alarmName) === now + 120000,
+          () => getStreamCleanupDeadline(streamId) === now + STREAM_CLEANUP_MS,
           "provider activity extends cleanup",
         );
         for (const [name, deadline] of deadlines) {
@@ -855,6 +882,13 @@ test("provider heartbeat and hidden reasoning keep the real worker alive past it
             for (const listener of alarmListeners) listener({ name });
           }
         }
+        // Activity moves the deadline, not the alarm. The alarm re-arms only
+        // when it fires after the original window.
+        assert.equal(
+          created.filter((name) => name === alarmName).length,
+          elapsed < STREAM_CLEANUP_MS ? 1 : 2,
+        );
+        assert.ok(deadlines.get(alarmName) > now);
         assert.equal(activeStreams.get(streamId), stream);
         assert.equal(stream.controller.signal.aborted, false);
         assert.equal(
@@ -888,6 +922,8 @@ test("provider heartbeat and hidden reasoning keep the real worker alive past it
 
 test("a remote response without provider activity still expires at the worker deadline", async (t) => {
   await setup();
+  let now = 0;
+  t.mock.method(performance, "now", () => now);
   const originalCreate = chrome.alarms.create;
   const deadlines = new Map();
   chrome.alarms.create = (name, options) =>
@@ -913,7 +949,8 @@ test("a remote response without provider activity still expires at the worker de
   const stream = activeStreams.get(streamId);
   assert.ok(stream);
   const alarmName = `stream-cleanup:${streamId}`;
-  assert.equal(deadlines.get(alarmName), 120000);
+  assert.equal(deadlines.get(alarmName), STREAM_CLEANUP_MS);
+  now = STREAM_CLEANUP_MS;
   for (const listener of alarmListeners) listener({ name: alarmName });
   await waitFor(
     () => !registeredStreamJobs.has(streamId),
@@ -983,6 +1020,8 @@ test("a popup can attach when a background selection first publishes its stream 
 
 test("native selection survives hidden activity and restores after the completed stream expires", async (t) => {
   const originalCreate = chrome.alarms.create;
+  let now = 0;
+  t.mock.method(performance, "now", () => now);
   let responseController;
   let streamId;
   t.after(() => {
@@ -996,7 +1035,7 @@ test("native selection survives hidden activity and restores after the completed
   });
   for (const provider of Object.keys(models)) {
     await setup(provider, { [`${provider}BackgroundConsent`]: true });
-    let now = 0;
+    now = 0;
     const deadlines = new Map();
     chrome.alarms.create = (name, options) =>
       deadlines.set(name, now + options.delayInMinutes * 60000);
@@ -1039,16 +1078,24 @@ test("native selection survives hidden activity and restores after the completed
     streamId = getStorageData()[`popupViewState:${tabId}`].streamId;
     const stream = activeStreams.get(streamId);
     const alarmName = `stream-cleanup:${streamId}`;
-    for (now = 20000; now <= 160000; now += 20000) {
+    const lastActivityMs = 160000;
+    for (let elapsed = 20000; elapsed <= lastActivityMs; elapsed += 20000) {
+      now = elapsed;
       responseController.enqueue(
         new TextEncoder().encode(
           'data: {"choices":[{"delta":{"reasoning":"hidden reasoning"}}]}\n\n',
         ),
       );
       await waitFor(
-        () => deadlines.get(alarmName) === now + 120000,
+        () => getStreamCleanupDeadline(streamId) === now + STREAM_CLEANUP_MS,
         "native selection activity",
       );
+      for (const [name, deadline] of deadlines) {
+        if (deadline <= now) {
+          deadlines.delete(name);
+          for (const listener of alarmListeners) listener({ name });
+        }
+      }
       assert.equal(stream.done, false);
       assert.equal(stream.text, "");
       assert.equal(stream.controller.signal.aborted, false);
@@ -1071,6 +1118,7 @@ test("native selection survives hidden activity and restores after the completed
     assert.equal(completed.summaryText, "Selection summary after reasoning");
     assert.equal(completed.isSelection, true);
     assertNoSummarySaved();
+    now = lastActivityMs + STREAM_CLEANUP_MS;
     for (const listener of alarmListeners) listener({ name: alarmName });
     assert.equal(activeStreams.has(streamId), false);
     assert.deepEqual(

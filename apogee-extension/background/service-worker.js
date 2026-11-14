@@ -1588,13 +1588,49 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onConnect?.addListener) {
   });
 }
 
-const remoteSelectionGrants = new Map();
+// The worker can stop between arming a selection capture and the user's
+// selection. Keep the single-use grant in session storage so it survives that
+// restart for the rest of the browser session without touching disk. The map
+// is only a fallback for browsers without storage.session.
+const SELECTION_GRANT_PREFIX = "remoteSelectionGrant:";
+const memorySelectionGrants = new Map();
+const selectionGrantKey = (tabId) => `${SELECTION_GRANT_PREFIX}${tabId}`;
+
+async function writeRemoteSelectionGrant(tabId, grant) {
+  if (chrome.storage?.session) {
+    await chrome.storage.session.set({ [selectionGrantKey(tabId)]: grant });
+    return;
+  }
+  memorySelectionGrants.set(tabId, grant);
+}
+
+async function takeRemoteSelectionGrant(tabId) {
+  if (chrome.storage?.session) {
+    const key = selectionGrantKey(tabId);
+    const stored = await chrome.storage.session.get(key);
+    if (stored[key] === undefined) return null;
+    await chrome.storage.session.remove(key);
+    return stored[key];
+  }
+  const grant = memorySelectionGrants.get(tabId);
+  memorySelectionGrants.delete(tabId);
+  return grant ?? null;
+}
+
+async function clearRemoteSelectionGrant(tabId) {
+  if (chrome.storage?.session) {
+    await chrome.storage.session.remove(selectionGrantKey(tabId));
+    return;
+  }
+  memorySelectionGrants.delete(tabId);
+}
+
 chrome.tabs?.onUpdated?.addListener((tabId, change) => {
   if (change.status === "loading" || change.url)
-    remoteSelectionGrants.delete(tabId);
+    void clearRemoteSelectionGrant(tabId);
 });
-chrome.tabs?.onRemoved?.addListener((tabId) =>
-  remoteSelectionGrants.delete(tabId),
+chrome.tabs?.onRemoved?.addListener(
+  (tabId) => void clearRemoteSelectionGrant(tabId),
 );
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -1669,8 +1705,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const settings = await getSettings();
       let expected;
       if (isRemoteProvider(settings.provider)) {
-        const grant = remoteSelectionGrants.get(sender.tab.id);
-        remoteSelectionGrants.delete(sender.tab.id);
+        const grant = await takeRemoteSelectionGrant(sender.tab.id);
         if (
           !grant ||
           grant.token !== message.payload?.grant ||
@@ -1846,11 +1881,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             const tab = await chrome.tabs.get(message.payload?.tabId);
             await context.assertActive();
             const token = crypto.randomUUID();
-            if (remoteSelectionGrants.size >= 32)
-              remoteSelectionGrants.delete(
-                remoteSelectionGrants.keys().next().value,
-              );
-            remoteSelectionGrants.set(tab.id, {
+            await writeRemoteSelectionGrant(tab.id, {
               token,
               url: tab.url,
               expires: Date.now() + 60000,

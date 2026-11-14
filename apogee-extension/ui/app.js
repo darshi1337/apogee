@@ -1246,6 +1246,7 @@ function resetQuestionCards() {
 }
 
 function setSuggestedQuestions(questions) {
+  if (questions.length > 0) resetRemoteQuestionsAction();
   questionHeading.textContent = t("suggestedPrompts");
   promptsCloseBtn.classList.remove("hidden");
   const container = document.getElementById("questionContainer");
@@ -1784,6 +1785,12 @@ function summarizeJobRunner(settings, summarizeArgs, opts) {
         tab,
         promptsCacheKey: execution?.promptsCacheKey || promptsCacheKey,
         jobId,
+        settings,
+        providerType: execution?.providerType || getProviderType(settings),
+        pageType: summarizeArgs.type || "",
+        selectionText:
+          summarizeArgs.type === "selection" ? summarizeArgs.content || "" : "",
+        focusKeyword: summarizeArgs.focusKeyword || "",
       });
     },
     renderFallback: (fallbackText) =>
@@ -1974,7 +1981,19 @@ async function saveSummaryViewState(tabId, jobId, state) {
   }
 }
 
-async function consumeSummaryStream(stream, { tab, promptsCacheKey, jobId }) {
+async function consumeSummaryStream(
+  stream,
+  {
+    tab,
+    promptsCacheKey,
+    jobId,
+    settings,
+    providerType,
+    pageType = "",
+    selectionText = "",
+    focusKeyword = "",
+  },
+) {
   const text = await streamGeneratorIntoElement(stream, summaryText);
 
   // Blank model output is a visible fault, not a success (#467): match the
@@ -2004,10 +2023,22 @@ async function consumeSummaryStream(stream, { tab, promptsCacheKey, jobId }) {
   );
   currentPromptsCacheKey = promptsCacheKey;
   if (/:p(?:openrouter|opencode)(?=:|$)/.test(promptsCacheKey || "")) {
-    const stored = await chrome.storage.local.get(promptsCacheKey);
-    setSuggestedQuestions(
-      Array.isArray(stored[promptsCacheKey]) ? stored[promptsCacheKey] : [],
-    );
+    if (settings) {
+      // The automatic remote job may be off or still running. This shows any
+      // saved questions, or the explicit button when the user has to ask for
+      // them themselves.
+      await restoreSuggestedPrompts({
+        promptsCacheKey,
+        tab,
+        summary: text,
+        settings,
+        persist: false,
+        providerType,
+        pageType,
+        selectionText,
+        focusKeyword,
+      });
+    }
     return text;
   }
   setSuggestedQuestionsLoading();
@@ -2674,6 +2705,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                   tab,
                   promptsCacheKey: state.promptsCacheKey,
                   jobId: state.jobId,
+                  settings,
+                  providerType: state.providerType,
+                  pageType: state.pageType || "",
+                  selectionText: state.isSelection
+                    ? state.selectionText || ""
+                    : "",
+                  focusKeyword: state.focusKeyword || "",
                 },
               );
             } catch (error) {
