@@ -189,6 +189,12 @@ export function scheduleStreamCleanup(streamId) {
   if (!hasDeadline) armStreamCleanupAlarm(streamId, STREAM_CLEANUP_MS);
 }
 
+// Test-only role: exposes the pending deadline so stream tests can assert
+// that provider activity slides it without re-creating the browser alarm.
+export function getStreamCleanupDeadline(streamId) {
+  return streamCleanupDeadlines.get(streamId) ?? null;
+}
+
 function armStreamCleanupAlarm(streamId, delayMs) {
   chrome.alarms.create(STREAM_CLEANUP_PREFIX + streamId, {
     delayInMinutes: msToAlarmMinutes(delayMs, { warn: null }),

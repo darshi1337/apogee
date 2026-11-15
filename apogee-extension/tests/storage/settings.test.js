@@ -201,3 +201,51 @@ test("remote views omit saved keys and Revoke clears both consents with a persis
     /Invalid generation consent/,
   );
 });
+
+test("B2 grants default off, reject ordinary writes, and revoke with generation", async () => {
+  const store = writableStorage({
+    openrouterConsent: true,
+    openrouterGenerationConsent: true,
+  });
+  let state = (await getRemoteSettings()).providers.openrouter;
+  assert.equal(state.backgroundConsent, false);
+  assert.equal(state.suggestionsConsent, false);
+  await updateSettings({
+    openrouterBackgroundConsent: true,
+    openrouterSuggestionsConsent: true,
+  });
+  assert.equal((await getSettings()).openrouterBackgroundConsent, false);
+  state = (
+    await saveRemoteSettings({
+      provider: "openrouter",
+      backgroundConsent: true,
+      suggestionsConsent: true,
+    })
+  ).providers.openrouter;
+  assert.equal(state.backgroundConsent, true);
+  assert.equal(state.suggestionsConsent, true);
+  assert.equal(state.generationRevision, 1);
+  state = (
+    await saveRemoteSettings({
+      provider: "openrouter",
+      generationConsent: false,
+    })
+  ).providers.openrouter;
+  assert.equal(state.backgroundConsent, false);
+  assert.equal(state.suggestionsConsent, false);
+  assert.equal(state.generationRevision, 2);
+  await saveRemoteSettings({ provider: "openrouter", generationConsent: true });
+  assert.equal(store.settings.openrouterSuggestionsConsent, false);
+  await assert.rejects(
+    saveRemoteSettings({ provider: "openrouter", backgroundConsent: "true" }),
+    /Invalid remote consent/,
+  );
+});
+
+test("B2 grants cannot be enabled without generation consent", async () => {
+  writableStorage({ openrouterConsent: true });
+  await assert.rejects(
+    saveRemoteSettings({ provider: "openrouter", suggestionsConsent: true }),
+    /Generation consent is required/,
+  );
+});

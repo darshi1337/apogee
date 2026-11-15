@@ -65,9 +65,11 @@ test("the stored-prompts-else-generate block lives in one helper", () => {
   const generators = appCode.match(/startSuggestedQuestionsBg\(/g) || [];
   // the definition and the helper's call, and nothing else
   assert.strictEqual(generators.length, 2);
+  // Live completion plus both restore paths all use the same helper, so a
+  // remote summary never gets a second copy of the button wiring.
   assert.strictEqual(
     (appCode.match(/await restoreSuggestedPrompts\(\{/g) || []).length,
-    2,
-    "both restore paths go through restoreSuggestedPrompts",
+    3,
+    "live and restored summaries go through restoreSuggestedPrompts",
   );
 });

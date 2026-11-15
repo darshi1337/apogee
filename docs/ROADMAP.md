@@ -18,7 +18,7 @@ This document shows what we work on now, what we plan soon, and our long-term pl
 
 - **Use Local Documents**:
   - Load PDFs, Word documents (DOCX), text files (TXT), Markdown files, JSON files, or HTML files directly into Apogee. You can also copy and paste text from anywhere. (#5, #6, #97)
-  
+
 - **Extract Text Without Model Calls**:
   - Extract and copy clean page text (including PDFs) directly to your clipboard using the "Copy text" chip without running an AI model. (#414, #449)
 
@@ -63,7 +63,7 @@ This document shows what we work on now, what we plan soon, and our long-term pl
 
 ## Things We Will Not Do
 
-- **Cloud Servers**: Apogee has no backend that stores or processes page text or generated summaries. Local generation stays on your device. Optional B1 remote generation sends input to the provider you explicitly select after separate consent. That provider and its upstream model providers handle the data under their own policies.
+- **Cloud Servers**: Apogee has no backend that stores or processes page text or generated summaries. Local generation stays on your device. Optional B2 remote generation sends input to the provider you explicitly select after separate consent. That provider and its upstream model providers handle the data under their own policies.
 
 - **Tracking Users**: We will not track you or use special tools to collect data about your browsing habits.
 
@@ -72,3 +72,5 @@ This document shows what we work on now, what we plan soon, and our long-term pl
 ## How to Help
 
 To help us build Apogee, check the open issues on GitHub or read [CONTRIBUTING.md](../CONTRIBUTING.md).
+
+Background/context-menu and selected-tab summaries require an additional default-off provider consent and an explicit user start. Sending generated summary text for follow-up questions requires a separate default-off suggestions consent. Automatic suggestions follow only a newly requested summary; restoring a summary never starts remote generation. Remote providers never enter automatic selection or fallback.

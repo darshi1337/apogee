@@ -227,6 +227,15 @@ export async function buildTrustedFinalize(payload, executionSettings = null) {
     isSelection,
     customContent,
     providerType,
+    ...(isRemoteProvider(providerType)
+      ? {
+          execution: {
+            provider: providerType,
+            model,
+            revision: settings[`${providerType}GenerationRevision`],
+          },
+        }
+      : {}),
     model,
     pageType,
     selectionText,
@@ -246,9 +255,14 @@ export async function buildTrustedFinalize(payload, executionSettings = null) {
   };
 }
 
-export async function recordPopupSummaryStream(payload, streamId) {
+export async function recordPopupSummaryStream(
+  payload,
+  streamId,
+  { assertAuthorized } = {},
+) {
   const finalize = payload?.finalize;
   if (!finalize?.jobId || finalize.tabId == null) return;
+  await assertAuthorized?.();
   registerStreamJob(streamId, {
     finalize,
     model: finalize.model || payload.model,
@@ -284,6 +298,7 @@ export async function recordPopupSummaryStream(payload, streamId) {
       translationEngine: finalize.translationEngine,
     },
     "summarizing",
+    { assertAuthorized },
   );
 }
 
@@ -394,6 +409,7 @@ export async function finalizeSummaryJob(
         title,
         url,
         summary: text,
+        execution: finalize.execution,
         model,
         language,
         translationEngine,

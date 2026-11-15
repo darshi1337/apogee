@@ -378,6 +378,37 @@ test("chat streams fragmented CRLF SSE, keeps zero-price routing, and stops on D
   assert.equal(chat.options.redirect, "error");
 });
 
+test("remote response activity includes keep-alives and reasoning without exposing them as output", async () => {
+  install(authorized());
+  const encoder = new TextEncoder();
+  const chunks = [
+    ": keep-alive\n\n",
+    'data: {"choices":[{"delta":{"reasoning":"private intermediate work"}}]}\n\n',
+    'data: {"choices":[{"delta":{"content":"final summary"}}]}\n\n',
+    "data: [DONE]\n\n",
+  ];
+  globalThis.fetch = async (url) =>
+    url.endsWith("/models")
+      ? catalog()
+      : new Response(
+          new ReadableStream({
+            start(controller) {
+              for (const chunk of chunks)
+                controller.enqueue(encoder.encode(chunk));
+              controller.close();
+            },
+          }),
+        );
+  let activity = 0;
+  const tokens = [];
+  await streamRemoteChat("openrouter", "prompt", {
+    onActivity: () => activity++,
+    onToken: (token) => tokens.push(token),
+  });
+  assert.equal(activity, chunks.length);
+  assert.deepEqual(tokens, ["final summary"]);
+});
+
 test("diagnostics redact both keys and serialized settings writes preserve unrelated fields", async () => {
   install(authorized());
   await Promise.all([
@@ -742,4 +773,92 @@ test("chat with a reused catalog does not fetch the catalog again", async () => 
   });
   assert.deepEqual(tokens, ["hello"]);
   assert.equal(catalogGets, 0);
+});
+
+test("OpenRouter excludes returned reasoning while OpenCode request behavior stays unchanged", async () => {
+  install({ ...authorized(), opencodeModel: "test/paid" });
+  const requests = [];
+  globalThis.fetch = async (address, options) => {
+    if (address.endsWith("/models"))
+      return Response.json({
+        data: address.includes("openrouter") ? [freeModel()] : [paidModel()],
+      });
+    requests.push({ address, body: JSON.parse(options.body) });
+    return new Response(
+      'data: {"choices":[{"delta":{"content":"answer"}}]}\n\ndata: [DONE]\n\n',
+    );
+  };
+  for (const provider of ["openrouter", "opencode"]) {
+    const tokens = [];
+    await streamRemoteChat(provider, "private prompt", {
+      onToken: (token) => tokens.push(token),
+    });
+    assert.deepEqual(tokens, ["answer"]);
+  }
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[0].body.reasoning, { exclude: true });
+  assert.deepEqual(requests[0].body.provider, {
+    max_price: { prompt: 0, completion: 0, request: 0 },
+    allow_fallbacks: false,
+  });
+  assert.equal(requests[0].body.model, "test/free");
+  assert.equal(requests[1].body.model, "test/paid");
+  assert.equal(Object.hasOwn(requests[1].body, "reasoning"), false);
+  assert.equal(Object.hasOwn(requests[1].body, "provider"), false);
+});
+
+test("oversized reasoning SSE retains the 4 MiB limit and reports a sanitized size failure", async () => {
+  for (const provider of ["openrouter", "opencode"]) {
+    install({ ...authorized(), opencodeModel: "test/paid" });
+    assert.equal(REMOTE_RESPONSE_MAX_BYTES, 4 * 1024 * 1024);
+    const frame = new TextEncoder().encode(
+      `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "router-secret code-secret private-prompt " + "x".repeat(16000) } }] })}\n\n`,
+    );
+    const frames = Math.floor(REMOTE_RESPONSE_MAX_BYTES / frame.byteLength) + 1;
+    let cancelled = false;
+    let posts = 0;
+    globalThis.fetch = async (address) => {
+      if (address.endsWith("/models"))
+        return Response.json({
+          data: provider === "openrouter" ? [freeModel()] : [paidModel()],
+        });
+      posts++;
+      let sent = 0;
+      return new Response(
+        new ReadableStream({
+          pull(controller) {
+            if (sent++ < frames) controller.enqueue(frame);
+            else
+              controller.enqueue(
+                new TextEncoder().encode(
+                  'data: {"choices":[{"delta":{"content":"must not be emitted"}}]}\n\ndata: [DONE]\n\n',
+                ),
+              );
+          },
+          cancel() {
+            cancelled = true;
+          },
+        }),
+      );
+    };
+    const tokens = [];
+    await assert.rejects(
+      streamRemoteChat(provider, "private-prompt", {
+        onToken: (token) => tokens.push(token),
+      }),
+      (error) => {
+        assert.equal(error.isUserFacing, true);
+        assert.match(error.message, /size limit/i);
+        assert.ok(
+          !/router-secret|code-secret|private-prompt|must not be emitted/.test(
+            error.message,
+          ),
+        );
+        return true;
+      },
+    );
+    assert.deepEqual(tokens, []);
+    assert.equal(posts, 1);
+    assert.equal(cancelled, true);
+  }
 });

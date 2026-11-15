@@ -32,6 +32,8 @@ export async function initRemoteSettings({
     return {
       consent: query("consent"),
       generationConsent: query("generation-consent"),
+      backgroundConsent: query("background-consent"),
+      suggestionsConsent: query("suggestions-consent"),
       key: query("key"),
       save: query("save"),
       revoke: query("revoke"),
@@ -95,6 +97,8 @@ export async function initRemoteSettings({
     const c = controls(panel);
     c.consent.checked = state.consent;
     c.generationConsent.checked = state.generationConsent === true;
+    c.backgroundConsent.checked = state.backgroundConsent === true;
+    c.suggestionsConsent.checked = state.suggestionsConsent === true;
     c.model.replaceChildren();
     const placeholder = root.createElement("option");
     placeholder.value = "";
@@ -124,6 +128,8 @@ export async function initRemoteSettings({
     if (payload.consent === false) {
       controls(panel).consent.checked = false;
       controls(panel).generationConsent.checked = false;
+      controls(panel).backgroundConsent.checked = false;
+      controls(panel).suggestionsConsent.checked = false;
     }
     panel.busy = true;
     let completed = false;
@@ -191,6 +197,14 @@ export async function initRemoteSettings({
         // unchecking catalog consent revokes both in one Save instead of
         // sending a rejected combination to the worker.
         generationConsent: c.consent.checked && c.generationConsent.checked,
+        backgroundConsent:
+          c.consent.checked &&
+          c.generationConsent.checked &&
+          c.backgroundConsent.checked,
+        suggestionsConsent:
+          c.consent.checked &&
+          c.generationConsent.checked &&
+          c.suggestionsConsent.checked,
       };
       if (c.key.value.trim()) payload.apiKey = c.key.value.trim();
       if (payload.consent || payload.generationConsent) {
@@ -211,6 +225,8 @@ export async function initRemoteSettings({
           c.key.value = "";
           c.consent.checked = false;
           c.generationConsent.checked = false;
+          c.backgroundConsent.checked = false;
+          c.suggestionsConsent.checked = false;
           render(panel, "remotePermissionDenied");
           return;
         }

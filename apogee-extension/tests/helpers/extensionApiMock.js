@@ -20,7 +20,42 @@ export function createExtensionApiMock(initialStorage = {}) {
   const messageListeners = createListenerList();
   const storageChangeListeners = createListenerList();
 
+  const sessionData = {};
+
   const mockStorage = {
+    session: {
+      get: async (keys) => {
+        if (!keys) return { ...sessionData };
+        if (typeof keys === "string") {
+          return { [keys]: sessionData[keys] };
+        }
+        if (Array.isArray(keys)) {
+          const result = {};
+          keys.forEach((k) => {
+            if (k in sessionData) result[k] = sessionData[k];
+          });
+          return result;
+        }
+        if (typeof keys === "object") {
+          const result = {};
+          Object.keys(keys).forEach((k) => {
+            result[k] = k in sessionData ? sessionData[k] : keys[k];
+          });
+          return result;
+        }
+        return { ...sessionData };
+      },
+      set: async (items) => {
+        Object.assign(sessionData, items);
+      },
+      remove: async (keys) => {
+        const keyList = Array.isArray(keys) ? keys : [keys];
+        keyList.forEach((k) => delete sessionData[k]);
+      },
+      clear: async () => {
+        Object.keys(sessionData).forEach((k) => delete sessionData[k]);
+      },
+    },
     local: {
       get: async (keys) => {
         if (!keys) return { ...storageData };

@@ -149,8 +149,8 @@ async function writeViewState(
   }
 }
 
-export function saveViewState(tabId, partial) {
-  return writeViewState(tabId, partial);
+export function saveViewState(tabId, partial, options = {}) {
+  return writeViewState(tabId, partial, null, options);
 }
 
 export function saveViewStateIfJobMatches(

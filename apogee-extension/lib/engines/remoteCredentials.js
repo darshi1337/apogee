@@ -68,10 +68,18 @@ function watchStorage() {
       if (
         consentRevoked ||
         keyChanged ||
-        ["GenerationConsent", "GenerationRevision", "Model"].some(
-          (suffix) =>
-            oldValue[`${provider}${suffix}`] !==
-            newValue[`${provider}${suffix}`],
+        [
+          "GenerationConsent",
+          "BackgroundConsent",
+          "SuggestionsConsent",
+          "GenerationRevision",
+          "Model",
+        ].some((suffix) =>
+          ["BackgroundConsent", "SuggestionsConsent"].includes(suffix)
+            ? (oldValue[`${provider}${suffix}`] === true) !==
+              (newValue[`${provider}${suffix}`] === true)
+            : oldValue[`${provider}${suffix}`] !==
+              newValue[`${provider}${suffix}`],
         )
       ) {
         for (const subscriber of generationListeners) subscriber(provider);

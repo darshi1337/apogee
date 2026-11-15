@@ -14,9 +14,16 @@ export async function activateSelectionCapture(
   timeoutMs = SELECTION_CAPTURE_TIMEOUT_MS,
 ) {
   if (!tab?.id || typeof chrome === "undefined") return false;
+  const response = await chrome.runtime.sendMessage({
+    target: "service-worker",
+    action: "arm-remote-selection",
+    payload: { tabId: tab.id },
+  });
+  if (response?.error) throw new Error(response.error);
+  const grant = response?.grant || null;
   await chrome.scripting.executeScript({
     target: { tabId: tab.id },
-    func: (minLength, timeout) => {
+    func: (minLength, timeout, grant) => {
       if (window.__apogeeSelectionCapture) {
         if (typeof window.__apogeeSelectionCaptureTeardown === "function") {
           window.__apogeeSelectionCaptureTeardown();
@@ -55,7 +62,7 @@ export async function activateSelectionCapture(
         chrome.runtime.sendMessage({
           target: "service-worker",
           action: "summarize-selection",
-          payload: { selectionText: text },
+          payload: { selectionText: text, ...(grant ? { grant } : {}) },
         });
         teardown();
       };
@@ -67,7 +74,7 @@ export async function activateSelectionCapture(
         timer = setTimeout(teardown, timeout);
       }
     },
-    args: [MIN_SELECTION_LENGTH, timeoutMs],
+    args: [MIN_SELECTION_LENGTH, timeoutMs, grant],
   });
   return true;
 }

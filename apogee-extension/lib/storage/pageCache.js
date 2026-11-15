@@ -602,3 +602,41 @@ export async function persistSummaryIfAllowed(
   await persistSummary(cacheKey, promptsCacheKey, text, title, vector, options);
   return true;
 }
+
+const acquireQuestionsLock = createLock();
+export async function persistSuggestedQuestionsIfAllowed(
+  key,
+  questions,
+  sourceUrls,
+  { assertAuthorized } = {},
+) {
+  const release = await acquireQuestionsLock();
+  try {
+    const allowed = async () => {
+      for (const url of sourceUrls)
+        if (!(await shouldPersist(url))) return false;
+      return true;
+    };
+    if (!(await allowed())) return false;
+    const previous = await chrome.storage.local.get(key);
+    await assertAuthorized?.();
+    await chrome.storage.local.set({ [key]: questions });
+    try {
+      await assertAuthorized?.();
+      const stillAllowed = await allowed();
+      await assertAuthorized?.();
+      if (!stillAllowed) {
+        if (previous[key] === undefined) await chrome.storage.local.remove(key);
+        else await chrome.storage.local.set({ [key]: previous[key] });
+        return false;
+      }
+    } catch (error) {
+      if (previous[key] === undefined) await chrome.storage.local.remove(key);
+      else await chrome.storage.local.set({ [key]: previous[key] });
+      throw error;
+    }
+    return true;
+  } finally {
+    release();
+  }
+}

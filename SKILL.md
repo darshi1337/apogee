@@ -7,7 +7,7 @@ compatibility: Requires Node.js 24 or newer. Browser smoke tests require a Chrom
 
 # Apogee extraction and summarization
 
-Work from `apogee-extension/`. Keep page content, prompts, summaries, and files on-device. Do not add cloud inference or telemetry.
+Work from `apogee-extension/`. Keep local generation on-device. Optional remote generation must use the existing worker-owned boundary and explicit consent; background and selected-tab summaries and summary-based suggestions need their separate grants. Never add telemetry or automatic remote selection/fallback.
 
 ## Choose the entry point
 

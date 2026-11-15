@@ -18,6 +18,11 @@ function sanitizeSettings(settings) {
     clean[`${provider}Consent`] = clean[`${provider}Consent`] === true;
     clean[`${provider}GenerationConsent`] =
       clean[`${provider}GenerationConsent`] === true;
+    for (const suffix of ["BackgroundConsent", "SuggestionsConsent"])
+      clean[`${provider}${suffix}`] =
+        clean[`${provider}Consent`] &&
+        clean[`${provider}GenerationConsent`] &&
+        clean[`${provider}${suffix}`] === true;
     const revision = clean[`${provider}GenerationRevision`];
     clean[`${provider}GenerationRevision`] =
       Number.isSafeInteger(revision) && revision >= 0 ? revision : 0;
@@ -80,6 +85,8 @@ const remoteFields = new Set(
       "Consent",
       "Model",
       "GenerationConsent",
+      "BackgroundConsent",
+      "SuggestionsConsent",
       "GenerationRevision",
       "HasApiKey",
     ].map((suffix) => `${provider}${suffix}`),
@@ -105,7 +112,13 @@ function writeSettings(partial, remote) {
     const settings = sanitizeSettings({ ...current, ...allowed });
     for (const provider of REMOTE_PROVIDER_IDS) {
       if (
-        ["GenerationConsent", "ApiKey", "Model"].some(
+        [
+          "GenerationConsent",
+          "BackgroundConsent",
+          "SuggestionsConsent",
+          "ApiKey",
+          "Model",
+        ].some(
           (suffix) =>
             current[`${provider}${suffix}`] !==
             settings[`${provider}${suffix}`],
