@@ -625,9 +625,17 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     message.type === "suggested-prompts-ready" &&
     message.promptsCacheKey === currentPromptsCacheKey
   ) {
-    setSuggestedQuestions(
-      Array.isArray(message.questions) ? message.questions : [],
-    );
+    const questions = Array.isArray(message.questions) ? message.questions : [];
+    setSuggestedQuestions(questions);
+    // An explicit remote request hides its button while it waits. Give the
+    // wired action back when the job failed so the user can retry it.
+    const button = document.getElementById("generateRemoteQuestionsBtn");
+    if (
+      !questions.length &&
+      message.status === "network-error" &&
+      typeof button?.onclick === "function"
+    )
+      button.classList.remove("hidden");
   }
 });
 

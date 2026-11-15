@@ -338,7 +338,18 @@ async function runRemoteSuggestions(payload) {
       })
       .catch(() => {});
   } catch {
-    // A separately authorized child job cannot turn a completed summary into a failure.
+    // A separately authorized child job cannot turn a completed summary into a
+    // failure. Clear the popup's waiting state after a real failure so the
+    // user can retry; an authorization change already cancels the UI action.
+    if (context && !context.signal.aborted)
+      await chrome.runtime
+        .sendMessage({
+          type: "suggested-prompts-ready",
+          promptsCacheKey,
+          questions: [],
+          status: SKIP_LOOKUP_STATUS.NETWORK,
+        })
+        .catch(() => {});
   } finally {
     context?.dispose();
     untrackBackgroundJob(promptsCacheKey);

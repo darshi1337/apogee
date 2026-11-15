@@ -1601,6 +1601,8 @@ async function writeRemoteSelectionGrant(tabId, grant) {
     await chrome.storage.session.set({ [selectionGrantKey(tabId)]: grant });
     return;
   }
+  if (memorySelectionGrants.size >= 32)
+    memorySelectionGrants.delete(memorySelectionGrants.keys().next().value);
   memorySelectionGrants.set(tabId, grant);
 }
 
@@ -1710,8 +1712,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           !grant ||
           grant.token !== message.payload?.grant ||
           grant.expires < Date.now() ||
-          grant.url !== sender.tab.url ||
-          (grant.documentId && grant.documentId !== sender.documentId)
+          grant.url !== sender.tab.url
         )
           throw new UserFacingError(
             "Start selection capture from the Apogee panel before selecting text.",

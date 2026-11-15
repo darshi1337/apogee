@@ -78,6 +78,26 @@ test("separate suggestion admission generates through both providers and caches 
   }
 });
 
+test("failed remote generation clears the popup waiting state without persisting", async () => {
+  const payload = await setup();
+  globalThis.fetch = async () => {
+    throw new Error("offline");
+  };
+  await runSuggestQuestionsJob(payload);
+  assert.equal(getStorageData()[payload.promptsCacheKey], undefined);
+  assert.deepEqual(
+    broadcasts.filter((message) => message.type === "suggested-prompts-ready"),
+    [
+      {
+        type: "suggested-prompts-ready",
+        promptsCacheKey: payload.promptsCacheKey,
+        questions: [],
+        status: "network-error",
+      },
+    ],
+  );
+});
+
 test("missing separate consent or changed parent revision cannot transmit summary text", async () => {
   for (const overrides of [
     { openrouterSuggestionsConsent: false },

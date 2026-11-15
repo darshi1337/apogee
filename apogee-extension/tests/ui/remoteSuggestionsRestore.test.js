@@ -88,6 +88,51 @@ test("explicit restored selection preserves its selected-text identity", async (
   await button.onclick();
   assert.equal(sends[0].payload.selectionText, "Only this selected passage");
 });
+test("a failed explicit request restores the wired retry action", () => {
+  const listener = source.match(
+    /chrome\.runtime\.onMessage\.addListener\(\(message, sender\) => \{[\s\S]*?\n\}\);/,
+  )[0];
+  let handler;
+  const button = {
+    onclick() {},
+    classList: {
+      removed: [],
+      remove(name) {
+        this.removed.push(name);
+      },
+    },
+  };
+  let shownQuestions;
+  new Function(
+    "chrome",
+    "document",
+    "setSuggestedQuestions",
+    "currentPromptsCacheKey",
+    listener,
+  )(
+    {
+      runtime: {
+        id: "extension-id",
+        onMessage: { addListener: (fn) => (handler = fn) },
+      },
+    },
+    { getElementById: () => button },
+    (questions) => (shownQuestions = questions),
+    "remote-key",
+  );
+  handler(
+    {
+      type: "suggested-prompts-ready",
+      promptsCacheKey: "remote-key",
+      questions: [],
+      status: "network-error",
+    },
+    { id: "extension-id" },
+  );
+  assert.deepEqual(shownQuestions, []);
+  assert.deepEqual(button.classList.removed, ["hidden"]);
+});
+
 test("view reset clears the previous summary's remote generation action", () => {
   const button = {
     onclick() {},
