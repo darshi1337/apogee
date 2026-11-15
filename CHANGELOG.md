@@ -351,6 +351,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Add RTL summary languages (#622) ([8afc5e4](https://github.com/darshi1337/apogee/commit/8afc5e4f5f1fc1a40bd4413d73e1cbe25381c42b))
 - Support multiple llama-server models in router mode (#618) ([101c06c](https://github.com/darshi1337/apogee/commit/101c06c0906f39b80ee662a9a5bc26cc0b14eb88))
 - Enable opt-in remote Summary and Ask (B1) (#617) ([bb219ba](https://github.com/darshi1337/apogee/commit/bb219baa7c049d6c36bf36c3545bd59d85b27414))
+- Enable remote background summaries, multi-tab synthesis and follow-up questions (B2) (#664) ([c072a80](https://github.com/darshi1337/apogee/commit/c072a800c885d330919f182e6526185daf8aaad4))
 
 ### Fixed
 
