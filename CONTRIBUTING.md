@@ -53,6 +53,8 @@ npm run build:watch  # watch mode, rebuilds dist/chrome and dist/firefox on save
 
 Load `apogee-extension/dist/chrome` (or `dist/firefox`) as an unpacked/temporary extension in your browser. See the main [README](README.md#get-started) for the project overview and [BROWSERS.md](docs/BROWSERS.md) for per-browser notes.
 
+No local Node install? Open the repo in the Dev Container or a Codespace. In VS Code, select **Reopen in Container**. `.devcontainer/` pins Node 24 and installs the extension dependencies when it starts.
+
 If you work on the **Local Ollama** provider, you also need Ollama installed and running. The extension reaches it straight with no `OLLAMA_ORIGINS` setup (see the [Local Ollama Guide](docs/OLLAMA.md)).
 
 ## Before opening a PR
@@ -119,6 +121,18 @@ Four places state permissions and network use, and they must match. A claim that
 - `docs/STORE-LISTING.md`, which carries a reason per permission
 
 Adding, removing, or reusing a permission or a host means editing all four in the same PR.
+
+## AI-assisted contributions
+
+We allow AI tools. You are responsible for the patch you send.
+
+- Say in the PR text which tool helped and what it changed. One line is enough.
+- Run the checks yourself. Do not send code you cannot explain or debug.
+- Review generated tests, fixtures, and docs like any other change. Remove personal data from fixtures.
+- Do not let a tool add a dependency, permission, host, or network call without saying so. Those changes need the four-place doc update above.
+- A generated pull request that ignores this guide may be closed without review.
+
+If you use a coding agent, point it at [AGENTS.md](AGENTS.md).
 
 ## Reporting bugs / requesting features
 

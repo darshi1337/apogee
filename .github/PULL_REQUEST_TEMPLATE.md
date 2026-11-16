@@ -13,6 +13,13 @@
 - [ ] `npm run check:consistency` (from the repo root)
 - [ ] Manually exercised the change in a loaded browser extension
 
+## AI assistance
+
+<!-- Delete this section if no AI tool helped. -->
+
+- Tool and what it changed:
+- [ ] I reviewed and tested the output myself.
+
 ## Privacy impact
 
 <!-- Does this add, remove, or change any outbound network request or permission? -->
