@@ -377,6 +377,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Bump vite in /apogee-extension in the npm-minor-patch group (#675) ([313e4bd](https://github.com/darshi1337/apogee/commit/313e4bd4b40103e3ff9a95cfc7c2528d08555923))
 - Bump reviewdog/action-actionlint (#676) ([f9b8e87](https://github.com/darshi1337/apogee/commit/f9b8e87d40db6ebd4e18b19a41511d47621259f6))
 - Avoid rescheduling stream cleanup on every chunk (#640) (#677) ([5f9e3ca](https://github.com/darshi1337/apogee/commit/5f9e3cabaf60a0b8f0df9ea61a35bece13791ac6))
+- Bump reviewdog/action-actionlint (#683) ([431bdcc](https://github.com/darshi1337/apogee/commit/431bdcc8094ee024e71f7421204b5792dfd1dffd))
+- Bump the npm-minor-patch group in /apogee-extension with 2 updates (#684) ([66159e1](https://github.com/darshi1337/apogee/commit/66159e1cdc0456b2c7ad5f17ff149b27d10ba14b))
 
 ## [0.2.1] - 2026-08-19
 
