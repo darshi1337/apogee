@@ -132,7 +132,7 @@ We allow AI tools. You are responsible for the patch you send.
 - Do not let a tool add a dependency, permission, host, or network call without saying so. Those changes need the four-place doc update above.
 - A generated pull request that ignores this guide may be closed without review.
 
-If you use a coding agent, point it at [AGENTS.md](AGENTS.md).
+If you use a coding agent, give it this guide.
 
 ## Reporting bugs / requesting features
 
