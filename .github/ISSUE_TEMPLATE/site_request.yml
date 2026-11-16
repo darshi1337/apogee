@@ -1,0 +1,52 @@
+name: Site support request
+description: A page or site that Apogee extracts badly or not at all
+title: "[Site]: "
+labels: ["extractor"]
+body:
+  - type: input
+    id: site
+    attributes:
+      label: Site
+      description: Paste the URL of a public page that shows the problem. If the page needs a login, say so and describe its shape instead (article, thread, video page).
+      placeholder: https://example.com/article
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: What Apogee does today
+      description: What does the summary look like on this page? Empty, wrong text, missing comments, paywall boilerplate?
+    validations:
+      required: true
+
+  - type: textarea
+    id: content
+    attributes:
+      label: What the page holds
+      description: What should Apogee have picked up? Title, body, comments, transcript?
+    validations:
+      required: true
+
+  - type: textarea
+    id: fixture
+    attributes:
+      label: Fixture
+      description: |
+        If you can, save the page HTML and attach it here after you create the issue. Strip anything private first. Fixtures let a contributor build and test an extractor with plain Node, no browser needed.
+
+        See [tests/extractors/README.md](https://github.com/darshi1337/apogee/blob/main/apogee-extension/tests/extractors/README.md) for the harness.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: willing
+    attributes:
+      label: Willing to build it?
+      description: Extractors are the most self-contained work in this repo. If you want to write one, say so and a maintainer will point at the closest example to copy. See [hackernews.js](https://github.com/darshi1337/apogee/blob/main/apogee-extension/content/extractors/hackernews.js) and [reddit.js](https://github.com/darshi1337/apogee/blob/main/apogee-extension/content/extractors/reddit.js) for good starting points.
+      options:
+        - Yes, I want to write it
+        - Yes, with guidance
+        - No, just reporting
+    validations:
+      required: true

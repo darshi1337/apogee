@@ -136,7 +136,7 @@ If you use a coding agent, give it this guide.
 
 ## Reporting bugs / requesting features
 
-Open an issue with the templates under `.github/ISSUE_TEMPLATE/`. Include your browser and version, the extension version (`chrome://extensions`), and whether you use WebLLM or Local Ollama mode.
+Open an issue with one of the forms under `.github/ISSUE_TEMPLATE/`. The form asks for your browser and version, the extension version (`chrome://extensions`), and your provider mode.
 
 ## What gets reviewed and what does not
 
@@ -147,3 +147,18 @@ Apogee welcomes contributions year-round, including during [Hacktoberfest](https
 - **Closed without review**: whitespace-only reformatting, unasked dependency bumps, and README edits that reword working prose without adding facts. These get the `spam` or `invalid` label
 
 Quality over count. One working extractor is worth more here than four cosmetic PRs.
+
+## Reviewer and maintainer ladder
+
+Roles build on trust and a record of good work. There is no fixed count and no application form. A maintainer invites you when the fit is clear.
+
+| Role | What you do | How you get there |
+| --- | --- | --- |
+| Contributor | Send scoped PRs, report reproducible bugs, improve docs | A merged PR |
+| Regular | Review other PRs, triage issues, answer questions | A few merged PRs and useful review comments |
+| Reviewer | Approve or request changes in an area you know | Sustained, careful review as a Regular |
+| Maintainer | Merge, cut releases, set direction, handle security reports | Invited by an existing maintainer |
+
+Review the change, not the person. Say what blocks a merge and what is only a suggestion. If you cannot review a patch fairly, step back and let another reviewer take it.
+
+Current maintainer: [@darshi1337](https://github.com/darshi1337).
