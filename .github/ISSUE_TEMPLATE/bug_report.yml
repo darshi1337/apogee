@@ -1,0 +1,110 @@
+name: Bug report
+description: Report something that is not working
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: bug
+    attributes:
+      label: Describe the bug
+      description: What is wrong?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the smallest set of steps that shows the problem.
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## Environment
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      placeholder: Chrome 150, Firefox 145, Edge 142
+    validations:
+      required: true
+
+  - type: input
+    id: apogee-version
+    attributes:
+      label: Apogee version
+      description: See `chrome://extensions` or the Settings page in the popup.
+      placeholder: 0.2.6
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider mode
+      options:
+        - WebLLM (in-browser, WebGPU)
+        - Transformers.js (in-browser, WASM)
+        - Local Ollama
+        - llama.cpp
+        - OpenRouter
+        - OpenCode Zen
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: macOS 15.2, Windows 11, Ubuntu 24.04
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## Debug logs
+
+        Engine logs help when the bug happens during a summarize or ask. Recording is off by default.
+
+        1. Open Settings.
+        2. Open Diagnostics.
+        3. Turn on **Record engine logs**.
+        4. Reproduce the problem.
+        5. Paste the text the log panel collected below.
+
+        > [!WARNING]
+        > Engine logs may contain details about the page that triggered the bug. Review what you paste before you submit it.
+
+  - type: textarea
+    id: debug-logs
+    attributes:
+      label: Debug logs
+      description: Paste the collected log text. Leave this empty if the bug is not in summarize or ask.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Console errors, screenshots, or the page you used if it is not sensitive.
+    validations:
+      required: false
