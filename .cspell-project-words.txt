@@ -56,6 +56,7 @@ prefs
 qwen
 Qwen
 sidepanel
+sigstore
 offscreen
 sandboxing
 smol
@@ -73,3 +74,4 @@ webmail
 winget
 wordmark
 xcpc
+zizmor
