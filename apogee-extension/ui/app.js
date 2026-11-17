@@ -22,6 +22,7 @@ import {
 } from "../lib/engines/engineRules.js";
 import { estimateTokens } from "../lib/engines/modelLimits.js";
 import { runStreamingJob, createJobStartGate } from "./jobs.js";
+import { renderSummaryStream } from "./summaryStream.js";
 import { formatEffectiveConfigJSON } from "./effectiveConfig.js";
 import {
   customContentPromptsCacheKey,
@@ -1915,36 +1916,6 @@ function returnToAskAfterCancel(tabId) {
   saveViewState(tabId, { view: "summaryView", subview: "ask", streamId: null });
 }
 
-async function streamGeneratorIntoElement(generator, element) {
-  let fullText = "";
-  // Coalesce per-token markdown re-renders onto animation frames: local
-  // models emit tokens faster than a full innerHTML re-parse per token can
-  // keep up with, which janks (or freezes) the popup mid-stream. The final
-  // render below still runs synchronously so the DOM always matches the
-  // returned text, even if a scheduled frame never fires.
-  let renderScheduled = false;
-  const scheduleRender = () => {
-    if (renderScheduled) return;
-    renderScheduled = true;
-    const run = () => {
-      renderScheduled = false;
-      setMarkdownHtml(element, cleanModelOutput(fullText));
-    };
-    if (typeof requestAnimationFrame === "function") {
-      requestAnimationFrame(run);
-    } else {
-      setTimeout(run, 16);
-    }
-  };
-  for await (const chunk of generator) {
-    fullText += chunk;
-    if (fullText.trimStart() !== "") scheduleRender();
-  }
-  const finalText = cleanModelOutput(fullText);
-  setMarkdownHtml(element, finalText);
-  return finalText;
-}
-
 // Shared empty-summary fault (#467): blank model output renders the same
 // visible error in the live run and on view-state restore, instead of a
 // blank success. Callers add their own announce / badge / persistence.
@@ -2002,7 +1973,9 @@ async function consumeSummaryStream(
     focusKeyword = "",
   },
 ) {
-  const text = await streamGeneratorIntoElement(stream, summaryText);
+  const text = await renderSummaryStream(stream, (text) =>
+    setMarkdownHtml(summaryText, text),
+  );
 
   // Blank model output is a visible fault, not a success (#467): match the
   // ask path, which renders EMPTY_ANSWER_MESSAGE instead of a blank view.
