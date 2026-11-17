@@ -169,7 +169,7 @@ A pending submission must be cancelled in the dashboard before a new version can
 
 ### Microsoft Edge Add-ons (optional)
 
-Edge uses the Chromium package. Upload `apogee-X.Y.Z-chrome.zip` and the Edge listing copy from [`docs/STORE-LISTING.md`](STORE-LISTING.md) in [Microsoft Partner Center](https://partner.microsoft.com/dashboard/microsoftedge/).
+Edge uses the Chromium package. Upload `apogee-X.Y.Z-chrome.zip` with the Edge listing copy from [`docs/STORE-LISTING.md`](STORE-LISTING.md); it links Microsoft's publishing and listing guides.
 
 ## Rollback
 
