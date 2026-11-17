@@ -1,0 +1,112 @@
+name: Staging
+
+# Packages a release candidate without creating a tag or a GitHub Release.
+# Release Please owns the v* tag range, so an extra prerelease here would sit
+# inside the range it scans for changelog entries. The artifact from this run
+# is what a maintainer installs and runs through docs/RELEASE.md before the
+# release PR is merged.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: apogee-extension
+
+jobs:
+  package:
+    name: Package release candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apogee-extension/package-lock.json
+
+      # onnxruntime-node's install script downloads a native binary from a
+      # Microsoft CDN. One ETIMEDOUT there fails the whole job, and the same
+      # commit usually passes on the next run, so retry instead of going red
+      # on a network blip.
+      - name: Install dependencies
+        run: |
+          for attempt in 1 2 3; do
+            if npm ci; then
+              exit 0
+            fi
+            echo "::warning::npm ci failed (attempt $attempt of 3); retrying in 20s"
+            sleep 20
+          done
+          echo "::error::npm ci failed after 3 attempts"
+          exit 1
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build and package
+        run: npm run package
+
+      - name: Validate the packaged Firefox build
+        run: npm run lint:webext
+
+      - name: Record version and commit
+        id: meta
+        run: |
+          echo "version=$(node -e 'console.log(require("./manifest.json").version)')" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      # `npm run package` writes the zips to the repo root, not to
+      # apogee-extension/, so run this step from the root.
+      - name: Write checksums
+        working-directory: .
+        run: sha256sum apogee-*-chrome.zip apogee-*-mozilla.xpi | tee SHA256SUMS.txt
+
+      - name: Upload release candidate
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: apogee-rc-${{ steps.meta.outputs.version }}
+          path: |
+            apogee-*-chrome.zip
+            apogee-*-mozilla.xpi
+            SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Write release candidate checklist
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          COMMIT: ${{ steps.meta.outputs.commit }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$REF_NAME" = "main" ]; then
+            echo "::warning::Staging ran on main, so this build carries the current released version. Select the release PR branch to test a new candidate."
+          fi
+          {
+            echo "### Release candidate $VERSION"
+            echo ""
+            echo "- Ref: \`$REF_NAME\`"
+            echo "- Commit: \`$COMMIT\`"
+            echo "- Artifact: \`apogee-rc-$VERSION\`"
+            echo "- Contents: Chrome zip, Firefox xpi, \`SHA256SUMS.txt\`"
+            echo ""
+            echo "After downloading, run \`sha256sum -c SHA256SUMS.txt\`, install both"
+            echo "packages in clean profiles, and work through the checklist in"
+            echo "[docs/RELEASE.md]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/main/docs/RELEASE.md)."
+            echo ""
+            echo "This run does not tag or publish anything. Merge the release PR to"
+            echo "let Release Please create \`v$VERSION\`."
+          } >> "$GITHUB_STEP_SUMMARY"

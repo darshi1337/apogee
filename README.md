@@ -180,6 +180,8 @@ See the [extractor test harness and worked examples](apogee-extension/tests/extr
 
 - **[Changelog](CHANGELOG.md)**: Full release history and version changes.
 
+- **[Release Process](docs/RELEASE.md)**: How release candidates are tested, how a version is tagged and published, and how to roll back.
+
 - **[Security Policy](SECURITY.md)**: Security policy, how to disclose flaws, and reporting steps.
 
 - **[Code of Conduct](CODE_OF_CONDUCT.md)**: Community standards and guidelines.

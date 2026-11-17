@@ -161,4 +161,6 @@ Roles build on trust and a record of good work. There is no fixed count and no a
 
 Review the change, not the person. Say what blocks a merge and what is only a suggestion. If you cannot review a patch fairly, step back and let another reviewer take it.
 
+Release work follows [docs/RELEASE.md](docs/RELEASE.md): a release candidate is packaged and tested before the release PR merges, and store uploads use the artifacts attached to the GitHub Release.
+
 Current maintainer: [@darshi1337](https://github.com/darshi1337).

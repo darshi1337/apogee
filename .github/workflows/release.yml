@@ -43,8 +43,21 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
+      # onnxruntime-node's install script downloads a native binary from a
+      # Microsoft CDN. One ETIMEDOUT there fails the whole job, and the same
+      # commit usually passes on the next run, so retry instead of going red
+      # on a network blip.
       - name: Install dependencies
-        run: npm ci
+        run: |
+          for attempt in 1 2 3; do
+            if npm ci; then
+              exit 0
+            fi
+            echo "::warning::npm ci failed (attempt $attempt of 3); retrying in 20s"
+            sleep 20
+          done
+          echo "::error::npm ci failed after 3 attempts"
+          exit 1
 
       - name: Build and package extension
         run: npm run package
@@ -73,6 +86,14 @@ jobs:
             cosign sign-blob --yes --bundle "$f.sigstore.json" "$f"
           done
 
+      # Same checksum file the Staging workflow produces, so a maintainer can
+      # verify store uploads with one command. `npm run package` writes the
+      # zips to the repo root, not to apogee-extension/.
+      - name: Write checksums
+        run: |
+          cd ..
+          sha256sum apogee-*-chrome.zip apogee-*-mozilla.xpi | tee SHA256SUMS.txt
+
       # gh CLI instead of softprops/action-gh-release: one less third-party
       # action in the release path (zizmor superfluous-actions), same result.
       - name: Create GitHub Release
@@ -84,7 +105,7 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           shopt -s nullglob
-          ARTIFACTS=( ../apogee-*-chrome.zip ../apogee-*-mozilla.xpi ../apogee-*.sigstore.json )
+          ARTIFACTS=( ../apogee-*-chrome.zip ../apogee-*-mozilla.xpi ../apogee-*.sigstore.json ../SHA256SUMS.txt )
           if [ "${#ARTIFACTS[@]}" -eq 0 ]; then echo "no artifacts to release"; exit 1; fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "${ARTIFACTS[@]}" --clobber
