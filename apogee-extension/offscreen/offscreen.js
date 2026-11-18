@@ -75,7 +75,7 @@ function sendLogToServiceWorker(level, args) {
       level,
       message,
     })
-    .catch(() => { });
+    .catch(() => {});
 }
 
 console.log = (...args) => {
@@ -260,7 +260,7 @@ async function ensureEngine(modelId) {
         progress: { ...progress, kind: "download" },
         modelId,
       })
-      .catch(() => { });
+      .catch(() => {});
   };
 
   const STALL_NOTE_MS = OFFSCREEN_STALL_NOTE_MS;
@@ -321,9 +321,9 @@ async function ensureEngine(modelId) {
       if (!isInterruptedDownloadError(err)) throw err;
       throw new Error(
         "The model download keeps getting interrupted (the download " +
-        "server stalled or the connection dropped). Progress so far " +
-        "is saved, so trying again later will resume where it left " +
-        "off.",
+          "server stalled or the connection dropped). Progress so far " +
+          "is saved, so trying again later will resume where it left " +
+          "off.",
         { cause: err },
       );
     }
@@ -445,9 +445,9 @@ function webllmChatFn(eng, onFinalStats) {
   return async function* (prompt, { signal, system } = {}) {
     const messages = system
       ? [
-        { role: "system", content: system },
-        { role: "user", content: prompt },
-      ]
+          { role: "system", content: system },
+          { role: "user", content: prompt },
+        ]
       : [{ role: "user", content: prompt }];
     const completion = await eng.chat.completions.create({
       messages,
@@ -506,7 +506,7 @@ function reportProgress(text, progress = 0, kind) {
       type: "model-progress",
       progress: { text, progress, ...(kind ? { kind } : {}) },
     })
-    .catch(() => { });
+    .catch(() => {});
 }
 
 function opusProgressForReport(p) {
@@ -597,7 +597,7 @@ async function runTransformersJob(
         progress: { ...progress, kind: "download" },
         modelId: pending.model,
       })
-      .catch(() => { });
+      .catch(() => {});
   };
 
   const tracker = createSummarizeProgressTracker((text) =>
@@ -717,7 +717,7 @@ async function runStream(streamId, pending, stream) {
           url: pending.url,
           text: stream.text,
         })
-        .catch(() => { });
+        .catch(() => {});
     }
   };
 
@@ -802,7 +802,7 @@ async function runStream(streamId, pending, stream) {
         type: "model-progress",
         progress: { text: toUserMessage(err), progress: 0 },
       })
-      .catch(() => { });
+      .catch(() => {});
   } finally {
     scheduleStreamCleanup(streamId);
   }
@@ -1070,4 +1070,4 @@ chrome.runtime
     target: "service-worker",
     type: "offscreen-ready",
   })
-  .catch(() => { });
+  .catch(() => {});

@@ -38,8 +38,8 @@ function resolveWasmThreads(label) {
     EXPERIMENTAL_WASM_THREADS && isolated && hasSAB ? Math.min(cores, 4) : 1;
   debugLog(
     `[mt] ${label}: crossOriginIsolated=${isolated} ` +
-    `SharedArrayBuffer=${hasSAB} cores=${cores} ` +
-    `flag=${EXPERIMENTAL_WASM_THREADS} -> numThreads=${threads}`,
+      `SharedArrayBuffer=${hasSAB} cores=${cores} ` +
+      `flag=${EXPERIMENTAL_WASM_THREADS} -> numThreads=${threads}`,
   );
   return threads;
 }
@@ -441,9 +441,9 @@ export async function* transformersChatStream(eng, prompt, { system } = {}) {
   debugLog(`[transformers] generation start (prompt ${prompt.length} chars)`);
   const messages = system
     ? [
-      { role: "system", content: system },
-      { role: "user", content: prompt },
-    ]
+        { role: "system", content: system },
+        { role: "user", content: prompt },
+      ]
     : [{ role: "user", content: prompt }];
   eng(messages, {
     max_new_tokens: GENERATION_MAX_TOKENS,

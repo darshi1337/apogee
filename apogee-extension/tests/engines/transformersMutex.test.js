@@ -182,7 +182,7 @@ test("withTransformersEngine schedules idle disposal after a successful run", as
 
   let ranWith = null;
   const fake = {
-    dispose: async () => { },
+    dispose: async () => {},
   };
   __setEngineForTest(fake, MODEL_ID);
 
@@ -206,7 +206,7 @@ test("idle timer disposes the engine after 60 seconds", async (t) => {
     };
 
     __setEngineForTest(fake, MODEL_ID);
-    await withTransformersEngine(MODEL_ID, null, async () => { });
+    await withTransformersEngine(MODEL_ID, null, async () => {});
     assert.equal(getEngineStatus().idleDisposeScheduled, true);
 
     t.mock.timers.tick(60 * 1000);
@@ -236,7 +236,7 @@ test("new run resets the idle disposal window", async (t) => {
     };
 
     __setEngineForTest(fake, MODEL_ID);
-    await withTransformersEngine(MODEL_ID, null, async () => { });
+    await withTransformersEngine(MODEL_ID, null, async () => {});
     assert.equal(getEngineStatus().idleDisposeScheduled, true);
 
     // Move halfway through the idle window.
@@ -280,7 +280,7 @@ test("manual disposal cancels the pending idle timer", async (t) => {
 
     __setEngineForTest(fake, MODEL_ID);
 
-    await withTransformersEngine(MODEL_ID, null, async () => { });
+    await withTransformersEngine(MODEL_ID, null, async () => {});
 
     assert.equal(getEngineStatus().idleDisposeScheduled, true);
     assert.equal(await disposeEngineNow(), true);
@@ -310,7 +310,7 @@ test("after idle disposal, a new run takes the reload path instead of a stale ca
     };
 
     __setEngineForTest(fake, MODEL_ID);
-    await withTransformersEngine(MODEL_ID, null, async () => { });
+    await withTransformersEngine(MODEL_ID, null, async () => {});
 
     // Let the idle timer fire and dispose the engine.
     t.mock.timers.tick(60 * 1000);
@@ -324,7 +324,7 @@ test("after idle disposal, a new run takes the reload path instead of a stale ca
     // Transformers.js model" load error. If the disposed engine were still
     // cached, ensureEngine would return it and no error would be thrown.
     await assert.rejects(
-      withTransformersEngine("unknown-model-id", null, async () => { }),
+      withTransformersEngine("unknown-model-id", null, async () => {}),
       /Unknown Transformers\.js model: unknown-model-id/,
     );
   } finally {

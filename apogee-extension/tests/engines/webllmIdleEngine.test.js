@@ -15,19 +15,13 @@ function getSection(start, end) {
 }
 
 test("schedules idle disposal after engine usage", () => {
-  const section = getSection(
-    "async function withEngine(",
-    "async function "
-  );
+  const section = getSection("async function withEngine(", "async function ");
 
   assert.match(section, /scheduleEngineIdleDispose\(\)/);
 });
 
 test("cancels idle disposal when engine is reused", () => {
-  const section = getSection(
-    "async function ensureEngine(",
-    "async function "
-  );
+  const section = getSection("async function ensureEngine(", "async function ");
 
   assert.match(section, /cancelEngineIdleDispose\(\)/);
 });
@@ -35,7 +29,7 @@ test("cancels idle disposal when engine is reused", () => {
 test("waits for the lock before disposing the engine", () => {
   const section = getSection(
     "function scheduleEngineIdleDispose(",
-    "async function "
+    "async function ",
   );
 
   assert.match(section, /acquireLock/);
@@ -46,7 +40,7 @@ test("waits for the lock before disposing the engine", () => {
 test("prevents stale idle timers from disposing a reused engine", () => {
   const section = getSection(
     "function scheduleEngineIdleDispose(",
-    "async function "
+    "async function ",
   );
 
   assert.match(section, /engineIdleGeneration/);
@@ -56,7 +50,7 @@ test("prevents stale idle timers from disposing a reused engine", () => {
 test("manual disposal cancels the idle timer and unloads the engine", () => {
   const section = getSection(
     "async function disposeEngineNow(",
-    "function getEngineStatus("
+    "function getEngineStatus(",
   );
 
   assert.match(section, /cancelEngineIdleDispose\(\)/);
