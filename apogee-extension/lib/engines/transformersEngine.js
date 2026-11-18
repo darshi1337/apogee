@@ -38,8 +38,8 @@ function resolveWasmThreads(label) {
     EXPERIMENTAL_WASM_THREADS && isolated && hasSAB ? Math.min(cores, 4) : 1;
   debugLog(
     `[mt] ${label}: crossOriginIsolated=${isolated} ` +
-      `SharedArrayBuffer=${hasSAB} cores=${cores} ` +
-      `flag=${EXPERIMENTAL_WASM_THREADS} -> numThreads=${threads}`,
+    `SharedArrayBuffer=${hasSAB} cores=${cores} ` +
+    `flag=${EXPERIMENTAL_WASM_THREADS} -> numThreads=${threads}`,
   );
   return threads;
 }
@@ -113,10 +113,12 @@ async function loadPipeline(modelId, modelInfo, onProgress) {
 
 async function ensureEngine(modelId, onProgress) {
   if (engine && currentModelId === modelId) {
+    cancelEngineIdleDispose();
     return engine;
   }
 
   if (engine) {
+    cancelEngineIdleDispose();
     await disposeSafely(engine);
     engine = null;
     currentModelId = null;
@@ -146,9 +148,11 @@ async function ensureEngine(modelId, onProgress) {
   return engine;
 }
 
-function resetEngineState() {
+async function resetEngineState() {
+  cancelEngineIdleDispose();
+
   if (engine) {
-    void disposeSafely(engine);
+    await disposeSafely(engine);
   }
   engine = null;
   currentModelId = null;
@@ -165,6 +169,7 @@ export async function withTransformersEngine(
     timeout: options.lockTimeout ?? ENGINE_LOCK_TIMEOUT_MS,
     signal: options.signal,
   });
+  cancelEngineIdleDispose();
   try {
     // Load failures clean up in ensureEngine; never touch a healthy engine
     // for them. A lock timeout/abort throws above, before we hold anything.
@@ -177,9 +182,14 @@ export async function withTransformersEngine(
       // corrupted (OOM / WASM abort) — otherwise the next stream would pay a
       // full reload for no reason.
       if (isEngineCorruptingError(err)) {
-        resetEngineState();
+        await resetEngineState();
       }
       throw err;
+    } finally {
+      // Free WASM memory when the engine goes idle instead of holding it
+      // for the life of the page: the text engine otherwise contends with
+      // the translator for GPU/WASM memory.
+      if (engine) scheduleEngineIdleDispose();
     }
   } finally {
     release();
@@ -188,6 +198,87 @@ export async function withTransformersEngine(
 
 export function getTransformersStatus() {
   return { currentModelId, loadingModelId };
+}
+
+const ENGINE_IDLE_MS = 60 * 1000;
+let engineIdleTimer = null;
+let engineIdleGeneration = 0;
+
+function cancelEngineIdleDispose() {
+  engineIdleGeneration++;
+
+  if (engineIdleTimer) {
+    clearTimeout(engineIdleTimer);
+    engineIdleTimer = null;
+  }
+}
+
+function scheduleEngineIdleDispose() {
+  cancelEngineIdleDispose();
+
+  const generation = engineIdleGeneration;
+  engineIdleTimer = setTimeout(async () => {
+    engineIdleTimer = null;
+
+    let release;
+
+    try {
+      release = await acquireLock({
+        timeout: ENGINE_LOCK_TIMEOUT_MS,
+      });
+      // A newer run may have cancelled this timer.
+      if (generation !== engineIdleGeneration) return;
+      await disposeEngineNow();
+    } catch (err) {
+      debugLog(`[transformers] idle disposal failed: ${err?.message}`);
+
+      if (generation === engineIdleGeneration && engine) {
+        scheduleEngineIdleDispose();
+      }
+    } finally {
+      release?.();
+    }
+  }, ENGINE_IDLE_MS);
+
+  if (engineIdleTimer.unref) engineIdleTimer.unref();
+}
+
+// Dispose the cached main engine so it stops contending WASM memory.
+export async function disposeEngineNow() {
+  cancelEngineIdleDispose();
+  if (!engine) {
+    currentModelId = null;
+    return false;
+  }
+
+  const previousEngine = engine;
+  await disposeSafely(previousEngine);
+
+  if (engine === previousEngine) {
+    engine = null;
+    currentModelId = null;
+    loadingModelId = null;
+  }
+
+  return true;
+}
+
+// Test-only role (#639): reports the cached engine's model id and whether
+// an idle dispose is scheduled. No live caller - the offscreen document asks
+// for the text engine's status via getTransformersStatus() - but the test uses
+// this to observe the engine lifecycle, together with __setEngineForTest
+// below.
+export function getEngineStatus() {
+  return {
+    currentModelId,
+    idleDisposeScheduled: engineIdleTimer !== null,
+  };
+}
+
+export function __setEngineForTest(eng, modelId) {
+  cancelEngineIdleDispose();
+  engine = eng;
+  currentModelId = modelId;
 }
 
 let translator = null;
@@ -350,9 +441,9 @@ export async function* transformersChatStream(eng, prompt, { system } = {}) {
   debugLog(`[transformers] generation start (prompt ${prompt.length} chars)`);
   const messages = system
     ? [
-        { role: "system", content: system },
-        { role: "user", content: prompt },
-      ]
+      { role: "system", content: system },
+      { role: "user", content: prompt },
+    ]
     : [{ role: "user", content: prompt }];
   eng(messages, {
     max_new_tokens: GENERATION_MAX_TOKENS,

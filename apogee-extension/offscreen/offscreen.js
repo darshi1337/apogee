@@ -24,7 +24,7 @@ import {
   transformersChatStream,
   getTransformersStatus,
 } from "../lib/engines/transformersEngine.js";
-import { initDebugLogging } from "../lib/util/log.js";
+import { debugLog, initDebugLogging } from "../lib/util/log.js";
 import {
   broadcastToStream,
   disconnectStreamPorts,
@@ -75,7 +75,7 @@ function sendLogToServiceWorker(level, args) {
       level,
       message,
     })
-    .catch(() => {});
+    .catch(() => { });
 }
 
 console.log = (...args) => {
@@ -134,6 +134,70 @@ function isCorruptingEngineError(err) {
 
 let engineOwnerStreamId = null;
 
+const ENGINE_IDLE_MS = 60 * 1000;
+let engineIdleTimer = null;
+let engineIdleGeneration = 0;
+
+function cancelEngineIdleDispose() {
+  engineIdleGeneration++;
+  if (engineIdleTimer) {
+    clearTimeout(engineIdleTimer);
+    engineIdleTimer = null;
+  }
+}
+
+async function unloadEngineNow() {
+  if (!engine) {
+    currentModelId = null;
+    return false;
+  }
+
+  const previousEngine = engine;
+  try {
+    await previousEngine.unload();
+  } catch (err) {
+    debugLog("[webllm] Engine unload failed:", err?.message);
+  }
+
+  if (engine === previousEngine) {
+    engine = null;
+    currentModelId = null;
+    loadingModelId = null;
+  }
+  return true;
+}
+
+function scheduleEngineIdleDispose() {
+  cancelEngineIdleDispose();
+
+  const generation = engineIdleGeneration;
+  engineIdleTimer = setTimeout(async () => {
+    engineIdleTimer = null;
+    let release;
+
+    try {
+      release = await acquireLock({
+        timeout: ENGINE_LOCK_TIMEOUT_MS,
+      });
+
+      // Ignore stale timers that were cancelled while waiting.
+      if (generation !== engineIdleGeneration) return;
+      const unloaded = await unloadEngineNow();
+      if (!unloaded && engine && generation === engineIdleGeneration) {
+        scheduleEngineIdleDispose();
+      }
+    } catch (err) {
+      debugLog("[webllm] Idle disposal failed:", err?.message);
+
+      if (generation === engineIdleGeneration && engine) {
+        scheduleEngineIdleDispose();
+      }
+    } finally {
+      release?.();
+    }
+  }, ENGINE_IDLE_MS);
+}
+
 let _webllm = null;
 let _prompts = null;
 
@@ -162,10 +226,12 @@ async function ensureEngine(modelId) {
     );
   }
   if (engine && currentModelId === modelId) {
+    cancelEngineIdleDispose();
     return engine;
   }
 
   if (engine) {
+    cancelEngineIdleDispose();
     try {
       await engine.unload();
     } catch {
@@ -194,7 +260,7 @@ async function ensureEngine(modelId) {
         progress: { ...progress, kind: "download" },
         modelId,
       })
-      .catch(() => {});
+      .catch(() => { });
   };
 
   const STALL_NOTE_MS = OFFSCREEN_STALL_NOTE_MS;
@@ -255,9 +321,9 @@ async function ensureEngine(modelId) {
       if (!isInterruptedDownloadError(err)) throw err;
       throw new Error(
         "The model download keeps getting interrupted (the download " +
-          "server stalled or the connection dropped). Progress so far " +
-          "is saved, so trying again later will resume where it left " +
-          "off.",
+        "server stalled or the connection dropped). Progress so far " +
+        "is saved, so trying again later will resume where it left " +
+        "off.",
         { cause: err },
       );
     }
@@ -274,10 +340,41 @@ function isInterruptedDownloadError(err) {
   return /cache\.add|network\s?error|failed to fetch/i.test(err?.message || "");
 }
 
-function resetEngineState() {
-  engine = null;
-  currentModelId = null;
-  loadingModelId = null;
+async function resetEngineState() {
+  cancelEngineIdleDispose();
+  await unloadEngineNow();
+}
+
+// Dispose the cached WebLLM engine so it stops holding GPU/WASM memory.
+export async function disposeEngineNow() {
+  cancelEngineIdleDispose();
+
+  const release = await acquireLock({
+    timeout: ENGINE_LOCK_TIMEOUT_MS,
+  });
+
+  try {
+    return await unloadEngineNow();
+  } finally {
+    release?.();
+  }
+}
+
+// Test-only role (#639): reports the cached engine's model id and whether
+// an idle dispose is scheduled. No live caller - the offscreen document asks
+// for the status via the "status" handler - but the test uses this to observe
+// the engine lifecycle, together with __setEngineForTest below.
+export function getEngineStatus() {
+  return {
+    currentModelId,
+    idleDisposeScheduled: engineIdleTimer !== null,
+  };
+}
+
+export function __setEngineForTest(eng, modelId) {
+  cancelEngineIdleDispose();
+  engine = eng;
+  currentModelId = modelId;
 }
 
 async function withEngine(modelId, fn, ownerStreamId = null, options = {}) {
@@ -293,6 +390,7 @@ async function withEngine(modelId, fn, ownerStreamId = null, options = {}) {
     timeout: opts.lockTimeout ?? ENGINE_LOCK_TIMEOUT_MS,
     signal: opts.signal,
   });
+  cancelEngineIdleDispose();
   engineOwnerStreamId = owner;
   try {
     // Load failures already cleared loading state; a lock timeout/abort
@@ -305,9 +403,14 @@ async function withEngine(modelId, fn, ownerStreamId = null, options = {}) {
       // engine. Only drop it when the error shows the engine itself is
       // corrupted (OOM); otherwise the next stream would pay a full reload.
       if (isCorruptingEngineError(err)) {
-        resetEngineState();
+        await resetEngineState();
       }
       throw err;
+    } finally {
+      // Free WASM memory when the engine goes idle instead of holding it
+      // for the life of the page: the engine otherwise contends with
+      // the translator for GPU/WASM memory.
+      if (engine) scheduleEngineIdleDispose();
     }
   } finally {
     engineOwnerStreamId = null;
@@ -342,9 +445,9 @@ function webllmChatFn(eng, onFinalStats) {
   return async function* (prompt, { signal, system } = {}) {
     const messages = system
       ? [
-          { role: "system", content: system },
-          { role: "user", content: prompt },
-        ]
+        { role: "system", content: system },
+        { role: "user", content: prompt },
+      ]
       : [{ role: "user", content: prompt }];
     const completion = await eng.chat.completions.create({
       messages,
@@ -403,7 +506,7 @@ function reportProgress(text, progress = 0, kind) {
       type: "model-progress",
       progress: { text, progress, ...(kind ? { kind } : {}) },
     })
-    .catch(() => {});
+    .catch(() => { });
 }
 
 function opusProgressForReport(p) {
@@ -494,7 +597,7 @@ async function runTransformersJob(
         progress: { ...progress, kind: "download" },
         modelId: pending.model,
       })
-      .catch(() => {});
+      .catch(() => { });
   };
 
   const tracker = createSummarizeProgressTracker((text) =>
@@ -614,7 +717,7 @@ async function runStream(streamId, pending, stream) {
           url: pending.url,
           text: stream.text,
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   };
 
@@ -690,7 +793,7 @@ async function runStream(streamId, pending, stream) {
         err?.message || "",
       );
     if (isOOM) {
-      resetEngineState();
+      await resetEngineState();
     }
     emit({ type: "error", error: err.message });
     chrome.runtime
@@ -699,7 +802,7 @@ async function runStream(streamId, pending, stream) {
         type: "model-progress",
         progress: { text: toUserMessage(err), progress: 0 },
       })
-      .catch(() => {});
+      .catch(() => { });
   } finally {
     scheduleStreamCleanup(streamId);
   }
@@ -967,4 +1070,4 @@ chrome.runtime
     target: "service-worker",
     type: "offscreen-ready",
   })
-  .catch(() => {});
+  .catch(() => { });
