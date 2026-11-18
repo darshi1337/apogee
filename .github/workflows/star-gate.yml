@@ -1,12 +1,12 @@
 name: Star gate
 
 # pull_request_target (not pull_request): this job never checks out PR code.
-# It only reads the public stargazer list through the API, so the base
-# workflow runs on fork PRs without exposing secrets to untrusted code.
-#
+# It only reads the public stargazer list and comments on the PR, so the
+# base workflow runs on fork PRs without exposing secrets to untrusted code.
 on:
   # zizmor: ignore[dangerous-triggers] -- safe use: no checkout, no PR code
-  # execution, and only the read-only GITHUB_TOKEN.
+  # execution, and no secrets. The token is scoped to this job and only
+  # writes PR comments.
   pull_request_target:
     types: [opened, reopened, synchronize]
 
@@ -22,13 +22,18 @@ jobs:
     name: Author starred the repo
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Check the stargazer list
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
           AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          COMMENT_MARKER: "<!-- star-gate -->"
         run: |
           set -euo pipefail
 
@@ -44,6 +49,37 @@ jobs:
               ;;
           esac
 
+          find_nag() {
+            gh api --paginate "repos/$REPO/issues/$PR_NUMBER/comments" \
+              --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | contains(\"$COMMENT_MARKER\"))) | .id"
+          }
+
+          remove_nag() {
+            local id
+            for id in $(find_nag 2>/dev/null || true); do
+              gh api -X DELETE "repos/$REPO/issues/comments/$id" >/dev/null 2>&1 || true
+            done
+          }
+
+          post_nag() {
+            if find_nag 2>/dev/null | grep -q .; then
+              return 0
+            fi
+
+            cat > "$RUNNER_TEMP/star-gate-nag.md" <<EOF
+          $COMMENT_MARKER
+          Thanks for the pull request, @$AUTHOR.
+
+          Could you please star the repo? We ask for a star before we merge a PR, and it takes one click:
+
+          https://github.com/$REPO
+
+          After you star it, push a commit or close and reopen this PR. The \`Author starred the repo\` check runs again and deletes this comment.
+          EOF
+
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file "$RUNNER_TEMP/star-gate-nag.md"
+          }
+
           page=1
           while :; do
             if ! gh api "repos/$REPO/stargazers?per_page=100&page=$page" --jq '.[].login' > "$RUNNER_TEMP/stargazers.txt"; then
@@ -53,6 +89,7 @@ jobs:
 
             if grep -Fixq "$AUTHOR" "$RUNNER_TEMP/stargazers.txt"; then
               echo "::notice::$AUTHOR starred $REPO."
+              remove_nag
               exit 0
             fi
 
@@ -63,5 +100,9 @@ jobs:
             page=$((page + 1))
           done
 
-          echo "::error title=Star required::$AUTHOR has not starred $REPO. Star the repo, then push a commit or reopen this PR to re-run the check."
+          if post_nag; then
+            echo "::error title=Star required::$AUTHOR has not starred $REPO yet. A comment with the one-click link was posted."
+          else
+            echo "::error title=Star required::$AUTHOR has not starred $REPO yet. Star the repo, then push a commit or reopen this PR to re-run the check."
+          fi
           exit 1
