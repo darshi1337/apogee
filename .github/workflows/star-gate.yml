@@ -1,7 +1,7 @@
 name: Star gate
 
 # pull_request_target (not pull_request): this job never checks out PR code.
-# It only reads the public stargazer list and comments on the PR, so the
+# It only reads the author's public starred list and comments on the PR, so the
 # base workflow runs on fork PRs without exposing secrets to untrusted code.
 on:
   # zizmor: ignore[dangerous-triggers] -- safe use: no checkout, no PR code
@@ -82,18 +82,18 @@ jobs:
 
           page=1
           while :; do
-            if ! gh api "repos/$REPO/stargazers?per_page=100&page=$page" --jq '.[].login' > "$RUNNER_TEMP/stargazers.txt"; then
-              echo "::error title=Star check failed::Could not read the stargazer list for $REPO."
+            if ! gh api "users/$AUTHOR/starred?per_page=100&page=$page" --jq '.[].full_name' > "$RUNNER_TEMP/starred-repos.txt"; then
+              echo "::error title=Star check failed::Could not read the starred repositories for $AUTHOR."
               exit 1
             fi
 
-            if grep -Fixq "$AUTHOR" "$RUNNER_TEMP/stargazers.txt"; then
+            if grep -Fixq "$REPO" "$RUNNER_TEMP/starred-repos.txt"; then
               echo "::notice::$AUTHOR starred $REPO."
               remove_nag
               exit 0
             fi
 
-            if [ "$(wc -l < "$RUNNER_TEMP/stargazers.txt")" -lt 100 ]; then
+            if [ "$(wc -l < "$RUNNER_TEMP/starred-repos.txt")" -lt 100 ]; then
               break
             fi
 
