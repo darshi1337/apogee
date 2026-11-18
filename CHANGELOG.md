@@ -380,6 +380,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Bump reviewdog/action-actionlint (#683) ([431bdcc](https://github.com/darshi1337/apogee/commit/431bdcc8094ee024e71f7421204b5792dfd1dffd))
 - Bump the npm-minor-patch group in /apogee-extension with 2 updates (#684) ([66159e1](https://github.com/darshi1337/apogee/commit/66159e1cdc0456b2c7ad5f17ff149b27d10ba14b))
 - Use array form for postCreateCommand (#694) ([de47a0c](https://github.com/darshi1337/apogee/commit/de47a0c4f7508e698b25cad9cf90091ad145102f))
+- Bump reviewdog/action-actionlint (#697) ([7fcc205](https://github.com/darshi1337/apogee/commit/7fcc205db1c4d60939dfc093c873e65821a1a034))
 
 ### Changed
 
