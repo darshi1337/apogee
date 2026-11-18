@@ -1,0 +1,67 @@
+name: Star gate
+
+# pull_request_target (not pull_request): this job never checks out PR code.
+# It only reads the public stargazer list through the API, so the base
+# workflow runs on fork PRs without exposing secrets to untrusted code.
+#
+on:
+  # zizmor: ignore[dangerous-triggers] -- safe use: no checkout, no PR code
+  # execution, and only the read-only GITHUB_TOKEN.
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: star-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  starred:
+    name: Author starred the repo
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check the stargazer list
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+        run: |
+          set -euo pipefail
+
+          case "$AUTHOR_TYPE" in
+            User) ;;
+            Bot|Organization|Mannequin)
+              echo "::notice::$AUTHOR is a $AUTHOR_TYPE account, so the star requirement does not apply."
+              exit 0
+              ;;
+            *)
+              echo "::error title=Star check failed::Unknown author type: $AUTHOR_TYPE."
+              exit 1
+              ;;
+          esac
+
+          page=1
+          while :; do
+            if ! gh api "repos/$REPO/stargazers?per_page=100&page=$page" --jq '.[].login' > "$RUNNER_TEMP/stargazers.txt"; then
+              echo "::error title=Star check failed::Could not read the stargazer list for $REPO."
+              exit 1
+            fi
+
+            if grep -Fixq "$AUTHOR" "$RUNNER_TEMP/stargazers.txt"; then
+              echo "::notice::$AUTHOR starred $REPO."
+              exit 0
+            fi
+
+            if [ "$(wc -l < "$RUNNER_TEMP/stargazers.txt")" -lt 100 ]; then
+              break
+            fi
+
+            page=$((page + 1))
+          done
+
+          echo "::error title=Star required::$AUTHOR has not starred $REPO. Star the repo, then push a commit or reopen this PR to re-run the check."
+          exit 1
