@@ -381,6 +381,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Bump the npm-minor-patch group in /apogee-extension with 2 updates (#684) ([66159e1](https://github.com/darshi1337/apogee/commit/66159e1cdc0456b2c7ad5f17ff149b27d10ba14b))
 - Use array form for postCreateCommand (#694) ([de47a0c](https://github.com/darshi1337/apogee/commit/de47a0c4f7508e698b25cad9cf90091ad145102f))
 
+### Changed
+
+- Slow live summary redraws as output grows (#693) ([4841e5f](https://github.com/darshi1337/apogee/commit/4841e5f48fcbcf9d588fc11dbcfc49cbed5c56e5))
+
 ## [0.2.1] - 2026-08-19
 
 ### Added
