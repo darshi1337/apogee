@@ -82,10 +82,10 @@ test("switching tabs with a preview queued preserves the new tab's summary", asy
   assert.ok(
     start >= 0 && end > start && stateStart >= 0 && stateEnd > stateStart,
   );
+  let activeTabId = 1;
   const summaryText = { text: "" };
   const saved = [];
   const context = {
-    tabViewEpoch: 1,
     summaryText,
     renderSummaryStream,
     setMarkdownHtml: (element, text) => {
@@ -109,7 +109,7 @@ test("switching tabs with a preview queued preserves the new tab's summary", asy
   async function* chunks() {
     yield original;
     t.mock.timers.tick(50);
-    context.tabViewEpoch = 2;
+    activeTabId = 2;
     context.currentPageData = { type: "selection", content: "Tab B selection" };
     context.currentSummaryLanguage = "es";
     summaryText.text = "Tab B saved summary";
@@ -118,12 +118,94 @@ test("switching tabs with a preview queued preserves the new tab's summary", asy
     yield "Done";
   }
 
-  await consume(chunks(), { tab: { id: 1 }, jobId: "tab-a", viewEpoch: 1 });
+  await consume(chunks(), {
+    tab: { id: 1 },
+    jobId: "tab-a",
+    isCurrent: () => activeTabId === 1,
+    pageContext: {
+      pageData: { type: "article" },
+      language: "en",
+      translationEngine: "off",
+    },
+  });
   assert.equal(summaryText.text, "Tab B saved summary");
   assert.equal(saved.length, 1);
   assert.equal(saved[0].tabId, 1);
   assert.equal(saved[0].jobId, "tab-a");
   assert.equal(saved[0].state.summaryText, original + "Done");
+  assert.equal(saved[0].state.timeSaved.type, "article");
+  assert.equal(saved[0].state.summaryLanguage, "en");
+  assert.equal(saved[0].state.isSelection, false);
+});
+
+test("a job that lost the view before streaming still saves and can repaint", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const app = readSource("../../ui/app.js", import.meta.url);
+  const start = app.indexOf("async function consumeSummaryStream(");
+  const end = app.indexOf("async function extractAndCopyPage()", start);
+  const stateStart = app.indexOf("function buildSummaryCompletedState(");
+  const stateEnd = app.indexOf("// Single writer", stateStart);
+  assert.ok(
+    start >= 0 && end > start && stateStart >= 0 && stateEnd > stateStart,
+  );
+  let activeTabId = 2; // switched away before the stream started
+  const summaryText = { text: "Tab B view" };
+  const saved = [];
+  const context = {
+    summaryText,
+    renderSummaryStream,
+    setMarkdownHtml: (element, text) => {
+      element.text = text;
+    },
+    currentPageData: { type: "selection", content: "Tab B selection" },
+    currentSummaryLanguage: "es",
+    currentTranslationEngine: "off",
+    currentSummaryText: "",
+    currentPromptsCacheKey: null,
+    makeSummaryPassagesFocusable() {},
+    showSummaryContext() {},
+    setSummaryCopyButtonsVisible() {},
+    updateResummarizeHint() {},
+    updateTimeSavedBadge() {},
+    setSuggestedQuestionsLoading() {},
+    setSuggestedQuestions() {},
+    chrome: { storage: { local: { get: async () => ({}) } } },
+    timeSavedInputsFor: ({ type }) => ({ type }),
+    saveSummaryViewState: async (tabId, jobId, state) => {
+      saved.push({ tabId, jobId, state });
+    },
+  };
+  const consume = runInNewContext(
+    app.slice(stateStart, stateEnd) +
+      app.slice(start, end) +
+      "\nconsumeSummaryStream",
+    context,
+  );
+
+  async function* chunks() {
+    yield "Tab A summary.";
+    t.mock.timers.tick(50);
+    assert.equal(summaryText.text, "Tab B view");
+    activeTabId = 1; // came back mid-stream
+    yield " More.";
+    t.mock.timers.tick(50);
+  }
+
+  await consume(chunks(), {
+    tab: { id: 1 },
+    jobId: "tab-a",
+    isCurrent: () => activeTabId === 1,
+    pageContext: {
+      pageData: { type: "article" },
+      language: "en",
+      translationEngine: "off",
+    },
+  });
+  assert.equal(summaryText.text, "Tab A summary. More.");
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].tabId, 1);
+  assert.equal(saved[0].jobId, "tab-a");
+  assert.equal(saved[0].state.summaryText, "Tab A summary. More.");
   assert.equal(saved[0].state.timeSaved.type, "article");
   assert.equal(saved[0].state.summaryLanguage, "en");
   assert.equal(saved[0].state.isSelection, false);
