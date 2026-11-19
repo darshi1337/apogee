@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest a concrete change to Apogee
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: change
+    attributes:
+      label: What should change
+      description: Describe the change you want in one or two sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters
+      description: What problem does it solve for you? What do you do today without it?
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: What it looks like when done
+      description: Describe the behavior you expect. If it changes the popup or settings UI, sketch it or describe the layout.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is in scope and what is not? A narrow request gets built faster than a broad one.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: willing
+    attributes:
+      label: Willing to build it?
+      description: If yes, a maintainer will scope it with you and point at the files involved. See [CONTRIBUTING.md](https://github.com/darshi1337/apogee/blob/main/CONTRIBUTING.md) for the workflow.
+      options:
+        - Yes, I want to write the patch
+        - Yes, with guidance
+        - No, just suggesting it
+    validations:
+      required: true

@@ -1,0 +1,18 @@
+{
+  // Node 24 matches .nvmrc and CI.
+  "name": "Apogee",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24-bookworm",
+  // Keep the array form: Zed 1.28 re-wraps string lifecycle commands in
+  // `/bin/sh -c` without quoting, so `npm ci --prefix ...` loses its
+  // arguments. Arrays are the spec's exec form.
+  "postCreateCommand": ["npm", "ci", "--prefix", "apogee-extension"],
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "esbenp.prettier-vscode"],
+      "settings": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true
+      }
+    }
+  }
+}

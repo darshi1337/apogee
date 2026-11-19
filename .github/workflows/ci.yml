@@ -34,7 +34,21 @@ jobs:
           cache: npm
           cache-dependency-path: apogee-extension/package-lock.json
 
-      - run: npm ci
+      # onnxruntime-node's install script downloads a native binary from a
+      # Microsoft CDN. One ETIMEDOUT there fails the whole job, and the same
+      # commit usually passes on the next run, so retry instead of going red
+      # on a network blip.
+      - name: Install dependencies
+        run: |
+          for attempt in 1 2 3; do
+            if npm ci; then
+              exit 0
+            fi
+            echo "::warning::npm ci failed (attempt $attempt of 3); retrying in 20s"
+            sleep 20
+          done
+          echo "::error::npm ci failed after 3 attempts"
+          exit 1
 
       - run: npm run format:check
 
@@ -61,7 +75,21 @@ jobs:
           cache: npm
           cache-dependency-path: apogee-extension/package-lock.json
 
-      - run: npm ci
+      # onnxruntime-node's install script downloads a native binary from a
+      # Microsoft CDN. One ETIMEDOUT there fails the whole job, and the same
+      # commit usually passes on the next run, so retry instead of going red
+      # on a network blip.
+      - name: Install dependencies
+        run: |
+          for attempt in 1 2 3; do
+            if npm ci; then
+              exit 0
+            fi
+            echo "::warning::npm ci failed (attempt $attempt of 3); retrying in 20s"
+            sleep 20
+          done
+          echo "::error::npm ci failed after 3 attempts"
+          exit 1
 
       - run: npm run package
 

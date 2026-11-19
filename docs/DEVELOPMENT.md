@@ -20,6 +20,12 @@ This guide explains the Apogee codebase layout and repo folder structure. It cov
    npm run install:extension
    ```
 
+### Dev Container
+
+VS Code and GitHub Codespaces users can skip the manual install. Open the repo in a Dev Container or a Codespace. `.devcontainer/` pins Node 24 and installs the extension dependencies when it starts.
+
+The container builds and tests the extension. It does not run a browser or a local model server. Load the built extension in your host browser.
+
 ### Dependency overrides
 
 `apogee-extension/package.json` pins seven transitive deps above the ranges their parents declare. Each pin holds a patched release, so do not loosen one without checking `npm audit` first:

@@ -53,6 +53,8 @@ npm run build:watch  # watch mode, rebuilds dist/chrome and dist/firefox on save
 
 Load `apogee-extension/dist/chrome` (or `dist/firefox`) as an unpacked/temporary extension in your browser. See the main [README](README.md#get-started) for the project overview and [BROWSERS.md](docs/BROWSERS.md) for per-browser notes.
 
+No local Node install? Open the repo in the Dev Container or a Codespace. In VS Code, select **Reopen in Container**. `.devcontainer/` pins Node 24 and installs the extension dependencies when it starts.
+
 If you work on the **Local Ollama** provider, you also need Ollama installed and running. The extension reaches it straight with no `OLLAMA_ORIGINS` setup (see the [Local Ollama Guide](docs/OLLAMA.md)).
 
 ## Before opening a PR
@@ -120,9 +122,21 @@ Four places state permissions and network use, and they must match. A claim that
 
 Adding, removing, or reusing a permission or a host means editing all four in the same PR.
 
+## AI-assisted contributions
+
+We allow AI tools. You are responsible for the patch you send.
+
+- Say in the PR text which tool helped and what it changed. One line is enough.
+- Run the checks yourself. Do not send code you cannot explain or debug.
+- Review generated tests, fixtures, and docs like any other change. Remove personal data from fixtures.
+- Do not let a tool add a dependency, permission, host, or network call without saying so. Those changes need the four-place doc update above.
+- A generated pull request that ignores this guide may be closed without review.
+
+If you use a coding agent, give it this guide.
+
 ## Reporting bugs / requesting features
 
-Open an issue with the templates under `.github/ISSUE_TEMPLATE/`. Include your browser and version, the extension version (`chrome://extensions`), and whether you use WebLLM or Local Ollama mode.
+Open an issue with one of the forms under `.github/ISSUE_TEMPLATE/`. The form asks for your browser and version, the extension version (`chrome://extensions`), and your provider mode.
 
 ## What gets reviewed and what does not
 
@@ -133,3 +147,20 @@ Apogee welcomes contributions year-round, including during [Hacktoberfest](https
 - **Closed without review**: whitespace-only reformatting, unasked dependency bumps, and README edits that reword working prose without adding facts. These get the `spam` or `invalid` label
 
 Quality over count. One working extractor is worth more here than four cosmetic PRs.
+
+## Reviewer and maintainer ladder
+
+Roles build on trust and a record of good work. There is no fixed count and no application form. A maintainer invites you when the fit is clear.
+
+| Role | What you do | How you get there |
+| --- | --- | --- |
+| Contributor | Send scoped PRs, report reproducible bugs, improve docs | A merged PR |
+| Regular | Review other PRs, triage issues, answer questions | A few merged PRs and useful review comments |
+| Reviewer | Approve or request changes in an area you know | Sustained, careful review as a Regular |
+| Maintainer | Merge, cut releases, set direction, handle security reports | Invited by an existing maintainer |
+
+Review the change, not the person. Say what blocks a merge and what is only a suggestion. If you cannot review a patch fairly, step back and let another reviewer take it.
+
+Release work follows [docs/RELEASE.md](docs/RELEASE.md): a release candidate is packaged and tested before the release PR merges, and store uploads use the artifacts attached to the GitHub Release.
+
+Current maintainer: [@darshi1337](https://github.com/darshi1337).

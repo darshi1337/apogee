@@ -22,6 +22,7 @@ import {
 } from "../lib/engines/engineRules.js";
 import { estimateTokens } from "../lib/engines/modelLimits.js";
 import { runStreamingJob, createJobStartGate } from "./jobs.js";
+import { renderSummaryStream } from "./summaryStream.js";
 import { formatEffectiveConfigJSON } from "./effectiveConfig.js";
 import {
   customContentPromptsCacheKey,
@@ -484,6 +485,11 @@ let tabViewEpoch = 0;
 // runs on user action, long after this assignment executes.
 let restoreTabViewFn = null;
 
+// The summary job running in this panel. A tab switch during extraction or
+// model load leaves streamId null in saved state, so restore uses this to
+// show the spinner again instead of falling back to home.
+let activeSummaryJob = null;
+
 let currentPromptsCacheKey = null;
 
 function startSuggestedQuestionsBg(
@@ -535,6 +541,7 @@ async function restoreSuggestedPrompts({
   pageType = "",
   selectionText = "",
   providerType = settings.provider,
+  isCurrent,
 }) {
   const remote =
     isRemoteProvider(providerType) ||
@@ -547,6 +554,7 @@ async function restoreSuggestedPrompts({
     showSummaryContext([]);
     if (useStored && promptsCacheKey) {
       const stored = await chrome.storage.local.get(promptsCacheKey);
+      if (isCurrent && !isCurrent()) return;
       if (Array.isArray(stored[promptsCacheKey])) {
         showSummaryContext(stored[promptsCacheKey]);
         return;
@@ -593,6 +601,7 @@ async function restoreSuggestedPrompts({
   }
   if (useStored && promptsCacheKey) {
     const stored = await chrome.storage.local.get(promptsCacheKey);
+    if (isCurrent && !isCurrent()) return;
     if (stored[promptsCacheKey] !== undefined) {
       showSummaryContext(stored[promptsCacheKey]);
       return;
@@ -1764,7 +1773,15 @@ function renderExtractedTextFallback(target, fallbackText) {
 // saves the job's per-attempt state and returns "superseded" when a newer
 // job took over, which ends this job silently instead of falling back.
 function summarizeJobRunner(settings, summarizeArgs, opts) {
-  const { tab, jobId, promptsCacheKey, persistStream, onStreamStart } = opts;
+  const {
+    tab,
+    jobId,
+    promptsCacheKey,
+    persistStream,
+    onStreamStart,
+    isCurrent,
+    pageContext,
+  } = opts;
   const kind = detectInputKind({
     type: summarizeArgs.type,
     isPdf: opts.isPdf,
@@ -1777,22 +1794,41 @@ function summarizeJobRunner(settings, summarizeArgs, opts) {
     settings,
     chain,
     content: summarizeArgs.content,
-    reset: () => setLoadingIndicator(summaryText, randomSummarizeVerb()),
+    reset: () => {
+      if (isCurrent()) setLoadingIndicator(summaryText, randomSummarizeVerb());
+    },
     start: (engine) => engine.summarize(summarizeArgs),
     persistStream: (streamId, _index, execution) =>
       persistStream(streamId, execution),
     onStreamStart,
-    showCancel: summaryCancel.show,
+    showCancel: (id) => {
+      if (isCurrent()) summaryCancel.show(id);
+    },
     hideCancel: summaryCancel.hide,
     consume: (stream, _index, execution) => {
-      if (execution) {
-        currentSummaryLanguage = execution.language;
-        currentTranslationEngine = execution.translationEngine;
+      // Save the job's own page context: by the time the stream starts the
+      // user may be on another tab, and currentPageData would describe it.
+      const snapshot = pageContext ?? {
+        pageData: currentPageData,
+        language: currentSummaryLanguage,
+        translationEngine: currentTranslationEngine,
+      };
+      const context = {
+        pageData: snapshot.pageData,
+        language: execution?.language ?? snapshot.language,
+        translationEngine:
+          execution?.translationEngine ?? snapshot.translationEngine,
+      };
+      if (isCurrent()) {
+        currentSummaryLanguage = context.language;
+        currentTranslationEngine = context.translationEngine;
       }
       return consumeSummaryStream(stream, {
         tab,
         promptsCacheKey: execution?.promptsCacheKey || promptsCacheKey,
         jobId,
+        isCurrent,
+        pageContext: context,
         settings,
         providerType: execution?.providerType || getProviderType(settings),
         pageType: summarizeArgs.type || "",
@@ -1801,12 +1837,13 @@ function summarizeJobRunner(settings, summarizeArgs, opts) {
         focusKeyword: summarizeArgs.focusKeyword || "",
       });
     },
-    renderFallback: (fallbackText) =>
-      renderExtractedTextFallback(summaryText, fallbackText),
+    renderFallback: (fallbackText) => {
+      if (isCurrent()) renderExtractedTextFallback(summaryText, fallbackText);
+    },
   });
 }
 
-async function returnHomeAfterCancel(tabId, jobId = null) {
+async function returnHomeAfterCancel(tabId, jobId, isCurrent) {
   const state = jobId
     ? await saveViewStateIfJobMatches(
         tabId,
@@ -1820,7 +1857,7 @@ async function returnHomeAfterCancel(tabId, jobId = null) {
         streamId: null,
         jobId: null,
       });
-  if (!state) return;
+  if (!state || !isCurrent()) return;
   showOnlyView("homeView");
 }
 
@@ -1915,36 +1952,6 @@ function returnToAskAfterCancel(tabId) {
   saveViewState(tabId, { view: "summaryView", subview: "ask", streamId: null });
 }
 
-async function streamGeneratorIntoElement(generator, element) {
-  let fullText = "";
-  // Coalesce per-token markdown re-renders onto animation frames: local
-  // models emit tokens faster than a full innerHTML re-parse per token can
-  // keep up with, which janks (or freezes) the popup mid-stream. The final
-  // render below still runs synchronously so the DOM always matches the
-  // returned text, even if a scheduled frame never fires.
-  let renderScheduled = false;
-  const scheduleRender = () => {
-    if (renderScheduled) return;
-    renderScheduled = true;
-    const run = () => {
-      renderScheduled = false;
-      setMarkdownHtml(element, cleanModelOutput(fullText));
-    };
-    if (typeof requestAnimationFrame === "function") {
-      requestAnimationFrame(run);
-    } else {
-      setTimeout(run, 16);
-    }
-  };
-  for await (const chunk of generator) {
-    fullText += chunk;
-    if (fullText.trimStart() !== "") scheduleRender();
-  }
-  const finalText = cleanModelOutput(fullText);
-  setMarkdownHtml(element, finalText);
-  return finalText;
-}
-
 // Shared empty-summary fault (#467): blank model output renders the same
 // visible error in the live run and on view-state restore, instead of a
 // blank success. Callers add their own announce / badge / persistence.
@@ -1957,8 +1964,12 @@ function showEmptySummaryFault() {
 // Single builder for the finished summary view state so the empty and
 // success paths cannot drift: empty text saves null time-saved inputs,
 // non-empty text saves the current page inputs.
-function buildSummaryCompletedState(tab, summaryText) {
-  const isSelection = currentPageData?.type === "selection";
+function buildSummaryCompletedState(
+  tab,
+  summaryText,
+  { pageData, language, translationEngine },
+) {
+  const isSelection = pageData?.type === "selection";
   return {
     view: "summaryView",
     subview: "summary",
@@ -1967,15 +1978,15 @@ function buildSummaryCompletedState(tab, summaryText) {
     summaryText,
     timeSaved: summaryText
       ? timeSavedInputsFor({
-          type: currentPageData?.type,
-          durationSeconds: currentPageData?.durationSeconds,
-          content: currentPageData?.content,
+          type: pageData?.type,
+          durationSeconds: pageData?.durationSeconds,
+          content: pageData?.content,
         })
       : null,
-    summaryLanguage: currentSummaryLanguage,
-    translationEngine: currentTranslationEngine,
+    summaryLanguage: language,
+    translationEngine,
     isSelection,
-    ...(isSelection ? { selectionText: currentPageData.content } : {}),
+    ...(isSelection ? { selectionText: pageData.content } : {}),
   };
 }
 
@@ -1995,6 +2006,8 @@ async function consumeSummaryStream(
     tab,
     promptsCacheKey,
     jobId,
+    isCurrent = () => true,
+    pageContext = null,
     settings,
     providerType,
     pageType = "",
@@ -2002,33 +2015,47 @@ async function consumeSummaryStream(
     focusKeyword = "",
   },
 ) {
-  const text = await streamGeneratorIntoElement(stream, summaryText);
+  // A job supplies the page context captured when it started, so a tab
+  // switch while the engine was loading cannot swap in another tab's page
+  // data. Restores capture it here, while their view is still current.
+  const context =
+    pageContext ??
+    (isCurrent()
+      ? {
+          pageData: currentPageData,
+          language: currentSummaryLanguage,
+          translationEngine: currentTranslationEngine,
+        }
+      : null);
+  const text = await renderSummaryStream(stream, (text) => {
+    if (isCurrent()) setMarkdownHtml(summaryText, text);
+  });
+  if (!context) return text;
 
-  // Blank model output is a visible fault, not a success (#467): match the
-  // ask path, which renders EMPTY_ANSWER_MESSAGE instead of a blank view.
-  if (!text.trim()) {
-    showEmptySummaryFault();
-    announce(EMPTY_SUMMARY_MESSAGE);
-    updateTimeSavedBadge(null, null);
-    await saveSummaryViewState(
-      tab.id,
-      jobId,
-      buildSummaryCompletedState(tab, ""),
-    );
-    return "";
+  // Persist a completed run against its original tab even if the panel
+  // has switched to a different view while the stream was running.
+  const hasSummary = !!text.trim();
+  if (isCurrent()) {
+    if (hasSummary) {
+      currentSummaryText = text;
+      makeSummaryPassagesFocusable();
+      showSummaryContext();
+      setSummaryCopyButtonsVisible(true);
+      updateResummarizeHint();
+      updateTimeSavedBadge(context.pageData, text);
+    } else {
+      showEmptySummaryFault();
+      announce(EMPTY_SUMMARY_MESSAGE);
+      updateTimeSavedBadge(null, null);
+    }
   }
-
-  currentSummaryText = text;
-  makeSummaryPassagesFocusable();
-  showSummaryContext();
-  setSummaryCopyButtonsVisible(!!text.trim());
-  updateResummarizeHint();
-  updateTimeSavedBadge(currentPageData, text);
   await saveSummaryViewState(
     tab.id,
     jobId,
-    buildSummaryCompletedState(tab, text),
+    buildSummaryCompletedState(tab, hasSummary ? text : "", context),
   );
+  if (!hasSummary || !isCurrent()) return hasSummary ? text : "";
+
   currentPromptsCacheKey = promptsCacheKey;
   if (/:p(?:openrouter|opencode)(?=:|$)/.test(promptsCacheKey || "")) {
     if (settings) {
@@ -2045,6 +2072,7 @@ async function consumeSummaryStream(
         pageType,
         selectionText,
         focusKeyword,
+        isCurrent,
       });
     }
     return text;
@@ -2053,7 +2081,7 @@ async function consumeSummaryStream(
 
   const { [promptsCacheKey]: existingQuestions } =
     await chrome.storage.local.get(promptsCacheKey);
-  if (existingQuestions !== undefined) {
+  if (isCurrent() && existingQuestions !== undefined) {
     setSuggestedQuestions(
       Array.isArray(existingQuestions) ? existingQuestions : [],
     );
@@ -2111,6 +2139,10 @@ async function summarizeActivePage() {
   let startedStreamId = null;
   let jobId = null;
   let tab = null;
+  // "Current" means the panel is showing this job's tab. The restore epoch
+  // cannot be used here: leaving and returning to the same tab bumps it, and
+  // the job must be allowed to finish on the tab it belongs to.
+  const isCurrent = () => tab?.id != null && tab.id === activeTabId;
   try {
     if (activeSummarizeStreamId) {
       cancelStream(activeSummarizeStreamId);
@@ -2126,6 +2158,7 @@ async function summarizeActivePage() {
       currentWindow: true,
     });
     await ensureTabUrl(tab);
+    activeSummaryJob = { tabId: tab?.id, jobId };
     await saveViewState(tab.id, {
       view: "summaryView",
       subview: "summarizing",
@@ -2223,6 +2256,11 @@ async function summarizeActivePage() {
       pageData.content = pdfContent;
     }
     {
+      const pageContext = {
+        pageData: currentPageData,
+        language: currentSummaryLanguage,
+        translationEngine: currentTranslationEngine,
+      };
       const summarizeArgs = {
         title: pageData.title,
         url: pageData.url,
@@ -2244,6 +2282,8 @@ async function summarizeActivePage() {
         jobId,
         promptsCacheKey,
         isPdf: pageData.isPdf,
+        isCurrent,
+        pageContext,
         persistStream: async (streamId, execution) => {
           const activeJobState = await saveViewStateIfJobMatches(
             tab.id,
@@ -2284,16 +2324,17 @@ async function summarizeActivePage() {
       if (result !== "done") return;
     }
 
-    announce(t("summaryReady"));
+    if (isCurrent()) announce(t("summaryReady"));
   } catch (error) {
     const jobTabId = tab?.id ?? activeTabId;
     if (error instanceof StreamCancelledError) {
-      await returnHomeAfterCancel(jobTabId, jobId);
+      await returnHomeAfterCancel(jobTabId, jobId, isCurrent);
     } else {
-      renderSummaryError(error);
+      if (isCurrent()) renderSummaryError(error);
       await clearFailedStreamState(jobTabId, jobId);
     }
   } finally {
+    if (activeSummaryJob?.jobId === jobId) activeSummaryJob = null;
     summaryStartGate.release(startToken);
     summaryCancel.hide(startedStreamId);
   }
@@ -2687,6 +2728,23 @@ document.addEventListener("DOMContentLoaded", async () => {
           updateExtractorChip(currentPageData);
         }
 
+        // A job that is still extracting or loading its model has no
+        // streamId yet. If it belongs to this tab, show its spinner instead
+        // of falling through to home and hiding the run.
+        if (
+          state &&
+          state.subview === "summarizing" &&
+          !state.streamId &&
+          state.urlHash === (await hashUrl(tab.url)) &&
+          activeSummaryJob?.tabId === tab.id &&
+          activeSummaryJob.jobId === state.jobId
+        ) {
+          showOnlyView("summaryView");
+          showSummarizingContext();
+          setLoadingIndicator(summaryText, randomSummarizeVerb());
+          return;
+        }
+
         if (
           state &&
           state.urlHash === (await hashUrl(tab.url)) &&
@@ -2713,6 +2771,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                   tab,
                   promptsCacheKey: state.promptsCacheKey,
                   jobId: state.jobId,
+                  isCurrent: () => !stale(),
                   settings,
                   providerType: state.providerType,
                   pageType: state.pageType || "",
@@ -2724,7 +2783,12 @@ document.addEventListener("DOMContentLoaded", async () => {
               );
             } catch (error) {
               if (error instanceof StreamCancelledError) {
-                if (!stale()) await returnHomeAfterCancel(tab.id, state.jobId);
+                if (!stale())
+                  await returnHomeAfterCancel(
+                    tab.id,
+                    state.jobId,
+                    () => !stale(),
+                  );
               } else {
                 const completedState = await loadViewState(tab.id);
                 if (
@@ -2998,6 +3062,9 @@ async function summarizeCustomContent(title, content, url = "") {
   let startedStreamId = null;
   let jobId = null;
   let tab = null;
+  // Same rule as summarizeActivePage: the job belongs to its tab, not to a
+  // one-shot restore epoch.
+  const isCurrent = () => tab?.id != null && tab.id === activeTabId;
   try {
     if (activeSummarizeStreamId) {
       cancelStream(activeSummarizeStreamId);
@@ -3020,6 +3087,7 @@ async function summarizeCustomContent(title, content, url = "") {
       active: true,
       currentWindow: true,
     });
+    activeSummaryJob = { tabId: tab?.id, jobId };
     const settings = await getSettings();
     const model = getModelForSettings(settings);
     currentSummaryLanguage = settings.summaryLanguage;
@@ -3032,6 +3100,11 @@ async function summarizeCustomContent(title, content, url = "") {
       model,
     });
 
+    const pageContext = {
+      pageData: currentPageData,
+      language: currentSummaryLanguage,
+      translationEngine: currentTranslationEngine,
+    };
     const customArgs = {
       title,
       url: sourceUrl,
@@ -3055,6 +3128,8 @@ async function summarizeCustomContent(title, content, url = "") {
       tab,
       jobId,
       promptsCacheKey,
+      isCurrent,
+      pageContext,
       persistStream: async (streamId, execution) => {
         if (tab?.id) {
           await saveViewState(tab.id, {
@@ -3090,13 +3165,14 @@ async function summarizeCustomContent(title, content, url = "") {
   } catch (error) {
     const jobTabId = tab?.id ?? activeTabId;
     if (error instanceof StreamCancelledError) {
-      if (jobTabId) returnHomeAfterCancel(jobTabId, jobId);
+      if (jobTabId) returnHomeAfterCancel(jobTabId, jobId, isCurrent);
     } else {
       console.error(error);
-      renderSummaryError(error);
+      if (isCurrent()) renderSummaryError(error);
       await clearFailedStreamState(jobTabId, jobId);
     }
   } finally {
+    if (activeSummaryJob?.jobId === jobId) activeSummaryJob = null;
     summaryStartGate.release(startToken);
     summaryCancel.hide(startedStreamId);
   }
