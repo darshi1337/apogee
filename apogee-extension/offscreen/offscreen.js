@@ -24,6 +24,7 @@ import {
   transformersChatStream,
   getTransformersStatus,
 } from "../lib/engines/transformersEngine.js";
+import { createIdleDisposer } from "../lib/engines/idleDisposer.js";
 import { debugLog, initDebugLogging } from "../lib/util/log.js";
 import {
   broadcastToStream,
@@ -135,16 +136,6 @@ function isCorruptingEngineError(err) {
 let engineOwnerStreamId = null;
 
 const ENGINE_IDLE_MS = 60 * 1000;
-let engineIdleTimer = null;
-let engineIdleGeneration = 0;
-
-function cancelEngineIdleDispose() {
-  engineIdleGeneration++;
-  if (engineIdleTimer) {
-    clearTimeout(engineIdleTimer);
-    engineIdleTimer = null;
-  }
-}
 
 async function unloadEngineNow() {
   if (!engine) {
@@ -167,36 +158,13 @@ async function unloadEngineNow() {
   return true;
 }
 
-function scheduleEngineIdleDispose() {
-  cancelEngineIdleDispose();
-
-  const generation = engineIdleGeneration;
-  engineIdleTimer = setTimeout(async () => {
-    engineIdleTimer = null;
-    let release;
-
-    try {
-      release = await acquireLock({
-        timeout: ENGINE_LOCK_TIMEOUT_MS,
-      });
-
-      // Ignore stale timers that were cancelled while waiting.
-      if (generation !== engineIdleGeneration) return;
-      const unloaded = await unloadEngineNow();
-      if (!unloaded && engine && generation === engineIdleGeneration) {
-        scheduleEngineIdleDispose();
-      }
-    } catch (err) {
-      debugLog("[webllm] Idle disposal failed:", err?.message);
-
-      if (generation === engineIdleGeneration && engine) {
-        scheduleEngineIdleDispose();
-      }
-    } finally {
-      release?.();
-    }
-  }, ENGINE_IDLE_MS);
-}
+const idleDisposer = createIdleDisposer({
+  idleMs: ENGINE_IDLE_MS,
+  acquireLock,
+  lockTimeoutMs: ENGINE_LOCK_TIMEOUT_MS,
+  dispose: unloadEngineNow,
+  onError: (err) => debugLog("[webllm] Idle disposal failed:", err?.message),
+});
 
 let _webllm = null;
 let _prompts = null;
@@ -226,12 +194,12 @@ async function ensureEngine(modelId) {
     );
   }
   if (engine && currentModelId === modelId) {
-    cancelEngineIdleDispose();
+    idleDisposer.cancel();
     return engine;
   }
 
   if (engine) {
-    cancelEngineIdleDispose();
+    idleDisposer.cancel();
     try {
       await engine.unload();
     } catch {
@@ -341,40 +309,8 @@ function isInterruptedDownloadError(err) {
 }
 
 async function resetEngineState() {
-  cancelEngineIdleDispose();
+  idleDisposer.cancel();
   await unloadEngineNow();
-}
-
-// Dispose the cached WebLLM engine so it stops holding GPU/WASM memory.
-export async function disposeEngineNow() {
-  cancelEngineIdleDispose();
-
-  const release = await acquireLock({
-    timeout: ENGINE_LOCK_TIMEOUT_MS,
-  });
-
-  try {
-    return await unloadEngineNow();
-  } finally {
-    release?.();
-  }
-}
-
-// Test-only role (#639): reports the cached engine's model id and whether
-// an idle dispose is scheduled. No live caller - the offscreen document asks
-// for the status via the "status" handler - but the test uses this to observe
-// the engine lifecycle, together with __setEngineForTest below.
-export function getEngineStatus() {
-  return {
-    currentModelId,
-    idleDisposeScheduled: engineIdleTimer !== null,
-  };
-}
-
-export function __setEngineForTest(eng, modelId) {
-  cancelEngineIdleDispose();
-  engine = eng;
-  currentModelId = modelId;
 }
 
 async function withEngine(modelId, fn, ownerStreamId = null, options = {}) {
@@ -390,7 +326,7 @@ async function withEngine(modelId, fn, ownerStreamId = null, options = {}) {
     timeout: opts.lockTimeout ?? ENGINE_LOCK_TIMEOUT_MS,
     signal: opts.signal,
   });
-  cancelEngineIdleDispose();
+  idleDisposer.cancel();
   engineOwnerStreamId = owner;
   try {
     // Load failures already cleared loading state; a lock timeout/abort
@@ -407,10 +343,9 @@ async function withEngine(modelId, fn, ownerStreamId = null, options = {}) {
       }
       throw err;
     } finally {
-      // Free WASM memory when the engine goes idle instead of holding it
-      // for the life of the page: the engine otherwise contends with
-      // the translator for GPU/WASM memory.
-      if (engine) scheduleEngineIdleDispose();
+      // Free GPU and WASM memory when the engine goes idle instead of
+      // holding it for the life of the page.
+      if (engine) idleDisposer.schedule();
     }
   } finally {
     engineOwnerStreamId = null;
@@ -788,13 +723,9 @@ async function runStream(streamId, pending, stream) {
     }
   } catch (err) {
     if (stream.cancelled) return;
-    const isOOM =
-      /out of memory|oom|buffer allocation|gpubuffer|allocation failed|memory limit/i.test(
-        err?.message || "",
-      );
-    if (isOOM) {
-      await resetEngineState();
-    }
+    // The engine wrappers already reset their own engine on corrupting
+    // errors, under their own locks. Resetting again here could unload a
+    // healthy engine of the other provider while a stream uses it.
     emit({ type: "error", error: err.message });
     chrome.runtime
       .sendMessage({
