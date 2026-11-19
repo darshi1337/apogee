@@ -352,6 +352,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Support multiple llama-server models in router mode (#618) ([101c06c](https://github.com/darshi1337/apogee/commit/101c06c0906f39b80ee662a9a5bc26cc0b14eb88))
 - Enable opt-in remote Summary and Ask (B1) (#617) ([bb219ba](https://github.com/darshi1337/apogee/commit/bb219baa7c049d6c36bf36c3545bd59d85b27414))
 - Enable remote background summaries, multi-tab synthesis and follow-up questions (B2) (#664) ([c072a80](https://github.com/darshi1337/apogee/commit/c072a800c885d330919f182e6526185daf8aaad4))
+- Implement idle unload for main model (#699) ([8e0990e](https://github.com/darshi1337/apogee/commit/8e0990e50d9944896f30d773c480c7ad540a4c12))
 
 ### Fixed
 
@@ -382,6 +383,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Use array form for postCreateCommand (#694) ([de47a0c](https://github.com/darshi1337/apogee/commit/de47a0c4f7508e698b25cad9cf90091ad145102f))
 - Bump reviewdog/action-actionlint (#697) ([7fcc205](https://github.com/darshi1337/apogee/commit/7fcc205db1c4d60939dfc093c873e65821a1a034))
 - Check the starred list for the PR author in the star gate (#702) ([2c4a96c](https://github.com/darshi1337/apogee/commit/2c4a96ca3f4f8fa57aacab6ea214ffdc0c15a163))
+- Bump prettier in /apogee-extension in the npm-minor-patch group (#705) ([ea29ed5](https://github.com/darshi1337/apogee/commit/ea29ed5d71c845e5b6e8dffe250e73f3a007b231))
 
 ### Changed
 
