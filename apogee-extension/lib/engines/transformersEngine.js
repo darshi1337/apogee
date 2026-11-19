@@ -8,8 +8,10 @@ import { retryWithBackoff, retryProgressText } from "../util/retry.js";
 import { getTransformers } from "./transformersLib.js";
 import { ortWasmUrl, ortWasmBinary } from "./onnxWasm.js";
 import { createLock } from "../util/mutex.js";
+import { createIdleDisposer } from "./idleDisposer.js";
 
 const ENGINE_LOCK_TIMEOUT_MS = 20 * 60 * 1000;
+const ENGINE_IDLE_MS = 60 * 1000;
 const LOAD_MAX_ATTEMPTS = 3;
 
 export function isTransientLoadError(err) {
@@ -45,6 +47,15 @@ function resolveWasmThreads(label) {
 }
 
 const acquireLock = createLock();
+
+const idleDisposer = createIdleDisposer({
+  idleMs: ENGINE_IDLE_MS,
+  acquireLock,
+  lockTimeoutMs: ENGINE_LOCK_TIMEOUT_MS,
+  dispose: disposeCachedEngine,
+  onError: (err) =>
+    debugLog(`[transformers] idle disposal failed: ${err?.message}`),
+});
 
 // Shared WASM backend setup for both the text engine and the translator:
 // same threads, paths, and binary — only the debug label differs.
@@ -113,10 +124,12 @@ async function loadPipeline(modelId, modelInfo, onProgress) {
 
 async function ensureEngine(modelId, onProgress) {
   if (engine && currentModelId === modelId) {
+    idleDisposer.cancel();
     return engine;
   }
 
   if (engine) {
+    idleDisposer.cancel();
     await disposeSafely(engine);
     engine = null;
     currentModelId = null;
@@ -146,9 +159,11 @@ async function ensureEngine(modelId, onProgress) {
   return engine;
 }
 
-function resetEngineState() {
+async function resetEngineState() {
+  idleDisposer.cancel();
+
   if (engine) {
-    void disposeSafely(engine);
+    await disposeSafely(engine);
   }
   engine = null;
   currentModelId = null;
@@ -165,6 +180,7 @@ export async function withTransformersEngine(
     timeout: options.lockTimeout ?? ENGINE_LOCK_TIMEOUT_MS,
     signal: options.signal,
   });
+  idleDisposer.cancel();
   try {
     // Load failures clean up in ensureEngine; never touch a healthy engine
     // for them. A lock timeout/abort throws above, before we hold anything.
@@ -177,9 +193,14 @@ export async function withTransformersEngine(
       // corrupted (OOM / WASM abort) — otherwise the next stream would pay a
       // full reload for no reason.
       if (isEngineCorruptingError(err)) {
-        resetEngineState();
+        await resetEngineState();
       }
       throw err;
+    } finally {
+      // Free WASM memory when the engine goes idle instead of holding it
+      // for the life of the page: the text engine otherwise contends with
+      // the translator for GPU/WASM memory.
+      if (engine) idleDisposer.schedule();
     }
   } finally {
     release();
@@ -188,6 +209,50 @@ export async function withTransformersEngine(
 
 export function getTransformersStatus() {
   return { currentModelId, loadingModelId };
+}
+
+// Dispose the cached engine while an idle timer holds the engine lock.
+async function disposeCachedEngine() {
+  if (!engine) {
+    currentModelId = null;
+    return false;
+  }
+
+  const previousEngine = engine;
+  await disposeSafely(previousEngine);
+
+  if (engine === previousEngine) {
+    engine = null;
+    currentModelId = null;
+    loadingModelId = null;
+  }
+
+  return true;
+}
+
+// Manual teardown for tests and callers that already coordinate with the
+// engine lock.
+export async function disposeEngineNow() {
+  idleDisposer.cancel();
+  return disposeCachedEngine();
+}
+
+// Test-only role (#639): reports the cached engine's model id and whether
+// an idle dispose is scheduled. No live caller - the offscreen document asks
+// for the text engine's status via getTransformersStatus() - but the test uses
+// this to observe the engine lifecycle, together with __setEngineForTest
+// below.
+export function getEngineStatus() {
+  return {
+    currentModelId,
+    idleDisposeScheduled: idleDisposer.isScheduled(),
+  };
+}
+
+export function __setEngineForTest(eng, modelId) {
+  idleDisposer.cancel();
+  engine = eng;
+  currentModelId = modelId;
 }
 
 let translator = null;

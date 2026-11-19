@@ -24,7 +24,8 @@ import {
   transformersChatStream,
   getTransformersStatus,
 } from "../lib/engines/transformersEngine.js";
-import { initDebugLogging } from "../lib/util/log.js";
+import { createIdleDisposer } from "../lib/engines/idleDisposer.js";
+import { debugLog, initDebugLogging } from "../lib/util/log.js";
 import {
   broadcastToStream,
   disconnectStreamPorts,
@@ -134,6 +135,37 @@ function isCorruptingEngineError(err) {
 
 let engineOwnerStreamId = null;
 
+const ENGINE_IDLE_MS = 60 * 1000;
+
+async function unloadEngineNow() {
+  if (!engine) {
+    currentModelId = null;
+    return false;
+  }
+
+  const previousEngine = engine;
+  try {
+    await previousEngine.unload();
+  } catch (err) {
+    debugLog("[webllm] Engine unload failed:", err?.message);
+  }
+
+  if (engine === previousEngine) {
+    engine = null;
+    currentModelId = null;
+    loadingModelId = null;
+  }
+  return true;
+}
+
+const idleDisposer = createIdleDisposer({
+  idleMs: ENGINE_IDLE_MS,
+  acquireLock,
+  lockTimeoutMs: ENGINE_LOCK_TIMEOUT_MS,
+  dispose: unloadEngineNow,
+  onError: (err) => debugLog("[webllm] Idle disposal failed:", err?.message),
+});
+
 let _webllm = null;
 let _prompts = null;
 
@@ -162,10 +194,12 @@ async function ensureEngine(modelId) {
     );
   }
   if (engine && currentModelId === modelId) {
+    idleDisposer.cancel();
     return engine;
   }
 
   if (engine) {
+    idleDisposer.cancel();
     try {
       await engine.unload();
     } catch {
@@ -274,10 +308,9 @@ function isInterruptedDownloadError(err) {
   return /cache\.add|network\s?error|failed to fetch/i.test(err?.message || "");
 }
 
-function resetEngineState() {
-  engine = null;
-  currentModelId = null;
-  loadingModelId = null;
+async function resetEngineState() {
+  idleDisposer.cancel();
+  await unloadEngineNow();
 }
 
 async function withEngine(modelId, fn, ownerStreamId = null, options = {}) {
@@ -293,6 +326,7 @@ async function withEngine(modelId, fn, ownerStreamId = null, options = {}) {
     timeout: opts.lockTimeout ?? ENGINE_LOCK_TIMEOUT_MS,
     signal: opts.signal,
   });
+  idleDisposer.cancel();
   engineOwnerStreamId = owner;
   try {
     // Load failures already cleared loading state; a lock timeout/abort
@@ -305,9 +339,13 @@ async function withEngine(modelId, fn, ownerStreamId = null, options = {}) {
       // engine. Only drop it when the error shows the engine itself is
       // corrupted (OOM); otherwise the next stream would pay a full reload.
       if (isCorruptingEngineError(err)) {
-        resetEngineState();
+        await resetEngineState();
       }
       throw err;
+    } finally {
+      // Free GPU and WASM memory when the engine goes idle instead of
+      // holding it for the life of the page.
+      if (engine) idleDisposer.schedule();
     }
   } finally {
     engineOwnerStreamId = null;
@@ -685,13 +723,9 @@ async function runStream(streamId, pending, stream) {
     }
   } catch (err) {
     if (stream.cancelled) return;
-    const isOOM =
-      /out of memory|oom|buffer allocation|gpubuffer|allocation failed|memory limit/i.test(
-        err?.message || "",
-      );
-    if (isOOM) {
-      resetEngineState();
-    }
+    // The engine wrappers already reset their own engine on corrupting
+    // errors, under their own locks. Resetting again here could unload a
+    // healthy engine of the other provider while a stream uses it.
     emit({ type: "error", error: err.message });
     chrome.runtime
       .sendMessage({
