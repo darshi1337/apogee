@@ -45,6 +45,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Bump reviewdog/action-actionlint (#697) ([7fcc205](https://github.com/darshi1337/apogee/commit/7fcc205db1c4d60939dfc093c873e65821a1a034))
 - Check the starred list for the PR author in the star gate (#702) ([2c4a96c](https://github.com/darshi1337/apogee/commit/2c4a96ca3f4f8fa57aacab6ea214ffdc0c15a163))
 - Bump prettier in /apogee-extension in the npm-minor-patch group (#705) ([ea29ed5](https://github.com/darshi1337/apogee/commit/ea29ed5d71c845e5b6e8dffe250e73f3a007b231))
+- Bump prettier in /apogee-extension in the npm-minor-patch group (#709) ([ad8c66e](https://github.com/darshi1337/apogee/commit/ad8c66e2094d31ea8943031600bee27fbb3fe420))
 
 ### Changed
 
