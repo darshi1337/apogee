@@ -28,7 +28,7 @@ The container builds and tests the extension. It does not run a browser or a loc
 
 ### Dependency overrides
 
-`apogee-extension/package.json` pins seven transitive deps above the ranges their parents declare. Each pin holds a patched release, so do not loosen one without checking `npm audit` first:
+`apogee-extension/package.json` pins nine transitive deps above the ranges their parents declare. Each pin holds a patched release, so do not loosen one without checking `npm audit` first:
 
 - `adm-zip@^0.6.1` (`onnxruntime-node` asks for `^0.5.16`). GHSA-xcpc-8h2w-3j85 covers a crafted ZIP that triggers a multi-gigabyte allocation. Fixed in 0.6.0.
 
@@ -41,6 +41,10 @@ The container builds and tests the extension. It does not run a browser or a loc
 - `fast-uri@^4.2.3` (transitive). GHSA-58mr-gqgx-xq4g covers host confusion from a crafted URI. The 4.x line carries the fix.
 
 - `js-yaml@^4.3.2` (transitive). Keeps the parser on the patched 4.x line.
+
+- `minimatch@^11.0.1` (transitive). GHSA-g3hv-75wg-m249 covers denial of service from glob-pattern amplification. The 11.x line carries the fix.
+
+- `multimatch@^8.0.0` (`web-ext` asks for `6.0.0`). The override follows `minimatch@11`, which no longer provides the default export that `multimatch@6` imports; version 8 uses the named export.
 
 - `undici@^8.12.3` (transitive). Keeps the HTTP client on the patched 8.x line.
 
@@ -98,7 +102,7 @@ The `lib/` folder holds plain JavaScript logic split into clean functional folde
 
 #### `lib/engines/` (AI Model Runtime Adapters)
 
-- **What it holds**: `providers.js` (engine registry, ordered fallback chain, extracted-text fallback). `ollamaClient.js` (Local Ollama HTTP streaming client). `llamaCppClient.js` (local llama.cpp SSE client). `transformersEngine.js` (WebAssembly CPU engine). `transformersLib.js` and `onnxWasm.js` (model lib loading). `embeddings.js` (on-device embedding client). `httpChatStream.js` (shared chat-completions streaming scaffold). `modelLimits.js` (per-engine chunk budgets).
+- **What it holds**: `providers.js` (engine registry, ordered fallback chain, extracted-text fallback). `engineRules.js` (rules-based engine selection by input kind and context size). `ollamaClient.js` (Local Ollama HTTP streaming client). `llamaCppClient.js` (local llama.cpp SSE client). `transformersEngine.js` (WebAssembly CPU engine) and `idleDisposer.js` (shared 60-second idle teardown that frees the cached engine). `transformersLib.js` and `onnxWasm.js` (model lib loading). `embeddings.js` (on-device embedding client). `httpChatStream.js` (shared chat-completions streaming scaffold). `modelLimits.js` (per-engine chunk budgets). `remoteClient.js`, `remoteCredentials.js`, and `remoteModels.js` (opt-in catalog and generation client, consent and credential checks, and model allow-lists).
 
 - **How to contribute**: Add new model configs to `providers.js` or improve token streaming handlers inside the provider clients and engine adapters. New engines plug into the `resolveEngineChain` order once instead of once per call site. Keep local inference on-device. Remote requests use the opt-in catalog client and separately authorized generation client. Both use fixed provider origins and separate consent. Catalog refresh sends the key. Generation also sends page, selected, pasted, or extracted text, title and URL, questions, and instructions.
 
@@ -122,7 +126,7 @@ The `lib/` folder holds plain JavaScript logic split into clean functional folde
 
 #### `lib/storage/` (Extension Local Storage Managers)
 
-- **What it holds**: `pageCache.js` (summary cache, SHA-256 page-address keys, sensitive-site exclusions, byte-budget eviction, atomic delete helper). `viewState.js` (per-tab popup state, byte-budget eviction). `activityAudit.js` (privacy audit log, order-index storage counts). `settings.js` (user preference storage and defaults).
+- **What it holds**: `pageCache.js` (summary cache, SHA-256 page-address keys, sensitive-site exclusions, byte-budget eviction, atomic delete helper). `viewState.js` (per-tab popup state, byte-budget eviction). `activityAudit.js` (privacy audit log, order-index storage counts). `settings.js` (user preference storage and defaults). `remoteSettings.js` (remote catalog and generation consent, saved credentials, and request hold/abort wiring).
 
 - **How to contribute**: Add user prefs or improve sensitive host exclusion patterns to guard user privacy.
 
@@ -140,7 +144,7 @@ The `lib/` folder holds plain JavaScript logic split into clean functional folde
 
 ### 3. `background/` (Service Worker Architecture)
 
-- **What it holds**: `service-worker.js`, the Manifest V3 message router. It keeps routing, engine-running (`startLocalHttpStream`, `startTransformersStream`, `createBufferedStream`), background summarize/extract, lookups, and alarms. Four modules carry the rest, with one-way dependencies (`streams.js` <- `suggestQuestions.js` <- `finalize.js`, all imported by the worker): `streams.js` (stream registry, sliding expiry, offscreen relay, keep-alive), `finalize.js` (trusted finalize rebuild, summary persistence, notifications, preserved-text retry store), `suggestQuestions.js` (follow-up-question job plus its generation helpers), `loopbackProviders.js` (Ollama/llama.cpp host validation and provider descriptors).
+- **What it holds**: `service-worker.js`, the Manifest V3 message router. It keeps routing, engine-running (`startLocalHttpStream`, `startTransformersStream`, `createBufferedStream`), background summarize/extract, lookups, and alarms. Five modules carry the rest: `streams.js` (stream registry, sliding expiry, offscreen relay, keep-alive), `finalize.js` (trusted finalize rebuild, summary persistence, notifications, preserved-text retry store), `suggestQuestions.js` (follow-up-question job plus its generation helpers), `loopbackProviders.js` (Ollama/llama.cpp host validation and provider descriptors), and `remoteGeneration.js` (authorized remote Summary, Ask, background, and multi-tab runs).
 
 - **How to contribute**: Change service worker message listeners, improve token buffer streaming, or improve background idle timers. Put new stream lifecycle in `streams.js`, new persist/notify work in `finalize.js`, and new background jobs beside `suggestQuestions.js` — not inline in the router.
 
@@ -154,12 +158,17 @@ The `lib/` folder holds plain JavaScript logic split into clean functional folde
 
 - **What it holds**: `app.js` renders the shared popup and side-panel interface (Home, Summary, Ask, local file upload, Past Summaries search, Settings views). `app.html`, `app.css`, and `icons.js` (inline SVG icons) support it. `mock.js` stands in for `chrome` in non-extension contexts.
 
-  Four modules carry the testable logic:
+  Nine modules carry the testable logic:
 
   - `jobs.js` owns the streaming-job runner: start, view state, cancel, consume, and engine fallback.
   - `focusKeyword.js` handles keyword gating and page-change tracking.
   - `cappedInputs.js` handles input caps, counters, and autosave wiring.
   - `llamaModelPicker.js` handles the router-mode model list and field sync.
+  - `effectiveConfig.js` builds the redacted configuration download.
+  - `pastSummaries.js` owns past-summary search, debounce, and rendering.
+  - `promptsContext.js` resolves summary and suggested-prompt cache keys.
+  - `remoteSettings.js` wires the remote catalog and generation consent controls.
+  - `summaryStream.js` renders incoming summary tokens with throttled redraws.
 
 - **How to contribute**: Improve UI parts, update theme styles, improve accessibility, or add interactive controls while keeping extension design standards. Put new job flows through `runStreamingJob` and new pure UI logic in an importable module with direct unit tests — not inline in `app.js`.
 

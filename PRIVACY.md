@@ -8,7 +8,7 @@ The details below state which network requests happen and what stays on disk. B2
 
 - **In-Browser mode**: Tokenization and inference run fully on your local device. They run on the GPU through WebGPU (WebLLM, default on Chrome and Edge). They also run on the CPU through WebAssembly (Transformers.js, default on Firefox and opt-in on Chrome and Edge). Your page content and summaries never go anywhere.
 
-- **Local llama.cpp mode**: Page content travels only over local loopback (`http://127.0.0.1`) to your own `llama-server` process. It never reaches the cloud. Local Ollama mode works the same way. Apogee refuses any host other than `127.0.0.1` or `localhost`.
+- **Local llama.cpp mode**: Page content travels only over local loopback (`http://127.0.0.1`) to your own `llama-server` process. It never reaches the cloud. Local Ollama mode works the same way. Apogee refuses any host other than `127.0.0.1`, `localhost`, or the IPv6 loopback `[::1]`.
 
   You cannot set a remote llama.cpp server, even on purpose. If the server started with `--api-key`, the key stays with your other settings. Apogee sends it only to that loopback address. Diagnostics show it as `set` or `unset`, never by value.
 
@@ -120,13 +120,13 @@ Settings includes an **Activity & Privacy Audit** panel. It gives full visual in
 
 Apogee asks for a tight set of browser permissions to enforce security sandboxes:
 
-- **`activeTab` and `scripting`**: Apogee cannot read your browsing history and cannot check other open tabs. It reads the current active tab only in three cases. You click Summarize or Ask. You right-click and pick "Summarize this page". You use the keyboard shortcut.
+- **`activeTab` and `scripting`**: Apogee cannot read your browsing history. It reads the current active tab only when you click Summarize or Ask, right-click and pick "Summarize this page", or use the keyboard shortcut. When you choose "Summarize with Apogee" for selected tabs, it reads the tabs you have highlighted in the current window.
 
   The popup reads local files and pasted text only after you pick or give them there.
 
 - **`storage`**: It holds your prefs, provider keys and separate consent choices, plus the local cache stated above. Provider keys are local credentials, sent only to their fixed provider origin for explicitly requested authenticated catalog refresh or authorized generation.
 
-- **`tabs`**: It lets the side panel see which tab is active so it re-renders on tab switches. It reads only the active tab id, URL, and title. It reads no browsing history.
+- **`tabs`**: It lets the side panel see which tab is active so it re-renders on tab switches. For an explicit multi-tab summary it finds the tabs highlighted in the current window. It reads only tab ids, URLs, and titles. It reads no browsing history.
 
 - **`unlimitedStorage`**: It lifts the default quota on `chrome.storage.local`. Cached summaries and page text survive normal storage pressure. It grants access to nothing beyond that cache.
 

@@ -77,7 +77,7 @@ The table below compares Apogee with common cloud-based AI extensions and the di
 
 ## What It Can Do
 
-- **Articles and Web Pages**: Clean text extraction uses Readability and site-specific extractors. They cover Wikipedia, GitHub, Reddit, Hacker News, Bluesky, Mastodon, Lemmy, Discourse, Stack Overflow, Lobsters, and arXiv.
+- **Articles and Web Pages**: Clean text extraction uses Readability and site-specific extractors. They cover Wikipedia, GitHub, GitLab, Dev.to, Gmail, Reddit, Hacker News, Bluesky, Mastodon, Lemmy, Discourse, Stack Overflow, Lobsters, and arXiv.
 
 - **Selected Text**: Select at least 20 characters on a supported page. Use **Selection** in the popup or the browser context menu to summarize only that text. Follow-up Ask questions keep the picked text as their source.
 
@@ -99,7 +99,7 @@ The table below compares Apogee with common cloud-based AI extensions and the di
 
 - **Per-Page Focus Keywords**: Enter an optional topic or keyword (up to 200 characters) in the **Focus on... (optional)** field. Find the field below the response format selector in the home view. Use it before you summarize articles, PDFs, DOCX files, or pasted text. It steers emphasis toward specific themes without inventing facts. The input stays hidden on video, discussion (Hacker News, Reddit, Stack Overflow), and multi-tab pages.
 
-- **Multi-Language Translation**: Summarize pages into 36 target languages with the default Helsinki-NLP Opus-MT engine or direct LLM translation.
+- **Multi-Language Translation**: Summarize pages into 37 output languages, including English, or keep the page's own language. Use the default Helsinki-NLP Opus-MT engine or direct LLM translation.
 
 - **Extract-only "Copy text"**: Click the **Copy text** chip in the popup to extract and copy cleaned page text (including PDFs) straight to your clipboard with no AI inference or model download.
 
@@ -150,7 +150,7 @@ Read the full security model in [Privacy and Security Architecture](PRIVACY.md).
 
 - **[Local Ollama Guide](docs/OLLAMA.md)**: Setup steps for local models on macOS, Windows, and Linux.
 
-- **[Translation Reference](docs/TRANSLATION.md)**: Overview of 36 supported target languages and Opus-MT model tiers.
+- **[Translation Reference](docs/TRANSLATION.md)**: Overview of 37 output languages (including English), "Same as article", and Opus-MT model tiers.
 
 - **[Privacy Architecture](PRIVACY.md)**: Full details on network limits, storage, and permissions.
 
