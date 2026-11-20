@@ -15,7 +15,7 @@ Work from `apogee-extension/`. Keep local generation on-device. Optional remote 
 - Selected text: use `lib/extract/selection.js`. Preserve minimum-selection and user-facing error behavior.
 - PDF and DOCX files: use `lib/extract/pdfExtract.js` and `lib/extract/docxExtract.js`. Keep size, expanded-text, archive, and eval-safety limits fail-closed.
 - Summarization: the UI starts in `ui/app.js` at `summarizeActivePage()` or `summarizeCustomContent()`. Both run through the shared runner in `ui/jobs.js`. Provider adapters and the engine fallback chain live in `lib/engines/providers.js`. Local generation lives in `lib/summarize/ollamaSummarize.js`. Long-input map-reduce lives in `lib/summarize/mapReduce.js`.
-- Background or offscreen routing: keep the message contract aligned between `background/service-worker.js` and `offscreen/offscreen.js`. Stream lifecycle lives in `background/streams.js`, finalize in `background/finalize.js`, suggest-questions in `background/suggestQuestions.js`, and loopback providers in `background/loopbackProviders.js`. Never let a tab-originated message invoke privileged actions.
+- Background or offscreen routing: keep the message contract aligned between `background/service-worker.js` and `offscreen/offscreen.js`. Stream lifecycle lives in `background/streams.js`, finalize in `background/finalize.js`, suggest-questions in `background/suggestQuestions.js`, loopback providers in `background/loopbackProviders.js`, and authorized remote generation in `background/remoteGeneration.js`. Never let a tab-originated message invoke privileged actions.
 
 ## Make the change
 

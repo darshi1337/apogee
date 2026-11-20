@@ -23,17 +23,17 @@ This document shows what we work on now, what we plan soon, and our long-term pl
   - Extract and copy clean page text (including PDFs) directly to your clipboard using the "Copy text" chip without running an AI model. (#414, #449)
 
 - **Adding More Places to Get Information**:
-  - We add extractors for more websites such as GitLab and Dev.to.
+  - We keep adding extractors for more websites.
 
-  - Extractors already exist for these sites. YouTube, Bilibili, Wikipedia, Gmail, Reddit, Hacker News, GitHub, Lobsters, arXiv, Mastodon, Stack Overflow, Lemmy, Discourse, Bluesky.
+  - Extractors already exist for YouTube, Bilibili, Wikipedia, Gmail, Reddit, Hacker News, GitHub, GitLab, Dev.to, Lobsters, arXiv, Mastodon, Stack Overflow, Lemmy, Discourse, and Bluesky.
 
   - It is easy to add new extractors. Write simple programs in Node.js. You need no browser.
 
 - **More Testing**:
-  - We add more tests for existing extractors and core parts of Apogee. 496 tests pass.
+  - We add more tests for existing extractors and core parts of Apogee. More than 1,200 tests pass.
 
 - **Firefox Compatibility**:
-  - We make sure Apogee works well on Firefox. When possible, we will bring text questions and sentence highlights to Firefox.
+  - We make sure Apogee works well on Firefox. Ask and on-device retrieval already run there. We will bring sentence highlighting to Firefox when the browser APIs allow it.
 
 - **Making the AI Faster and Smaller**:
   - We update the WebLLM and Transformers.js libraries with smaller models (SmolLM2, Qwen 2.5, Llama 3.2).

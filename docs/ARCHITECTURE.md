@@ -16,7 +16,7 @@ Apogee uses four cooperating execution contexts. They talk to each other with st
 
 - **Popup / Side Panel UI**: The same interface runs in the short-lived toolbar popup or, on Chromium, a persistent side panel. Use it to start summaries, pick output formats, ask follow-up questions, and search past summaries. The shared runner in `ui/jobs.js` drives every streaming summarize and Ask job.
 
-- **Service Worker**: The central router. It coordinates tasks, buffers streaming tokens, manages background alarms, and saves results to local storage. Stream lifecycle, finalize, suggest-questions, and loopback providers live in `background/streams.js`, `finalize.js`, `suggestQuestions.js`, and `loopbackProviders.js`.
+- **Service Worker**: The central router. It coordinates tasks, buffers streaming tokens, manages background alarms, and saves results to local storage. Stream lifecycle, finalize, suggest-questions, loopback providers, and authorized remote generation live in `background/streams.js`, `finalize.js`, `suggestQuestions.js`, `loopbackProviders.js`, and `remoteGeneration.js`.
 
 - **Inference Host**: The place where AI models run. On Chromium browsers, this is a dedicated offscreen document with WebGPU and WebAssembly support. On Firefox, models run inside the background page.
 
@@ -32,19 +32,21 @@ Settings on Chrome and Edge also offers Transformers.js as an opt-in choice. It 
 
 The first use of an in-browser engine downloads the model weights (about 270 MB to 2.2 GB based on the model). It caches them locally. After that, local runs work offline. Remote generation requires a network connection.
 
+After a run finishes, the in-browser engine stays loaded for 60 seconds so a quick follow-up skips the reload. If no new run starts in that window, Apogee unloads the engine and releases its GPU or WebAssembly memory. The cached Opus-MT translator uses the same 60-second idle teardown.
+
 Prefer larger models, or already run `llama.cpp` yourself? Switch to Local llama.cpp mode and the extension talks to your own `llama-server` over 127.0.0.1. It reads the context window the server reports instead of guessing one from the model name. See the [Local llama.cpp Guide](LLAMACPP.md).
 
 Prefer larger models? Switch to Local Ollama mode. The extension talks straight to your own Ollama instance over 127.0.0.1. It needs no extra backend to install or run.
 
 Ask goes further than the summary itself. It never cuts long pages down to the first few thousand characters. Apogee embeds the page locally (a small on-device model, same trust level as the LLM weights above). It answers using only the passages most relevant to your question.
 
-So questions about details buried deep in a long article, PDF, or video transcript still work. They work beyond what fits in the opening slice. (Retrieval currently runs on Chromium browsers. Firefox falls back to the plain truncated slice for now.)
+So questions about details buried deep in a long article, PDF, or video transcript still work. They work beyond what fits in the opening slice.
 
 Pasted text and local files use the same summarization path as a page, but they need no tab URL. Bundled `pdf.js` pulls out PDF text. The popup pulls DOCX text offline from the document ZIP/XML structure. Local inputs get a content-derived cache identity instead of a made-up web origin.
 
 Highlight-in-page checks the summary against the source. Click any bullet (or line, in Sentences/Paragraphs mode). Apogee finds the passage of the original page it most likely came from. It uses the same on-device retrieval Ask uses.
 
-Then it scrolls to the passage and highlights it in the live page. It helps you spot-check a claim without re-reading the whole article. Chromium-only for now, same limit as Ask retrieval above.
+Then it scrolls to the passage and highlights it in the live page. It helps you spot-check a claim without re-reading the whole article. Chromium-only for now because the Firefox build disables the highlight overlay.
 
 Videos (YouTube and Bilibili) get their own path. Apogee pulls the timestamped transcript of the video. It makes a short written gist plus a "Key moments" timeline. The timeline sizes to the video length.
 
@@ -81,7 +83,7 @@ flowchart TD
         end
 
         subgraph bg["Service Worker"]
-            ROUTER["Message router<br/>streams, finalize,<br/>suggest, loopback providers"]
+            ROUTER["Message router<br/>streams, finalize,<br/>suggest, loopback, remote"]
         end
 
         subgraph host["Inference Host"]

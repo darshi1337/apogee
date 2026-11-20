@@ -1,6 +1,6 @@
 # Apogee Translation Architecture and Reference
 
-Apogee can make summaries, answers to questions, and suggested questions in a language different from the original page. You choose the output language under Settings, then Summary language. The normal setting is English. “Same as article” keeps the language of the original page. Summaries stay in English no matter the language of the original page. There are 36 languages you can use.
+Apogee can make summaries, answers to questions, and suggested questions in a language you choose, which can differ from the original page. You choose the output language under Settings, then Summary language. The default is English; “Same as article” keeps the language of the original page. There are 37 output languages including English (36 besides English), plus “Same as article.”
 
 ## Translation Engines
 
@@ -16,7 +16,7 @@ Apogee uses two translation engines:
 
 ## Complete 36-Language Matrix
 
-Opus-MT starts from English, so it covers languages at different levels. This table shows how it translates from English to other languages:
+The 36 non-English output languages and their Opus-MT paths are below. Opus-MT starts from English, so it covers languages at different levels. This table shows how it translates from English to other languages:
 
 | Target Language | Opus-MT Model (English-to-Target) | Tier | Recommended Engine |
 | :-- | :-- | :-- | :-- |

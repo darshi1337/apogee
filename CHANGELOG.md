@@ -4,6 +4,52 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Add shared remote client and opt-in setup (stage A) (#606) ([bde073d](https://github.com/darshi1337/apogee/commit/bde073da029f68ff97ea81eb2fef64133b6169f4))
+- Add RTL summary languages (#622) ([8afc5e4](https://github.com/darshi1337/apogee/commit/8afc5e4f5f1fc1a40bd4413d73e1cbe25381c42b))
+- Support multiple llama-server models in router mode (#618) ([101c06c](https://github.com/darshi1337/apogee/commit/101c06c0906f39b80ee662a9a5bc26cc0b14eb88))
+- Enable opt-in remote Summary and Ask (B1) (#617) ([bb219ba](https://github.com/darshi1337/apogee/commit/bb219baa7c049d6c36bf36c3545bd59d85b27414))
+- Enable remote background summaries, multi-tab synthesis and follow-up questions (B2) (#664) ([c072a80](https://github.com/darshi1337/apogee/commit/c072a800c885d330919f182e6526185daf8aaad4))
+- Implement idle unload for main model (#699) ([8e0990e](https://github.com/darshi1337/apogee/commit/8e0990e50d9944896f30d773c480c7ad540a4c12))
+
+### Fixed
+
+- Past-summary cards no longer put buttons inside a button (#550) (#588) ([1962a69](https://github.com/darshi1337/apogee/commit/1962a69efc1696327184ef3935f2ded8ecb6f28f))
+- Include contributors in release notes (#591) ([086a7ad](https://github.com/darshi1337/apogee/commit/086a7add3754b50afb12fa877d054b973e1542ef))
+- Preserve shared offscreen runs until the last viewer closes (#595) ([b948cc7](https://github.com/darshi1337/apogee/commit/b948cc777fab6ef6c1e4408186ce8c8806243df0))
+- Keep release PRs passing checks (#598) ([043a520](https://github.com/darshi1337/apogee/commit/043a5207adeba3869bbc4bcdf2af382f81f74a2d))
+- Override minimatch to 11.0.4 for GHSA-g3hv-75wg-m249 (#603) ([3924ebf](https://github.com/darshi1337/apogee/commit/3924ebf9eb33471946f4f91584e5bed42c478d69))
+- Use existing github_actions label for Dependabot workflow PRs (#620) ([bf241cd](https://github.com/darshi1337/apogee/commit/bf241cda272e8cd2c7aae2ce96fd7a13d6d125f4))
+- Tighten late stream-finish retention ([ae31c7c](https://github.com/darshi1337/apogee/commit/ae31c7cdc6779622d54df3350a35df61259e76e2))
+- Bump reviewdog/action-actionlint (#635) ([196c028](https://github.com/darshi1337/apogee/commit/196c02841d16b87b59ccf6b2957ca5b2fcb45699))
+- Bump the npm-minor-patch group in /apogee-extension with 4 updates (#646) ([a25db52](https://github.com/darshi1337/apogee/commit/a25db521c8567b50a152a374efad2d72fe8cff76))
+- Bump zizmorcore/zizmor-action (#647) ([2b9d65f](https://github.com/darshi1337/apogee/commit/2b9d65f7d3636afd9cbf2ed251a164e76db95a3d))
+- Bump the github-actions group with 2 updates (#648) ([a227211](https://github.com/darshi1337/apogee/commit/a22721156dd4fd30e194ec650fbaf66c9098d4c4))
+- Finish each stream once (#628) (#649) ([eb35057](https://github.com/darshi1337/apogee/commit/eb35057c862658ccbc532a74446043bbdc7fdd9b))
+- Model document calls time out instead of hanging the popup (#469) (#651) ([92d56c6](https://github.com/darshi1337/apogee/commit/92d56c64f3ff854f4814b5063e9bcb6b0c6c40ba))
+- Add focus-visible rings to the home action and chip buttons (#653) ([be7f4df](https://github.com/darshi1337/apogee/commit/be7f4df5506d614507ef3fdfacd32446e9a4f5d9))
+- Bump the github-actions group with 3 updates (#657) ([c10b7cb](https://github.com/darshi1337/apogee/commit/c10b7cb8fe64769f3a845064ef747a53702c5aa7))
+- Bump node-forge from 1.4.2 to 1.4.3 in /apogee-extension (#658) ([4912091](https://github.com/darshi1337/apogee/commit/49120915864f8dc6400ddd1a5496637fe6b453e2))
+- Keep the worker awake until the summary save ends (#659) ([ea6af1b](https://github.com/darshi1337/apogee/commit/ea6af1babc2582f4a672fee0857455064eb5aadc))
+- Keep the model document open while a run starts (#662) ([131f519](https://github.com/darshi1337/apogee/commit/131f51973dd8630509cf31830071a1f73c00a52e))
+- Localize dynamic popup strings (#641) (#665) ([91eac2f](https://github.com/darshi1337/apogee/commit/91eac2ff1c25f49b278e5a47949f3ce8d4dfa28d))
+- Bump vite in /apogee-extension in the npm-minor-patch group (#675) ([313e4bd](https://github.com/darshi1337/apogee/commit/313e4bd4b40103e3ff9a95cfc7c2528d08555923))
+- Bump reviewdog/action-actionlint (#676) ([f9b8e87](https://github.com/darshi1337/apogee/commit/f9b8e87d40db6ebd4e18b19a41511d47621259f6))
+- Avoid rescheduling stream cleanup on every chunk (#640) (#677) ([5f9e3ca](https://github.com/darshi1337/apogee/commit/5f9e3cabaf60a0b8f0df9ea61a35bece13791ac6))
+- Bump reviewdog/action-actionlint (#683) ([431bdcc](https://github.com/darshi1337/apogee/commit/431bdcc8094ee024e71f7421204b5792dfd1dffd))
+- Bump the npm-minor-patch group in /apogee-extension with 2 updates (#684) ([66159e1](https://github.com/darshi1337/apogee/commit/66159e1cdc0456b2c7ad5f17ff149b27d10ba14b))
+- Use array form for postCreateCommand (#694) ([de47a0c](https://github.com/darshi1337/apogee/commit/de47a0c4f7508e698b25cad9cf90091ad145102f))
+- Bump reviewdog/action-actionlint (#697) ([7fcc205](https://github.com/darshi1337/apogee/commit/7fcc205db1c4d60939dfc093c873e65821a1a034))
+- Check the starred list for the PR author in the star gate (#702) ([2c4a96c](https://github.com/darshi1337/apogee/commit/2c4a96ca3f4f8fa57aacab6ea214ffdc0c15a163))
+- Bump prettier in /apogee-extension in the npm-minor-patch group (#705) ([ea29ed5](https://github.com/darshi1337/apogee/commit/ea29ed5d71c845e5b6e8dffe250e73f3a007b231))
+
+### Changed
+
+- Slow live summary redraws as output grows (#693) ([4841e5f](https://github.com/darshi1337/apogee/commit/4841e5f48fcbcf9d588fc11dbcfc49cbed5c56e5))
+
 ## [0.2.5](https://github.com/darshi1337/apogee/compare/v0.2.4...v0.2.5) (2026-10-28)
 
 
@@ -120,13 +166,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Trap dialog focus and throttle announcer ([#315](https://github.com/darshi1337/apogee/issues/315)) ([4ddbc31](https://github.com/darshi1337/apogee/commit/4ddbc319af73afd52a00cf92926593f177bccccd))
 - Trap dialog focus and throttle announcer ([#315](https://github.com/darshi1337/apogee/issues/315)) ([#375](https://github.com/darshi1337/apogee/issues/375)) ([d14c917](https://github.com/darshi1337/apogee/commit/d14c9172168e8e70b45af2c91c82679840280161))
 - Use static shields for contributor badges in readme ([bfcc1f4](https://github.com/darshi1337/apogee/commit/bfcc1f45cb84a0e455110d38a8843e417ac7576b))
-
-## [0.2.2](https://github.com/darshi1337/apogee/compare/v0.2.2...v0.2.2) (2026-09-22)
-
-### Fixed
-
-- Remove footer wordmark overlay from popup ([36fc9ed](https://github.com/darshi1337/apogee/commit/36fc9edaf0022a5902bccaea097295be32885197))
-- Remove footer wordmark overlay from popup ([aa21044](https://github.com/darshi1337/apogee/commit/aa21044074af476a89344a08fde667b63b58cd14))
 
 ## [0.2.2](https://github.com/darshi1337/apogee/compare/v0.2.1...v0.2.2) (2026-09-21)
 
@@ -288,6 +327,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Remove stray trailing true; statement in content.js ([551b153](https://github.com/darshi1337/apogee/commit/551b153a42abb3de13a3e59e9573384d2b79ceb0))
 - Remove unused gmail brand icon ([84b6b1c](https://github.com/darshi1337/apogee/commit/84b6b1cf22b3f1add33f7a9abece6072ae9cd39d))
 - **resilience:** OOM recovery and cancellation handling on large documents ([#114](https://github.com/darshi1337/apogee/issues/114)) ([6ad4324](https://github.com/darshi1337/apogee/commit/6ad4324924156512ce45683ba15bde6200f22154))
+- Remove footer wordmark overlay from popup ([36fc9ed](https://github.com/darshi1337/apogee/commit/36fc9edaf0022a5902bccaea097295be32885197))
+- Remove footer wordmark overlay from popup ([aa21044](https://github.com/darshi1337/apogee/commit/aa21044074af476a89344a08fde667b63b58cd14))
 - Restore completed summaries after stream expiry ([49b3b2b](https://github.com/darshi1337/apogee/commit/49b3b2bac7bb8601cb1d76cdc80fb2e143011d05))
 - Restore Ollama connectivity for loopback variants without opening SSRF ([0fc5c1b](https://github.com/darshi1337/apogee/commit/0fc5c1bd87fbdec0153f8cdda6297e2fa0d57053))
 - Restore Ollama connectivity for loopback variants without opening SSRF ([7727ae4](https://github.com/darshi1337/apogee/commit/7727ae434ae90af558ee377327f196a8e64d4e83))
@@ -342,52 +383,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **service-worker:** Validate message payload and finalize server-side (fixes [#118](https://github.com/darshi1337/apogee/issues/118)) ([85cada9](https://github.com/darshi1337/apogee/commit/85cada90a39e2e7b62cdc664d89484e113ff9f01))
 - **service-worker:** Validate sender.tab context in message router (fixes [#127](https://github.com/darshi1337/apogee/issues/127)) ([578d8b9](https://github.com/darshi1337/apogee/commit/578d8b95ac8d981a12a9828a50da8bb00c206894))
 - **storage:** Encrypt or exclude plaintext page titles in cacheOrder (fixes [#128](https://github.com/darshi1337/apogee/issues/128)) ([6546a4d](https://github.com/darshi1337/apogee/commit/6546a4da10a1f52d221ddadcb39fd2324788de47))
-
-## [Unreleased]
-
-### Added
-
-- Add shared remote client and opt-in setup (stage A) (#606) ([bde073d](https://github.com/darshi1337/apogee/commit/bde073da029f68ff97ea81eb2fef64133b6169f4))
-- Add RTL summary languages (#622) ([8afc5e4](https://github.com/darshi1337/apogee/commit/8afc5e4f5f1fc1a40bd4413d73e1cbe25381c42b))
-- Support multiple llama-server models in router mode (#618) ([101c06c](https://github.com/darshi1337/apogee/commit/101c06c0906f39b80ee662a9a5bc26cc0b14eb88))
-- Enable opt-in remote Summary and Ask (B1) (#617) ([bb219ba](https://github.com/darshi1337/apogee/commit/bb219baa7c049d6c36bf36c3545bd59d85b27414))
-- Enable remote background summaries, multi-tab synthesis and follow-up questions (B2) (#664) ([c072a80](https://github.com/darshi1337/apogee/commit/c072a800c885d330919f182e6526185daf8aaad4))
-- Implement idle unload for main model (#699) ([8e0990e](https://github.com/darshi1337/apogee/commit/8e0990e50d9944896f30d773c480c7ad540a4c12))
-
-### Fixed
-
-- Past-summary cards no longer put buttons inside a button (#550) (#588) ([1962a69](https://github.com/darshi1337/apogee/commit/1962a69efc1696327184ef3935f2ded8ecb6f28f))
-- Include contributors in release notes (#591) ([086a7ad](https://github.com/darshi1337/apogee/commit/086a7add3754b50afb12fa877d054b973e1542ef))
-- Preserve shared offscreen runs until the last viewer closes (#595) ([b948cc7](https://github.com/darshi1337/apogee/commit/b948cc777fab6ef6c1e4408186ce8c8806243df0))
-- Keep release PRs passing checks (#598) ([043a520](https://github.com/darshi1337/apogee/commit/043a5207adeba3869bbc4bcdf2af382f81f74a2d))
-- Override minimatch to 11.0.4 for GHSA-g3hv-75wg-m249 (#603) ([3924ebf](https://github.com/darshi1337/apogee/commit/3924ebf9eb33471946f4f91584e5bed42c478d69))
-- Use existing github_actions label for Dependabot workflow PRs (#620) ([bf241cd](https://github.com/darshi1337/apogee/commit/bf241cda272e8cd2c7aae2ce96fd7a13d6d125f4))
-- Tighten late stream-finish retention ([ae31c7c](https://github.com/darshi1337/apogee/commit/ae31c7cdc6779622d54df3350a35df61259e76e2))
-- Bump reviewdog/action-actionlint (#635) ([196c028](https://github.com/darshi1337/apogee/commit/196c02841d16b87b59ccf6b2957ca5b2fcb45699))
-- Bump the npm-minor-patch group in /apogee-extension with 4 updates (#646) ([a25db52](https://github.com/darshi1337/apogee/commit/a25db521c8567b50a152a374efad2d72fe8cff76))
-- Bump zizmorcore/zizmor-action (#647) ([2b9d65f](https://github.com/darshi1337/apogee/commit/2b9d65f7d3636afd9cbf2ed251a164e76db95a3d))
-- Bump the github-actions group with 2 updates (#648) ([a227211](https://github.com/darshi1337/apogee/commit/a22721156dd4fd30e194ec650fbaf66c9098d4c4))
-- Finish each stream once (#628) (#649) ([eb35057](https://github.com/darshi1337/apogee/commit/eb35057c862658ccbc532a74446043bbdc7fdd9b))
-- Model document calls time out instead of hanging the popup (#469) (#651) ([92d56c6](https://github.com/darshi1337/apogee/commit/92d56c64f3ff854f4814b5063e9bcb6b0c6c40ba))
-- Add focus-visible rings to the home action and chip buttons (#653) ([be7f4df](https://github.com/darshi1337/apogee/commit/be7f4df5506d614507ef3fdfacd32446e9a4f5d9))
-- Bump the github-actions group with 3 updates (#657) ([c10b7cb](https://github.com/darshi1337/apogee/commit/c10b7cb8fe64769f3a845064ef747a53702c5aa7))
-- Bump node-forge from 1.4.2 to 1.4.3 in /apogee-extension (#658) ([4912091](https://github.com/darshi1337/apogee/commit/49120915864f8dc6400ddd1a5496637fe6b453e2))
-- Keep the worker awake until the summary save ends (#659) ([ea6af1b](https://github.com/darshi1337/apogee/commit/ea6af1babc2582f4a672fee0857455064eb5aadc))
-- Keep the model document open while a run starts (#662) ([131f519](https://github.com/darshi1337/apogee/commit/131f51973dd8630509cf31830071a1f73c00a52e))
-- Localize dynamic popup strings (#641) (#665) ([91eac2f](https://github.com/darshi1337/apogee/commit/91eac2ff1c25f49b278e5a47949f3ce8d4dfa28d))
-- Bump vite in /apogee-extension in the npm-minor-patch group (#675) ([313e4bd](https://github.com/darshi1337/apogee/commit/313e4bd4b40103e3ff9a95cfc7c2528d08555923))
-- Bump reviewdog/action-actionlint (#676) ([f9b8e87](https://github.com/darshi1337/apogee/commit/f9b8e87d40db6ebd4e18b19a41511d47621259f6))
-- Avoid rescheduling stream cleanup on every chunk (#640) (#677) ([5f9e3ca](https://github.com/darshi1337/apogee/commit/5f9e3cabaf60a0b8f0df9ea61a35bece13791ac6))
-- Bump reviewdog/action-actionlint (#683) ([431bdcc](https://github.com/darshi1337/apogee/commit/431bdcc8094ee024e71f7421204b5792dfd1dffd))
-- Bump the npm-minor-patch group in /apogee-extension with 2 updates (#684) ([66159e1](https://github.com/darshi1337/apogee/commit/66159e1cdc0456b2c7ad5f17ff149b27d10ba14b))
-- Use array form for postCreateCommand (#694) ([de47a0c](https://github.com/darshi1337/apogee/commit/de47a0c4f7508e698b25cad9cf90091ad145102f))
-- Bump reviewdog/action-actionlint (#697) ([7fcc205](https://github.com/darshi1337/apogee/commit/7fcc205db1c4d60939dfc093c873e65821a1a034))
-- Check the starred list for the PR author in the star gate (#702) ([2c4a96c](https://github.com/darshi1337/apogee/commit/2c4a96ca3f4f8fa57aacab6ea214ffdc0c15a163))
-- Bump prettier in /apogee-extension in the npm-minor-patch group (#705) ([ea29ed5](https://github.com/darshi1337/apogee/commit/ea29ed5d71c845e5b6e8dffe250e73f3a007b231))
-
-### Changed
-
-- Slow live summary redraws as output grows (#693) ([4841e5f](https://github.com/darshi1337/apogee/commit/4841e5f48fcbcf9d588fc11dbcfc49cbed5c56e5))
 
 ## [0.2.1] - 2026-08-19
 
