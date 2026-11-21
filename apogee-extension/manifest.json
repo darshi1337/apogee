@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Apogee",
+  "name": "Apogee – Local AI Page Summarizer",
   "version": "0.2.5",
   "description": "AI browser assistant for articles, videos, emails and more. Runs in-browser via WebGPU, WebAssembly, and Ollama.",
   "minimum_chrome_version": "116",
