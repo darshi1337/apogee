@@ -47,9 +47,63 @@ test("store listing documents Edge submission and assets (#645)", () => {
 
 test("manifest.json conforms to Manifest V3 requirements", () => {
   assert.strictEqual(manifest.manifest_version, 3);
-  assert.strictEqual(manifest.name, "Apogee");
+  assert.strictEqual(manifest.name, "Apogee – Local AI Page Summarizer");
   assert.ok(manifest.version, "Manifest must have a version property");
   assert.ok(manifest.description, "Manifest must have a description");
+});
+
+test("store title states the job, fits the 45-character limit, and matches the manifest (#668)", () => {
+  const listing = readFileSync(
+    new URL("../../docs/STORE-LISTING.md", import.meta.url),
+    "utf8",
+  );
+  const title = listing.match(/^- \*\*Title:\*\* (.+)$/m);
+  assert.ok(title, "Store listing must contain a title");
+  const storeTitle = title[1].trim();
+  assert.ok(
+    storeTitle.length <= 45,
+    `Store title is ${storeTitle.length} characters (max 45)`,
+  );
+  assert.match(storeTitle, /^Apogee\b/, "Store title must keep the brand");
+  assert.match(storeTitle, /Summarizer/i, "Store title must state the job");
+  assert.match(
+    storeTitle,
+    /Local|On-device|in-browser/i,
+    "Store title must state local operation",
+  );
+  assert.strictEqual(
+    manifest.name,
+    storeTitle,
+    "Manifest name must match the store title",
+  );
+
+  const messages = JSON.parse(
+    readFileSync(
+      new URL("../_locales/en/messages.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  assert.strictEqual(
+    messages.appName.message,
+    storeTitle,
+    "The en appName message must match the extension name",
+  );
+
+  for (const store of [
+    "Chrome Web Store",
+    "Firefox Add-ons",
+    "Microsoft Edge Add-ons",
+  ]) {
+    const row = listing.match(
+      new RegExp(`^\\|\\s*${store}\\s*\\|\\s*(.+?)\\s*\\|$`, "m"),
+    );
+    assert.ok(row, `Store listing must have a ${store} name row`);
+    assert.strictEqual(
+      row[1],
+      storeTitle,
+      `${store} listing name must match the store title`,
+    );
+  }
 });
 
 test("store summary and manifest description fit Chrome's 132 character limit", () => {

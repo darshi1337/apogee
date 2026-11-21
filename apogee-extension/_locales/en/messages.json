@@ -1,5 +1,8 @@
 {
-  "appName": { "message": "Apogee", "description": "Extension name" },
+  "appName": {
+    "message": "Apogee – Local AI Page Summarizer",
+    "description": "Extension name"
+  },
   "appHtmlLang": {
     "message": "en",
     "description": "HTML lang attribute for the popup document"

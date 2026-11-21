@@ -4,9 +4,30 @@ Version-controlled copy of the Apogee CWS submission fields. Update with each st
 
 Packaging: upload a ZIP of the Chromium build (`dist/chrome`), not a CRX. The store repacks and signs it. `npm run package` makes the release ZIP.
 
+## Extension name
+
+The title "Apogee" did not say what the extension does. The store title must keep the brand and name the job. Chrome Web Store allows 45 characters.
+
+| Candidate | Length | Assessment |
+| --- | --- | --- |
+| **Apogee – Local AI Page Summarizer** | 33 | Chosen. Keeps the brand, names the job, and says the work stays local. |
+| Apogee – Local Page Summarizer | 30 | Clear, but omits the AI search term. |
+| Apogee – On-Device Page Summarizer | 34 | Uses a less common term for local operation. |
+| Apogee – Page & Video Summarizer | 32 | Does not say local. |
+| Apogee – AI Summarizer for Pages | 32 | Does not say local. |
+| Apogee – Summarize Pages Locally | 32 | Reads as an instruction, not a name. |
+
+Chosen name: **Apogee – Local AI Page Summarizer** (33 characters, under the 45-character limit). The manifest `name`, the Chrome Web Store title, and the Firefox Add-ons and Microsoft Edge Add-ons listing names use this exact string. The extension ID and store URLs do not change.
+
+| Store                  | Listing name                      |
+| ---------------------- | --------------------------------- |
+| Chrome Web Store       | Apogee – Local AI Page Summarizer |
+| Firefox Add-ons        | Apogee – Local AI Page Summarizer |
+| Microsoft Edge Add-ons | Apogee – Local AI Page Summarizer |
+
 ## Product details
 
-- **Title:** Apogee
+- **Title:** Apogee – Local AI Page Summarizer
 
 - **Summary:** AI browser assistant for articles, videos, emails and more. Runs in-browser via WebGPU/WASM, or locally via Ollama and llama.cpp.
 
@@ -249,9 +270,17 @@ Each set carries only its own store install CTA, so the Chrome screenshots never
 
 Both tiles come from 2x captures, downsampled with Lanczos instead of 1:1 renders. The type reads cleanly at tile scale.
 
+## Firefox Add-ons listing
+
+The Firefox Add-ons (AMO) listing name is **Apogee – Local AI Page Summarizer**, the same as the manifest `name` and the Chrome Web Store title. Upload the Firefox XPI from `npm run package`. Keep the manifest `name` field and the AMO listing name identical.
+
+Use the product details, description, privacy disclosures, and the 2400x1800 screenshot set above. The Firefox package declares the data-collection permissions listed under Data usage.
+
 ## Microsoft Edge Add-ons listing
 
 Edge 116+ uses the Chromium build (`dist/chrome`), with the manifest minimum Chrome version of 116. Follow Microsoft's [publishing and listing guide](https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/publish-extension) and [developer policies](https://learn.microsoft.com/en-us/legal/microsoft-edge/extensions/developer-policies).
+
+The Edge listing name is **Apogee – Local AI Page Summarizer**, the same as the manifest `name` and the Chrome Web Store title. Keep the listing name and the manifest name identical.
 
 ### Submission steps
 
