@@ -45,59 +45,13 @@ Chosen name: **Apogee – Local AI Page Summarizer** (33 characters, under the 4
 
 ### Description
 
-Apogee is an AI assistant for articles, YouTube videos, PDFs, DOCX files, pasted text, emails, and more. It summarizes and answers questions locally by default. Local generation needs no account or API key and sends no content to a cloud service. Optional OpenRouter and OpenCode generation uses your own key after separate catalog and generation consent and an explicit user generation action. There is no telemetry.
-
-WHY APOGEE
-
-Most "AI summarizer" extensions send the page you read to company servers. Apogee does not send the page for local generation. It runs compact language models straight inside your browser. It uses your GPU through WebGPU or your CPU through WebAssembly. The text you summarize stays local and drops after. There is no login and no page-content upload.
-
-The discontinued Orbit project from Mozilla inspired Apogee. It offered browser summarization through central cloud servers. Apogee supports local generation without a hosted backend or subscription. Optional remote providers are disclosed separately.
-
-WHAT IT DOES
-
-- Summarize any page: articles, blog posts, docs, long threads.
-
-- Summarize local PDF and DOCX files, TXT, Markdown, JSON, or HTML files, or paste text from an offline app.
-
-- Keep Apogee open in the Chrome side panel while reading, scrolling, or taking notes.
-
-- Summarize YouTube and Bilibili videos from their transcript, with a "Key moments" timeline. Each link jumps the video to that moment.
-
-- Ask questions about the page or given content. Apogee reads the whole source with on-device retrieval, not just the first few thousand chars. Answers can come from deep inside a long article, PDF, or transcript.
-
-- Highlight-in-page finds summary passages in the original page. Click any bullet in a summary. Apogee scrolls to the passage and highlights it. Check any claim without re-reading all.
-
-- Semantic summary search covers saved past summaries in real time. It uses on-device vector search across titles and summary bodies.
-
-- Multiple summary formats exist: bullets, sentences, or paragraphs. Switch them right under the Summarize button.
-
-- Custom instructions hold your standing guidance ("Explain like I'm five", "Focus on the technical details"). They apply to each summary and answer.
-
-- Per-page focus keywords ("Focus on... (optional)", up to 200 characters) steer article, document, and pasted text summaries toward specific topics. They add no ungrounded facts. They stay hidden on video, discussion, and multi-tab pages.
-
-- Summaries come in your language. Pick one of 37 output languages (including English), or keep the page's own language. The summarization model itself translates. Dedicated on-device translation models offer another option.
-
-Fast ways to summarize without opening the popup:
-
-- Right-click a page, then "Summarize this page".
-
-- Use the keyboard shortcut (default Alt+Shift+U, changeable at chrome://extensions/shortcuts).
-
-A system note tells you when the summary is ready.
-
-TWO WAYS TO RUN IT
-
-1. In-Browser AI (zero setup). Runs small, fast models fully in your browser. On first use it downloads the model weights (about 270 MB to 2.2 GB based on the model). It caches them locally. After that, all works offline. Defaults to WebGPU (WebLLM) on Chrome and Edge, with a WebAssembly (Transformers.js) option in Settings for machines without WebGPU.
-
-2. Local Ollama (for power users). Prefer larger, stronger models? Point Apogee at your own local Ollama instance. It talks to it straight over 127.0.0.1. It needs no extra backend to install or run.
-
-Any model you pulled shows up on its own. Still fully local. Nothing leaves your machine.
+Get the main points from an article, document, or video transcript. Summarize a web page, a YouTube or Bilibili transcript, a PDF or DOCX file, or text you paste. Ask follow-up questions about the source when you need more detail.
 
 PRIVACY
 
 - No cloud inference by default. Models run on your device.
 
-- Local generation needs no API key, sign-in, or account. Optional remote catalogs and generation use your own provider key with separate consent.
+- In-browser generation needs no API key, sign-in, or account. Your local llama.cpp server may require its own key. Optional remote catalogs and generation use your own provider key with separate consent.
 
 - No analytics or tracking.
 
@@ -105,9 +59,9 @@ PRIVACY
 
   - Model weight downloads from Hugging Face on first run. The dedicated translation engine uses a model from the same place, only if you opt in.
 
-  - Your own local Ollama at 127.0.0.1.
+  - Your own Ollama or llama.cpp server on a local loopback address.
 
-  - For YouTube videos, Apogee fetches the caption track of the viewed video (youtube.com / googlevideo.com). It also calls the community SponsorBlock API to skip sponsor parts. Only a k-anonymity hash prefix goes out. Opt out under Settings, then Privacy for a fully local run with no lookup request at all.
+  - For YouTube videos, Apogee fetches the caption track of the viewed video (youtube.com / googlevideo.com). It also calls the community SponsorBlock API to skip sponsor parts. Only a k-anonymity hash prefix goes out. Opt out under Settings, then Privacy to disable the SponsorBlock lookup.
 
   - For Bilibili videos, the subtitle endpoints of that site (api.bilibili.com, hdslb.com).
 
@@ -119,15 +73,53 @@ PRIVACY
 
 - Page content stays local for local generation. Explicit remote generation sends the input described above to your selected provider under its and any upstream model provider's policies. Revocation stops future transmissions and aborts active requests, but cannot recall data already sent. Background/context-menu and selected-tab summaries require an additional default-off provider consent and an explicit user start. Sending generated summary text for follow-up questions requires a separate default-off suggestions consent. Automatic suggestions follow only a newly requested summary; restoring a summary never starts remote generation. Remote providers never enter automatic selection or fallback.
 
+SUPPORTED ENGINES
+
+- In-browser generation uses WebGPU (WebLLM) by default on Chrome and Edge. WebAssembly (Transformers.js) is the Firefox default and an alternative on Chrome and Edge. The browser downloads model weights on first use and caches them for offline inference.
+
+- Local generation can also use your own Ollama or llama.cpp server over a loopback connection.
+
+- Optional remote generation uses OpenRouter or OpenCode with the separate permissions described above.
+
+WHAT IT DOES
+
+- Summarize web pages such as articles, blog posts, docs, long threads.
+
+- Summarize local PDF and DOCX files, TXT, Markdown, JSON, or HTML files, or paste text from an offline app.
+
+- On Chrome and Edge, keep Apogee open in the side panel while reading, scrolling, or taking notes.
+
+- Summarize YouTube and Bilibili videos from their transcript, with a "Key moments" timeline. Each link jumps the video to that moment.
+
+- Ask questions about the page or given content. Apogee reads the whole source with on-device retrieval, not just the first few thousand chars. Answers can come from deep inside a long article, PDF, or transcript.
+
+- On Chrome and Edge, click a summary bullet to find its source passage. When Apogee finds a match, it scrolls to the passage and highlights it.
+
+- Semantic summary search covers saved past summaries in real time. It uses on-device vector search across titles and summary bodies.
+
+- Multiple summary formats exist: bullets, sentences, or paragraphs. Switch them right under the Summarize button.
+
+- Custom instructions hold your standing guidance ("Explain like I'm five", "Focus on the technical details"). They apply to each summary and answer.
+
+- Per-page focus keywords ("Focus on... (optional)", up to 200 characters) steer article, document, and pasted text summaries toward specific topics. They stay hidden on video, discussion, and multi-tab pages.
+
+- Summaries come in your language. Pick one of 37 output languages (including English), or keep the page's own language. The summarization model itself translates. Dedicated on-device translation models offer another option.
+
+Fast ways to summarize without opening the popup:
+
+- Right-click a page, then "Summarize this page".
+
+- Use the keyboard shortcut (default Alt+Shift+U). You can change it in your browser’s extension settings.
+
+A system note tells you when the summary is ready.
+
 REQUIREMENTS
 
-- Chrome or Edge 116+ (or another Chromium browser based on Chromium 116+).
+- For Chromium builds, use Chrome or Edge 116+ (or another browser based on Chromium 116+).
 
-- A GPU with WebGPU support for the default In-Browser mode (most GPUs from the last several years).
+- The default WebGPU mode on Chrome and Edge requires WebGPU support. Firefox defaults to WebAssembly.
 
-- Without WebGPU, switch to the WebAssembly option in Settings or use Local Ollama.
-
-- First run downloads model weights, so it needs internet once. After that it runs offline.
+- On Chrome or Edge without WebGPU, switch to WebAssembly in Settings or use a local server.
 
 OPEN SOURCE
 
@@ -274,7 +266,7 @@ Both tiles come from 2x captures, downsampled with Lanczos instead of 1:1 render
 
 The Firefox Add-ons (AMO) listing name is **Apogee – Local AI Page Summarizer**, the same as the manifest `name` and the Chrome Web Store title. Upload the Firefox XPI from `npm run package`. Keep the manifest `name` field and the AMO listing name identical.
 
-Use the product details, description, privacy disclosures, and the 2400x1800 screenshot set above. The Firefox package declares the data-collection permissions listed under Data usage.
+Use the shared description above in the same order: what users can summarize, privacy, then supported engines. Keep the Firefox engine default and use the 2400x1800 screenshot set and applicable privacy disclosures above. The Firefox package declares the data-collection permissions listed under Data usage.
 
 ## Microsoft Edge Add-ons listing
 
@@ -287,7 +279,7 @@ The Edge listing name is **Apogee – Local AI Page Summarizer**, the same as th
 1. In Partner Center, create a new extension and upload the Chromium release ZIP from `npm run package`. Resolve any package validation errors.
 2. Set availability and markets, then enter the category and other properties. Use the product details above where applicable.
 3. Complete Privacy: single purpose, permission justifications, remote code, data usage and the privacy policy URL. Use the disclosures above, including the separately consented remote generation.
-4. Complete each language's store listing, upload the logo and any screenshots or promotional tiles, and review the fields. The short description comes from the package manifest; change it there and re-upload the package. Microsoft's guide states no separate short-description character limit; do not assume one.
+4. For each language, use the shared description in the same order: what users can summarize, privacy, then supported engines. Keep the Edge engine default. Upload the logo and any screenshots or promotional tiles, and review the fields. The short description comes from the package manifest; change it there and re-upload the package. Microsoft's guide states no separate short-description character limit; do not assume one.
 5. Add optional certification notes, then click Publish to submit the extension for certification. Track the review status in Partner Center. Submission is not publication.
 
 ### Asset requirements
