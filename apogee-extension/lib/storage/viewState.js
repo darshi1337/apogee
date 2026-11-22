@@ -37,7 +37,8 @@ const MAX_VIEW_STATES = 50;
 // byte budget inside the quota.
 const MAX_VIEW_STATE_BYTES = 1_000_000;
 
-const acquireViewStateLock = createLock();
+// Web Locks keeps popup and worker view-state writes from interleaving.
+const acquireViewStateLock = createLock("apogee-view-state");
 
 async function preparePartial(partial) {
   let scrubContent;
