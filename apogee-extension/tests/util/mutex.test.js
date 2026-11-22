@@ -187,3 +187,63 @@ test("keyed: a stalled engine does not block a different engine", async () => {
   await sameKey;
   assert.strictEqual(sameKeyAcquired, true);
 });
+
+test("shared name: two locks with the same name serialize across heaps (#634)", async () => {
+  const worker = createLock("mutex-shared-contexts");
+  const popup = createLock("mutex-shared-contexts");
+  const order = [];
+
+  const releaseWorker = await worker();
+  order.push("worker");
+
+  let popupEntered = false;
+  const popupRun = popup().then((release) => {
+    popupEntered = true;
+    order.push("popup");
+    release();
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.strictEqual(popupEntered, false);
+
+  releaseWorker();
+  await popupRun;
+  assert.deepStrictEqual(order, ["worker", "popup"]);
+});
+
+test("shared name: different names do not block each other", async () => {
+  const first = createLock("mutex-name-a");
+  const second = createLock("mutex-name-b");
+
+  const releaseFirst = await first();
+  const releaseSecond = await second({ timeout: 100 });
+  releaseSecond();
+  releaseFirst();
+});
+
+test("shared name: a waiting context times out", async () => {
+  const worker = createLock("mutex-shared-timeout");
+  const popup = createLock("mutex-shared-timeout");
+
+  const releaseWorker = await worker();
+  await assert.rejects(popup({ timeout: 20 }), MutexTimeoutError);
+  releaseWorker();
+
+  const releasePopup = await popup({ timeout: 100 });
+  releasePopup();
+});
+
+test("shared name: a waiting context honours abort", async () => {
+  const worker = createLock("mutex-shared-abort");
+  const popup = createLock("mutex-shared-abort");
+
+  const releaseWorker = await worker();
+  const controller = new AbortController();
+  const waiting = popup({ signal: controller.signal });
+  controller.abort();
+  await assert.rejects(waiting, MutexAbortError);
+  releaseWorker();
+
+  const releasePopup = await popup({ timeout: 100 });
+  releasePopup();
+});

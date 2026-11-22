@@ -5,7 +5,8 @@ import { createLock } from "../util/mutex.js";
 import { tryParseUrl } from "../util/url.js";
 import { isRemoteProvider } from "../engines/remoteModels.js";
 
-const acquireIndexLock = createLock();
+// Web Locks keeps popup and worker index writes from interleaving.
+const acquireIndexLock = createLock("apogee-page-cache");
 
 export const CACHEABLE_PAGE_TYPES = new Set([
   "article",

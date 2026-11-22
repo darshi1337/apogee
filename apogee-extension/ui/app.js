@@ -3590,7 +3590,7 @@ debugLogsRadios.forEach((radio) => {
   });
 });
 
-// Both halves clear under their own module's lock, so a write landing at the same moment can't leave an order index pointing at a deleted key.
+// Each clear uses a Web Lock shared with the worker, so a write landing at the same moment can't leave an order index pointing at a deleted key.
 async function clearCachedData() {
   pastSummariesController.invalidate({ clearCache: true });
   const pages = await clearCachedPages();
