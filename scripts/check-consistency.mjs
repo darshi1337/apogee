@@ -84,7 +84,7 @@ function checkStoreAssets() {
     ".github/assets/apogee-deck-2400x1800-3.png",
     ".github/assets/apogee-deck-2400x1800-4.png",
     ".github/assets/apogee-deck-2400x1800-5.png",
-    ".github/assets/apogee-promo-tile-440x280.png",
+    ".github/assets/apogee-small-promo-440x280.png",
     ".github/assets/apogee-marquee-1400x560.png",
     "apogee-extension/assets/icon-16.png",
     "apogee-extension/assets/icon-32.png",
