@@ -232,7 +232,7 @@ Slide 4 and the cover use crops of the popup captures in `.github/assets`. CSS c
 
 ### Promo tiles
 
-The 440x280 small tile uses bold Arial for the headline and local-first message, which are readable at full size and at 220x140.
+The 440x280 small tile uses Mozilla Headline for the headline and local-first message, which are readable at full size and at 220x140.
 
 ![Apogee. Summarize pages, videos & PDFs. Runs locally by default.](../.github/assets/apogee-small-promo-440x280.png)
 
