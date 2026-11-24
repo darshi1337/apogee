@@ -193,16 +193,16 @@ Certify all three disclosures (no selling/transfer, no unrelated use, no creditw
 
 ### The images
 
-Each listing image lives committed in `.github/assets/`. Each store gets the same file reviewers see here. HTML and CSS built them in the design language of the marketing site (`site/`).
+Each listing image lives committed in `.github/assets/`. Each store gets the same file reviewers see here. The artwork follows the design language of the marketing site (`site/`).
 
-Type uses Mozilla Headline and Mozilla Text. Purple is `#5855ff`. Grounds are `#f7f7f7` and `#161616`. Cards use lilac tints. Four vertical hairlines run through each image.
+The screenshot deck uses Mozilla Headline and Mozilla Text. Purple is `#5855ff`. Grounds are `#f7f7f7` and `#161616`. Cards use lilac tints. Subtle vertical grid lines tie the artwork together.
 
-| File in `.github/assets/`        | Size      | Used for                     |
-| -------------------------------- | --------- | ---------------------------- |
-| `apogee-deck-1280x800-1..5.png`  | 1280x800  | Chrome Web Store screenshots |
-| `apogee-deck-2400x1800-1..5.png` | 2400x1800 | Firefox Add-ons screenshots  |
-| `apogee-promo-tile-440x280.png`  | 440x280   | Small promo tile             |
-| `apogee-marquee-1400x560.png`    | 1400x560  | Marquee promo tile           |
+| File in `.github/assets/`         | Size      | Used for                     |
+| --------------------------------- | --------- | ---------------------------- |
+| `apogee-deck-1280x800-1..5.png`   | 1280x800  | Chrome Web Store screenshots |
+| `apogee-deck-2400x1800-1..5.png`  | 2400x1800 | Firefox Add-ons screenshots  |
+| `apogee-small-promo-440x280.png`  | 440x280   | Small promo tile             |
+| `apogee-marquee-1400x560.png`     | 1400x560  | Marquee promo tile           |
 
 ### The five screenshots
 
@@ -232,9 +232,9 @@ Slide 4 and the cover use crops of the popup captures in `.github/assets`. CSS c
 
 ### Promo tiles
 
-Small tile, 440x280. Text stays light on purpose. Tiles often show small.
+The 440x280 small tile uses Mozilla Headline for the headline and local-first message, which are readable at full size and at 220x140.
 
-![Small promo tile](../.github/assets/apogee-promo-tile-440x280.png)
+![Apogee. Summarize pages, videos & PDFs. Runs locally by default.](../.github/assets/apogee-small-promo-440x280.png)
 
 Marquee, 1400x560. The wider canvas has room for the popup next to the pitch.
 
