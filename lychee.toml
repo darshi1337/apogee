@@ -1,6 +1,7 @@
 # Lychee config for Apogee docs link checking.
 # Tolerant by design: video/CDN/model hosts rate-limit bots, so 403/429
-# are accepted. 404s and 500s still fail.
+# are accepted. GitHub can return a transient 503 on blob pages, so 503 is
+# accepted too. 404s and other 500s still fail.
 
 exclude = [
   "http://127\\.0\\.0\\.1.*",
@@ -17,7 +18,7 @@ exclude_path = [
   "CHANGELOG.md",
 ]
 
-accept = [200, 201, 202, 203, 204, 206, 301, 302, 303, 307, 308, 403, 429, 999]
+accept = [200, 201, 202, 203, 204, 206, 301, 302, 303, 307, 308, 403, 429, 503, 999]
 
 timeout = 20
 retry_wait_time = 2
