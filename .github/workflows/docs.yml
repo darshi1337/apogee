@@ -1,7 +1,7 @@
 name: Docs
 
 # Link checking + spell checking for the markdown-heavy repo.
-# Lychee is tolerant (403/429 accepted, localhost excluded) via lychee.toml.
+# Lychee is tolerant (403/429/503 accepted, localhost excluded) via lychee.toml.
 # CSpell uses cspell.json + .cspell-project-words.txt — add project terms
 # there instead of scattering inline ignores.
 
