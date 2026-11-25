@@ -49,6 +49,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Bump reviewdog/action-actionlint (#710) ([120264b](https://github.com/darshi1337/apogee/commit/120264bcb5e71de0411597a95f61fdf0156fd47e))
 - Share storage locks across popup and worker (#634) (#715) ([c6d9cfe](https://github.com/darshi1337/apogee/commit/c6d9cfee7d32f02d796d6629b28129251247052c))
 - Bump the npm-minor-patch group in /apogee-extension with 2 updates (#719) ([fd83af0](https://github.com/darshi1337/apogee/commit/fd83af07e38e0e462d61ffb3bd3643eb22cd8bd9))
+- Bump actions/dependency-review-action (#730) ([400fec8](https://github.com/darshi1337/apogee/commit/400fec89e33e51bb79713cd20fa71640b04992ce))
+- Cache past summary search inputs and scope embeddings (#731) ([a5bd03c](https://github.com/darshi1337/apogee/commit/a5bd03c28af19169548fb27347dfec91d7949cab))
 
 ### Changed
 
