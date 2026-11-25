@@ -39,8 +39,10 @@ async function summaryVectors(
   dimensions,
   signal,
   generation,
+  embedKeys,
 ) {
   const vectors = new Map();
+  const allowed = embedKeys ? new Set(embedKeys) : null;
   for (
     let start = 0;
     start < cacheOrder.length;
@@ -64,6 +66,9 @@ async function summaryVectors(
         cached.embedTextsFn !== embedTextsFn ||
         cached.dimensions !== dimensions
       ) {
+        // Outside the semantic candidate set, reuse only ready vectors and
+        // never spend an embedding call on this summary.
+        if (allowed && !allowed.has(item.s)) continue;
         let resolve;
         const promise = new Promise((done) => {
           resolve = done;
@@ -112,6 +117,7 @@ export async function searchPastSummaries({
   cacheOrder = [],
   storedSummaries = {},
   embedTextsFn = defaultEmbedTexts,
+  embedKeys,
   signal,
 }) {
   if (!Array.isArray(cacheOrder) || cacheOrder.length === 0) {
@@ -140,6 +146,7 @@ export async function searchPastSummaries({
           queryVector.length,
           signal,
           generation,
+          embedKeys,
         );
       }
     } catch (err) {

@@ -13,13 +13,30 @@ export function createPastSummariesController({
 }) {
   let activeRun = null;
   let timeout = null;
+  let snapshot = null;
 
   function invalidate({ clearCache = false } = {}) {
     cancel(timeout);
     timeout = null;
     activeRun?.abort();
     activeRun = null;
-    if (clearCache) clearSearchCache();
+    if (clearCache) {
+      snapshot = null;
+      clearSearchCache();
+    }
+  }
+
+  // The index and its texts change only when storage changes, not on every
+  // keystroke. Keep one snapshot per storage generation so a settled query
+  // never rereads the whole cache.
+  async function loadSearchSnapshot(signal) {
+    if (snapshot) return snapshot;
+    const cacheOrder = await readIndex();
+    if (signal?.aborted) return null;
+    const stored = await readTexts(cacheOrder);
+    if (signal?.aborted) return null;
+    snapshot = { cacheOrder, stored };
+    return snapshot;
   }
 
   function begin() {
@@ -40,10 +57,9 @@ export function createPastSummariesController({
 
   async function runSearch(query, signal) {
     if (signal.aborted) return;
-    const cacheOrder = await readIndex();
-    if (signal.aborted) return;
-    const stored = await readTexts(cacheOrder);
-    if (signal.aborted) return;
+    const loaded = await loadSearchSnapshot(signal);
+    if (!loaded || signal.aborted) return;
+    const { cacheOrder, stored } = loaded;
     const options = {
       query,
       cacheOrder,
@@ -54,7 +70,12 @@ export function createPastSummariesController({
     if (signal.aborted) return;
     renderResults(keywords, stored);
     if (signal.aborted) return;
-    const semantic = await search(options);
+    // Only the keyword result needs semantic re-ranking, so embeddings are
+    // built for that set instead of every saved summary.
+    const semantic = await search({
+      ...options,
+      embedKeys: keywords.map((entry) => entry?.s).filter(Boolean),
+    });
     if (signal.aborted) return;
     renderResults(semantic, stored);
   }

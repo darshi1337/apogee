@@ -175,6 +175,31 @@ test("missing vectors are generated in small sequential batches", async () => {
   );
 });
 
+test("embedKeys limits embedding work to semantic candidates", async () => {
+  const cacheOrder = [
+    { s: "match", p: "match" },
+    { s: "other", p: "other" },
+  ];
+  const storedSummaries = { match: "matched body", other: "other body" };
+  const calls = [];
+  const results = await searchPastSummaries({
+    query: "query",
+    cacheOrder,
+    storedSummaries,
+    embedKeys: ["match"],
+    embedTextsFn: async (texts) => {
+      calls.push(texts);
+      return texts.map(() => [1, 0]);
+    },
+  });
+
+  assert.deepStrictEqual(calls, [["query"], ["matched body"]]);
+  assert.deepStrictEqual(
+    results.map((entry) => entry.s),
+    ["match"],
+  );
+});
+
 test("cached vectors track exact body text, removed entries and embedder identity", async () => {
   const cacheOrder = [{ s: "k1" }, { s: "k2" }];
   const storedSummaries = { k1: "first body", k2: "second body" };
