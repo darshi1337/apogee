@@ -91,6 +91,53 @@ test("popup searches the full index and renders keywords before semantics", asyn
   assert.strictEqual(state.resets(), 0);
 });
 
+test("repeated settled queries reuse the cached index and texts", async () => {
+  const cacheOrder = [
+    { s: "k1", t: "Alpha" },
+    { s: "k2", t: "Beta" },
+  ];
+  const stored = { k1: "alpha body", k2: "beta body" };
+  let indexReads = 0;
+  let textReads = 0;
+  const semanticOptions = [];
+  const controller = createPastSummariesController({
+    readIndex: async () => {
+      indexReads++;
+      return cacheOrder;
+    },
+    readTexts: async (entries) => {
+      textReads++;
+      assert.strictEqual(entries.length, cacheOrder.length);
+      return stored;
+    },
+    search: async (options) => {
+      if (options.embedTextsFn !== null) semanticOptions.push(options);
+      return options.query === "alpha" ? [cacheOrder[0]] : [cacheOrder[1]];
+    },
+    renderResults: () => {},
+    renderRecent: () => {},
+    clearSearchCache: () => {},
+    onError: (err) => {
+      throw err;
+    },
+  });
+
+  await controller.searchNow("alpha");
+  await controller.searchNow("beta");
+
+  assert.strictEqual(indexReads, 1);
+  assert.strictEqual(textReads, 1);
+  assert.deepStrictEqual(
+    semanticOptions.map((options) => options.embedKeys),
+    [["k1"], ["k2"]],
+  );
+
+  controller.invalidate({ clearCache: true });
+  await controller.searchNow("alpha");
+  assert.strictEqual(indexReads, 2);
+  assert.strictEqual(textReads, 2);
+});
+
 test("new input invalidates the old query before the debounce expires", async () => {
   const semantic = deferred();
   const started = deferred();
