@@ -29,7 +29,7 @@ Chosen name: **Apogee – Local AI Page Summarizer** (33 characters, under the 4
 
 - **Title:** Apogee – Local AI Page Summarizer
 
-- **Summary:** Summarize pages and ask questions. In-browser AI needs no API key. Optional remote AI uses your provider key.
+- **Summary:** Summarize pages and ask follow-up questions. In-browser AI needs no API key. Optional remote AI requires your own API key.
 
 - **Category:** Productivity
 
@@ -45,9 +45,9 @@ Chosen name: **Apogee – Local AI Page Summarizer** (33 characters, under the 4
 
 ### Description
 
-Get the main points from an article, document, or video transcript. Summarize a web page, a YouTube or Bilibili transcript, a PDF or DOCX file, or text you paste. Ask follow-up questions about the source when you need more detail.
+Get the main points from a web page, a YouTube or Bilibili transcript, a PDF or DOCX file, or text you paste. Ask follow-up questions about the source when you need more detail.
 
-Summaries and answers stay on your device by default. In-browser generation needs no API key. Optional remote generation requires your own provider API key and separate consent.
+By default, Apogee generates summaries and answers on your device. In-browser generation needs no API key. To use an optional remote provider, opt in separately and supply your own API key.
 
 PRIVACY
 

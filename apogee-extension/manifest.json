@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Apogee – Local AI Page Summarizer",
   "version": "0.2.5",
-  "description": "Summarize pages and ask questions. In-browser AI needs no API key. Optional remote AI uses your provider key.",
+  "description": "Summarize pages and ask follow-up questions. In-browser AI needs no API key. Optional remote AI requires your own API key.",
   "minimum_chrome_version": "116",
   "default_locale": "en",
   "permissions": [
