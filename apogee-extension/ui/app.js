@@ -2620,7 +2620,21 @@ function showOnlyView(view) {
   if (view === "homeView") setFileUploadError();
 
   const target = document.getElementById(view);
-  target?.focus({ preventScroll: true });
+  if (!target) return;
+
+  const active = document.activeElement;
+  if (
+    target.contains(active) &&
+    !active.closest(".hidden, [hidden], :disabled")
+  ) {
+    return;
+  }
+
+  const control = target.querySelector("[data-view-focus]");
+  control?.focus({ preventScroll: true });
+  if (document.activeElement !== control) {
+    target.focus({ preventScroll: true });
+  }
 }
 
 async function updateSummarizeShortcutHint() {
