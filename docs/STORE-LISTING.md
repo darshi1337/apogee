@@ -29,7 +29,7 @@ Chosen name: **Apogee – Local AI Page Summarizer** (33 characters, under the 4
 
 - **Title:** Apogee – Local AI Page Summarizer
 
-- **Summary:** AI browser assistant for articles, videos, emails and more. Runs in-browser via WebGPU/WASM, or locally via Ollama and llama.cpp.
+- **Summary:** Summarize pages and ask questions. In-browser AI needs no API key. Optional remote AI uses your provider key.
 
 - **Category:** Productivity
 
@@ -46,6 +46,8 @@ Chosen name: **Apogee – Local AI Page Summarizer** (33 characters, under the 4
 ### Description
 
 Get the main points from an article, document, or video transcript. Summarize a web page, a YouTube or Bilibili transcript, a PDF or DOCX file, or text you paste. Ask follow-up questions about the source when you need more detail.
+
+Summaries and answers stay on your device by default. In-browser generation needs no API key. Optional remote generation requires your own provider API key and separate consent.
 
 PRIVACY
 
