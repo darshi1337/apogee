@@ -314,7 +314,48 @@ test("website-initiated loopback requests keep their Origin header (#726)", asyn
           undefined,
           `${runtimeEnv.name}: Apogee's own request to ${targetUrl} should strip Origin`,
         );
+
+        // Requests with no initiator or from a tab context must keep Origin.
+        const noInitiatorResult = applyDnrRules(activeRules, {
+          url: targetUrl,
+          initiator: undefined,
+          tabId: TAB_ID_NONE,
+          resourceType: "xmlhttprequest",
+          headers: { Origin: "null" },
+        });
+        assert.strictEqual(
+          noInitiatorResult.Origin,
+          "null",
+          `${runtimeEnv.name}: request without initiator to ${targetUrl} must keep Origin`,
+        );
+
+        const nonXhrResult = applyDnrRules(activeRules, {
+          url: targetUrl,
+          initiator: runtimeEnv.origin,
+          tabId: TAB_ID_NONE,
+          resourceType: "main_frame",
+          headers: { Origin: runtimeEnv.origin },
+        });
+        assert.strictEqual(
+          nonXhrResult.Origin,
+          runtimeEnv.origin,
+          `${runtimeEnv.name}: non-XHR request to ${targetUrl} must keep Origin`,
+        );
       }
+
+      // Non-loopback requests from Apogee itself must keep Origin.
+      const remoteResult = applyDnrRules(activeRules, {
+        url: "https://openrouter.ai/api/v1/chat/completions",
+        initiator: runtimeEnv.origin,
+        tabId: TAB_ID_NONE,
+        resourceType: "xmlhttprequest",
+        headers: { Origin: runtimeEnv.origin },
+      });
+      assert.strictEqual(
+        remoteResult.Origin,
+        runtimeEnv.origin,
+        `${runtimeEnv.name}: non-loopback request must keep Origin`,
+      );
     } finally {
       globalThis.chrome = originalChrome;
       resetLoopbackCorsRuleForTests();
