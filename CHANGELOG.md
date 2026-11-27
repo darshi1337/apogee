@@ -52,6 +52,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Bump actions/dependency-review-action (#730) ([400fec8](https://github.com/darshi1337/apogee/commit/400fec89e33e51bb79713cd20fa71640b04992ce))
 - Cache past summary search inputs and scope embeddings (#731) ([a5bd03c](https://github.com/darshi1337/apogee/commit/a5bd03c28af19169548fb27347dfec91d7949cab))
 - Move keyboard focus on extension view changes (#721) (#734) ([13779e6](https://github.com/darshi1337/apogee/commit/13779e633a847107db9d35d19ff13a15af697cfa))
+- Bump ossf/scorecard-action (#738) ([67c283b](https://github.com/darshi1337/apogee/commit/67c283b7738a35436db57126de04e0ed8c7cbe33))
 
 ### Changed
 
