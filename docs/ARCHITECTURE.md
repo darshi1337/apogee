@@ -197,7 +197,7 @@ When you click a summary bullet in Chromium browsers, Apogee highlights the exac
 
 - **Zero-Trust Message Validation**: All internal WebExtension message routing checks sender id, rejects tab-originated messages and ports, and enforces per-action rules. Malicious web pages and untrusted scripts cannot call extension actions.
 
-- **Loopback Origin Handling**: The extension strips the `Origin` header from its own loopback requests (`localhost`/`127.0.0.1`/`[::1]`, Ollama and llama.cpp). Local servers accept them with no extra setup. Where session-scoped rules exist, the extension sets this at runtime for non-tab requests only. Site pages keep their `Origin` headers. The bundled static `rules/ollama-cors.json` stays as a fallback.
+- **Loopback Origin Handling**: The extension strips the `Origin` header from its own loopback requests (`localhost`/`127.0.0.1`/`[::1]`, Ollama and llama.cpp). Local servers accept them with no extra setup. A runtime session-scoped `declarativeNetRequest` rule restricts this to Apogee's own initiator domain and non-tab requests (`TAB_ID_NONE`), with no broad static fallback. Website pages and workers keep their `Origin` headers.
 
 - **SponsorBlock Gating**: The SponsorBlock segment lookup runs only when `useSponsorBlock` is on and the browser grants the optional host permission. Selecting "Disable SponsorBlock requests" stops this lookup; remote-provider consent is controlled separately. A local phrase heuristic strips sponsor reads instead.
 

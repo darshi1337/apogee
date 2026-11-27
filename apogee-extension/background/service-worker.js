@@ -1126,7 +1126,7 @@ export async function runExtractOnly(tab) {
   };
 }
 
-// Narrow the bundled loopback Origin-strip to this extension's non-tab requests where session rules are supported; loopback clients await the same helper before fetching, so this is only a fast track. Never rejects.
+// Register the runtime session rule that strips Origin from this extension's own non-tab loopback requests; loopback clients await the same helper before fetching, so this is only a fast track. Never rejects.
 ensureLoopbackCorsRule().catch(() => {});
 
 if (typeof chrome !== "undefined" && chrome.commands?.onCommand?.addListener) {

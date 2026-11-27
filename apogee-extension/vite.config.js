@@ -57,10 +57,6 @@ function copyStaticPlugin(targetBrowser) {
           !src.replace(/\\/g, "/").endsWith("content/highlight.js"),
       });
 
-      cpSync(resolve(__dirname, "rules"), resolve(dist, "rules"), {
-        recursive: true,
-      });
-
       cpSync(resolve(__dirname, "_locales"), resolve(dist, "_locales"), {
         recursive: true,
       });

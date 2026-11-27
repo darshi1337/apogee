@@ -32,15 +32,6 @@
     "*://*.bsky.app/*",
     "https://sponsor.ajay.app/*"
   ],
-  "declarative_net_request": {
-    "rule_resources": [
-      {
-        "id": "ollama_cors",
-        "enabled": true,
-        "path": "rules/ollama-cors.json"
-      }
-    ]
-  },
   "commands": {
     "summarize-page": {
       "suggested_key": {

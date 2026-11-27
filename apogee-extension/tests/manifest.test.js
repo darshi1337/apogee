@@ -222,27 +222,35 @@ test("manifest permissions exactly match the documented set (#182)", () => {
   );
 });
 
-test("declarativeNetRequest rule files exist and parse as valid JSON", () => {
-  assert.ok(
+test("manifest declares no unscoped static declarativeNetRequest fallback rules (#726)", () => {
+  // Every supported browser (Chrome 116+, Firefox 140+) supports session-scoped
+  // declarativeNetRequest rules, so no broad static fallback ruleset is needed.
+  assert.strictEqual(
     manifest.declarative_net_request,
-    "Declarative net request must be declared",
+    undefined,
+    "Manifest must not declare a static declarative_net_request fallback ruleset",
   );
-  const ruleResources = manifest.declarative_net_request.rule_resources || [];
+  assert.strictEqual(
+    existsSync(resolve(manifestDir, "rules/ollama-cors.json")),
+    false,
+    "Static rules/ollama-cors.json fallback must not be bundled",
+  );
   assert.ok(
-    ruleResources.length > 0,
-    "At least one rule resource must be configured",
+    (manifest.permissions || []).includes(
+      "declarativeNetRequestWithHostAccess",
+    ),
+    "Manifest must keep declarativeNetRequestWithHostAccess for runtime session rules",
   );
-
-  ruleResources.forEach((resource) => {
-    const ruleFilePath = resolve(manifestDir, resource.path);
-    assert.ok(
-      existsSync(ruleFilePath),
-      `Rule file ${resource.path} must exist`,
-    );
-    const ruleContent = readFileSync(ruleFilePath, "utf8");
-    const rules = JSON.parse(ruleContent);
-    assert.ok(Array.isArray(rules), "Rule file content must be a JSON array");
-  });
+  assert.ok(
+    Number(manifest.minimum_chrome_version) >= 116,
+    "Chrome 90+ (manifest pins 116+) is required for updateSessionRules",
+  );
+  assert.ok(
+    Number.parseFloat(
+      manifest.browser_specific_settings.gecko.strict_min_version,
+    ) >= 140,
+    "Firefox 113+ (manifest pins 140+) is required for updateSessionRules",
+  );
 });
 
 test("declared network egress matches the documented allow-list (#180)", () => {
