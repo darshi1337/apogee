@@ -185,7 +185,7 @@ Certify all three disclosures (no selling/transfer, no unrelated use, no creditw
 
 ## Graphic assets checklist
 
-- Store icon: 128x128 PNG
+- Store icon: 128x128 PNG at `apogee-extension/assets/icon.png`. The [extension icon source](../.github/assets/apogee-extension-icon.svg) is exported at 16, 32, 48, 96, and 128 px. The popup logo (`apogee-extension/assets/logo.png`), site mark (`site/assets/orb.png`), and README logo (`.github/assets/apogee-logo.png`) are exported from the same source. Check the 16 px export at actual size on both light and dark toolbars.
 
 - Screenshots: at least 1, 1280x800 or 640x400, PNG without alpha or JPEG
 

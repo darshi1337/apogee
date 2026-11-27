@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="orbit" x1="0%" x2="100%" y1="70%" y2="30%">
+      <stop stop-color="#d776ff"/>
+      <stop offset="1" stop-color="#78aaff"/>
+    </linearGradient>
+  </defs>
+  <!-- Geometry in SVG units: viewBox 0 0 128 128, common center (64, 64).
+       Disc radius 60 (no stroke), orbit radius 42 (17-unit stroke, round caps).
+       A 12-spoke grid at 30-degree intervals starts at -15 degrees from +x,
+       increasing clockwise. Ten intervals form the orbit; two form the gap.
+       Dash lengths are 70*pi and 14*pi, respectively.
+       The satellite has radius 10 (no stroke) at (94, 34), on the gap bisector. -->
+  <circle cx="64" cy="64" r="60" fill="#17142c"/>
+  <circle cx="64" cy="64" r="42" transform="rotate(-15 64 64)"
+          fill="none" stroke="url(#orbit)" stroke-width="17" stroke-linecap="round"
+          stroke-dasharray="219.911486 43.982297"/>
+  <circle cx="94" cy="34" r="10" fill="#a69aff"/>
+</svg>
