@@ -172,19 +172,13 @@ The `lib/` folder holds plain JavaScript logic split into clean functional folde
 
 - **How to contribute**: Improve UI parts, update theme styles, improve accessibility, or add interactive controls while keeping extension design standards. Put new job flows through `runStreamingJob` and new pure UI logic in an importable module with direct unit tests — not inline in `app.js`.
 
-### 6. `rules/` (Declarative Net Request Security Rules)
-
-- **What it holds**: `ollama-cors.json` holds the bundled fallback declarative net request rule. It strips origin headers from local loopback requests to `127.0.0.1`, `localhost`, and `[::1]`. Where session-scoped rules exist, the service worker sets a narrower match at runtime for non-tab requests only. See `lib/util/loopbackCors.js`.
-
-- **How to contribute**: Add or adjust declarative net request header rules to keep zero CORS friction for local loopback services.
-
-### 7. `scripts/` (Build Automation and Verification)
+### 6. `scripts/` (Build Automation and Verification)
 
 - **What it holds**: Node scripts such as `model-libs.mjs` fetch and check model WebAssembly binary libs.
 
 - **How to contribute**: Add automation scripts for build checks, dep checks, or asset updates.
 
-### 8. `tests/` (Unit Test Suite and HTML Fixtures)
+### 7. `tests/` (Unit Test Suite and HTML Fixtures)
 
 - **What it holds**: Dep-free unit tests run on the Node built-in test runner (`node --test`). They group into folders matching lib modules: `tests/background/`, `tests/content/`, `tests/engines/`, `tests/extract/`, `tests/extractors/`, `tests/helpers/`, and `tests/language/`. They also cover `tests/retrieval/`, `tests/storage/`, `tests/summarize/`, `tests/ui/`, and `tests/util/`. The suite adds `tests/manifest.test.js` plus static HTML fixtures in `tests/extractors/fixtures/`.
 

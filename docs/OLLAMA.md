@@ -39,7 +39,7 @@ ollama pull llama3.1:8b
 
 Apogee connects to Ollama with no extra settings:
 
-- **Header Stripping Rule**: Apogee removes the `Origin` header from its own requests sent to `127.0.0.1`, `localhost`, and the IPv6 loopback `[::1]`. If your browser supports rules for temporary connections, setup runs on its own. This protects other websites and local services. The same rule works with llama.cpp.
+- **Header Stripping Rule**: Apogee removes the `Origin` header from its own requests sent to `127.0.0.1`, `localhost`, and the IPv6 loopback `[::1]`. A runtime session rule scopes this to Apogee's own non-tab requests with no broad static fallback, protecting websites and other local services. The same rule works with llama.cpp.
 
 - **Zero OLLAMA_ORIGINS Setup**: Requests carry no `Origin` header, so Ollama needs no `OLLAMA_ORIGINS="*"` environment variable.
 

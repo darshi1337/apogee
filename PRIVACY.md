@@ -76,11 +76,11 @@ Pasted, selected, or plain-text input caps at 100,000 characters. A note tells y
 
 ## Local Ollama Connection Architecture
 
-To reach Ollama, Apogee strips the `Origin` header from loopback requests. It targets `localhost`, `127.0.0.1`, and the IPv6 loopback `[::1]` with a `declarativeNetRequest` rule. The rule stays scoped to those loopback hosts. Ollama then accepts them with no `OLLAMA_ORIGINS` env var setup. Where the browser supports session-scoped rules, the rule applies at runtime to requests from no tab at all.
+To reach Ollama, Apogee strips the `Origin` header from its own loopback requests. It registers a session-scoped `declarativeNetRequest` rule at runtime targeting `localhost`, `127.0.0.1`, and the IPv6 loopback `[::1]`. The rule matches only requests initiated by Apogee itself from no tab at all (`TAB_ID_NONE`), with loopback initiators excluded. Ollama then accepts them with no `OLLAMA_ORIGINS` env var setup.
 
-Those are the background fetches of the extension itself. A page you have open from a local dev server keeps its `Origin` header. The CSRF guards of your other local services stay intact. The bundled static rule stays as a fallback for runtimes without session-rule support.
+Website pages, website service workers, and pages open from a local dev server always keep their `Origin` header. The CSRF guards of your other local services stay intact. Apogee ships no broad static fallback rule.
 
-It also leaves out `localhost`, `127.0.0.1`, and `[::1]` as initiators. This is a local on-device request path, not a data path to any third party. Ollama itself binds to `127.0.0.1` by default. No host on your network reaches it.
+This is a local on-device request path, not a data path to any third party. Ollama itself binds to `127.0.0.1` by default. No host on your network reaches it.
 
 ## Telemetry and Analytics Policy
 
@@ -138,9 +138,9 @@ Apogee asks for a tight set of browser permissions to enforce security sandboxes
 
 - **`alarms`**: It schedules the housekeeping timers. They close the idle in-browser model and clean up finished request buffers. These timers live on when the background worker pauses between uses. No user data takes part.
 
-- **`declarativeNetRequestWithHostAccess`**: It backs the rule that strips the `Origin` header from loopback Ollama requests. Where session-scoped rules exist, the rule applies at runtime to requests from no tab. Those are the background fetches of the extension itself.
+- **`declarativeNetRequestWithHostAccess`**: It backs the runtime session rule that strips the `Origin` header from Apogee's own loopback Ollama and llama.cpp requests (`127.0.0.1`, `localhost`, `[::1]`). The rule is scoped to Apogee's own extension initiator domain and non-tab requests (`TAB_ID_NONE`), with no static fallback.
 
-  Site pages keep their `Origin` headers. The bundled static rule stays as a fallback, scoped to the loopback hosts (`127.0.0.1`, `localhost`, `[::1]`) with loopback initiators left out. It rewrites headers only on hosts the extension already reaches.
+  Website pages, website workers, and local dev servers keep their `Origin` headers. It rewrites headers only on hosts the extension already reaches.
 
 - **Host & Optional Host Permissions**: Apogee holds standing host access to all sites (`*://*/*`) plus local loopback hosts (`http://127.0.0.1/*`, `http://localhost/*`, and `http://[::1]/*`) for your local Ollama instance. Page text is still read only when you ask for a summary. Site-specific cross-origin domains (such as `*.bilibili.com`, `*.hdslb.com`, `*.youtube.com`, `*.googlevideo.com`, `*.bsky.app` (which covers the `public.api.bsky.app` thread endpoint), and `sponsor.ajay.app`) need listing. They stay listed as `optional_host_permissions` in `manifest.json`. Apogee checks or asks for them on demand when features needing those surfaces run. Where the browser has no permissions API, these gates stay denied instead of failing open.
 

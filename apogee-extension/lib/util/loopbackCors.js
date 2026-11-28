@@ -1,20 +1,14 @@
-// Scoping for the loopback Origin-strip rule (see rules/ollama-cors.json).
-// A static declarativeNetRequest rule cannot express "only the extension's own
-// requests": initiatorDomains would need the install-specific extension id, and
-// the tabIds condition is only supported for session-scoped rules. The bundled
-// static rule therefore stays broad (loopback request hosts, loopback
-// initiators excluded) as a fallback for runtimes without session-rule
-// support, while this module registers an equivalent rule scoped to requests
-// that originate from no tab at all (chrome.tabs.TAB_ID_NONE). Extension
-// background, offscreen, and popup fetches to Ollama/llama.cpp carry no tab
-// id, but every website fetch does, so site pages keep their Origin header and
-// the CSRF defenses of other local services stay intact.
+// Runtime session-rule scoping for loopback Origin stripping.
+// Every supported browser (Chrome 116+, Firefox 140+) supports session-scoped
+// declarativeNetRequest rules, so we do not ship a broad static fallback rule.
+// Scoping the session rule to both this extension's own initiator domain and
+// TAB_ID_NONE guarantees website requests (including website service workers
+// and local dev servers) keep their Origin header and local CSRF defenses stay
+// intact.
 
 import { withTimeout } from "./withTimeout.js";
 
-export const LOOPBACK_CORS_STATIC_RULE_ID = 1;
-
-const LOOPBACK_CORS_SESSION_RULE_ID = 1;
+export const LOOPBACK_CORS_SESSION_RULE_ID = 1;
 
 // TAB_ID_NONE literal so the builder works without the tabs permission.
 export const TAB_ID_NONE = -1;
@@ -24,7 +18,53 @@ export const TAB_ID_NONE = -1;
 // a bare ::1 domain at load.
 export const LOOPBACK_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
 
-export function buildLoopbackCorsSessionRule() {
+// Resolve this extension's own initiator domain for declarativeNetRequest
+// initiatorDomains. Using runtime.getURL("") handles both Chromium
+// (chrome-extension://<id>/) and Firefox (moz-extension://<uuid>/), whereas
+// Firefox sets runtime.id to the add-on ID ("apogee@darshi.dev") rather than
+// the moz-extension:// UUID host.
+export function getExtensionInitiatorDomain() {
+  if (typeof chrome === "undefined" || !chrome.runtime) return null;
+  if (typeof chrome.runtime.getURL === "function") {
+    try {
+      const hostname = new URL(
+        chrome.runtime.getURL(""),
+      ).hostname.toLowerCase();
+      if (hostname && !LOOPBACK_HOSTS.includes(hostname)) return hostname;
+    } catch {
+      // Fall through to runtime.id when getURL is a non-URL test stub.
+    }
+  }
+  const id =
+    typeof chrome.runtime.id === "string"
+      ? chrome.runtime.id.trim().toLowerCase()
+      : "";
+  if (
+    id &&
+    /^[a-z0-9-]+(\.[a-z0-9-]+)*$/.test(id) &&
+    !LOOPBACK_HOSTS.includes(id)
+  ) {
+    return id;
+  }
+  return null;
+}
+
+export function buildLoopbackCorsSessionRule(
+  initiatorDomain = getExtensionInitiatorDomain(),
+) {
+  const domain =
+    typeof initiatorDomain === "string"
+      ? initiatorDomain.trim().toLowerCase()
+      : "";
+  if (
+    !domain ||
+    !/^[a-z0-9-]+(\.[a-z0-9-]+)*$/.test(domain) ||
+    LOOPBACK_HOSTS.includes(domain)
+  ) {
+    throw new Error(
+      "Extension initiator domain is required for loopback CORS session rule",
+    );
+  }
   return {
     id: LOOPBACK_CORS_SESSION_RULE_ID,
     priority: 1,
@@ -34,6 +74,7 @@ export function buildLoopbackCorsSessionRule() {
     },
     condition: {
       requestDomains: [...LOOPBACK_HOSTS],
+      initiatorDomains: [domain],
       excludedInitiatorDomains: [...LOOPBACK_HOSTS],
       resourceTypes: ["xmlhttprequest"],
       tabIds: [TAB_ID_NONE],
@@ -43,32 +84,25 @@ export function buildLoopbackCorsSessionRule() {
 
 let ensurePromise = null;
 
-// Register the non-tab-scoped Origin-strip session rule and, where the
-// platform allows it, disable the broad static fallback. Cached, so repeat
-// loopback calls pay a resolved promise. Resolves to "session" when the
-// scoped rule is active, "static-fallback" when only the bundled rule applies,
-// and "unsupported" when declarativeNetRequest is unavailable (unit tests).
-// Never rejects.
+// Register the extension-scoped, non-tab Origin-strip session rule. Cached, so
+// repeat loopback calls pay a resolved promise. Resolves to "session" when the
+// scoped rule is active, "unavailable" when updateSessionRules fails, and
+// "unsupported" when declarativeNetRequest or extension identity is absent
+// (unit tests). Fails closed with no broad static fallback. Never rejects.
 export function ensureLoopbackCorsRule() {
   if (ensurePromise) return ensurePromise;
   ensurePromise = (async () => {
     const dnr =
       typeof chrome !== "undefined" ? chrome.declarativeNetRequest : null;
-    if (!dnr?.updateSessionRules) return "unsupported";
+    const initiatorDomain = getExtensionInitiatorDomain();
+    if (!dnr?.updateSessionRules || !initiatorDomain) return "unsupported";
     try {
       await dnr.updateSessionRules({
         removeRuleIds: [LOOPBACK_CORS_SESSION_RULE_ID],
-        addRules: [buildLoopbackCorsSessionRule()],
+        addRules: [buildLoopbackCorsSessionRule(initiatorDomain)],
       });
     } catch {
-      return "static-fallback";
-    }
-    try {
-      await dnr.updateStaticRules?.({
-        disableRuleIds: [LOOPBACK_CORS_STATIC_RULE_ID],
-      });
-    } catch {
-      // Keep the broad static rule enabled as the fallback.
+      return "unavailable";
     }
     return "session";
   })();
@@ -81,9 +115,8 @@ export function resetLoopbackCorsRuleForTests() {
 
 // Same registration as ensureLoopbackCorsRule, but never blocks the first
 // loopback request behind it: if the declarativeNetRequest handshake hangs
-// (slow runtime, first-call jank), the fetch goes out after `timeoutMs` under
-// the bundled static fallback rule instead of looking like a connection
-// failure. Never rejects.
+// (slow runtime, first-call jank), the fetch proceeds after `timeoutMs`
+// instead of stalling indefinitely. Never rejects.
 export function ensureLoopbackCorsRuleSoon(timeoutMs = 750) {
   return withTimeout(ensureLoopbackCorsRule(), timeoutMs, {
     onTimeout: () => "timeout",

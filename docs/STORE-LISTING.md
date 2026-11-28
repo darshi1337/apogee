@@ -153,9 +153,9 @@ unlimitedStorage stops the browser default storage quota from dropping these cac
 
 **alarms** It gives stable background timing under Manifest V3. The service worker ends when idle. Apogee schedules alarms to clean up finished summary streams. It closes the idle offscreen AI document after a timeout. Plain timers would not live through worker pauses.
 
-**declarativeNetRequestWithHostAccess** Apogee strips the `Origin` header from requests to the user own Ollama server on `127.0.0.1`/`localhost`/`[::1]`. Ollama accepts them without hand-set `OLLAMA_ORIGINS`. Where the browser supports session-scoped rules, the rule applies at runtime to requests from no tab. Those are the background fetches of the extension itself. No request on any website changes.
+**declarativeNetRequestWithHostAccess** Apogee strips the `Origin` header from its own requests to the user's local Ollama or llama.cpp server on `127.0.0.1`/`localhost`/`[::1]`. Ollama accepts them without hand-set `OLLAMA_ORIGINS`. A runtime session-scoped rule matches only requests initiated by Apogee itself from no tab (`TAB_ID_NONE`). No request from any website changes.
 
-A bundled static rule scoped to those loopback hosts stays as a fallback. The rule changes nothing else. It blocks nothing else. It redirects nothing else.
+Apogee ships no broad static fallback rule. The rule changes nothing else. It blocks nothing else. It redirects nothing else.
 
 **contextMenus** It adds a right-click "Summarize this page" menu item. Users start summarization straight without opening the popup.
 
