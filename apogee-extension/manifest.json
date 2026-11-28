@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Apogee – Local AI Page Summarizer",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Summarize pages and ask follow-up questions. In-browser AI needs no API key. Optional remote AI requires your own API key.",
   "minimum_chrome_version": "116",
   "default_locale": "en",
@@ -53,7 +53,9 @@
   },
   "background": {
     "service_worker": "background/service-worker.js",
-    "scripts": ["background/service-worker.js"],
+    "scripts": [
+      "background/service-worker.js"
+    ],
     "type": "module"
   },
   "icons": {
@@ -74,8 +76,15 @@
       "id": "apogee@darshi.dev",
       "strict_min_version": "140.0",
       "data_collection_permissions": {
-        "required": ["none"],
-        "optional": ["authenticationInfo", "websiteContent", "browsingActivity", "personalCommunications"]
+        "required": [
+          "none"
+        ],
+        "optional": [
+          "authenticationInfo",
+          "websiteContent",
+          "browsingActivity",
+          "personalCommunications"
+        ]
       }
     },
     "gecko_android": {
