@@ -59,6 +59,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Slow live summary redraws as output grows (#693) ([4841e5f](https://github.com/darshi1337/apogee/commit/4841e5f48fcbcf9d588fc11dbcfc49cbed5c56e5))
 
+### Security
+
+- Scope loopback Origin-strip rule to extension requests (#726) (#742) ([63e4e0c](https://github.com/darshi1337/apogee/commit/63e4e0cc73324225a1a47f86b16f406497b223f8))
+
 ## [0.2.5](https://github.com/darshi1337/apogee/compare/v0.2.4...v0.2.5) (2026-10-28)
 
 
