@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>404 &mdash; Page not found | apogee</title>
+    <meta
+      name="description"
+      content="The page you were looking for does not exist. Return to the apogee homepage or browse the documentation."
+    />
+    <meta name="robots" content="noindex" />
+    <base href="./" />
+    <script>
+      (function () {
+        // GitHub Pages serves this file for missing paths under /apogee/,
+        // while a custom domain serves it from the site root. The relative
+        // default keeps direct visits working without JavaScript; this
+        // upgrade covers 404s served at arbitrary nested paths.
+        if (location.protocol === "http:" || location.protocol === "https:") {
+          document
+            .querySelector("base")
+            .setAttribute(
+              "href",
+              /\.github\.io$/i.test(location.hostname) ? "/apogee/" : "/",
+            );
+        }
+      })();
+    </script>
+    <link rel="icon" href="assets/orb.png" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <a class="skip" href="#content">Skip to content</a>
+    <main id="top" class="frame">
+      <div class="rules" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+      <header class="nav">
+        <div class="wrap nav-inner">
+          <a class="brand" href="index.html">
+            <img src="assets/orb.png" alt="" />
+            apogee
+          </a>
+          <nav class="nav-links" aria-label="Primary">
+            <a href="index.html#why">Why apogee</a>
+            <a href="index.html#features">Features</a>
+            <a href="docs/index.html">Docs</a>
+            <a href="changelog.html">Changelog</a>
+            <a
+              href="https://github.com/darshi1337/apogee"
+              target="_blank"
+              rel="noopener"
+              >GitHub</a
+            >
+          </nav>
+        </div>
+      </header>
+
+      <section class="notfound" id="content">
+        <div class="wrap notfound-grid">
+          <div class="notfound-code" aria-hidden="true">404</div>
+          <div class="notfound-copy">
+            <p class="eyebrow">Page not found</p>
+            <h1>404 &mdash; Page not found</h1>
+            <p class="lead">
+              That page isn&rsquo;t here. It may have moved, or the link may be
+              out of date. The homepage and the docs are still a click away.
+            </p>
+            <div class="page-actions">
+              <a class="btn btn-fill" href="index.html">
+                Back to home
+                <span class="arw" aria-hidden="true">&#8594;</span>
+              </a>
+              <a class="btn btn-out" href="docs/index.html">
+                Browse docs
+                <span class="arw" aria-hidden="true">&#8594;</span>
+              </a>
+            </div>
+            <p class="page-note">
+              Looking for release notes?
+              <a href="changelog.html">Read the changelog</a>.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot-grid">
+        <div class="fcol">
+          <h3>Install</h3>
+          <a
+            href="https://addons.mozilla.org/en-US/firefox/addon/apogeeext/"
+            target="_blank"
+            rel="noopener"
+            >Firefox Add-ons</a
+          >
+          <a
+            href="https://chromewebstore.google.com/detail/apogee/pgemlpomhkdcjjjcpnjlebalnfglomog"
+            target="_blank"
+            rel="noopener"
+            >Chrome Web Store</a
+          >
+        </div>
+        <div class="fcol">
+          <h3>Learn</h3>
+          <a href="index.html#why">Why apogee</a>
+          <a href="index.html#features">Features</a>
+          <a href="docs/index.html">Docs</a>
+          <a href="changelog.html">Changelog</a>
+        </div>
+        <div class="fcol">
+          <h3>Source</h3>
+          <a
+            href="https://github.com/darshi1337/apogee"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+          >
+          <a
+            href="https://github.com/darshi1337/apogee/blob/main/PRIVACY.md"
+            target="_blank"
+            rel="noopener"
+            >Privacy notice</a
+          >
+          <a
+            href="https://github.com/darshi1337/apogee/blob/main/CONTRIBUTING.md"
+            target="_blank"
+            rel="noopener"
+            >Contributing</a
+          >
+          <a
+            href="https://github.com/darshi1337/apogee/blob/main/LICENSE"
+            target="_blank"
+            rel="noopener"
+            >MIT License</a
+          >
+        </div>
+        <div class="fcol">
+          <h3>Social</h3>
+          <div class="fsocial">
+            <a
+              href="https://github.com/darshi1337/apogee"
+              target="_blank"
+              rel="noopener"
+              aria-label="apogee on GitHub"
+            >
+              <span class="ico ico-github" aria-hidden="true"></span>
+            </a>
+            <a
+              href="https://www.linkedin.com/in/priyadarshi-annupam-379528258/"
+              target="_blank"
+              rel="noopener"
+              aria-label="Priyadarshi Annupam on LinkedIn"
+            >
+              <span class="ico ico-linkedin" aria-hidden="true"></span>
+            </a>
+            <a
+              href="https://x.com/darshi1337"
+              target="_blank"
+              rel="noopener"
+              aria-label="darshi1337 on X"
+            >
+              <span class="ico ico-x" aria-hidden="true"></span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="wrap foot-legal">
+        <p>
+          apogee is an offline-first, privacy-respecting AI summarizer. Built in
+          the open, released under the MIT License.
+        </p>
+        <p>This page sets no cookies and loads no analytics.</p>
+      </div>
+
+      <div class="wrap foot-mark" aria-hidden="true">apogee</div>
+    </footer>
+    <noscript
+      ><style>
+        .reveal,
+        [data-split] .w {
+          opacity: 1;
+          transform: none;
+        }
+      </style></noscript
+    >
+    <script src="app.js" defer></script>
+  </body>
+</html>
