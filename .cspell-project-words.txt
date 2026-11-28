@@ -75,3 +75,6 @@ winget
 wordmark
 xcpc
 zizmor
+HARPA
+Kagi
+Mixtral
