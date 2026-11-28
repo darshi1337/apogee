@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Documentation | apogee</title>
+    <meta
+      name="description"
+      content="Guides for installing apogee, running local models, troubleshooting, privacy, architecture, and contributing."
+    />
+    <link rel="icon" href="../assets/orb.png" />
+    <link rel="stylesheet" href="../style.css" />
+  </head>
+  <body>
+    <a class="skip" href="#content">Skip to content</a>
+    <main id="top" class="frame">
+      <div class="rules" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+      <header class="nav">
+        <div class="wrap nav-inner">
+          <a class="brand" href="../index.html">
+            <img src="../assets/orb.png" alt="" />
+            apogee
+          </a>
+          <nav class="nav-links" aria-label="Primary">
+            <a href="../index.html#why">Why apogee</a>
+            <a href="../index.html#features">Features</a>
+            <a href="index.html" aria-current="page">Docs</a>
+            <a href="../changelog.html">Changelog</a>
+            <a
+              href="https://github.com/darshi1337/apogee"
+              target="_blank"
+              rel="noopener"
+              >GitHub</a
+            >
+          </nav>
+        </div>
+      </header>
+
+      <section class="page-head" id="content">
+        <div class="wrap page-head-grid">
+          <div class="page-head-main">
+            <p class="eyebrow">Documentation</p>
+            <h1>Docs</h1>
+          </div>
+          <div class="page-head-side">
+            <p class="lead">
+              Everything you need to install apogee, run a model on your own
+              machine, and understand how it works.
+            </p>
+            <p class="page-note">
+              Guides live in the repository and open on GitHub. Start with the
+              overview, then pick the path that matches your setup.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-section">
+        <div class="wrap">
+          <div class="doc-section-head">
+            <h2>Start here</h2>
+            <p>
+              New to apogee? These pages cover installation, browser support,
+              the privacy model, and where to get help.
+            </p>
+          </div>
+          <div class="doc-grid doc-grid--four">
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/README.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Overview</span>
+              <h3>README</h3>
+              <p>
+                What apogee does, how to install it, and the quickest path to a
+                first summary.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/docs/BROWSERS.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Compatibility</span>
+              <h3>Browser support</h3>
+              <p>
+                Feature and engine support for Chrome, Edge, Firefox, and
+                Firefox for Android.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/PRIVACY.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Privacy</span>
+              <h3>Privacy notice</h3>
+              <p>
+                What stays on your device, which requests apogee makes, and what
+                opt-in remote generation sends.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/SUPPORT.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Help</span>
+              <h3>Support</h3>
+              <p>
+                Where to ask setup questions, report a bug, or request a
+                feature.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-section">
+        <div class="wrap">
+          <div class="doc-section-head">
+            <h2>Models &amp; languages</h2>
+            <p>
+              Compare the four local engines, connect your own Ollama or
+              llama.cpp server, and choose how summaries are translated.
+            </p>
+          </div>
+          <div class="doc-grid doc-grid--four">
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/docs/MODELS.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Reference</span>
+              <h3>Model reference</h3>
+              <p>
+                Compare WebLLM, Transformers.js, Ollama, and llama.cpp by
+                runtime, hardware, and model size.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/docs/OLLAMA.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Setup</span>
+              <h3>Local Ollama</h3>
+              <p>
+                Install Ollama, pull a model, and connect apogee over loopback
+                at 127.0.0.1:11434.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/docs/LLAMACPP.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Setup</span>
+              <h3>Local llama.cpp</h3>
+              <p>
+                Run llama-server yourself, pick a GGUF, and point apogee at the
+                local endpoint.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/docs/TRANSLATION.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Reference</span>
+              <h3>Translation</h3>
+              <p>
+                How output languages, Opus-MT, and fallback translation engines
+                work.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-section">
+        <div class="wrap">
+          <div class="doc-section-head">
+            <h2>Troubleshooting</h2>
+            <p>
+              Start with the symptom, then look up the exact popup message if
+              you need the next step.
+            </p>
+          </div>
+          <div class="doc-grid doc-grid--two">
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/docs/TROUBLESHOOTING.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Help</span>
+              <h3>Troubleshooting</h3>
+              <p>
+                Fixes for WebGPU, model downloads, extraction, and other common
+                symptoms.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/docs/ERROR.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Reference</span>
+              <h3>Error messages</h3>
+              <p>
+                A message-by-message guide to popup failures and what to do
+                next.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-section">
+        <div class="wrap">
+          <div class="doc-section-head">
+            <h2>Project &amp; contributing</h2>
+            <p>
+              Learn how the extension is put together, set up a development
+              environment, and find a way to help.
+            </p>
+          </div>
+          <div class="doc-grid doc-grid--six">
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/docs/ARCHITECTURE.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Architecture</span>
+              <h3>Architecture</h3>
+              <p>
+                How the popup, worker, offscreen document, and retrieval
+                pipeline fit together.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/docs/DEVELOPMENT.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Setup</span>
+              <h3>Development</h3>
+              <p>
+                Set up Node, install dependencies, run tests, and work in each
+                part of the repo.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/CONTRIBUTING.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Contribute</span>
+              <h3>Contributing</h3>
+              <p>
+                Labels, review expectations, and the path from a first issue to
+                a merged pull request.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/CODE_OF_CONDUCT.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Community</span>
+              <h3>Code of conduct</h3>
+              <p>
+                The Contributor Covenant rules that apply to everyone in the
+                project.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/SECURITY.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Security</span>
+              <h3>Security policy</h3>
+              <p>
+                How to report a vulnerability privately and what counts as a
+                security issue.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/docs/ROADMAP.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Roadmap</span>
+              <h3>Roadmap</h3>
+              <p>
+                What the project is working on now, what comes next, and the
+                longer-term direction.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-section">
+        <div class="wrap">
+          <div class="doc-section-head">
+            <h2>Maintaining apogee</h2>
+            <p>
+              Release and store references for maintainers. These are
+              operational notes, not end-user guides.
+            </p>
+          </div>
+          <div class="doc-grid doc-grid--two">
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/docs/RELEASE.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Maintainers</span>
+              <h3>Release process</h3>
+              <p>
+                How release candidates, Release Please, and store submissions
+                fit together.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+            <a
+              class="doc-card"
+              href="https://github.com/darshi1337/apogee/blob/main/docs/STORE-LISTING.md"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="doc-card-kicker">Maintainers</span>
+              <h3>Store listing</h3>
+              <p>
+                The version-controlled Chrome Web Store copy and submission
+                checklist.
+              </p>
+              <span class="doc-card-meta">Open on GitHub &#8599;</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-section doc-callout">
+        <div class="wrap doc-callout-inner">
+          <div>
+            <p class="eyebrow">Release history</p>
+            <h2>Changelog</h2>
+            <p>
+              Every tagged release, newest first, with version numbers, dates,
+              and changes preserved from the repository.
+            </p>
+          </div>
+          <a class="btn btn-fill" href="../changelog.html">
+            Read the changelog
+            <span class="arw" aria-hidden="true">&#8594;</span>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot-grid">
+        <div class="fcol">
+          <h3>Install</h3>
+          <a
+            href="https://addons.mozilla.org/en-US/firefox/addon/apogeeext/"
+            target="_blank"
+            rel="noopener"
+            >Firefox Add-ons</a
+          >
+          <a
+            href="https://chromewebstore.google.com/detail/apogee/pgemlpomhkdcjjjcpnjlebalnfglomog"
+            target="_blank"
+            rel="noopener"
+            >Chrome Web Store</a
+          >
+        </div>
+        <div class="fcol">
+          <h3>Learn</h3>
+          <a href="../index.html#why">Why apogee</a>
+          <a href="../index.html#features">Features</a>
+          <a href="index.html">Docs</a>
+          <a href="../changelog.html">Changelog</a>
+        </div>
+        <div class="fcol">
+          <h3>Source</h3>
+          <a
+            href="https://github.com/darshi1337/apogee"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+          >
+          <a
+            href="https://github.com/darshi1337/apogee/blob/main/PRIVACY.md"
+            target="_blank"
+            rel="noopener"
+            >Privacy notice</a
+          >
+          <a
+            href="https://github.com/darshi1337/apogee/blob/main/CONTRIBUTING.md"
+            target="_blank"
+            rel="noopener"
+            >Contributing</a
+          >
+          <a
+            href="https://github.com/darshi1337/apogee/blob/main/LICENSE"
+            target="_blank"
+            rel="noopener"
+            >MIT License</a
+          >
+        </div>
+        <div class="fcol">
+          <h3>Social</h3>
+          <div class="fsocial">
+            <a
+              href="https://github.com/darshi1337/apogee"
+              target="_blank"
+              rel="noopener"
+              aria-label="apogee on GitHub"
+            >
+              <span class="ico ico-github" aria-hidden="true"></span>
+            </a>
+            <a
+              href="https://www.linkedin.com/in/priyadarshi-annupam-379528258/"
+              target="_blank"
+              rel="noopener"
+              aria-label="Priyadarshi Annupam on LinkedIn"
+            >
+              <span class="ico ico-linkedin" aria-hidden="true"></span>
+            </a>
+            <a
+              href="https://x.com/darshi1337"
+              target="_blank"
+              rel="noopener"
+              aria-label="darshi1337 on X"
+            >
+              <span class="ico ico-x" aria-hidden="true"></span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="wrap foot-legal">
+        <p>
+          apogee is an offline-first, privacy-respecting AI summarizer. Built in
+          the open, released under the MIT License.
+        </p>
+        <p>This page sets no cookies and loads no analytics.</p>
+      </div>
+
+      <div class="wrap foot-mark" aria-hidden="true">apogee</div>
+    </footer>
+    <noscript
+      ><style>
+        .reveal,
+        [data-split] .w {
+          opacity: 1;
+          transform: none;
+        }
+      </style></noscript
+    >
+    <script src="../app.js" defer></script>
+  </body>
+</html>

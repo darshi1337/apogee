@@ -53,6 +53,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Cache past summary search inputs and scope embeddings (#731) ([a5bd03c](https://github.com/darshi1337/apogee/commit/a5bd03c28af19169548fb27347dfec91d7949cab))
 - Move keyboard focus on extension view changes (#721) (#734) ([13779e6](https://github.com/darshi1337/apogee/commit/13779e633a847107db9d35d19ff13a15af697cfa))
 - Bump ossf/scorecard-action (#738) ([67c283b](https://github.com/darshi1337/apogee/commit/67c283b7738a35436db57126de04e0ed8c7cbe33))
+- Bump addons-linter (#741) ([5b43435](https://github.com/darshi1337/apogee/commit/5b4343570e5d301488447cfc50f173600a57e6d7))
 
 ### Changed
 
