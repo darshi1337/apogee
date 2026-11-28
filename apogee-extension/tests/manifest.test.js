@@ -11,6 +11,78 @@ const manifestDir = dirname(manifestFile);
 const manifestRaw = readFileSync(manifestFile, "utf8");
 const manifest = JSON.parse(manifestRaw);
 
+test("store listing compares 3 to 5 named alternatives with sources and check dates (#672)", () => {
+  const listing = readFileSync(
+    new URL("../../docs/STORE-LISTING.md", import.meta.url),
+    "utf8",
+  );
+  const section = listing.match(
+    /^## Alternative comparison[ \t]*\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/m,
+  );
+  assert.ok(
+    section,
+    "Store listing must have an Alternative comparison section",
+  );
+  const tableLines = section[1]
+    .split(/\r?\n/)
+    .filter((line) => line.trim().startsWith("|"));
+  assert.ok(
+    tableLines.length >= 6,
+    "Comparison table must include header, divider, Apogee, and 3 to 5 alternatives",
+  );
+  const headerCells = tableLines[0]
+    .split("|")
+    .slice(1, -1)
+    .map((cell) => cell.trim());
+  assert.deepStrictEqual(headerCells, [
+    "Product",
+    "Data path",
+    "Engine",
+    "Account or key",
+    "Price",
+  ]);
+  const dataRows = tableLines.slice(2);
+  const competitorRows = dataRows.filter(
+    (row) => !/^\|\s*\*\*Apogee\*\*\s*\|/i.test(row),
+  );
+  assert.ok(
+    competitorRows.length >= 3 && competitorRows.length <= 5,
+    `Expected 3 to 5 named alternatives, found ${competitorRows.length}`,
+  );
+  for (const row of competitorRows) {
+    const cells = row
+      .split("|")
+      .slice(1, -1)
+      .map((cell) => cell.trim());
+    assert.strictEqual(cells.length, 5, `Row must have 5 columns: ${row}`);
+    for (const claimCell of cells.slice(1)) {
+      assert.match(
+        claimCell,
+        /\[[^\]]+\]\(https:\/\/[^)]+\)/,
+        `Competitor claim must link to a source: ${claimCell}`,
+      );
+      assert.match(
+        claimCell,
+        /checked \d{4}-\d{2}-\d{2}/,
+        `Competitor claim must carry a check date: ${claimCell}`,
+      );
+    }
+  }
+  const description = listing.match(
+    /^### Description[ \t]*\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/m,
+  );
+  assert.ok(description, "Store listing must have a Description section");
+  assert.match(
+    description[1],
+    /^HOW APOGEE COMPARES$/m,
+    "Store description must include a short comparison block",
+  );
+  assert.ok(
+    description[1].length <= 10000,
+    `Store description is ${description[1].length} characters (max 10,000 for Edge)`,
+  );
+});
+
 test("store listing documents Edge submission and assets (#645)", () => {
   const listing = readFileSync(
     new URL("../../docs/STORE-LISTING.md", import.meta.url),

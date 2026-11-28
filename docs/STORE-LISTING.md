@@ -115,6 +115,16 @@ Fast ways to summarize without opening the popup:
 
 A system note tells you when the summary is ready.
 
+HOW APOGEE COMPARES
+
+- Data path: Local by default on your device or loopback server. Cloud summarizers route page text through vendor or model-provider servers; Apogee sends text off-device only when you opt in to OpenRouter or OpenCode.
+
+- Engine: Runs built-in WebGPU or WebAssembly models directly in Chrome, Edge, or Firefox, and also connects to local Ollama or llama.cpp. Local-server extensions connect to a separate local server; built-in browser assistants stay tied to one browser.
+
+- Account or key: No account or API key for in-browser models. Local llama.cpp servers may use a local key, and optional remote providers use your own API key.
+
+- Price: Free and open source (MIT). Paid cloud plans or API credits apply only if you opt in to a paid remote provider.
+
 REQUIREMENTS
 
 - For Chromium builds, use Chrome or Edge 116+ (or another browser based on Chromium 116+).
@@ -126,6 +136,22 @@ REQUIREMENTS
 OPEN SOURCE
 
 Apogee is free and open source (MIT licensed). Source, issues, and releases: https://github.com/darshi1337/apogee
+
+## Alternative comparison
+
+Factual comparison of Apogee with four current browser summarization alternatives across the points buyers check: where page text goes, which engines run, account or key requirements, and price.
+
+| Product | Data path | Engine | Account or key | Price |
+| --- | --- | --- | --- | --- |
+| **Apogee** | On device for in-browser and loopback (`127.0.0.1`, `localhost`, `[::1]`) generation; optional opt-in remote generation sends input to OpenRouter or OpenCode. | Built-in WebGPU (WebLLM) and WebAssembly (Transformers.js), local Ollama or llama.cpp, plus opt-in OpenRouter or OpenCode. | No account or key for in-browser models; optional local llama.cpp key; own provider key for opt-in remote generation. | Free, open source (MIT); optional remote providers use your own plan or credits. |
+| **Page Assist** | Local browser to your own Ollama or OpenAI-compatible server; no Page Assist servers ([Privacy](https://docs.pageassist.xyz/privacy.html), checked 2026-11-28). | Local Ollama, LM Studio, or OpenAI-compatible local or remote APIs ([GitHub](https://github.com/n4ze3m/page-assist), [Docs](https://docs.pageassist.xyz/), checked 2026-11-28). | No Page Assist account; API key only when using a keyed OpenAI-compatible endpoint ([Docs](https://docs.pageassist.xyz/), checked 2026-11-28). | Free, open source (MIT) ([GitHub](https://github.com/n4ze3m/page-assist), checked 2026-11-28). |
+| **HARPA AI** | Stays in the browser until prompted; prompts go to HARPA cloud servers (not stored) or directly to your own AI login or API provider ([Privacy](https://harpa.ai/privacy), checked 2026-11-28). | HARPA cloud models (GPT, Claude, Gemini, Grok, Perplexity, DeepSeek), web AI logins, or own API keys ([Pricing](https://harpa.ai/pricing), [Privacy](https://harpa.ai/privacy), checked 2026-11-28). | Free tier uses your own ChatGPT, Claude, or Gemini login or API key; paid plans use a HARPA account ([Pricing](https://harpa.ai/pricing), checked 2026-11-28). | Free tier with usage limits; paid Pro, Teams, and X Lifetime plans ([Pricing](https://harpa.ai/pricing), checked 2026-11-28). |
+| **Kagi Summarize** | Sends URL or text to Kagi servers; requests are not saved to a customer account or used for training ([Privacy](https://kagi.com/privacy), checked 2026-11-28). | Kagi hosted models (Cecil, Agnes, Muriel) via browser extension, web app, or API ([Docs](https://help.kagi.com/kagi/summarizer/), checked 2026-11-28). | Kagi account for extension and web app; API token for API access ([Docs](https://help.kagi.com/kagi/summarizer/), [API](https://help.kagi.com/kagi/api/summarizer.html), checked 2026-11-28). | Free 100-search trial, then paid membership (Starter $5/mo, Professional $10/mo, Ultimate $25/mo) or prepaid API credits ([Pricing](https://kagi.com/pricing), [API](https://help.kagi.com/kagi/api/summarizer.html), checked 2026-11-28). |
+| **Brave Leo** | Sends prompt and page context to Brave Leo servers (not retained or used for training), or to your own model via Bring Your Own Model ([Overview](https://brave.com/leo/), [Privacy](https://brave.com/privacy/browser/), checked 2026-11-28). | Built into Brave browser; Brave-hosted models (Claude, Llama, Mixtral) plus Bring Your Own Model for local or remote endpoints ([Overview](https://brave.com/leo/), checked 2026-11-28). | No account or login for the free tier; Brave account for Leo Premium; own endpoint or key for Bring Your Own Model ([Overview](https://brave.com/leo/), checked 2026-11-28). | Free tier built into Brave with usage limits; paid Leo Premium subscription ([Overview](https://brave.com/leo/), [Privacy](https://brave.com/privacy/browser/), checked 2026-11-28). |
+
+### Why named alternatives stay out of the store description
+
+The store description above includes a short category-level `HOW APOGEE COMPARES` block instead of named competitor brands. Chrome Web Store [Listing Requirements](https://developer.chrome.com/docs/webstore/program-policies/listing-requirements) flag lists of third-party brands in extension metadata as keyword spam, and plain-text store descriptions cannot render tables or linked check dates to keep third-party plan and pricing claims verifiable over time. Re-verify the rows above against their primary sources before each release.
 
 ## Single purpose description
 
