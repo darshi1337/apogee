@@ -16,6 +16,8 @@ exclude_path = [
   "apogee-extension/.model-libs-cache",
   ".git",
   "CHANGELOG.md",
+  # The website changelog mirrors CHANGELOG.md, including its commit links.
+  "site/changelog.html",
 ]
 
 accept = [200, 201, 202, 203, 204, 206, 301, 302, 303, 307, 308, 403, 429, 503, 999]
